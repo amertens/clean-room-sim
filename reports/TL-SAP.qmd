@@ -1,0 +1,173 @@
+---
+title: "Targeted Learning Statistical Analysis Plan (TL-SAP)"
+subtitle: "Simulation Study: HCV Treatment and Risk of Acute Kidney Injury (AKI)"
+author: "Andrew N. Mertens"
+format: pdf
+---
+
+# 1. Background and Objectives
+
+This TL-SAP specifies the causal estimand, statistical estimand, modeling strategy, diagnostics, and evaluation plan for a simulated real‑world‑data (RWD) safety analysis of the association between sofosbuvir-containing (SOF) vs non‑SOF direct‑acting antiviral (DAA) regimens and acute kidney injury (AKI) in individuals with chronic hepatitis C (HCV).  
+The analysis is designed to emulate a clean‑room staging framework.
+
+The purpose of the simulation is to evaluate how targeted learning—specifically, TMLE with Super Learner—performs relative to standard approaches (e.g., Cox, IPTW, GEE) under realistic data‑generating mechanisms that include measured confounding, informative censoring, and potential treatment switching.
+
+# 2. Causal Roadmap
+
+## 2.1 Causal Question
+
+> *Among adults eligible for HCV DAA treatment, what is the difference in the risk of AKI by time \( t^\* \) if everyone were treated with SOF-containing vs non‑SOF regimens?*
+
+## 2.2 Population (P)
+
+Simulated representation of an HCV RWD cohort, modeled after a U.S. claims‑based standing cohort. Each simulated individual contains:
+
+- Baseline covariates \( W \) (demographics, CKD, diabetes, CHF, medication use, etc.)
+- Treatment regimen \( A_0 \in \{ \text{SOF}, \text{non‑SOF} \} \)
+- Time‑varying censoring and AKI outcomes.
+
+## 2.3 Intervention / Treatment Strategies (I)
+
+Static interventions:
+
+1. **SOF strategy:** Set \( A_0 = 1 \) for all.
+2. **non‑SOF strategy:** Set \( A_0 = 0 \) for all.
+
+## 2.4 Outcome (O)
+
+- \( Y_t = 1 \) if an AKI event occurs by time \( t \); otherwise 0.
+- Final outcome: \( Y_{t^\*} \) at predetermined time points (e.g., 90 days, 180 days).
+
+## 2.5 Intercurrent Events
+
+- Treatment discontinuation and switching
+- Death
+- Loss to follow‑up  
+These appear in the simulated data as censoring nodes \( C_t \).
+
+## 2.6 Causal Estimand (Target Parameter)
+
+Risk difference at time \( t^\* \):
+
+\[
+\psi(t^\*) = \mathbb{E}[Y_{t^\*}^{A=1}] - \mathbb{E}[Y_{t^\*}^{A=0}]
+\]
+
+Optionally: risk ratio.
+
+Assumptions: consistency, conditional exchangeability, positivity, and correct specification of either Q or g (via TMLE double robustness).
+
+# 3. Statistical Estimand
+
+The statistical estimand corresponding to the causal estimand is the contrast between predicted AKI risks at \( t^\* \) under two intervention-specific longitudinal data distributions constructed using the estimated outcome regression \( \hat{Q} \) and treatment/censoring mechanism \( \hat{g} \).
+
+# 4. Data Structure and Nodes
+
+For each individual \( i \) and discrete time \( t = 1, \ldots, T \):
+
+- \( W_i \): baseline covariates
+- \( A_{i0} \): baseline DAA class (SOF vs non‑SOF)
+- \( C_{it} \): censoring indicator at time t
+- \( Y_{it} \): AKI event indicator at time t
+
+The simulation dataset contains a known ground‑truth data‑generating process for benchmarking bias, RMSE, and coverage.
+
+# 5. Estimation Strategy (TMLE)
+
+## 5.1 Overview
+
+We will use longitudinal TMLE for survival/competing‑risk‑style outcomes. Estimation will be performed separately under each intervention.
+
+## 5.2 Initial Outcome Regression \( \hat{Q} \)
+
+Super Learner library (modifiable):
+
+- GLM
+- GAM
+- Random Forest
+- XGBoost
+- HAL (optional)
+- SL.mean as a baseline fallback
+
+Cross‑validated risk: Bernoulli log‑likelihood.
+
+## 5.3 Treatment and Censoring Mechanisms \( \hat{g} \)
+
+- Treatment model: \( P(A_0 \mid W) \)
+- Censoring model: \( P(C_t = 1 \mid \bar{L}_t, A_0, W) \)
+
+SL library similar to Q.
+
+## 5.4 Targeting Step
+
+For each \( t \), update \( \hat{Q} \) using the fluctuation submodel:
+
+\[
+\text{logit}(\hat{Q}^\*) = \text{logit}(\hat Q) + \epsilon H_t
+\]
+
+where \( H_t \) is the clever covariate derived from \( \hat g \).
+
+## 5.5 Truncation and Diagnostics
+
+- Truncate estimated g-values at [0.01, 0.99]
+- Report effective sample size under weights
+- Report positivity violations
+- Influence‑curve based standard errors and 95% CIs
+
+# 6. Simulation Design
+
+## 6.1 DGP Scenarios
+
+At minimum:
+
+1. **Unconfounded scenario** (benchmark)
+2. **Baseline confounding only**
+3. **Time-varying confounding + informative censoring**
+4. **Treatment switching scenario**
+5. **Positivity‑stress scenario** (rare SOF or rare non‑SOF)
+
+## 6.2 Sample Size
+
+- Default: \( n = 50{,}000 \)
+- 500 simulation replicates per scenario
+
+## 6.3 Evaluation Metrics
+
+- Bias: \( \hat{\psi} - \psi_{\text{true}} \)
+- RMSE
+- Empirical SE vs IC-based SE
+- Coverage of 95% CIs
+- TMLE vs IPTW vs unadjusted vs Cox
+
+# 7. Software and Reproducibility
+
+- Implemented in **R**
+- Packages: `ltmle`, `lmtp`, `SuperLearner`, `data.table`, `simcausal`
+- Seed fixed for reproducibility
+- All code, DGP, and results archived
+
+# 8. Reporting
+
+For each scenario:
+
+- Risk curves under SOF and non‑SOF
+- RD/RR at each \( t^\* \)
+- Convergence + diagnostics
+- TMLE vs comparator estimators
+
+# 9. Deviations From Plan
+
+All deviations must be documented, justified, and version-controlled, as in clean‑room decision logs.
+
+# Appendix: Simulation Pseudocode
+
+```{r, eval=F}
+W ~ multivariate normal
+A0 ~ Bernoulli(expit(WβA))
+for t in 1:T:
+    C_t ~ Bernoulli(expit(WβC + A0γC))
+    if C_t == 1 break
+    Y_t ~ Bernoulli(hazard(W, A0))
+```
+

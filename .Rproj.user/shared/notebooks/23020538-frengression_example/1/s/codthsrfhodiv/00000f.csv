@@ -1,0 +1,9 @@
+"0","# Helpful: print Python config
+py_config()
+"
+"2","Error in stop_no_virtualenv_starter(version = version, python = python) : 
+  Suitable Python installation for creating a venv not found.
+Please install Python with one of following methods:
+- https://www.python.org/downloads/
+- reticulate::install_python(version = '<version>')
+"

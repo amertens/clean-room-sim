@@ -1,0 +1,25 @@
+---
+title: "Using the Python 'frengression' package from R"
+format: html
+execute:
+  echo: true
+  warning: true
+  message: true
+---
+
+```{r}
+#| label: setup-r
+#| include: false
+# R-side setup
+library(reticulate)
+
+# Choose a project-specific virtualenv (works on macOS/Linux/Windows with Python installed)
+venv <- "r-frengression"
+if (!virtualenv_exists(venv)) {
+  virtualenv_create(venv)
+}
+use_virtualenv(venv, required = TRUE)
+
+# Helpful: print Python config
+py_config()
+```
