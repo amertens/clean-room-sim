@@ -1,6 +1,0 @@
-[1,"==> quarto preview TL-SAP.qmd --to pdf --no-watch-inputs --no-browse\n\n"]
-[1,"pandoc \n  to: latex\n  output-file: TL-SAP.tex\n  standalone: true\n  pdf-engine: xelatex\n  variables:\n    graphics: true\n    tables: true\n  default-image-extension: pdf\n  \nmetadata\n  documentclass: scrartcl\n  classoption:\n    - DIV=11\n    - numbers=noendperiod\n  papersize: letter\n  header-includes:\n    - \\KOMAoption{captions}{tableheading}\n  block-headings: true\n  title: Targeted Learning Statistical Analysis Plan (TL-SAP)\n  subtitle: 'Simulation Study: HCV Treatment and Risk of Acute Kidney Injury (AKI)'\n  author: Andrew N. Mertens\n  \n"]
-[1,"\nRendering PDF\nrunning xelatex - 1\n"]
-[1,"  This is XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025) (preloaded format=xelatex)\n   restricted \\write18 enabled.\n  entering extended mode\n  \nupdating tlmgr\n"]
-[1,"\nupdating existing packages\n"]
-[1,"ERROR: \ncompilation failed- missing packages (automatic installation failed)\n"]

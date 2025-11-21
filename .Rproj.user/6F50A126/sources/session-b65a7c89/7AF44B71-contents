@@ -1,0 +1,122 @@
+---
+title: "TMLE Tutorial in Clean Room Design"
+author: "Clean Room Simulation Team"
+format: html
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+editor: source
+---
+
+## Purpose and context
+
+This tutorial shows how to run **targeted maximum likelihood estimation (TMLE)** on a simulated dataset inside the clean room design. The walkthrough emphasizes the steps and the different teams involved in a clean room workflow so analysts can adapt the pattern to their own experiments.
+
+## Roles and teams
+
+| Team | Responsibilities |
+| --- | --- |
+| Data Providers | Deliver de-identified source data extracts or synthetic data and document fields, constraints, and any privacy rules. |
+| Simulation & QA | Generate realistic synthetic data when needed, validate that distributions align with design assumptions, and supply quality gates before analysis. |
+| Methods | Choose estimators (TMLE here), set model specifications, and review causal assumptions. |
+| Platform | Maintain the clean room runtime, manage package availability, and ensure reproducibility via scripts and version control. |
+| Privacy & Compliance | Verify outputs comply with disclosure controls and sign off on release policies. |
+| Reporting | Convert analysis outputs into stakeholder-friendly narratives and visualizations. |
+
+## Workflow steps
+
+1. **Design the estimand**: The Methods team defines the average treatment effect (ATE) of a binary treatment `A` on outcome `Y`, conditional on baseline covariates `W`.
+2. **Simulate or ingest data**: Simulation & QA generates synthetic data that respects the planned relationships; Data Providers confirm field definitions.
+3. **Prepare the analysis environment**: Platform ensures required packages are installed (`tmle`, `dplyr`, `ggplot2`).
+4. **Run TMLE**: Methods implements TMLE with appropriate outcome and propensity models; QA reviews diagnostics.
+5. **Interpret and package results**: Reporting summarizes effect estimates and uncertainty; Privacy & Compliance checks export rules before sharing.
+6. **Archive and version**: Platform and Methods store the script and seed values so the clean room run is reproducible.
+
+## Setup
+
+```{r}
+required_packages <- c("dplyr", "tmle", "ggplot2")
+missing_packages <- setdiff(required_packages, rownames(installed.packages()))
+
+if (length(missing_packages) > 0) {
+  install.packages(missing_packages, repos = "https://cloud.r-project.org")
+}
+
+invisible(lapply(required_packages, library, character.only = TRUE))
+
+set.seed(1010)  # Platform and QA keep seeds for reproducibility
+```
+
+## Simulate data inside the clean room
+
+The Simulation & QA team generates covariates `W1` and `W2`, a treatment `A` with an informative propensity score, and a continuous outcome `Y`.
+
+```{r}
+n <- 1000
+W1 <- rbinom(n, 1, 0.5)
+W2 <- rnorm(n)
+# Propensity: higher chance of treatment when W1 = 1 or W2 is large
+pscore <- plogis(-0.4 + 1.2 * W1 + 0.5 * W2)
+A <- rbinom(n, 1, pscore)
+# Outcome: main effects plus modest treatment effect
+Y <- 1 + 0.8 * A + 0.5 * W1 - 0.2 * W2 + rnorm(n, sd = 1)
+
+sim_data <- tibble(W1, W2, A, Y)
+head(sim_data)
+```
+
+## Quick diagnostic plots
+
+Simulation & QA and Methods review distributions and treatment balance before estimation.
+
+```{r}
+sim_data %>%
+  ggplot(aes(x = W2, fill = factor(A))) +
+  geom_density(alpha = 0.4) +
+  labs(fill = "Treatment",
+       title = "Distribution of W2 by treatment assignment",
+       x = "W2")
+```
+
+## Run TMLE
+
+The Methods team fits TMLE for the average treatment effect. The `tmle` function automatically performs the targeting step after estimating the outcome regression (`Q`) and treatment mechanism (`g`).
+
+```{r}
+# Outcome and propensity models use simple main effects; these can be replaced with Super Learner libraries.
+
+ate_tmle <- tmle(Y = sim_data$Y,
+                 A = sim_data$A,
+                 W = select(sim_data, W1, W2),
+                 family = "gaussian")
+
+summary(ate_tmle)
+```
+
+## Interpret results
+
+Reporting and Methods interpret the TMLE output:
+
+- **`psi`**: the estimated ATE (difference in mean outcome if everyone were treated vs not treated).
+- **`CI`**: 95% confidence interval for the ATE.
+- **`p-value`**: significance test for a null effect.
+
+```{r}
+ate <- ate_tmle$estimates$ATE$psi
+ci <- ate_tmle$estimates$ATE$CI
+cat(sprintf("TMLE ATE estimate: %.3f (95%% CI: %.3f, %.3f)\n", ate, ci[1], ci[2]))
+```
+
+## Clean room release checklist
+
+1. **Methods**: Confirm model choices and sensitivity checks are documented.
+2. **Simulation & QA**: Verify the synthetic data process is reproducible and meets design targets.
+3. **Privacy & Compliance**: Apply disclosure controls (rounding, minimum cell sizes) to any exported tables.
+4. **Platform**: Package the Qmd, session info, and seeds into version control; ensure compute environment is recorded.
+5. **Reporting**: Prepare the final summary and graphics with any approved blurring or aggregation.
+
+## Session info
+
+Platform can capture the full session info for reproducibility or audits.
+
+```{r}
+sessionInfo()
+```
