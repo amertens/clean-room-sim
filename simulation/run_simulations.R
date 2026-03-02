@@ -86,6 +86,12 @@ sl_libs_g <- c("SL.glm", "SL.mean")
 
 use_parallel <- cfg$simulation$parallel %||% FALSE
 n_cores      <- as.integer(cfg$simulation$n_cores %||% 1L)
+avail_cores  <- parallel::detectCores(logical = FALSE)
+if (!is.na(avail_cores) && n_cores > avail_cores) {
+  message("Note: requested ", n_cores, " cores but only ",
+          avail_cores, " available. Using ", avail_cores, ".")
+  n_cores <- avail_cores
+}
 
 message("============================================================")
 message("Clean-Room Simulation Study")
@@ -101,53 +107,8 @@ message("============================================================")
 
 t_total <- proc.time()
 
-# --------------------------------------------------------------------------
-# 2. Set up parallel cluster (PSOCK — works on Windows, macOS, Linux)
-# --------------------------------------------------------------------------
+# Cluster will be created just before Phase 2 to avoid idle worker timeouts
 cl <- NULL
-if (use_parallel && n_cores > 1) {
-  message("Starting parallel cluster with ", n_cores, " PSOCK workers...")
-  cl <- tryCatch({
-    cluster <- parallel::makeCluster(n_cores, type = "PSOCK")
-    wd <- getwd()
-    r_source_files <- c(
-      "R/utils/config.R", "R/utils/helpers.R", "R/dgp/DGP.R",
-      "R/tmle/tmle_pipeline.R", "R/estimators/cox_ph_estimator.R",
-      "R/estimators/iptw_survival.R", "R/estimators/aipw_survival.R",
-      "R/estimators/gcomp_risk.R", "R/staging/decision_log.R",
-      "R/staging/checkpoints.R"
-    )
-    parallel::clusterExport(cluster, c("wd", "r_source_files"),
-                            envir = environment())
-    parallel::clusterEvalQ(cluster, {
-      setwd(wd)
-      `%||%` <- function(x, y) if (is.null(x)) y else x
-      for (f in r_source_files) {
-        if (file.exists(f)) source(f, local = FALSE)
-      }
-      suppressPackageStartupMessages({
-        library(SuperLearner)
-        library(survival)
-      })
-    })
-    message("Cluster ready.")
-    cluster
-  }, error = function(e) {
-    warning("Failed to start parallel cluster: ", e$message,
-            "\n  Falling back to serial execution.")
-    NULL
-  })
-  if (!is.null(cl)) on.exit(parallel::stopCluster(cl), add = TRUE)
-}
-
-# Helper: parLapply when cluster is available, otherwise lapply
-par_or_lapply <- function(X, FUN, ...) {
-  if (!is.null(cl)) {
-    parallel::parLapply(cl, X, FUN, ...)
-  } else {
-    lapply(X, FUN, ...)
-  }
-}
 
 # ==========================================================================
 # PHASE 1: OUTCOME-BLIND SIMULATION
@@ -440,7 +401,45 @@ run_sim_rep <- function(rep_i, scen_name, scen_params, scen_idx,
 }
 
 # --------------------------------------------------------------------------
-# 2c. Run unblinded simulation replicates
+# 2c. Set up parallel cluster (created here to avoid idle worker timeouts)
+# --------------------------------------------------------------------------
+if (use_parallel && n_cores > 1) {
+  message("Starting parallel cluster with ", n_cores, " PSOCK workers...")
+  cl <- tryCatch({
+    cluster <- parallel::makeCluster(n_cores, type = "PSOCK")
+    wd <- getwd()
+    r_source_files <- c(
+      "R/utils/config.R", "R/utils/helpers.R", "R/dgp/DGP.R",
+      "R/tmle/tmle_pipeline.R", "R/estimators/cox_ph_estimator.R",
+      "R/estimators/iptw_survival.R", "R/estimators/aipw_survival.R",
+      "R/estimators/gcomp_risk.R", "R/staging/decision_log.R",
+      "R/staging/checkpoints.R"
+    )
+    parallel::clusterExport(cluster, c("wd", "r_source_files"),
+                            envir = environment())
+    parallel::clusterEvalQ(cluster, {
+      setwd(wd)
+      `%||%` <- function(x, y) if (is.null(x)) y else x
+      for (f in r_source_files) {
+        if (file.exists(f)) source(f, local = FALSE)
+      }
+      suppressPackageStartupMessages({
+        library(SuperLearner)
+        library(survival)
+      })
+    })
+    message("Cluster ready.")
+    cluster
+  }, error = function(e) {
+    warning("Failed to start parallel cluster: ", e$message,
+            "\n  Falling back to serial execution.")
+    NULL
+  })
+  if (!is.null(cl)) on.exit(parallel::stopCluster(cl), add = TRUE)
+}
+
+# --------------------------------------------------------------------------
+# 2d. Run unblinded simulation replicates
 # --------------------------------------------------------------------------
 t_phase2 <- proc.time()
 all_results <- list()
@@ -462,23 +461,43 @@ for (scen_name in names(cfg$scenarios)) {
   t_scen <- proc.time()
   scen_results <- list()
 
-  if (!is.null(cl)) {
+  use_cl <- !is.null(cl)
+  if (use_cl) {
     # Parallel: process in batches so progress bar can update
     batch_size <- n_cores
     for (batch_start in seq(1, n_reps, by = batch_size)) {
       batch_end <- min(batch_start + batch_size - 1, n_reps)
       batch_idx <- seq(batch_start, batch_end)
-      batch_res <- do.call(parallel::parLapply,
-        c(list(cl = cl, X = batch_idx, fun = run_sim_rep), common_args))
+      batch_res <- tryCatch(
+        do.call(parallel::parLapply,
+          c(list(cl = cl, X = batch_idx, fun = run_sim_rep), common_args)),
+        error = function(e) {
+          warning("Parallel batch failed: ", e$message,
+                  "\n  Falling back to serial for remaining reps.")
+          NULL
+        }
+      )
+      if (is.null(batch_res)) {
+        # Cluster died — shut it down and fall back to serial
+        tryCatch(parallel::stopCluster(cl), error = function(e) NULL)
+        cl <<- NULL
+        use_cl <- FALSE
+        break
+      }
       scen_results <- c(scen_results, batch_res)
       utils::setTxtProgressBar(pb, batch_end)
     }
-  } else {
-    # Serial: update progress per replicate
-    for (rep_i in seq_len(n_reps)) {
-      res <- do.call(run_sim_rep, c(list(rep_i = rep_i), common_args))
-      scen_results <- c(scen_results, list(res))
-      utils::setTxtProgressBar(pb, rep_i)
+  }
+
+  if (!use_cl) {
+    # Serial: update progress per replicate (or fallback from failed parallel)
+    start_rep <- length(scen_results) + 1
+    if (start_rep <= n_reps) {
+      for (rep_i in seq(start_rep, n_reps)) {
+        res <- do.call(run_sim_rep, c(list(rep_i = rep_i), common_args))
+        scen_results <- c(scen_results, list(res))
+        utils::setTxtProgressBar(pb, rep_i)
+      }
     }
   }
   close(pb)
