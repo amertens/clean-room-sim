@@ -1,4 +1,30 @@
+# Generated outputs
+outputs/
 output/
+data/
+
+# R artifacts
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rcheck/
+
+# Rendered documents
 *.html
 *.pdf
+<<<<<<< HEAD
 .Rproj.user
+=======
+*_files/
+
+# System
+.DS_Store
+Thumbs.db
+
+# renv
+renv/library/
+renv/staging/
+renv/python/
+renv/sandbox/
+>>>>>>> origin/claude/r-package-transformation-Ves1b
