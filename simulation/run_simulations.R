@@ -48,6 +48,18 @@ source_all <- function() {
 }
 source_all()
 
+# Format seconds as human-readable time string
+format_time <- function(secs) {
+  secs <- round(secs)
+  if (secs < 60) return(paste0(secs, "s"))
+  mins <- secs %/% 60
+  secs <- secs %% 60
+  if (mins < 60) return(paste0(mins, "m ", secs, "s"))
+  hrs <- mins %/% 60
+  mins <- mins %% 60
+  paste0(hrs, "h ", mins, "m ", secs, "s")
+}
+
 # --------------------------------------------------------------------------
 # 1. Load configuration
 # --------------------------------------------------------------------------
@@ -86,6 +98,8 @@ message("  Scenarios:    ", paste(names(cfg$scenarios), collapse = ", "))
 message("  Parallel:     ",
         if (use_parallel) paste0("yes (", n_cores, " cores)") else "no")
 message("============================================================")
+
+t_total <- proc.time()
 
 # --------------------------------------------------------------------------
 # 2. Set up parallel cluster (PSOCK — works on Windows, macOS, Linux)
@@ -153,8 +167,14 @@ message("###########################################################\n")
 n_blind_reps <- if (QUICK_TEST) min(n_reps, 5) else min(n_reps, 20)
 blind_results <- list()
 
+t_phase1 <- proc.time()
+total_blind <- n_blind_reps * length(cfg$scenarios)
+message("Running ", total_blind, " outcome-blind reps ",
+        "(", length(cfg$scenarios), " scenarios x ", n_blind_reps, " reps)")
+pb1 <- utils::txtProgressBar(min = 0, max = total_blind, style = 3)
+blind_count <- 0
+
 for (scen_name in names(cfg$scenarios)) {
-  message("--- Outcome-blind: scenario '", scen_name, "' ---")
   scen_params <- cfg$scenarios[[scen_name]]
 
   for (rep_i in seq_len(n_blind_reps)) {
@@ -223,8 +243,11 @@ for (scen_name in names(cfg$scenarios)) {
       ps_max = round(max(ps), 4),
       stringsAsFactors = FALSE
     )))
+    blind_count <- blind_count + 1
+    utils::setTxtProgressBar(pb1, blind_count)
   }
 }
+close(pb1)
 
 blind_df <- do.call(rbind, blind_results)
 utils::write.csv(blind_df, file.path(output_dir, "phase1_outcome_blind.csv"),
@@ -252,7 +275,9 @@ utils::write.csv(blind_summary,
                  file.path(output_dir, "phase1_summary.csv"),
                  row.names = FALSE)
 
-message("\nPhase 1 complete. Outcome-blind diagnostics saved.")
+t_phase1_elapsed <- (proc.time() - t_phase1)[["elapsed"]]
+message("\nPhase 1 complete in ", format_time(t_phase1_elapsed),
+        ". Outcome-blind diagnostics saved.")
 
 # --------------------------------------------------------------------------
 # Log outcome-blind decisions
@@ -417,33 +442,56 @@ run_sim_rep <- function(rep_i, scen_name, scen_params, scen_idx,
 # --------------------------------------------------------------------------
 # 2c. Run unblinded simulation replicates
 # --------------------------------------------------------------------------
+t_phase2 <- proc.time()
 all_results <- list()
 
 for (scen_name in names(cfg$scenarios)) {
-  message("=== Scenario: ", scen_name, " ===")
+  message("=== Scenario: ", scen_name, " (", n_reps, " reps",
+          if (!is.null(cl)) paste0(", ", n_cores, " cores") else ", serial",
+          ") ===")
   scen_params <- cfg$scenarios[[scen_name]]
   scen_idx <- which(names(cfg$scenarios) == scen_name)
 
-  message("  Running ", n_reps, " replicates",
-          if (!is.null(cl)) paste0(" on ", n_cores, " cores") else " (serial)",
-          "...")
-  t_scen <- system.time({
-    rep_results <- par_or_lapply(
-      seq_len(n_reps), run_sim_rep,
-      scen_name = scen_name, scen_params = scen_params, scen_idx = scen_idx,
-      N_sim = N_sim, cfg = cfg, time_pts = time_pts, truths = truths,
-      sl_libs_Q = sl_libs_Q, sl_libs_g = sl_libs_g
-    )
-  })
+  common_args <- list(
+    scen_name = scen_name, scen_params = scen_params, scen_idx = scen_idx,
+    N_sim = N_sim, cfg = cfg, time_pts = time_pts, truths = truths,
+    sl_libs_Q = sl_libs_Q, sl_libs_g = sl_libs_g
+  )
+
+  pb <- utils::txtProgressBar(min = 0, max = n_reps, style = 3)
+  t_scen <- proc.time()
+  scen_results <- list()
+
+  if (!is.null(cl)) {
+    # Parallel: process in batches so progress bar can update
+    batch_size <- n_cores
+    for (batch_start in seq(1, n_reps, by = batch_size)) {
+      batch_end <- min(batch_start + batch_size - 1, n_reps)
+      batch_idx <- seq(batch_start, batch_end)
+      batch_res <- do.call(parallel::parLapply,
+        c(list(cl = cl, X = batch_idx, fun = run_sim_rep), common_args))
+      scen_results <- c(scen_results, batch_res)
+      utils::setTxtProgressBar(pb, batch_end)
+    }
+  } else {
+    # Serial: update progress per replicate
+    for (rep_i in seq_len(n_reps)) {
+      res <- do.call(run_sim_rep, c(list(rep_i = rep_i), common_args))
+      scen_results <- c(scen_results, list(res))
+      utils::setTxtProgressBar(pb, rep_i)
+    }
+  }
+  close(pb)
+
+  elapsed <- (proc.time() - t_scen)[["elapsed"]]
 
   # Flatten: each element is either NULL or a list of data.frames
-  rep_results <- rep_results[!vapply(rep_results, is.null, logical(1))]
-  rep_results <- unlist(rep_results, recursive = FALSE)
-  all_results <- c(all_results, rep_results)
+  scen_results <- scen_results[!vapply(scen_results, is.null, logical(1))]
+  scen_results <- unlist(scen_results, recursive = FALSE)
+  all_results <- c(all_results, scen_results)
 
-  n_valid <- length(rep_results) / (length(time_pts) * 6)
-  message("  Done: ", n_valid, " valid reps in ",
-          round(t_scen[["elapsed"]], 1), "s")
+  n_valid <- length(scen_results) / (length(time_pts) * 6)
+  message("  ", n_valid, " valid reps in ", format_time(elapsed))
 }
 
 # --------------------------------------------------------------------------
@@ -511,10 +559,19 @@ mtg2 <- log_decision(
 )
 close_meeting(mtg2)
 
-message("\nSimulation study complete!")
-message("  Phase 1 (blind): ", file.path(output_dir, "phase1_summary.csv"))
-message("  Phase 2 results: ", file.path(output_dir, "simulation_results.csv"))
-message("  Summary:         ", file.path(output_dir, "simulation_summary.csv"))
-message("  Truths:          ", file.path(output_dir, "true_values.csv"))
+t_phase2_elapsed <- (proc.time() - t_phase2)[["elapsed"]]
+t_total_elapsed  <- (proc.time() - t_total)[["elapsed"]]
+
+message("\n============================================================")
+message("Simulation study complete!")
+message("============================================================")
+message("  Phase 1 (blind):  ", format_time(t_phase1_elapsed))
+message("  Phase 2 (unbld):  ", format_time(t_phase2_elapsed))
+message("  Total elapsed:    ", format_time(t_total_elapsed))
+message("------------------------------------------------------------")
+message("  Phase 1 output:   ", file.path(output_dir, "phase1_summary.csv"))
+message("  Phase 2 results:  ", file.path(output_dir, "simulation_results.csv"))
+message("  Summary:          ", file.path(output_dir, "simulation_summary.csv"))
+message("  Truths:           ", file.path(output_dir, "true_values.csv"))
 
 capture_session_info(file.path(output_dir, "session_info.txt"))
