@@ -1,0 +1,14 @@
+^\.github$
+^\.gitignore$
+^.*\.Rproj$
+^\.Rproj\.user$
+^simulation$
+^analysis$
+^reports$
+^tutorial code$
+^outputs$
+^config$
+^renv$
+^renv\.lock$
+^data$
+^\.Rhistory$

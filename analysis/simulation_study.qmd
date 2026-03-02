@@ -1,0 +1,266 @@
+---
+title: "Simulation Study: TMLE vs Traditional Approaches"
+author: "Andrew N. Mertens"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    self-contained: true
+execute:
+  warning: false
+  message: false
+---
+
+## Overview
+
+This vignette presents the simulation study comparing TMLE with flexible
+nuisance estimation against traditional approaches (Cox PH, IPTW,
+G-computation). The study evaluates five scenarios with increasing
+complexity to demonstrate how TMLE performs under realistic violations
+of standard modeling assumptions.
+
+### Scenarios
+
+| Scenario | Description | Key Feature |
+|----------|-------------|-------------|
+| simple | Linear confounding, independent censoring, PH | Benchmark |
+| nonlinear | Nonlinear PS and outcome models | Model misspecification |
+| dep_censor | Dependent (informative) censoring | Censoring bias |
+| switching | Treatment switching with washout | Intercurrent events |
+| np_hazard | Non-proportional hazards (piecewise) | PH violation |
+
+### Estimand
+
+Primary estimand: Risk difference at 90 and 180 days.
+$$
+\psi(t) = E[I(T^{a=1} \le t)] - E[I(T^{a=0} \le t)]
+$$
+
+```{r setup}
+#| label: setup
+
+library(ggplot2)
+library(dplyr)
+
+sim_dir <- "../outputs/simulation"
+```
+
+## Load Results
+
+```{r load-results}
+#| label: load-results
+
+if (!file.exists(file.path(sim_dir, "simulation_summary.csv"))) {
+  cat("Simulation results not found. Run simulation first:\n")
+  cat("  Rscript simulation/run_simulations.R\n")
+  knitr::knit_exit()
+}
+
+summary_df <- read.csv(file.path(sim_dir, "simulation_summary.csv"),
+                       stringsAsFactors = FALSE)
+truth_df <- read.csv(file.path(sim_dir, "true_values.csv"),
+                     stringsAsFactors = FALSE)
+results_df <- read.csv(file.path(sim_dir, "simulation_results.csv"),
+                       stringsAsFactors = FALSE)
+
+knitr::kable(truth_df, digits = 6,
+             caption = "True Counterfactual Risk Values by Scenario")
+```
+
+## Performance Summary
+
+```{r summary-table}
+#| label: summary-table
+
+display_cols <- c("scenario", "time_point", "method", "mean_bias",
+                  "empirical_sd", "mean_se", "rmse", "coverage",
+                  "n_valid")
+knitr::kable(
+  summary_df[, display_cols],
+  digits = 5,
+  caption = "Simulation Performance Metrics by Scenario and Method"
+)
+```
+
+## Bias Comparison
+
+```{r bias-plot}
+#| label: bias-plot
+#| fig-width: 10
+#| fig-height: 6
+
+ggplot(summary_df, aes(x = method, y = mean_bias, fill = method)) +
+  geom_col(position = "dodge") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  facet_grid(time_point ~ scenario, scales = "free_y") +
+  labs(title = "Bias by Method and Scenario",
+       x = "Method", y = "Mean Bias (Estimate - Truth)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set2")
+```
+
+## RMSE Comparison
+
+```{r rmse-plot}
+#| label: rmse-plot
+#| fig-width: 10
+#| fig-height: 6
+
+ggplot(summary_df, aes(x = method, y = rmse, fill = method)) +
+  geom_col(position = "dodge") +
+  facet_grid(time_point ~ scenario, scales = "free_y") +
+  labs(title = "RMSE by Method and Scenario",
+       x = "Method", y = "Root Mean Squared Error") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set2")
+```
+
+## Coverage of 95% CIs
+
+```{r coverage-plot}
+#| label: coverage-plot
+#| fig-width: 10
+#| fig-height: 6
+
+coverage_df <- summary_df %>%
+  filter(!is.na(coverage))
+
+ggplot(coverage_df, aes(x = method, y = coverage, fill = method)) +
+  geom_col(position = "dodge") +
+  geom_hline(yintercept = 0.95, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = c(0.925, 0.975), linetype = "dotted",
+             color = "gray50") +
+  facet_grid(time_point ~ scenario) +
+  labs(title = "95% CI Coverage by Method and Scenario",
+       x = "Method", y = "Coverage",
+       caption = "Red dashed line = nominal 95%. Dotted = Monte Carlo bounds.") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set2") +
+  ylim(0, 1)
+```
+
+## SE Calibration (Empirical vs Estimated)
+
+```{r se-calibration}
+#| label: se-calibration
+#| fig-width: 8
+#| fig-height: 6
+
+se_df <- summary_df %>%
+  filter(!is.na(mean_se) & !is.na(empirical_sd) & mean_se > 0)
+
+if (nrow(se_df) > 0) {
+  ggplot(se_df, aes(x = empirical_sd, y = mean_se, color = method,
+                    shape = factor(time_point))) +
+    geom_point(size = 3) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+    labs(title = "SE Calibration: Estimated SE vs Empirical SD",
+         x = "Empirical SD", y = "Mean Estimated SE",
+         color = "Method", shape = "Time Point") +
+    theme_minimal()
+}
+```
+
+## Non-Proportional Hazards Scenario
+
+The np_hazard scenario is designed to demonstrate Cox PH bias when
+proportional hazards are violated. The DGP uses a piecewise hazard
+with HR = 1.25 for t < 45 days and HR = 0.70 for t >= 45 days.
+
+```{r np-hazard-detail}
+#| label: np-hazard-detail
+
+np_df <- summary_df %>%
+  filter(scenario == "np_hazard")
+
+if (nrow(np_df) > 0) {
+  knitr::kable(
+    np_df[, c("time_point", "method", "mean_bias", "rmse", "coverage")],
+    digits = 5,
+    caption = "Non-PH Scenario: Method Comparison"
+  )
+}
+```
+
+## Runtime Comparison
+
+```{r runtime}
+#| label: runtime
+
+if ("mean_runtime" %in% names(summary_df)) {
+  rt_df <- summary_df %>%
+    select(scenario, time_point, method, mean_runtime) %>%
+    filter(!is.na(mean_runtime))
+
+  if (nrow(rt_df) > 0) {
+    ggplot(rt_df, aes(x = method, y = mean_runtime, fill = method)) +
+      geom_col() +
+      facet_wrap(~ scenario, scales = "free_y") +
+      labs(title = "Mean Runtime per Replicate (seconds)",
+           x = "Method", y = "Seconds") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  }
+}
+```
+
+## Key Findings
+
+```{r findings}
+#| label: findings
+
+# Identify scenario where Cox is most biased vs TMLE
+if (nrow(summary_df) > 0) {
+  tmle_perf <- summary_df %>%
+    filter(method == "TMLE") %>%
+    select(scenario, time_point, tmle_bias = mean_bias, tmle_rmse = rmse)
+
+  cox_perf <- summary_df %>%
+    filter(method == "Cox PH") %>%
+    select(scenario, time_point, cox_bias = mean_bias, cox_rmse = rmse)
+
+  comparison <- merge(tmle_perf, cox_perf, by = c("scenario", "time_point"))
+  comparison$tmle_advantage <- abs(comparison$cox_bias) - abs(comparison$tmle_bias)
+
+  cat("Scenarios where TMLE has lower |bias| than Cox PH:\n")
+  adv <- comparison[comparison$tmle_advantage > 0, ]
+  if (nrow(adv) > 0) {
+    for (i in seq_len(nrow(adv))) {
+      cat(sprintf("  %s (t=%d): Cox bias=%.5f, TMLE bias=%.5f, advantage=%.5f\n",
+                  adv$scenario[i], adv$time_point[i],
+                  adv$cox_bias[i], adv$tmle_bias[i],
+                  adv$tmle_advantage[i]))
+    }
+  } else {
+    cat("  (Run simulation with more replicates for clearer comparison)\n")
+  }
+}
+```
+
+## Appendix
+
+### Configuration
+
+```{r appendix-config}
+#| label: appendix-config
+
+r_files <- list.files("../R", pattern = "\\.R$", recursive = TRUE,
+                      full.names = TRUE)
+for (f in r_files) source(f)
+cfg <- load_config("../config/default.yml")
+str(cfg$simulation)
+str(cfg$tmle)
+```
+
+### Session Info
+
+```{r session-info}
+#| label: session-info
+
+sessionInfo()
+```
