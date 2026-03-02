@@ -64,7 +64,8 @@ generate_hcv_data <- function(
     impute          = FALSE,
     seed            = NULL)
 {
-  # Coerce numeric parameters (YAML may parse scientific notation as strings)
+  # Coerce numeric parameters (YAML may parse scientific notation as strings
+  # or bare "N" as boolean FALSE under YAML 1.1)
   N          <- as.integer(N)
   p_sof      <- as.numeric(p_sof)
   h0         <- as.numeric(h0)

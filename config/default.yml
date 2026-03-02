@@ -5,7 +5,7 @@
 
 # --- Data-generating process ---
 dgp:
-  N: 5000                    # sample size per replicate (use 50000+ for production)
+  "N": 5000                  # sample size per replicate (use 50000+ for production)
   p_sof: 0.36                # treatment assignment probability
   h0: 0.00005                # baseline hazard
   HR_early: 1.25             # early hazard ratio (treatment vs control)
@@ -46,7 +46,7 @@ scenarios:
 # --- Simulation settings ---
 simulation:
   n_replicates: 200          # number of simulation replicates
-  N: 5000                    # sample size per replicate
+  "N": 5000                  # sample size per replicate
   time_points: [90, 180]     # risk assessment time points (days)
   parallel: false            # use parallel processing
   n_cores: 4                 # number of cores if parallel
