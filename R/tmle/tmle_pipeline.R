@@ -154,8 +154,8 @@ tmle_survival_risk <- function(data,
       SL.library = sl_lib_cens, cvControl = list(V = 5)
     )
   }, error = function(e) {
-    fit <- stats::glm((1 - censored) ~ .,
-                      data = cbind(uncens = 1 - censored, cens_W),
+    uncens <- 1 - censored
+    fit <- stats::glm(uncens ~ ., data = as.data.frame(cens_W),
                       family = "binomial")
     list(SL.predict = stats::predict(fit, type = "response"))
   })
@@ -175,8 +175,7 @@ tmle_survival_risk <- function(data,
       SL.library = sl_lib_Q, cvControl = list(V = 5)
     )
   }, error = function(e) {
-    fit <- stats::glm(Y_binary ~ .,
-                      data = cbind(Y = Y_binary, Q_W),
+    fit <- stats::glm(Y_binary ~ ., data = as.data.frame(Q_W),
                       family = "binomial")
     pred <- stats::predict(fit, type = "response")
     list(SL.predict = pred, glm_fit = fit, is_glm = TRUE)
@@ -378,8 +377,7 @@ tmle_survival_risk_cf <- function(data,
         SL.library = sl_lib_g, cvControl = list(V = 3)
       )
     }, error = function(e) {
-      fit <- stats::glm(A_train ~ ., data = cbind(A = A_train, W_train),
-                        family = "binomial")
+      fit <- stats::glm(A_train ~ ., data = W_train, family = "binomial")
       list(glm_fit = fit, is_glm = TRUE)
     })
     if (!is.null(g_fit_v$is_glm)) {
@@ -406,8 +404,8 @@ tmle_survival_risk_cf <- function(data,
         SL.library = sl_lib_cens, cvControl = list(V = 3)
       )
     }, error = function(e) {
-      fit <- stats::glm((1 - cens_train) ~ .,
-                        data = cbind(uncens = 1 - cens_train, cens_W_train),
+      uncens_train <- 1 - cens_train
+      fit <- stats::glm(uncens_train ~ ., data = as.data.frame(cens_W_train),
                         family = "binomial")
       list(glm_fit = fit, is_glm = TRUE)
     })
@@ -435,8 +433,7 @@ tmle_survival_risk_cf <- function(data,
         SL.library = sl_lib_Q, cvControl = list(V = 3)
       )
     }, error = function(e) {
-      fit <- stats::glm(Y_train ~ .,
-                        data = cbind(Y = Y_train, Q_W_train),
+      fit <- stats::glm(Y_train ~ ., data = as.data.frame(Q_W_train),
                         family = "binomial")
       list(glm_fit = fit, is_glm = TRUE)
     })

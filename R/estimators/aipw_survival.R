@@ -77,8 +77,8 @@ aipw_survival <- function(data,
       SL.library = sl_lib_cens, cvControl = list(V = 5)
     )
   }, error = function(e) {
-    fit <- stats::glm((1 - censored) ~ .,
-                      data = cbind(uncens = 1 - censored, cens_W),
+    uncens <- 1 - censored
+    fit <- stats::glm(uncens ~ ., data = as.data.frame(cens_W),
                       family = "binomial")
     list(SL.predict = stats::predict(fit, type = "response"))
   })
