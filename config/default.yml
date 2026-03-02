@@ -48,8 +48,8 @@ simulation:
   n_replicates: 200          # number of simulation replicates
   "N": 5000                  # sample size per replicate
   time_points: [90, 180]     # risk assessment time points (days)
-  parallel: false            # use parallel processing
-  n_cores: 4                 # number of cores if parallel
+  parallel: true             # use parallel processing (PSOCK, Windows-compatible)
+  n_cores: 16                # number of cores for parallel
 
 # --- TMLE settings ---
 tmle:

@@ -17,7 +17,13 @@
 #
 # Usage:
 #   Rscript simulation/run_simulations.R [config_path]
+#
 # ============================================================================
+# QUICK TEST MODE: Set QUICK_TEST <- TRUE for a fast smoke test with small N
+# and few replicates. Set FALSE for the full production run using config values.
+# ============================================================================
+
+QUICK_TEST <- TRUE   # <-- Toggle: TRUE = fast test, FALSE = full production
 
 # Null-coalescing operator
 `%||%` <- function(x, y) if (is.null(x)) y else x
@@ -49,8 +55,16 @@ args <- commandArgs(trailingOnly = TRUE)
 config_path <- if (length(args) > 0) args[1] else NULL
 cfg <- load_config(config_path)
 
-n_reps     <- cfg$simulation$n_replicates
-N_sim      <- cfg$simulation$N
+if (QUICK_TEST) {
+  n_reps   <- 10
+  N_sim    <- 500
+  N_truth  <- 50000
+} else {
+  n_reps   <- cfg$simulation$n_replicates
+  N_sim    <- cfg$simulation$N
+  N_truth  <- 200000
+}
+
 time_pts   <- cfg$simulation$time_points
 output_dir <- cfg$output$simulation_dir
 ensure_dir(output_dir)
@@ -58,13 +72,68 @@ ensure_dir(output_dir)
 sl_libs_Q <- c("SL.glm", "SL.mean")
 sl_libs_g <- c("SL.glm", "SL.mean")
 
+use_parallel <- cfg$simulation$parallel %||% FALSE
+n_cores      <- as.integer(cfg$simulation$n_cores %||% 1L)
+
 message("============================================================")
 message("Clean-Room Simulation Study")
+if (QUICK_TEST) message("  *** QUICK TEST MODE ***")
 message("  Replicates:   ", n_reps)
 message("  Sample size:  ", N_sim)
+message("  Truth N:      ", N_truth)
 message("  Time points:  ", paste(time_pts, collapse = ", "))
 message("  Scenarios:    ", paste(names(cfg$scenarios), collapse = ", "))
+message("  Parallel:     ",
+        if (use_parallel) paste0("yes (", n_cores, " cores)") else "no")
 message("============================================================")
+
+# --------------------------------------------------------------------------
+# 2. Set up parallel cluster (PSOCK — works on Windows, macOS, Linux)
+# --------------------------------------------------------------------------
+cl <- NULL
+if (use_parallel && n_cores > 1) {
+  message("Starting parallel cluster with ", n_cores, " PSOCK workers...")
+  cl <- tryCatch({
+    cluster <- parallel::makeCluster(n_cores, type = "PSOCK")
+    wd <- getwd()
+    r_source_files <- c(
+      "R/utils/config.R", "R/utils/helpers.R", "R/dgp/DGP.R",
+      "R/tmle/tmle_pipeline.R", "R/estimators/cox_ph_estimator.R",
+      "R/estimators/iptw_survival.R", "R/estimators/aipw_survival.R",
+      "R/estimators/gcomp_risk.R", "R/staging/decision_log.R",
+      "R/staging/checkpoints.R"
+    )
+    parallel::clusterExport(cluster, c("wd", "r_source_files"),
+                            envir = environment())
+    parallel::clusterEvalQ(cluster, {
+      setwd(wd)
+      `%||%` <- function(x, y) if (is.null(x)) y else x
+      for (f in r_source_files) {
+        if (file.exists(f)) source(f, local = FALSE)
+      }
+      suppressPackageStartupMessages({
+        library(SuperLearner)
+        library(survival)
+      })
+    })
+    message("Cluster ready.")
+    cluster
+  }, error = function(e) {
+    warning("Failed to start parallel cluster: ", e$message,
+            "\n  Falling back to serial execution.")
+    NULL
+  })
+  if (!is.null(cl)) on.exit(parallel::stopCluster(cl), add = TRUE)
+}
+
+# Helper: parLapply when cluster is available, otherwise lapply
+par_or_lapply <- function(X, FUN, ...) {
+  if (!is.null(cl)) {
+    parallel::parLapply(cl, X, FUN, ...)
+  } else {
+    lapply(X, FUN, ...)
+  }
+}
 
 # ==========================================================================
 # PHASE 1: OUTCOME-BLIND SIMULATION
@@ -81,7 +150,7 @@ message("###########################################################\n")
 # - truncation counts
 # NO outcome models are fit; NO outcome data (follow_time, event) are used.
 
-n_blind_reps <- min(n_reps, 20)  # use a subset for efficiency
+n_blind_reps <- if (QUICK_TEST) min(n_reps, 5) else min(n_reps, 20)
 blind_results <- list()
 
 for (scen_name in names(cfg$scenarios)) {
@@ -230,7 +299,6 @@ message("###########################################################\n")
 # 2a. Compute ground-truth risks
 # --------------------------------------------------------------------------
 message("--- Computing ground-truth risks ---")
-N_truth <- 200000
 truths <- list()
 
 for (scen_name in names(cfg$scenarios)) {
@@ -265,113 +333,121 @@ utils::write.csv(truth_df, file.path(output_dir, "true_values.csv"),
 message("Ground truths saved.\n")
 
 # --------------------------------------------------------------------------
-# 2b. Run unblinded simulation replicates
+# 2b. Worker function: run all estimators for one replicate
+# --------------------------------------------------------------------------
+run_sim_rep <- function(rep_i, scen_name, scen_params, scen_idx,
+                        N_sim, cfg, time_pts, truths,
+                        sl_libs_Q, sl_libs_g) {
+  `%||%` <- function(x, y) if (is.null(x)) y else x
+
+  rep_seed <- cfg$dgp$seed + (scen_idx - 1) * 10000 + rep_i
+  set_deterministic_seed(rep_seed)
+
+  sim_data <- tryCatch({
+    generate_hcv_data(
+      N = N_sim, h0 = cfg$dgp$h0, HR_early = cfg$dgp$HR_early,
+      HR_late = cfg$dgp$HR_late, tau = cfg$dgp$tau,
+      max_follow = cfg$dgp$max_follow, risk_window = cfg$dgp$risk_window,
+      np_hazard = scen_params$np_hazard, dep_censor = scen_params$dep_censor,
+      complexity = scen_params$complexity, switch_on = scen_params$switch_on,
+      seed = NULL
+    )
+  }, error = function(e) NULL)
+  if (is.null(sim_data) || nrow(sim_data) < 100) return(NULL)
+
+  rep_results <- list()
+  for (t_val in time_pts) {
+    truth <- truths[[scen_name]][[paste0("t", t_val)]]
+    g_bounds <- c(cfg$tmle$truncation_lower, cfg$tmle$truncation_upper)
+
+    make_row <- function(method, res, runtime) {
+      rd <- res$RD %||% NA_real_
+      se <- res$se_RD %||% NA_real_
+      ci <- res$ci_RD %||% c(NA_real_, NA_real_)
+      covers <- if (!is.na(ci[1]) && !is.na(ci[2]) && !is.na(truth$RD)) {
+        as.integer(ci[1] <= truth$RD & truth$RD <= ci[2])
+      } else NA_integer_
+      data.frame(
+        scenario = scen_name, replicate = rep_i, time_point = t_val,
+        method = method, estimate = rd, se = se,
+        ci_lower = ci[1], ci_upper = ci[2],
+        truth = truth$RD, bias = rd - truth$RD,
+        covers = covers, runtime = runtime[["elapsed"]],
+        stringsAsFactors = FALSE
+      )
+    }
+
+    safe_est <- function(expr) {
+      tryCatch(expr, error = function(e)
+        list(RD = NA_real_, se_RD = NA_real_, ci_RD = c(NA_real_, NA_real_)))
+    }
+
+    t1 <- system.time({ r1 <- safe_est(
+      tmle_survival_risk(sim_data, t_val, sl_libs_Q, sl_libs_g,
+                         sl_libs_g, g_bounds)) })
+    t2 <- system.time({ r2 <- safe_est(
+      tmle_survival_risk_cf(sim_data, t_val, sl_libs_Q, sl_libs_g,
+                            sl_libs_g, g_bounds, V = 5)) })
+    t3 <- system.time({ r3 <- safe_est(
+      aipw_survival(sim_data, t_val, sl_libs_Q, sl_libs_g,
+                    sl_libs_g, g_bounds)) })
+    t4 <- system.time({ r4 <- safe_est(
+      iptw_survival(sim_data, t_val, sl_libs_g, g_bounds)) })
+    t5 <- system.time({ r5 <- safe_est(
+      gcomp_risk(sim_data, t_val, sl_libs_Q)) })
+    t6 <- system.time({ r6 <- safe_est({
+      cr <- cox_ph_estimator(sim_data)
+      cox_r <- cox_risk_at_t(cr, sim_data, t_val)
+      list(RD = cox_r$RD, se_RD = NA_real_,
+           ci_RD = c(NA_real_, NA_real_))
+    }) })
+
+    rep_results <- c(rep_results, list(
+      make_row("TMLE",          r1, t1),
+      make_row("TMLE-CF",       r2, t2),
+      make_row("AIPW",          r3, t3),
+      make_row("IPTW",          r4, t4),
+      make_row("G-computation", r5, t5),
+      make_row("Cox PH",        r6, t6)
+    ))
+  }
+  rep_results
+}
+
+# --------------------------------------------------------------------------
+# 2c. Run unblinded simulation replicates
 # --------------------------------------------------------------------------
 all_results <- list()
 
 for (scen_name in names(cfg$scenarios)) {
   message("=== Scenario: ", scen_name, " ===")
   scen_params <- cfg$scenarios[[scen_name]]
+  scen_idx <- which(names(cfg$scenarios) == scen_name)
 
-  for (rep_i in seq_len(n_reps)) {
-    rep_seed <- cfg$dgp$seed +
-      (which(names(cfg$scenarios) == scen_name) - 1) * 10000 + rep_i
-    set_deterministic_seed(rep_seed)
+  message("  Running ", n_reps, " replicates",
+          if (!is.null(cl)) paste0(" on ", n_cores, " cores") else " (serial)",
+          "...")
+  t_scen <- system.time({
+    rep_results <- par_or_lapply(
+      seq_len(n_reps), run_sim_rep,
+      scen_name = scen_name, scen_params = scen_params, scen_idx = scen_idx,
+      N_sim = N_sim, cfg = cfg, time_pts = time_pts, truths = truths,
+      sl_libs_Q = sl_libs_Q, sl_libs_g = sl_libs_g
+    )
+  })
 
-    if (rep_i %% 50 == 1 || rep_i == n_reps) {
-      message("  Replicate ", rep_i, "/", n_reps)
-    }
+  # Flatten: each element is either NULL or a list of data.frames
+  rep_results <- rep_results[!vapply(rep_results, is.null, logical(1))]
+  rep_results <- unlist(rep_results, recursive = FALSE)
+  all_results <- c(all_results, rep_results)
 
-    sim_data <- tryCatch({
-      generate_hcv_data(
-        N = N_sim, h0 = cfg$dgp$h0, HR_early = cfg$dgp$HR_early,
-        HR_late = cfg$dgp$HR_late, tau = cfg$dgp$tau,
-        max_follow = cfg$dgp$max_follow, risk_window = cfg$dgp$risk_window,
-        np_hazard = scen_params$np_hazard, dep_censor = scen_params$dep_censor,
-        complexity = scen_params$complexity, switch_on = scen_params$switch_on,
-        seed = NULL
-      )
-    }, error = function(e) NULL)
-    if (is.null(sim_data) || nrow(sim_data) < 100) next
-
-    for (t_val in time_pts) {
-      truth <- truths[[scen_name]][[paste0("t", t_val)]]
-      g_bounds <- c(cfg$tmle$truncation_lower, cfg$tmle$truncation_upper)
-
-      add_result <- function(method, res, runtime) {
-        rd <- res$RD %||% NA_real_
-        se <- res$se_RD %||% NA_real_
-        ci <- res$ci_RD %||% c(NA_real_, NA_real_)
-        covers <- if (!is.na(ci[1]) && !is.na(ci[2]) && !is.na(truth$RD)) {
-          as.integer(ci[1] <= truth$RD & truth$RD <= ci[2])
-        } else NA_integer_
-        data.frame(
-          scenario = scen_name, replicate = rep_i, time_point = t_val,
-          method = method, estimate = rd, se = se,
-          ci_lower = ci[1], ci_upper = ci[2],
-          truth = truth$RD, bias = rd - truth$RD,
-          covers = covers, runtime = runtime[["elapsed"]],
-          stringsAsFactors = FALSE
-        )
-      }
-
-      t1 <- system.time({
-        r1 <- tryCatch(
-          tmle_survival_risk(sim_data, t_val, sl_libs_Q, sl_libs_g,
-                            sl_libs_g, g_bounds),
-          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
-                                   ci_RD = c(NA_real_, NA_real_)))
-      })
-      t2 <- system.time({
-        r2 <- tryCatch(
-          tmle_survival_risk_cf(sim_data, t_val, sl_libs_Q, sl_libs_g,
-                               sl_libs_g, g_bounds, V = 5),
-          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
-                                   ci_RD = c(NA_real_, NA_real_)))
-      })
-      t3 <- system.time({
-        r3 <- tryCatch(
-          aipw_survival(sim_data, t_val, sl_libs_Q, sl_libs_g,
-                       sl_libs_g, g_bounds),
-          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
-                                   ci_RD = c(NA_real_, NA_real_)))
-      })
-      t4 <- system.time({
-        r4 <- tryCatch(
-          iptw_survival(sim_data, t_val, sl_libs_g, g_bounds),
-          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
-                                   ci_RD = c(NA_real_, NA_real_)))
-      })
-      t5 <- system.time({
-        r5 <- tryCatch(
-          gcomp_risk(sim_data, t_val, sl_libs_Q),
-          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
-                                   ci_RD = c(NA_real_, NA_real_)))
-      })
-      t6 <- system.time({
-        r6 <- tryCatch({
-          cr <- cox_ph_estimator(sim_data)
-          cox_r <- cox_risk_at_t(cr, sim_data, t_val)
-          list(RD = cox_r$RD, se_RD = NA_real_,
-               ci_RD = c(NA_real_, NA_real_))
-        }, error = function(e) list(RD = NA_real_, se_RD = NA_real_,
-                                    ci_RD = c(NA_real_, NA_real_)))
-      })
-
-      all_results <- c(all_results, list(
-        add_result("TMLE",          r1, t1),
-        add_result("TMLE-CF",       r2, t2),
-        add_result("AIPW",          r3, t3),
-        add_result("IPTW",          r4, t4),
-        add_result("G-computation", r5, t5),
-        add_result("Cox PH",        r6, t6)
-      ))
-    }
-  }
+  n_valid <- length(rep_results) / (length(time_pts) * 6)
+  message("  Done: ", n_valid, " valid reps in ",
+          round(t_scen[["elapsed"]], 1), "s")
 }
 
 # --------------------------------------------------------------------------
-# 2c. Compile and summarise
+# 2d. Compile and summarise
 # --------------------------------------------------------------------------
 message("\n--- Compiling results ---")
 sim_results <- do.call(rbind, all_results)
