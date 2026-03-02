@@ -20,7 +20,7 @@ params <- get_scenario_params(cfg, scenario)
 message("=== Stage 1: Cohort Build (scenario: ", scenario, ") ===")
 set_deterministic_seed(params$seed)
 
-data <- do.call(generate_hcv_data, c(list(N = params$N), params))
+data <- do.call(generate_hcv_data, params)
 result <- stage1_build_cohort(data = data, cfg = cfg)
 
 message("Stage 1 complete. Checkpoint: ", result$checkpoint)

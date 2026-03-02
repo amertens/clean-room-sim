@@ -21,7 +21,7 @@ params <- get_scenario_params(cfg, scenario)
 message("=== Stage 3: Estimation (scenario: ", scenario, ") ===")
 set_deterministic_seed(params$seed)
 
-data <- do.call(generate_hcv_data, c(list(N = params$N), params))
+data <- do.call(generate_hcv_data, params)
 stage3_out <- stage3_estimation(cohort = data, cfg = cfg)
 
 cat("\n--- Results Summary ---\n")
