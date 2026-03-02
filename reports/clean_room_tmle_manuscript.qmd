@@ -17,7 +17,7 @@ format:
     number-sections: true
     documentclass: article
     geometry: margin=1in
-bibliography: references.bib
+#bibliography: references.bib (to add)
 execute:
   warning: false
   message: false
@@ -437,8 +437,9 @@ if (file.exists(log_file)) {
 }
 ```
 
+# References (to add)
 
-# References {.unnumbered}
+<!-- # References {.unnumbered} -->
 
-::: {#refs}
-:::
+<!-- ::: {#refs} -->
+<!-- ::: -->
