@@ -13,10 +13,14 @@ This project implements:
    pharmacoepidemiology case study, with explicit checkpoints, decision
    logging, and outcome-blind governance at each stage.
 
-2. **A simulation study** comparing TMLE (with flexible nuisance estimation)
-   against traditional approaches (Cox PH, IPTW, G-computation), showing
-   TMLE advantages under realistic violations (nonlinear confounding,
-   informative censoring, treatment switching, non-proportional hazards).
+2. **A two-phase simulation study** with an **outcome-blind selection phase**
+   followed by an **unblinded analysis**, comparing TMLE, cross-fitted TMLE,
+   AIPW, IPTW, G-computation, and Cox PH across five scenarios with
+   increasing complexity (nonlinear confounding, informative censoring,
+   treatment switching, non-proportional hazards).
+
+3. **A draft manuscript** (`reports/clean_room_tmle_manuscript.qmd`) that
+   documents the methodology, simulation results, and findings.
 
 ## Clean-Room Stages
 
@@ -45,6 +49,7 @@ clean-room-sim/
 │   ├── estimators/
 │   │   ├── cox_ph_estimator.R
 │   │   ├── iptw_survival.R
+│   │   ├── aipw_survival.R  # Augmented IPW (doubly-robust)
 │   │   └── gcomp_risk.R
 │   ├── staging/
 │   │   ├── stage1_cohort.R  # Stage 1: Cohort build
@@ -100,9 +105,12 @@ Rscript run_stage3_report.R
 Rscript simulation/run_simulations.R
 ```
 
-This runs all five scenarios (simple, nonlinear, dep_censor, switching,
-np_hazard) with 200 replicates each, comparing TMLE, IPTW, G-computation,
-and Cox PH. Results are saved to `outputs/simulation/`.
+This runs a two-phase simulation:
+1. **Phase 1 (Outcome-blind)**: Assesses PS overlap, ESS, convergence, and
+   runtime for each estimator *without* using outcome data.
+2. **Phase 2 (Unblinded)**: Runs all six estimators (TMLE, TMLE-CF, AIPW,
+   IPTW, G-computation, Cox PH) across five scenarios with 200 replicates.
+Results are saved to `outputs/simulation/`.
 
 ### Run Tests
 
@@ -110,11 +118,12 @@ and Cox PH. Results are saved to `outputs/simulation/`.
 Rscript -e "testthat::test_dir('tests/testthat')"
 ```
 
-### Render Vignettes
+### Render Vignettes and Manuscript
 
 ```bash
 quarto render analysis/case_study_clean_room.qmd
 quarto render analysis/simulation_study.qmd
+quarto render reports/clean_room_tmle_manuscript.qmd
 ```
 
 ## Configuration

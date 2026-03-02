@@ -36,6 +36,7 @@ jobs:
           source("R/tmle/tmle_pipeline.R")
           source("R/estimators/cox_ph_estimator.R")
           source("R/estimators/iptw_survival.R")
+          source("R/estimators/aipw_survival.R")
           source("R/estimators/gcomp_risk.R")
           source("R/staging/decision_log.R")
           source("R/staging/checkpoints.R")

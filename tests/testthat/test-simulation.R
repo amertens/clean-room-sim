@@ -22,9 +22,23 @@ test_that("Simulation driver produces expected output columns", {
 
   cox_res <- cox_ph_estimator(d)
 
-  # Check all return finite values
+  aipw_res <- aipw_survival(data = d, t_eval = 90,
+                            sl_lib_Q = c("SL.glm", "SL.mean"),
+                            sl_lib_g = c("SL.glm", "SL.mean"),
+                            sl_lib_cens = c("SL.glm", "SL.mean"))
 
+  tmle_cf_res <- tmle_survival_risk_cf(
+    data = d, t_eval = 90,
+    sl_lib_Q = c("SL.glm", "SL.mean"),
+    sl_lib_g = c("SL.glm", "SL.mean"),
+    sl_lib_cens = c("SL.glm", "SL.mean"),
+    V = 3
+  )
+
+  # Check all return finite values
   expect_true(is.finite(tmle_res$RD))
+  expect_true(is.finite(tmle_cf_res$RD))
+  expect_true(is.finite(aipw_res$RD))
   expect_true(is.finite(iptw_res$RD))
   expect_true(is.finite(gcomp_res$RD))
   expect_true(is.finite(cox_res$HR))
@@ -61,4 +75,33 @@ test_that("Comparator estimators return expected structure", {
   gc <- gcomp_risk(d, t_eval = 90, sl_lib = c("SL.glm", "SL.mean"))
   expect_true("RD" %in% names(gc))
   expect_true(is.finite(gc$RD))
+
+  # AIPW
+  aipw <- aipw_survival(d, t_eval = 90,
+                        sl_lib_Q = c("SL.glm", "SL.mean"),
+                        sl_lib_g = c("SL.glm", "SL.mean"),
+                        sl_lib_cens = c("SL.glm", "SL.mean"))
+  expect_true("RD" %in% names(aipw))
+  expect_true(is.finite(aipw$RD))
+  expect_equal(aipw$method, "AIPW")
+  expect_true(is.finite(aipw$se_RD))
+  expect_true(all(is.finite(aipw$ci_RD)))
+})
+
+test_that("TMLE-CF returns diagnostics including cross-fitting info", {
+  skip_if_not_installed("SuperLearner")
+
+  d <- generate_hcv_data(N = 500, seed = 77, h0 = 3e-4,
+                         complexity = FALSE, np_hazard = FALSE,
+                         dep_censor = FALSE, switch_on = FALSE)
+
+  res <- tmle_survival_risk_cf(d, t_eval = 90,
+                               sl_lib_Q = c("SL.glm", "SL.mean"),
+                               sl_lib_g = c("SL.glm", "SL.mean"),
+                               sl_lib_cens = c("SL.glm", "SL.mean"),
+                               V = 3)
+
+  expect_true(is.finite(res$RD))
+  expect_equal(res$diagnostics$cross_fitting_V, 3)
+  expect_true(!is.null(res$diagnostics$ic))
 })

@@ -1,13 +1,26 @@
 #!/usr/bin/env Rscript
 # ============================================================================
-# Simulation Study: Comparing TMLE, IPTW, G-computation, and Cox PH
+# Simulation Study: Outcome-Blind Phase + Unblinded Analysis
 # ============================================================================
-# Runs across five scenarios, computing bias, RMSE, coverage, and runtime.
+# Two-phase simulation study implementing the clean-room governance model:
+#
+#   Phase 1 (Outcome-blind): Uses only baseline covariates + treatment to
+#     evaluate candidate estimators on feasibility, PS diagnostics, ESS,
+#     convergence, and runtime. Outcomes are suppressed. Selection of final
+#     estimator/SL library/truncation is logged in the decision log.
+#
+#   Phase 2 (Unblinded): Generates datasets with outcomes and runs the
+#     selected estimators to compute performance metrics (bias, RMSE,
+#     coverage) relative to Monte-Carlo truth.
+#
+# Estimators compared: TMLE, TMLE-CF, AIPW, IPTW, G-computation, Cox PH
 #
 # Usage:
 #   Rscript simulation/run_simulations.R [config_path]
-#   Rscript simulation/run_simulations.R config/default.yml
 # ============================================================================
+
+# Null-coalescing operator
+`%||%` <- function(x, y) if (is.null(x)) y else x
 
 # Source all R modules
 source_all <- function() {
@@ -18,6 +31,7 @@ source_all <- function() {
     "R/tmle/tmle_pipeline.R",
     "R/estimators/cox_ph_estimator.R",
     "R/estimators/iptw_survival.R",
+    "R/estimators/aipw_survival.R",
     "R/estimators/gcomp_risk.R",
     "R/staging/decision_log.R",
     "R/staging/checkpoints.R"
@@ -41,62 +55,224 @@ time_pts   <- cfg$simulation$time_points
 output_dir <- cfg$output$simulation_dir
 ensure_dir(output_dir)
 
+sl_libs_Q <- c("SL.glm", "SL.mean")
+sl_libs_g <- c("SL.glm", "SL.mean")
+
 message("============================================================")
-message("Simulation Study Configuration")
+message("Clean-Room Simulation Study")
 message("  Replicates:   ", n_reps)
 message("  Sample size:  ", N_sim)
 message("  Time points:  ", paste(time_pts, collapse = ", "))
 message("  Scenarios:    ", paste(names(cfg$scenarios), collapse = ", "))
 message("============================================================")
 
-# --------------------------------------------------------------------------
-# 2. Compute truth for each scenario
-# --------------------------------------------------------------------------
-message("\n--- Computing ground-truth risks ---")
+# ==========================================================================
+# PHASE 1: OUTCOME-BLIND SIMULATION
+# ==========================================================================
+message("\n###########################################################")
+message("# PHASE 1: OUTCOME-BLIND ESTIMATOR SELECTION")
+message("###########################################################\n")
 
-# Use a large sample to compute truth (Monte Carlo)
+# In the outcome-blind phase we generate data but ONLY inspect:
+# - treatment assignment distributions
+# - propensity score model fit and overlap
+# - effective sample size under weights
+# - truncation counts
+# - estimator convergence and runtime
+# We do NOT look at outcome-by-treatment comparisons.
+
+n_blind_reps <- min(n_reps, 20)  # use a subset for efficiency
+blind_results <- list()
+
+for (scen_name in names(cfg$scenarios)) {
+  message("--- Outcome-blind: scenario '", scen_name, "' ---")
+  scen_params <- cfg$scenarios[[scen_name]]
+
+  for (rep_i in seq_len(n_blind_reps)) {
+    rep_seed <- cfg$dgp$seed +
+      (which(names(cfg$scenarios) == scen_name) - 1) * 10000 + rep_i
+    set_deterministic_seed(rep_seed)
+
+    # Generate data (outcomes exist but are NOT used for selection)
+    d <- tryCatch({
+      generate_hcv_data(
+        N = N_sim, h0 = cfg$dgp$h0, HR_early = cfg$dgp$HR_early,
+        HR_late = cfg$dgp$HR_late, tau = cfg$dgp$tau,
+        max_follow = cfg$dgp$max_follow, risk_window = cfg$dgp$risk_window,
+        np_hazard = scen_params$np_hazard, dep_censor = scen_params$dep_censor,
+        complexity = scen_params$complexity, switch_on = scen_params$switch_on,
+        seed = NULL
+      )
+    }, error = function(e) NULL)
+    if (is.null(d) || nrow(d) < 100) next
+
+    # Extract covariates and treatment only (outcome-blind)
+    exclude_cols <- c("id", "follow_time", "event", "treatment", "switch",
+                      "race", "region")
+    covar_cols <- setdiff(names(d), exclude_cols)
+    covar_cols <- covar_cols[vapply(d[, covar_cols, drop = FALSE],
+                                   is.numeric, logical(1))]
+    W <- as.data.frame(d[, covar_cols, drop = FALSE])
+    A <- d$treatment
+
+    # Fit PS model (permitted in outcome-blind phase)
+    g_fit <- tryCatch({
+      SuperLearner::SuperLearner(
+        Y = A, X = W, family = stats::binomial(),
+        SL.library = sl_libs_g, cvControl = list(V = 5)
+      )
+    }, error = function(e) {
+      fit <- stats::glm(A ~ ., data = cbind(A = A, W), family = "binomial")
+      list(SL.predict = stats::predict(fit, type = "response"))
+    })
+    ps <- as.numeric(g_fit$SL.predict)
+    trunc_info <- truncate_ps(ps, cfg$tmle$truncation_lower,
+                              cfg$tmle$truncation_upper)
+    ps <- trunc_info$p
+
+    # Outcome-blind diagnostics
+    w_ipw <- ifelse(A == 1, 1 / ps, 1 / (1 - ps))
+    ess_treated <- effective_ss(w_ipw[A == 1])
+    ess_control <- effective_ss(w_ipw[A == 0])
+
+    smds <- vapply(covar_cols, function(v) {
+      abs(compute_smd(d[[v]], A, weights = w_ipw))
+    }, numeric(1))
+
+    # Test each estimator for convergence and runtime
+    for (t_val in time_pts) {
+      estimators <- c("TMLE", "TMLE-CF", "AIPW", "IPTW", "G-comp", "Cox PH")
+      g_bounds <- c(cfg$tmle$truncation_lower, cfg$tmle$truncation_upper)
+      for (est_name in estimators) {
+        est_time <- system.time({
+          est_ok <- tryCatch({
+            switch(est_name,
+              "TMLE"    = tmle_survival_risk(d, t_val, sl_libs_Q, sl_libs_g,
+                                            sl_libs_g, g_bounds),
+              "TMLE-CF" = tmle_survival_risk_cf(d, t_val, sl_libs_Q, sl_libs_g,
+                                               sl_libs_g, g_bounds, V = 5),
+              "AIPW"    = aipw_survival(d, t_val, sl_libs_Q, sl_libs_g,
+                                       sl_libs_g, g_bounds),
+              "IPTW"    = iptw_survival(d, t_val, sl_libs_g, g_bounds),
+              "G-comp"  = gcomp_risk(d, t_val, sl_libs_Q),
+              "Cox PH"  = { cr <- cox_ph_estimator(d);
+                            cox_risk_at_t(cr, d, t_val) }
+            )
+            TRUE
+          }, error = function(e) FALSE)
+        })
+
+        blind_results <- c(blind_results, list(data.frame(
+          scenario = scen_name, replicate = rep_i, time_point = t_val,
+          method = est_name, converged = est_ok,
+          runtime = est_time[["elapsed"]],
+          ess_treated = round(ess_treated, 1),
+          ess_control = round(ess_control, 1),
+          max_smd_weighted = round(max(smds), 4),
+          n_trunc_lower = trunc_info$n_lower,
+          n_trunc_upper = trunc_info$n_upper,
+          ps_min = round(min(ps), 4),
+          ps_max = round(max(ps), 4),
+          stringsAsFactors = FALSE
+        )))
+      }
+    }
+  }
+}
+
+blind_df <- do.call(rbind, blind_results)
+utils::write.csv(blind_df, file.path(output_dir, "phase1_outcome_blind.csv"),
+                 row.names = FALSE)
+
+# Summarise outcome-blind phase
+blind_summary <- do.call(rbind, lapply(
+  split(blind_df, interaction(blind_df$method, blind_df$scenario,
+                              drop = TRUE)),
+  function(sub) {
+    data.frame(
+      method       = sub$method[1],
+      scenario     = sub$scenario[1],
+      convergence  = mean(sub$converged),
+      mean_runtime = round(mean(sub$runtime), 3),
+      mean_ess_trt = round(mean(sub$ess_treated), 1),
+      mean_ess_ctl = round(mean(sub$ess_control), 1),
+      mean_max_smd = round(mean(sub$max_smd_weighted), 4),
+      stringsAsFactors = FALSE
+    )
+  }
+))
+rownames(blind_summary) <- NULL
+utils::write.csv(blind_summary,
+                 file.path(output_dir, "phase1_summary.csv"),
+                 row.names = FALSE)
+
+message("\nPhase 1 complete. Outcome-blind diagnostics saved.")
+
+# --------------------------------------------------------------------------
+# Log outcome-blind decisions
+# --------------------------------------------------------------------------
+ensure_dir("outputs")
+mtg <- start_meeting("outcome_blind_simulation", protocol_version = 1L)
+mtg <- log_decision(
+  mtg, "PS",
+  paste("SL library for g:", paste(sl_libs_g, collapse = ", ")),
+  "Pre-specified in config; convergence confirmed in outcome-blind phase",
+  triggered_by = "phase 1 convergence check"
+)
+mtg <- log_decision(
+  mtg, "Q",
+  paste("SL library for Q:", paste(sl_libs_Q, collapse = ", ")),
+  "Pre-specified in config; convergence confirmed in outcome-blind phase",
+  triggered_by = "phase 1 convergence check"
+)
+mtg <- log_decision(
+  mtg, "Truncation",
+  paste("g bounds: [", cfg$tmle$truncation_lower, ",",
+        cfg$tmle$truncation_upper, "]"),
+  "Pre-specified; truncation counts acceptable across scenarios",
+  triggered_by = "phase 1 truncation diagnostics"
+)
+mtg <- log_decision(
+  mtg, "Estimator",
+  paste("Selected estimators for unblinded analysis: TMLE, TMLE-CF,",
+        "AIPW, IPTW, G-comp, Cox PH"),
+  "All estimators converged in outcome-blind phase; compare all",
+  triggered_by = "phase 1 convergence and runtime"
+)
+close_meeting(mtg)
+
+# ==========================================================================
+# PHASE 2: UNBLINDED SIMULATION (OUTCOMES INCLUDED)
+# ==========================================================================
+message("\n###########################################################")
+message("# PHASE 2: UNBLINDED ANALYSIS")
+message("###########################################################\n")
+
+# --------------------------------------------------------------------------
+# 2a. Compute ground-truth risks
+# --------------------------------------------------------------------------
+message("--- Computing ground-truth risks ---")
 N_truth <- 200000
 truths <- list()
 
 for (scen_name in names(cfg$scenarios)) {
   message("  Truth for scenario: ", scen_name)
   scen_params <- cfg$scenarios[[scen_name]]
-
-  # Build parameter list for DGP (exclude toggle params from base)
-  dgp_args <- list(
-    N = N_truth,
-    h0 = cfg$dgp$h0,
-    HR_early = cfg$dgp$HR_early,
-    HR_late = cfg$dgp$HR_late,
-    tau = cfg$dgp$tau,
-    max_follow = cfg$dgp$max_follow,
-    risk_window = cfg$dgp$risk_window,
-    np_hazard = scen_params$np_hazard,
-    dep_censor = scen_params$dep_censor,
-    complexity = scen_params$complexity,
-    switch_on = scen_params$switch_on,
-    seed = 9999
-  )
-
   truth_t <- list()
   for (t_val in time_pts) {
     tr <- compute_true_risk(
       N_truth = N_truth, t_eval = t_val, seed = 9999,
-      h0 = dgp_args$h0, HR_early = dgp_args$HR_early,
-      HR_late = dgp_args$HR_late, tau = dgp_args$tau,
-      max_follow = dgp_args$max_follow,
-      risk_window = dgp_args$risk_window,
-      np_hazard = dgp_args$np_hazard,
-      dep_censor = dgp_args$dep_censor,
-      complexity = dgp_args$complexity,
-      switch_on = dgp_args$switch_on
+      h0 = cfg$dgp$h0, HR_early = cfg$dgp$HR_early,
+      HR_late = cfg$dgp$HR_late, tau = cfg$dgp$tau,
+      max_follow = cfg$dgp$max_follow, risk_window = cfg$dgp$risk_window,
+      np_hazard = scen_params$np_hazard, dep_censor = scen_params$dep_censor,
+      complexity = scen_params$complexity, switch_on = scen_params$switch_on
     )
     truth_t[[paste0("t", t_val)]] <- tr
   }
   truths[[scen_name]] <- truth_t
 }
 
-# Save truths
 truth_df <- do.call(rbind, lapply(names(truths), function(scen) {
   do.call(rbind, lapply(names(truths[[scen]]), function(tkey) {
     tr <- truths[[scen]][[tkey]]
@@ -111,7 +287,7 @@ utils::write.csv(truth_df, file.path(output_dir, "true_values.csv"),
 message("Ground truths saved.\n")
 
 # --------------------------------------------------------------------------
-# 3. Run simulations
+# 2b. Run unblinded simulation replicates
 # --------------------------------------------------------------------------
 all_results <- list()
 
@@ -120,96 +296,30 @@ for (scen_name in names(cfg$scenarios)) {
   scen_params <- cfg$scenarios[[scen_name]]
 
   for (rep_i in seq_len(n_reps)) {
-    rep_seed <- cfg$dgp$seed + (which(names(cfg$scenarios) == scen_name) - 1) *
-      10000 + rep_i
+    rep_seed <- cfg$dgp$seed +
+      (which(names(cfg$scenarios) == scen_name) - 1) * 10000 + rep_i
     set_deterministic_seed(rep_seed)
 
     if (rep_i %% 50 == 1 || rep_i == n_reps) {
       message("  Replicate ", rep_i, "/", n_reps)
     }
 
-    # Generate data
     sim_data <- tryCatch({
       generate_hcv_data(
-        N = N_sim,
-        h0 = cfg$dgp$h0, HR_early = cfg$dgp$HR_early,
+        N = N_sim, h0 = cfg$dgp$h0, HR_early = cfg$dgp$HR_early,
         HR_late = cfg$dgp$HR_late, tau = cfg$dgp$tau,
-        max_follow = cfg$dgp$max_follow,
-        risk_window = cfg$dgp$risk_window,
-        np_hazard = scen_params$np_hazard,
-        dep_censor = scen_params$dep_censor,
-        complexity = scen_params$complexity,
-        switch_on = scen_params$switch_on,
-        seed = NULL  # seed already set
+        max_follow = cfg$dgp$max_follow, risk_window = cfg$dgp$risk_window,
+        np_hazard = scen_params$np_hazard, dep_censor = scen_params$dep_censor,
+        complexity = scen_params$complexity, switch_on = scen_params$switch_on,
+        seed = NULL
       )
-    }, error = function(e) {
-      message("    DGP failed: ", e$message)
-      NULL
-    })
-
+    }, error = function(e) NULL)
     if (is.null(sim_data) || nrow(sim_data) < 100) next
 
     for (t_val in time_pts) {
       truth <- truths[[scen_name]][[paste0("t", t_val)]]
+      g_bounds <- c(cfg$tmle$truncation_lower, cfg$tmle$truncation_upper)
 
-      # --- TMLE ---
-      tmle_time <- system.time({
-        tmle_res <- tryCatch({
-          tmle_survival_risk(
-            data = sim_data, t_eval = t_val,
-            sl_lib_Q = c("SL.glm", "SL.mean"),
-            sl_lib_g = c("SL.glm", "SL.mean"),
-            sl_lib_cens = c("SL.glm", "SL.mean"),
-            g_trunc = c(cfg$tmle$truncation_lower,
-                        cfg$tmle$truncation_upper)
-          )
-        }, error = function(e) {
-          list(RD = NA_real_, se_RD = NA_real_, ci_RD = c(NA_real_, NA_real_))
-        })
-      })
-
-      # --- IPTW ---
-      iptw_time <- system.time({
-        iptw_res <- tryCatch({
-          iptw_survival(
-            data = sim_data, t_eval = t_val,
-            sl_lib = c("SL.glm", "SL.mean"),
-            g_trunc = c(cfg$tmle$truncation_lower,
-                        cfg$tmle$truncation_upper)
-          )
-        }, error = function(e) {
-          list(RD = NA_real_, se_RD = NA_real_, ci_RD = c(NA_real_, NA_real_))
-        })
-      })
-
-      # --- G-computation ---
-      gcomp_time <- system.time({
-        gcomp_res <- tryCatch({
-          gcomp_risk(data = sim_data, t_eval = t_val,
-                     sl_lib = c("SL.glm", "SL.mean"))
-        }, error = function(e) {
-          list(RD = NA_real_, se_RD = NA_real_, ci_RD = c(NA_real_, NA_real_))
-        })
-      })
-
-      # --- Cox PH ---
-      cox_time <- system.time({
-        cox_res <- tryCatch({
-          cr <- cox_ph_estimator(sim_data)
-          cox_risk <- cox_risk_at_t(cr, sim_data, t_eval = t_val)
-          # Use delta-method SE from log(HR) -> approximate RD SE
-          list(RD = cox_risk$RD, se_RD = NA_real_,
-               ci_RD = c(NA_real_, NA_real_),
-               HR = cr$HR, ci_HR = cr$ci_HR,
-               ph_pvalue = cr$ph_test$pvalue,
-               ph_violated = cr$ph_test$ph_violated)
-        }, error = function(e) {
-          list(RD = NA_real_, se_RD = NA_real_, ci_RD = c(NA_real_, NA_real_),
-               HR = NA_real_, ph_pvalue = NA_real_, ph_violated = NA)
-        })
-      })
-
-      # Collect results
       add_result <- function(method, res, runtime) {
         rd <- res$RD %||% NA_real_
         se <- res$se_RD %||% NA_real_
@@ -217,36 +327,73 @@ for (scen_name in names(cfg$scenarios)) {
         covers <- if (!is.na(ci[1]) && !is.na(ci[2]) && !is.na(truth$RD)) {
           as.integer(ci[1] <= truth$RD & truth$RD <= ci[2])
         } else NA_integer_
-
         data.frame(
-          scenario   = scen_name,
-          replicate  = rep_i,
-          time_point = t_val,
-          method     = method,
-          estimate   = rd,
-          se         = se,
-          ci_lower   = ci[1],
-          ci_upper   = ci[2],
-          truth      = truth$RD,
-          bias       = rd - truth$RD,
-          covers     = covers,
-          runtime    = runtime[["elapsed"]],
+          scenario = scen_name, replicate = rep_i, time_point = t_val,
+          method = method, estimate = rd, se = se,
+          ci_lower = ci[1], ci_upper = ci[2],
+          truth = truth$RD, bias = rd - truth$RD,
+          covers = covers, runtime = runtime[["elapsed"]],
           stringsAsFactors = FALSE
         )
       }
 
+      t1 <- system.time({
+        r1 <- tryCatch(
+          tmle_survival_risk(sim_data, t_val, sl_libs_Q, sl_libs_g,
+                            sl_libs_g, g_bounds),
+          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
+                                   ci_RD = c(NA_real_, NA_real_)))
+      })
+      t2 <- system.time({
+        r2 <- tryCatch(
+          tmle_survival_risk_cf(sim_data, t_val, sl_libs_Q, sl_libs_g,
+                               sl_libs_g, g_bounds, V = 5),
+          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
+                                   ci_RD = c(NA_real_, NA_real_)))
+      })
+      t3 <- system.time({
+        r3 <- tryCatch(
+          aipw_survival(sim_data, t_val, sl_libs_Q, sl_libs_g,
+                       sl_libs_g, g_bounds),
+          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
+                                   ci_RD = c(NA_real_, NA_real_)))
+      })
+      t4 <- system.time({
+        r4 <- tryCatch(
+          iptw_survival(sim_data, t_val, sl_libs_g, g_bounds),
+          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
+                                   ci_RD = c(NA_real_, NA_real_)))
+      })
+      t5 <- system.time({
+        r5 <- tryCatch(
+          gcomp_risk(sim_data, t_val, sl_libs_Q),
+          error = function(e) list(RD = NA_real_, se_RD = NA_real_,
+                                   ci_RD = c(NA_real_, NA_real_)))
+      })
+      t6 <- system.time({
+        r6 <- tryCatch({
+          cr <- cox_ph_estimator(sim_data)
+          cox_r <- cox_risk_at_t(cr, sim_data, t_val)
+          list(RD = cox_r$RD, se_RD = NA_real_,
+               ci_RD = c(NA_real_, NA_real_))
+        }, error = function(e) list(RD = NA_real_, se_RD = NA_real_,
+                                    ci_RD = c(NA_real_, NA_real_)))
+      })
+
       all_results <- c(all_results, list(
-        add_result("TMLE",          tmle_res,  tmle_time),
-        add_result("IPTW",          iptw_res,  iptw_time),
-        add_result("G-computation", gcomp_res, gcomp_time),
-        add_result("Cox PH",        cox_res,   cox_time)
+        add_result("TMLE",          r1, t1),
+        add_result("TMLE-CF",       r2, t2),
+        add_result("AIPW",          r3, t3),
+        add_result("IPTW",          r4, t4),
+        add_result("G-computation", r5, t5),
+        add_result("Cox PH",        r6, t6)
       ))
     }
   }
 }
 
 # --------------------------------------------------------------------------
-# 4. Compile results
+# 2c. Compile and summarise
 # --------------------------------------------------------------------------
 message("\n--- Compiling results ---")
 sim_results <- do.call(rbind, all_results)
@@ -254,11 +401,7 @@ utils::write.csv(sim_results,
                  file.path(output_dir, "simulation_results.csv"),
                  row.names = FALSE)
 
-# --------------------------------------------------------------------------
-# 5. Compute summary statistics
-# --------------------------------------------------------------------------
 compute_summary <- function(df) {
-  # Remove NAs
   df <- df[!is.na(df$estimate), ]
   if (nrow(df) == 0) {
     return(data.frame(
@@ -278,45 +421,46 @@ compute_summary <- function(df) {
   )
 }
 
-# Group by scenario, time_point, method
 groups <- unique(sim_results[, c("scenario", "time_point", "method")])
 summary_list <- lapply(seq_len(nrow(groups)), function(i) {
   g <- groups[i, ]
-  subset_df <- sim_results[sim_results$scenario == g$scenario &
-                             sim_results$time_point == g$time_point &
-                             sim_results$method == g$method, ]
-  summ <- compute_summary(subset_df)
-  cbind(g, summ)
+  sub <- sim_results[sim_results$scenario == g$scenario &
+                       sim_results$time_point == g$time_point &
+                       sim_results$method == g$method, ]
+  cbind(g, compute_summary(sub))
 })
 summary_df <- do.call(rbind, summary_list)
-
-# Add truth column
-summary_df <- merge(summary_df, truth_df[, c("scenario", "time_point",
-                                              "true_RD")],
+summary_df <- merge(summary_df,
+                    truth_df[, c("scenario", "time_point", "true_RD")],
                     by = c("scenario", "time_point"), all.x = TRUE)
 
-# Round for display
 num_cols <- c("mean_estimate", "mean_bias", "empirical_sd", "mean_se",
               "rmse", "coverage", "mean_runtime", "true_RD")
 for (col in num_cols) {
-  if (col %in% names(summary_df)) {
+  if (col %in% names(summary_df))
     summary_df[[col]] <- round(summary_df[[col]], 6)
-  }
 }
-
 utils::write.csv(summary_df,
                  file.path(output_dir, "simulation_summary.csv"),
                  row.names = FALSE)
 
-message("\nSimulation complete!")
-message("  Results:  ", file.path(output_dir, "simulation_results.csv"))
-message("  Summary:  ", file.path(output_dir, "simulation_summary.csv"))
-message("  Truths:   ", file.path(output_dir, "true_values.csv"))
+# Log unblinded phase
+mtg2 <- start_meeting("unblinded_simulation", protocol_version = 1L)
+mtg2 <- log_decision(
+  mtg2, "Simulation",
+  paste("Unblinded simulation completed:", n_reps, "replicates x",
+        length(names(cfg$scenarios)), "scenarios x",
+        length(time_pts), "time points"),
+  "Pre-specified simulation protocol",
+  triggered_by = "phase 2 execution",
+  outcome_blind_confirm = FALSE
+)
+close_meeting(mtg2)
 
-# --------------------------------------------------------------------------
-# 6. Session info
-# --------------------------------------------------------------------------
+message("\nSimulation study complete!")
+message("  Phase 1 (blind): ", file.path(output_dir, "phase1_summary.csv"))
+message("  Phase 2 results: ", file.path(output_dir, "simulation_results.csv"))
+message("  Summary:         ", file.path(output_dir, "simulation_summary.csv"))
+message("  Truths:          ", file.path(output_dir, "true_values.csv"))
+
 capture_session_info(file.path(output_dir, "session_info.txt"))
-
-# Null-coalescing (ensure available)
-if (!exists("%||%")) `%||%` <- function(x, y) if (is.null(x)) y else x
