@@ -247,7 +247,13 @@ if (has_full_diag) {
 ```{r stage4}
 #| label: stage4
 
-stage4_report(cfg = cfg, output_dir = "../outputs/report")
+# Fix relative paths when running from analysis/ subdirectory
+cfg_local <- cfg
+cfg_local$output$base_dir   <- "../outputs"
+cfg_local$output$stage1_dir <- "../outputs/stage1"
+cfg_local$output$stage2_dir <- "../outputs/stage2"
+cfg_local$output$stage3_dir <- "../outputs/stage3"
+stage4_report(cfg = cfg_local, output_dir = "../outputs/report")
 ```
 
 ## Now Run with Complex Scenario
