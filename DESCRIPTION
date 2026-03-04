@@ -1,0 +1,36 @@
+Package: cleanroom.sim
+Title: Clean-Room Staged Analysis Framework for TMLE in Pharmacoepidemiology
+Version: 0.1.0
+Authors@R: person("Andrew N.", "Mertens", role = c("aut", "cre"),
+                  email = "amertens@example.com")
+Description: Implements a clean-room (staged) workflow applying TMLE to an
+    HCV-AKI pharmacoepidemiology case study. Includes a data-generating process,
+    four-stage analysis pipeline with explicit checkpoints and decision logging,
+    TMLE and comparator estimators, and a simulation study comparing estimator
+    performance under realistic violations.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.1.0)
+Imports:
+    data.table,
+    dplyr,
+    ggplot2,
+    jsonlite,
+    survival,
+    SuperLearner,
+    tmle,
+    yaml
+Suggests:
+    gam,
+    glmnet,
+    ranger,
+    xgboost,
+    testthat (>= 3.0.0),
+    quarto,
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+VignetteBuilder: knitr

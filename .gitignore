@@ -1,8 +1,28 @@
+# Generated outputs
+outputs/
 output/
-*.html
-*.pdf
+data/
+
+# R artifacts
 .Rproj.user/
 .Rhistory
+.RData
+.Ruserdata
+*.Rcheck/
+
+# Rendered documents
+*.html
+*.pdf
 *.log
 *.tex
 *_files/
+
+# System
+.DS_Store
+Thumbs.db
+
+# renv
+renv/library/
+renv/staging/
+renv/python/
+renv/sandbox/

@@ -1,0 +1,91 @@
+# ============================================================================
+# Clean-Room Simulation: Default Configuration
+# ============================================================================
+# All scripts read from this file. Override by passing a custom config path.
+
+# --- Data-generating process ---
+dgp:
+  N: 5000                    # sample size per replicate (use 50000+ for production)
+  p_sof: 0.36                # treatment assignment probability
+  h0: 5e-5                   # baseline hazard
+  HR_early: 1.25             # early hazard ratio (treatment vs control)
+  HR_late: 0.70              # late hazard ratio (non-PH phase)
+  tau: 45                    # change-point for non-PH (days)
+  max_follow: 720            # administrative censoring cutoff (days)
+  risk_window: 30            # at-risk window after switch (days)
+  seed: 12345                # master seed
+
+# --- Scenario toggles ---
+scenarios:
+  simple:
+    np_hazard: false
+    dep_censor: false
+    complexity: false
+    switch_on: false
+  nonlinear:
+    np_hazard: false
+    dep_censor: false
+    complexity: true
+    switch_on: false
+  dep_censor:
+    np_hazard: false
+    dep_censor: true
+    complexity: true
+    switch_on: false
+  switching:
+    np_hazard: false
+    dep_censor: false
+    complexity: true
+    switch_on: true
+  np_hazard:
+    np_hazard: true
+    dep_censor: false
+    complexity: true
+    switch_on: false
+
+# --- Simulation settings ---
+simulation:
+  n_replicates: 200          # number of simulation replicates
+  N: 5000                    # sample size per replicate
+  time_points: [90, 180]     # risk assessment time points (days)
+  parallel: false            # use parallel processing
+  n_cores: 4                 # number of cores if parallel
+
+# --- TMLE settings ---
+tmle:
+  truncation_lower: 0.01     # lower bound for g truncation
+  truncation_upper: 0.99     # upper bound for g truncation
+  sl_library_Q:
+    - SL.glm
+    - SL.gam
+    - SL.ranger
+    - SL.glmnet
+    - SL.mean
+  sl_library_g:
+    - SL.glm
+    - SL.gam
+    - SL.ranger
+    - SL.mean
+  max_discrete_time: 180     # max time points for discrete-time survival
+
+# --- Stage gate thresholds ---
+stage1:
+  min_N: 500                 # minimum cohort size
+  min_treated_frac: 0.05     # minimum treated fraction
+  min_control_frac: 0.05     # minimum control fraction
+  max_missingness: 0.30      # maximum missingness per variable
+
+stage2:
+  max_smd: 0.25              # maximum SMD after weighting
+  min_ess_frac: 0.05         # minimum effective sample size fraction
+  min_ps_overlap: 0.10       # minimum PS overlap region
+  max_weight: 50             # maximum allowed weight
+
+# --- Output directories ---
+output:
+  base_dir: "outputs"
+  stage1_dir: "outputs/stage1"
+  stage2_dir: "outputs/stage2"
+  stage3_dir: "outputs/stage3"
+  report_dir: "outputs/report"
+  simulation_dir: "outputs/simulation"

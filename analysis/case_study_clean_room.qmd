@@ -1,0 +1,304 @@
+---
+title: "Clean-Room Staged Analysis: HCV-AKI Case Study"
+author: "Andrew N. Mertens"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    self-contained: true
+execute:
+  warning: false
+  message: false
+---
+
+## Overview
+
+This vignette demonstrates the end-to-end clean-room staged workflow for
+analyzing the causal effect of sofosbuvir-containing (SOF) vs non-SOF DAA
+regimens on acute kidney injury (AKI) risk using a simulated cohort.
+
+The analysis proceeds through four stages with explicit checkpoints:
+
+1. **Stage 1**: Cohort feasibility and build (outcome-blind)
+2. **Stage 2**: Design adequacy checks (treatment model only; no outcomes)
+3. **Stage 3**: Outcome modeling and estimation (TMLE + comparators)
+4. **Stage 4**: Reporting and lock
+
+```{r setup}
+#| label: setup
+
+# Source all R modules
+r_files <- list.files("../R", pattern = "\\.R$", recursive = TRUE,
+                      full.names = TRUE)
+for (f in r_files) source(f)
+
+# Load configuration
+cfg <- load_config("../config/default.yml")
+```
+
+## Stage 1: Cohort Feasibility and Build
+
+Stage 1 generates the analysis cohort and produces feasibility summaries.
+**No outcome-by-treatment comparisons are permitted at this stage.**
+
+```{r stage1}
+#| label: stage1
+
+# Generate cohort data using simple scenario
+set_deterministic_seed(cfg$dgp$seed)
+cohort_data <- generate_hcv_data(
+  N = cfg$dgp$N,
+  h0 = cfg$dgp$h0,
+  HR_early = cfg$dgp$HR_early,
+  HR_late = cfg$dgp$HR_late,
+  tau = cfg$dgp$tau,
+  max_follow = cfg$dgp$max_follow,
+  np_hazard = FALSE,
+  dep_censor = FALSE,
+  complexity = FALSE,
+  switch_on = FALSE,
+  seed = cfg$dgp$seed
+)
+
+# Run Stage 1
+stage1_out <- stage1_build_cohort(
+  data = cohort_data,
+  cfg = cfg,
+  output_dir = "../outputs/stage1"
+)
+
+cat("Checkpoint 1:", stage1_out$checkpoint, "\n")
+```
+
+### Stage 1 Report
+
+```{r stage1-report}
+#| label: stage1-report
+
+report <- stage1_out$report
+cat(sprintf("Cohort size: %d\n", report$N_total))
+cat(sprintf("Treated (SOF): %d (%.1f%%)\n",
+            report$N_treated, report$frac_treated * 100))
+cat(sprintf("Control: %d (%.1f%%)\n",
+            report$N_control, report$frac_control * 100))
+cat(sprintf("Overall event rate: %.4f\n", report$overall_event_rate))
+cat(sprintf("Total events: %d\n", report$overall_N_events))
+cat(sprintf("Number of covariates: %d\n", report$n_covariates))
+```
+
+## Stage 2: Design Adequacy Checks
+
+Stage 2 evaluates propensity score overlap, covariate balance, and weight
+distributions. **This stage does NOT fit outcome models or compute treatment
+effects.**
+
+```{r stage2}
+#| label: stage2
+
+stage2_out <- stage2_design_checks(
+  cohort = stage1_out$cohort,
+  cfg = cfg,
+  output_dir = "../outputs/stage2"
+)
+
+cat("Checkpoint 2:", stage2_out$checkpoint, "\n")
+```
+
+### Propensity Score Overlap
+
+```{r ps-overlap}
+#| label: ps-overlap
+#| fig-width: 8
+#| fig-height: 5
+
+library(ggplot2)
+
+ps_df <- data.frame(
+  ps = stage2_out$ps,
+  treatment = factor(stage1_out$cohort$treatment,
+                     labels = c("Control", "SOF"))
+)
+
+ggplot(ps_df, aes(x = ps, fill = treatment)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = c(cfg$tmle$truncation_lower,
+                             cfg$tmle$truncation_upper),
+             linetype = "dashed", color = "red") +
+  labs(title = "Propensity Score Overlap",
+       x = "P(SOF | W)", y = "Density", fill = "Treatment") +
+  theme_minimal()
+```
+
+### Covariate Balance (SMD Love Plot)
+
+```{r smd-love-plot}
+#| label: smd-love-plot
+#| fig-width: 8
+#| fig-height: 7
+
+covar_cols <- stage2_out$covar_cols
+A <- stage1_out$cohort$treatment
+
+smd_unw <- sapply(covar_cols, function(v) {
+  compute_smd(stage1_out$cohort[[v]], A)
+})
+smd_wtd <- sapply(covar_cols, function(v) {
+  compute_smd(stage1_out$cohort[[v]], A, weights = stage2_out$weights)
+})
+
+smd_df <- data.frame(
+  variable = rep(covar_cols, 2),
+  smd = c(smd_unw, smd_wtd),
+  type = rep(c("Unweighted", "Weighted"), each = length(covar_cols))
+)
+
+ggplot(smd_df, aes(x = abs(smd), y = reorder(variable, abs(smd)),
+                   color = type)) +
+  geom_point(size = 3) +
+  geom_vline(xintercept = 0.1, linetype = "dashed") +
+  geom_vline(xintercept = cfg$stage2$max_smd,
+             linetype = "dotted", color = "red") +
+  labs(title = "Covariate Balance (SMD Love Plot)",
+       x = "|SMD|", y = "Covariate", color = "Weighting") +
+  theme_minimal()
+```
+
+### Diagnostics Summary
+
+```{r diag-summary}
+#| label: diag-summary
+
+diag <- stage2_out$diagnostics
+cat(sprintf("Max weighted SMD: %.4f (threshold: %.2f)\n",
+            diag$max_smd_weighted, cfg$stage2$max_smd))
+cat(sprintf("ESS fraction: %.4f (threshold: %.2f)\n",
+            diag$ess_frac, cfg$stage2$min_ess_frac))
+cat(sprintf("PS overlap fraction: %.4f\n", diag$ps_overlap_frac))
+cat(sprintf("PS truncated: %d lower, %d upper\n",
+            diag$n_truncated_lower, diag$n_truncated_upper))
+```
+
+## Stage 3: Outcome Modeling and Estimation
+
+Stage 3 runs TMLE and comparator estimators. It only proceeds if Stage 2
+checkpoint is PASS.
+
+**Primary estimand**: Cumulative risk at 90 and 180 days (risk difference
+and risk ratio). This estimand does NOT rely on proportional hazards.
+
+**Secondary estimand**: Cox PH hazard ratio (labeled as such).
+
+```{r stage3}
+#| label: stage3
+
+stage3_out <- stage3_estimation(
+  cohort = stage1_out$cohort,
+  stage2_result = stage2_out,
+  cfg = cfg,
+  output_dir = "../outputs/stage3"
+)
+
+# Display results table
+knitr::kable(stage3_out$summary, digits = 5,
+             caption = "Stage 3: Effect Estimates by Method and Time Point")
+```
+
+### Cox PH Secondary Estimand
+
+```{r cox-secondary}
+#| label: cox-secondary
+
+cox_hr <- stage3_out$results$cox_hr
+cat(sprintf("Hazard Ratio: %.4f (95%% CI: %.4f, %.4f)\n",
+            cox_hr$HR, cox_hr$ci_HR[1], cox_hr$ci_HR[2]))
+cat(sprintf("PH Test p-value: %.4f\n", cox_hr$ph_test$pvalue))
+cat(sprintf("PH Violated (p < 0.05): %s\n", cox_hr$ph_test$ph_violated))
+cat("\nNote: The HR estimate assumes proportional hazards. ",
+    "When PH is violated, interpret with caution.\n")
+```
+
+### TMLE Diagnostics (180 days)
+
+```{r tmle-diag}
+#| label: tmle-diag
+
+tmle_180 <- stage3_out$results$t180$tmle
+if (!is.null(tmle_180$diagnostics)) {
+  cat("Clever covariate H1 mean:", round(tmle_180$diagnostics$clever_covariate$H1_mean, 4), "\n")
+  cat("IC mean (should be ~0):", round(tmle_180$diagnostics$ic$ic_rd_mean, 6), "\n")
+  cat("Positivity: min g =", round(tmle_180$diagnostics$positivity$min_g1W, 4),
+      ", max g =", round(tmle_180$diagnostics$positivity$max_g1W, 4), "\n")
+  cat("Observations censored:", tmle_180$diagnostics$n_censored, "\n")
+  cat("Fluctuation eps:", round(tmle_180$diagnostics$eps$eps1, 4),
+      ",", round(tmle_180$diagnostics$eps$eps0, 4), "\n")
+}
+```
+
+## Stage 4: Report Lock
+
+```{r stage4}
+#| label: stage4
+
+stage4_report(cfg = cfg, output_dir = "../outputs/report")
+```
+
+## Now Run with Complex Scenario
+
+```{r complex-scenario}
+#| label: complex-scenario
+
+set_deterministic_seed(cfg$dgp$seed)
+cohort_complex <- generate_hcv_data(
+  N = cfg$dgp$N,
+  h0 = cfg$dgp$h0,
+  HR_early = cfg$dgp$HR_early,
+  HR_late = cfg$dgp$HR_late,
+  tau = cfg$dgp$tau,
+  max_follow = cfg$dgp$max_follow,
+  np_hazard = TRUE,
+  dep_censor = TRUE,
+  complexity = TRUE,
+  switch_on = TRUE,
+  seed = cfg$dgp$seed + 1000
+)
+
+# Stage 1 (complex)
+s1_cx <- stage1_build_cohort(data = cohort_complex, cfg = cfg,
+                              output_dir = "../outputs/stage1")
+cat("Complex - Checkpoint 1:", s1_cx$checkpoint, "\n")
+cat("Complex - N:", s1_cx$report$N_total,
+    ", Events:", s1_cx$report$overall_N_events, "\n")
+```
+
+## Decision Log
+
+```{r decision-log}
+#| label: decision-log
+
+if (file.exists("../outputs/decision_log.csv")) {
+  log <- read.csv("../outputs/decision_log.csv", stringsAsFactors = FALSE)
+  knitr::kable(log[, c("stage", "model_component", "decision",
+                        "outcome_blind_confirm")],
+               caption = "Decision Log Excerpt")
+}
+```
+
+## Appendix
+
+### Configuration Used
+
+```{r config}
+#| label: config
+
+str(cfg, max.level = 2)
+```
+
+### Session Info
+
+```{r session-info}
+#| label: session-info
+
+sessionInfo()
+```
