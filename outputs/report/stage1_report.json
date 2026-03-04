@@ -1,0 +1,22 @@
+{
+  "N_total": 106860,
+  "N_treated": 39920,
+  "N_control": 66940,
+  "frac_treated": 0.3736,
+  "frac_control": 0.6264,
+  "overall_event_rate": 0.0021,
+  "overall_N_events": 220,
+  "followup_summary": {
+    "Min.": 0.0005,
+    "1st Qu.": 28.8874,
+    "Median": 69.1871,
+    "Mean": 99.0185,
+    "3rd Qu.": 135.8413,
+    "Max.": 720
+  },
+  "missingness": {
+    "none": 0
+  },
+  "n_covariates": 30,
+  "covariate_names": ["age", "sex_male", "ckd", "heart_failure", "sepsis", "dehydration", "obstruction", "cirrhosis", "portal_htn", "esld", "hiv", "diabetes", "hypertension", "bmi", "overweight_obese", "smoking", "alcohol", "substance_abuse", "cancer", "chemo", "nsaid", "acearb", "diuretic", "aminoglycoside", "contrast", "statin", "aspirin", "beta_blocker", "ccb", "art"]
+}

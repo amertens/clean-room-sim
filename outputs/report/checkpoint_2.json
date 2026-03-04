@@ -1,0 +1,22 @@
+{
+  "stage": "checkpoint_2",
+  "status": "PASS",
+  "timestamp": "2026-03-02 08:49:58",
+  "criteria": {
+    "max_smd_weighted": {
+      "value": 0.0007,
+      "threshold": 0.25,
+      "pass": true
+    },
+    "ess_frac": {
+      "value": 0.9883,
+      "threshold": 0.05,
+      "pass": true
+    },
+    "ps_overlap": {
+      "value": 1,
+      "threshold": 0.1,
+      "pass": true
+    }
+  }
+}

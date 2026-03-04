@@ -1,0 +1,2 @@
+"estimand","HR","ci_lower","ci_upper","pvalue","ph_test_pvalue","ph_violated","note"
+"Hazard Ratio (SECONDARY - assumes PH)",1.5289,1.1663,2.0041,0.002111,0.0907,FALSE,"PH assumption required; check ph_test_pvalue"

@@ -1,0 +1,27 @@
+{
+  "stage": "checkpoint_1",
+  "status": "PASS",
+  "timestamp": "2026-03-02 08:49:31",
+  "criteria": {
+    "N_total": {
+      "value": 106860,
+      "threshold": 500,
+      "pass": true
+    },
+    "frac_treated": {
+      "value": 0.3736,
+      "threshold": 0.05,
+      "pass": true
+    },
+    "frac_control": {
+      "value": 0.6264,
+      "threshold": 0.05,
+      "pass": true
+    },
+    "max_missingness": {
+      "value": 0,
+      "threshold": 0.3,
+      "pass": true
+    }
+  }
+}

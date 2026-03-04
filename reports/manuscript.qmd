@@ -1,9 +1,9 @@
 ---
 title: "Outcome-Blind Estimator Validation for Targeted Learning in a Clean-Room Pharmacoepidemiology Simulation"
 author: "Andrew N. Mertens"
-format: pdf
+format: html
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
-bibliography: references.bib
+#bibliography: references.bib
 ---
 
 # 1. Introduction

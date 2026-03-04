@@ -1,0 +1,30 @@
+{
+  "clever_covariate": {
+    "H1_mean": 16.553,
+    "H1_sd": 3.3068,
+    "H0_mean": 10.1625,
+    "H0_sd": 1.8549
+  },
+  "ic": {
+    "ic_rd_mean": -0.0046,
+    "ic_rd_sd": 0.6145,
+    "ic_rd_range": [-16.4505, 21.7002]
+  },
+  "truncation": {
+    "g_n_lower": 0,
+    "g_n_upper": 0,
+    "gC_n_trunc": 0
+  },
+  "positivity": {
+    "min_g1W": 0.1549,
+    "max_g1W": 0.6235,
+    "min_gC": 0.0734,
+    "frac_near_boundary": 0
+  },
+  "eps": {
+    "eps1": 0.0886,
+    "eps0": 0.1514
+  },
+  "n_observed": 678,
+  "n_censored": 3590
+}
