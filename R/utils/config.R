@@ -52,7 +52,7 @@ validate_config <- function(cfg) {
 #' Get Scenario Parameters
 #'
 #' Extract DGP toggle parameters for a named scenario, merged with base DGP
-#' parameters.
+#' parameters. Only returns parameters accepted by \code{generate_hcv_data}.
 #'
 #' @param cfg Config list from \code{load_config}.
 #' @param scenario_name Character name of the scenario.
@@ -67,7 +67,10 @@ get_scenario_params <- function(cfg, scenario_name) {
   toggles <- cfg$scenarios[[scenario_name]]
   # Merge toggles into base DGP params
   params <- modifyList(base, toggles)
-  params
+
+  # Only keep arguments that generate_hcv_data() accepts
+  dgp_args <- names(formals(generate_hcv_data))
+  params[intersect(names(params), dgp_args)]
 }
 
 #' Ensure Output Directory Exists

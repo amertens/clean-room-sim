@@ -1,8 +1,27 @@
 ---
 title: "Targeted Learning Statistical Analysis Plan (TL-SAP)"
 subtitle: "Simulation Study: HCV Treatment and Risk of Acute Kidney Injury (AKI)"
-author: "Andrew N. Mertens"
-format: pdf
+author:
+  - name: Andrew N. Mertens
+    affiliation: "University of California, Berkeley"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    self-contained: true
+    number-sections: true
+  pdf:
+    toc: true
+    number-sections: true
+    documentclass: article
+    geometry: margin=1in
+#bibliography: references.bib (to add)
+execute:
+  warning: false
+  message: false
+  echo: false
 ---
 
 # 1. Background and Objectives

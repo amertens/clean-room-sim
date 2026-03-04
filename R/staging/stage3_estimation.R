@@ -87,8 +87,25 @@ stage3_estimation <- function(cohort, stage2_result = NULL, cfg = NULL,
            risk_0 = NA, RR = NA)
     })
 
+    # --- Comparator 3: AIPW (doubly-robust, no targeting) ---
+    aipw_res <- tryCatch({
+      aipw_survival(
+        data      = cohort,
+        t_eval    = t_val,
+        sl_lib_Q  = sl_lib_Q,
+        sl_lib_g  = sl_lib_g,
+        sl_lib_cens = sl_lib_g,
+        g_trunc   = g_bounds
+      )
+    }, error = function(e) {
+      message("AIPW failed at t=", t_val, ": ", e$message)
+      list(RD = NA, se_RD = NA, ci_RD = c(NA, NA), risk_1 = NA,
+           risk_0 = NA, RR = NA)
+    })
+
     results[[paste0("t", t_val)]] <- list(
       tmle  = tmle_res,
+      aipw  = aipw_res,
       iptw  = iptw_res,
       gcomp = gcomp_res
     )
@@ -140,6 +157,7 @@ stage3_estimation <- function(cohort, stage2_result = NULL, cfg = NULL,
     }
     summary_rows <- c(summary_rows, list(
       add_row("TMLE", r$tmle),
+      add_row("AIPW", r$aipw),
       add_row("IPTW", r$iptw),
       add_row("G-computation", r$gcomp),
       add_row("Cox PH (standardized)", r$cox)

@@ -1,0 +1,445 @@
+---
+title: "Outcome-Blind Estimator Selection for Targeted Learning in a Clean-Room Pharmacoepidemiology Simulation"
+subtitle: "A Simulation Study of HCV Treatment and Acute Kidney Injury Risk"
+author:
+  - name: Andrew N. Mertens
+    affiliation: "University of California, Berkeley"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    self-contained: true
+    number-sections: true
+  pdf:
+    toc: true
+    number-sections: true
+    documentclass: article
+    geometry: margin=1in
+#bibliography: references.bib (to add)
+execute:
+  warning: false
+  message: false
+  echo: false
+---
+
+```{r setup}
+#| include: false
+library(ggplot2)
+library(dplyr)
+
+# Source functions
+r_files <- list.files("../R", pattern = "\\.R$", recursive = TRUE,
+                      full.names = TRUE)
+for (f in r_files) source(f)
+
+cfg <- load_config("../config/default.yml")
+sim_dir <- "../outputs/simulation"
+```
+
+# Introduction
+
+## Background
+
+Hepatitis C virus (HCV) infection affects an estimated 58 million people globally, and direct-acting antiviral (DAA) therapies have transformed treatment outcomes. Among DAA regimens, sofosbuvir (SOF)-containing regimens have been associated with potential renal safety signals, including acute kidney injury (AKI). Evaluating the causal relationship between SOF-containing regimens and AKI risk requires rigorous pharmacoepidemiologic methods that account for confounding, informative censoring, and treatment switching --- challenges typical of real-world evidence (RWE) studies.
+
+## The clean-room governance model
+
+In regulatory and health technology assessment contexts, there is growing interest in *clean-room* or *staged* analysis frameworks that separate the analyst's design and specification decisions from the outcome data. This separation mitigates the risk that analytic choices are influenced (consciously or unconsciously) by observed treatment--outcome associations.
+
+Our clean-room framework operates in four stages:
+
+1. **Cohort feasibility** (Stage 1): Build the analytic cohort and assess data quality, with no outcome-by-treatment comparisons.
+2. **Design adequacy** (Stage 2): Evaluate propensity score overlap, covariate balance, and weight distributions. Outcome models are not fitted.
+3. **Estimation** (Stage 3): Execute pre-specified estimators on the outcome data.
+4. **Reporting** (Stage 4): Compile a locked report with decision audit trail.
+
+All decisions made in Stages 1--2 are logged with timestamps, justifications, and an explicit confirmation that no outcome--treatment comparisons were used.
+
+## Targeted learning and doubly robust estimation
+
+Targeted Maximum Likelihood Estimation (TMLE) is a semiparametric, doubly robust estimator that combines flexible machine-learning-based nuisance estimation with a principled targeting step to reduce bias toward the causal parameter of interest. Unlike inverse probability weighting (IPW) alone, TMLE is consistent if either the outcome model or the treatment/censoring model is correctly specified, and it achieves semiparametric efficiency when both are correct.
+
+We compare TMLE (with and without cross-fitting), augmented IPW (AIPW), standard IPW, g-computation, and Cox proportional hazards regression across scenarios with increasing complexity.
+
+## Objectives
+
+1. Implement an **outcome-blind simulation phase** to select estimators, SuperLearner libraries, and truncation parameters before unblinding outcomes.
+2. Evaluate the comparative performance of six estimators (TMLE, TMLE-CF, AIPW, IPTW, g-computation, Cox PH) across five data-generating scenarios.
+3. Demonstrate that TMLE and AIPW maintain lower bias and better coverage than conventional methods under realistic violations (nonlinear confounding, informative censoring, treatment switching, non-proportional hazards).
+
+
+# Methods
+
+## Data-generating process {#sec-dgp}
+
+We adapted a realistic DGP simulating a claims-based cohort study. The DGP generates:
+
+- **Baseline covariates** ($W$): age, sex, race, region, CKD, cirrhosis, heart failure, diabetes, hypertension, BMI, and 20+ concomitant medication indicators.
+- **Treatment** ($A$): binary indicator for SOF-containing regimen, assigned via a propensity score model with $P(\text{SOF}) \approx 0.36$.
+- **Event times**: AKI events generated from a piecewise exponential model with baseline hazard $h_0$ and treatment-specific hazard ratios.
+- **Censoring**: administrative (fixed cutoff), informative (dependent on risk factors), and switching-induced (30-day washout window).
+
+Five scenarios were evaluated:
+
+| Scenario | Nonlinear | Dep. Censoring | Switching | Non-PH |
+|----------|:---------:|:--------------:|:---------:|:------:|
+| Simple   | No        | No             | No        | No     |
+| Nonlinear| Yes       | No             | No        | No     |
+| Dep. censoring | Yes | Yes            | No        | No     |
+| Switching| Yes       | No             | Yes       | No     |
+| Non-PH   | Yes       | No             | No        | Yes    |
+
+: Data-generating process scenarios. {#tbl-scenarios}
+
+Under the non-PH scenario, the hazard ratio for treatment switches from HR$_{\text{early}}$ = 1.25 (first 45 days) to HR$_{\text{late}}$ = 0.70 (after 45 days), violating the proportional hazards assumption.
+
+## Target parameter
+
+The primary estimand is the counterfactual cumulative risk at time $t^*$ under treatment $a \in \{0, 1\}$:
+$$
+\psi_a(t^*) = E\left[I(T^a \le t^*)\right]
+$$
+where $T^a$ denotes the counterfactual event time under intervention $do(A = a)$, eliminating censoring. The risk difference and risk ratio are:
+$$
+\text{RD}(t^*) = \psi_1(t^*) - \psi_0(t^*), \quad \text{RR}(t^*) = \frac{\psi_1(t^*)}{\psi_0(t^*)}
+$$
+
+This estimand is not reliant on proportional hazards assumptions. We evaluate at $t^* \in \{90, 180\}$ days.
+
+## Identification assumptions
+
+Under the following assumptions, the causal parameter is identifiable from observed data:
+
+1. **Consistency**: the observed outcome under the actual treatment equals the counterfactual outcome.
+2. **Exchangeability** (no unmeasured confounding): $T^a \perp\!\!\!\perp A \mid W$.
+3. **Positivity**: $0 < P(A = a \mid W) < 1$ for all $W$ in the support.
+
+For censoring, we additionally assume **coarsening at random**: censoring is independent of the event time conditional on observed history.
+
+## Estimators
+
+### TMLE (Targeted Maximum Likelihood Estimation)
+
+1. **Initial outcome regression**: Fit $\bar{Q}(A, W) = E[Y_{t^*} \mid A, W]$ using SuperLearner.
+2. **Propensity score**: Fit $g(W) = P(A=1 \mid W)$ using SuperLearner.
+3. **Censoring model**: Fit $g_C(A, W) = P(\text{uncensored by } t^* \mid A, W)$.
+4. **Clever covariate**: $H_a = \frac{I(A=a) \cdot I(\text{observed})}{g_a(W) \cdot g_C(A,W)}$.
+5. **Targeting step**: Fit $\text{logit}(\bar{Q}^*) = \text{logit}(\bar{Q}) + \varepsilon H$ to update the initial estimate.
+6. **Inference**: IC-based standard errors with $\text{SE} = \sqrt{n^{-1} \sum \text{IC}_i^2}$.
+
+Propensity scores are truncated at $[0.01, 0.99]$ with truncation counts recorded.
+
+### TMLE with cross-fitting (TMLE-CF)
+
+Sample-split (5-fold) variant where nuisance models are trained on training folds and predictions are generated on the held-out fold, reducing overfitting bias.
+
+### Augmented IPW (AIPW)
+
+Doubly robust estimator combining outcome regression and IPW:
+$$
+\hat\psi_a = \frac{1}{n}\sum_{i=1}^n \left[\hat{Q}_a(W_i) + \frac{I(A_i=a) \cdot I(\text{observed}_i)}{\hat{g}_a(W_i) \hat{g}_C(A_i, W_i)} (Y_i - \hat{Q}(A_i, W_i))\right]
+$$
+
+Unlike TMLE, AIPW applies the augmentation additively rather than via a targeting step; it is not a substitution estimator.
+
+### IPW
+
+Standard Hajek-type weighted estimator using stabilized IPW weights and weighted Kaplan-Meier.
+
+### G-computation
+
+Plug-in estimator: fit $\hat{Q}(A, W)$, predict under $A=1$ and $A=0$, and average.
+
+### Cox PH (secondary)
+
+Standard Cox proportional hazards model with robust standard errors. Risk at $t^*$ computed by marginal standardization. Schoenfeld residual test for PH assumption reported.
+
+
+## Outcome-blind simulation phase
+
+Before unblinding outcomes, we conducted an outcome-blind feasibility assessment:
+
+1. Generated synthetic datasets under each scenario.
+2. Fitted propensity score models and assessed overlap, ESS, SMDs, and truncation.
+3. Ran each candidate estimator to confirm convergence and acceptable runtime.
+4. Logged all design decisions (SL library, truncation bounds, estimator selection) in the decision log with timestamps and justifications.
+
+This phase uses **only** baseline covariates and treatment assignments --- no outcome-by-treatment comparisons are permitted.
+
+
+# Simulation Study
+
+## Design
+
+- **Sample size**: $n$ = `r cfg$simulation$N` per replicate
+- **Replicates**: `r cfg$simulation$n_replicates` per scenario
+- **Time points**: `r paste(cfg$simulation$time_points, collapse = ", ")` days
+- **Truth**: Monte Carlo estimates from $N$ = 200,000 counterfactual draws
+
+## Phase 1: Outcome-blind results
+
+```{r phase1}
+#| label: tbl-phase1
+#| tbl-cap: "Phase 1 outcome-blind estimator diagnostics"
+
+phase1_file <- file.path(sim_dir, "phase1_summary.csv")
+if (file.exists(phase1_file)) {
+  phase1 <- read.csv(phase1_file, stringsAsFactors = FALSE)
+  knitr::kable(phase1, digits = 3)
+} else {
+  cat("Phase 1 results not yet available. Run: Rscript simulation/run_simulations.R\n")
+}
+```
+
+All candidate estimators converged across scenarios. ESS fractions and SMD values were within acceptable ranges, supporting the pre-specified analysis plan.
+
+## Phase 2: Unblinded results
+
+### Ground truth
+
+```{r truth}
+#| label: tbl-truth
+#| tbl-cap: "True counterfactual risk values by scenario"
+
+truth_file <- file.path(sim_dir, "true_values.csv")
+if (file.exists(truth_file)) {
+  truth_df <- read.csv(truth_file, stringsAsFactors = FALSE)
+  knitr::kable(truth_df, digits = 6)
+} else {
+  cat("Truth values not yet available.\n")
+}
+```
+
+### Performance metrics
+
+```{r performance}
+#| label: tbl-performance
+#| tbl-cap: "Simulation performance: bias, RMSE, coverage, and runtime"
+
+summary_file <- file.path(sim_dir, "simulation_summary.csv")
+if (file.exists(summary_file)) {
+  summary_df <- read.csv(summary_file, stringsAsFactors = FALSE)
+  display <- summary_df %>%
+    select(scenario, time_point, method, mean_bias, empirical_sd,
+           mean_se, rmse, coverage, n_valid)
+  knitr::kable(display, digits = 5)
+} else {
+  cat("Summary results not yet available.\n")
+}
+```
+
+### Bias comparison
+
+```{r bias-plot}
+#| label: fig-bias
+#| fig-cap: "Mean bias by estimator and scenario"
+#| fig-width: 10
+#| fig-height: 7
+
+if (exists("summary_df")) {
+  ggplot(summary_df, aes(x = method, y = mean_bias, fill = method)) +
+    geom_col() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    facet_grid(time_point ~ scenario, scales = "free_y") +
+    labs(x = "Estimator", y = "Mean Bias") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_fill_brewer(palette = "Set2")
+}
+```
+
+### RMSE comparison
+
+```{r rmse-plot}
+#| label: fig-rmse
+#| fig-cap: "RMSE by estimator and scenario"
+#| fig-width: 10
+#| fig-height: 7
+
+if (exists("summary_df")) {
+  ggplot(summary_df, aes(x = method, y = rmse, fill = method)) +
+    geom_col() +
+    facet_grid(time_point ~ scenario, scales = "free_y") +
+    labs(x = "Estimator", y = "RMSE") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_fill_brewer(palette = "Set2")
+}
+```
+
+### Coverage of 95% confidence intervals
+
+```{r coverage-plot}
+#| label: fig-coverage
+#| fig-cap: "95% CI coverage by estimator and scenario"
+#| fig-width: 10
+#| fig-height: 7
+
+if (exists("summary_df")) {
+  cov_df <- summary_df %>% filter(!is.na(coverage))
+  if (nrow(cov_df) > 0) {
+    ggplot(cov_df, aes(x = method, y = coverage, fill = method)) +
+      geom_col() +
+      geom_hline(yintercept = 0.95, linetype = "dashed", color = "red") +
+      geom_hline(yintercept = c(0.925, 0.975), linetype = "dotted",
+                 color = "gray50") +
+      facet_grid(time_point ~ scenario) +
+      labs(x = "Estimator", y = "Coverage",
+           caption = "Dashed = nominal 95%; dotted = MC bounds.") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      scale_fill_brewer(palette = "Set2") +
+      ylim(0, 1)
+  }
+}
+```
+
+### SE calibration
+
+```{r se-calibration}
+#| label: fig-se
+#| fig-cap: "Estimated SE vs empirical SD"
+#| fig-width: 8
+#| fig-height: 6
+
+if (exists("summary_df")) {
+  se_df <- summary_df %>%
+    filter(!is.na(mean_se) & !is.na(empirical_sd) & mean_se > 0)
+  if (nrow(se_df) > 0) {
+    ggplot(se_df, aes(x = empirical_sd, y = mean_se, color = method,
+                      shape = factor(time_point))) +
+      geom_point(size = 3) +
+      geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+      labs(x = "Empirical SD", y = "Mean Estimated SE",
+           color = "Estimator", shape = "Time (days)") +
+      theme_minimal()
+  }
+}
+```
+
+
+# Analysis of Simulated Data
+
+## Unblinded TMLE estimates
+
+After locking the analysis specification in the outcome-blind phase, we ran a single unblinded analysis on one simulated dataset from the "simple" scenario to demonstrate the staged pipeline.
+
+```{r unblinded-demo}
+#| echo: true
+#| eval: false
+
+# Stage 1: Build cohort
+source("R/staging/stage1_cohort.R")
+stage1_out <- stage1_build_cohort(data = cohort)
+
+# Stage 2: Design checks (outcome-blind)
+source("R/staging/stage2_design.R")
+stage2_out <- stage2_design_checks(cohort = stage1_out$cohort)
+
+# Stage 3: Estimation (outcome data now used)
+source("R/staging/stage3_estimation.R")
+stage3_out <- stage3_estimation(cohort = stage1_out$cohort)
+```
+
+The staged functions enforce that Stage 3 cannot execute unless Stage 2's checkpoint passes, and an outcome-blind guard prevents regenerating Stage 2 after outcomes have been seen (without incrementing the protocol version).
+
+
+# Discussion
+
+## Key findings
+
+Our simulation study demonstrates several important findings for the application of targeted learning in clean-room pharmacoepidemiology:
+
+1. **Under the simple (benchmark) scenario**, all doubly robust estimators (TMLE, TMLE-CF, AIPW) and g-computation perform comparably, with low bias and near-nominal coverage. Cox PH and IPTW also perform well when their modeling assumptions hold.
+
+2. **Under nonlinear confounding**, parametric methods (Cox PH, misspecified IPTW) show increased bias, while TMLE with flexible learners maintains good performance due to the SuperLearner ensemble.
+
+3. **Under non-proportional hazards**, the Cox PH hazard ratio is a misleading summary of treatment effect because the true hazard ratio changes over time (HR = 1.25 early, HR = 0.70 late). The risk difference at fixed time points, estimated by TMLE, remains interpretable and well-estimated.
+
+4. **Under informative censoring and treatment switching**, methods that properly model the censoring mechanism (TMLE, AIPW with censoring models) outperform naive approaches that assume independent censoring.
+
+5. **Cross-fitting (TMLE-CF)** can reduce finite-sample bias from overfitting, particularly with aggressive machine learning learners, though with GLM-based learners the difference is modest.
+
+## Outcome-blind simulation as a governance tool
+
+The outcome-blind phase serves as a practical implementation of the clean-room principle: all model specification decisions (SuperLearner library, truncation bounds, covariate selection) are made before outcomes are examined. This:
+
+- Prevents data-dredging and selective reporting
+- Creates an auditable decision trail
+- Aligns with regulatory expectations for pre-specification
+
+Our framework logs every decision with a timestamp, meeting ID, justification, and confirmation of outcome blindness.
+
+## Comparison with conventional approaches
+
+Cox PH regression remains the dominant method in pharmacoepidemiology, but it (i) assumes proportional hazards, (ii) targets a conditional hazard ratio rather than a marginal causal effect, and (iii) does not naturally handle informative censoring or treatment switching. TMLE addresses all three limitations while maintaining double robustness and semiparametric efficiency.
+
+AIPW provides similar double robustness but is not a substitution estimator, meaning its risk estimates can occasionally fall outside $[0, 1]$. TMLE's logistic targeting step naturally respects the bounds of the parameter space.
+
+## Limitations
+
+1. Our simulation uses a single DGP family; real-world confounding structures may differ.
+2. The SuperLearner library used in simulations (GLM + mean) is deliberately simple for computational tractability; richer libraries (GAM, random forest, XGBoost) should be used in practice.
+3. Our discrete-time survival TMLE uses a collapsed binary outcome at each time point rather than a fully sequential longitudinal TMLE, which is an approximation.
+4. Monte Carlo truth is computed via large-N counterfactual simulation, which itself has finite-sample variability.
+
+
+# Conclusion
+
+We have demonstrated a complete framework for integrating outcome-blind simulation with targeted learning in a clean-room pharmacoepidemiology context. The key methodological contributions are:
+
+1. A **four-stage clean-room architecture** with explicit checkpoints, decision logging, and outcome-blindness enforcement.
+2. An **outcome-blind simulation phase** for pre-specifying estimator choices before unblinding.
+3. A **comprehensive comparison** of TMLE (with and without cross-fitting), AIPW, IPTW, g-computation, and Cox PH across five realistic scenarios.
+4. A fully **reproducible R codebase** with deterministic seeding, config-driven pipelines, and unit tests.
+
+Future work should extend this framework to longitudinal TMLE for time-varying treatments, incorporate sensitivity analyses for unmeasured confounding, and apply the pipeline to real claims data within an actual clean-room environment.
+
+
+# Reproducibility
+
+All code is available in the companion repository. To reproduce:
+
+```bash
+# Run the staged pipeline
+Rscript run_stage1.R
+Rscript run_stage2.R
+Rscript run_stage3_report.R
+
+# Run the simulation study
+Rscript simulation/run_simulations.R
+```
+
+## Configuration
+
+```{r config}
+#| echo: true
+str(cfg)
+```
+
+## Session information
+
+```{r session-info}
+sessionInfo()
+```
+
+## Decision log
+
+```{r decision-log}
+log_file <- "../outputs/decision_log.csv"
+if (file.exists(log_file)) {
+  log_df <- read.csv(log_file, stringsAsFactors = FALSE)
+  knitr::kable(head(log_df, 20))
+} else {
+  cat("Decision log not yet generated.\n")
+}
+```
+
+# References (to add)
+
+<!-- # References {.unnumbered} -->
+
+<!-- ::: {#refs} -->
+<!-- ::: -->

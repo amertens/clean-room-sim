@@ -64,6 +64,21 @@ generate_hcv_data <- function(
     impute          = FALSE,
     seed            = NULL)
 {
+  # Coerce numeric parameters (YAML may parse scientific notation as strings
+  # or bare "N" as boolean FALSE under YAML 1.1)
+  N          <- as.integer(N)
+  p_sof      <- as.numeric(p_sof)
+  h0         <- as.numeric(h0)
+  HR_early   <- as.numeric(HR_early)
+  HR_late    <- as.numeric(HR_late)
+  tau        <- as.numeric(tau)
+  max_follow <- as.numeric(max_follow)
+  risk_window <- as.numeric(risk_window)
+  lambda_sw0 <- as.numeric(lambda_sw0)
+  gamma_A    <- as.numeric(gamma_A)
+  gamma_ckd  <- as.numeric(gamma_ckd)
+  censor_base <- as.numeric(censor_base)
+
   if (!is.null(seed)) set.seed(seed)
   treat_override <- match.arg(treat_override)
   if (impute) requireNamespace("missForest", quietly = TRUE)

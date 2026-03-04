@@ -154,8 +154,8 @@ tmle_survival_risk <- function(data,
       SL.library = sl_lib_cens, cvControl = list(V = 5)
     )
   }, error = function(e) {
-    fit <- stats::glm((1 - censored) ~ .,
-                      data = cbind(uncens = 1 - censored, cens_W),
+    uncens <- 1 - censored
+    fit <- stats::glm(uncens ~ ., data = as.data.frame(cens_W),
                       family = "binomial")
     list(SL.predict = stats::predict(fit, type = "response"))
   })
@@ -175,8 +175,7 @@ tmle_survival_risk <- function(data,
       SL.library = sl_lib_Q, cvControl = list(V = 5)
     )
   }, error = function(e) {
-    fit <- stats::glm(Y_binary ~ .,
-                      data = cbind(Y = Y_binary, Q_W),
+    fit <- stats::glm(Y_binary ~ ., data = as.data.frame(Q_W),
                       family = "binomial")
     pred <- stats::predict(fit, type = "response")
     list(SL.predict = pred, glm_fit = fit, is_glm = TRUE)
@@ -308,6 +307,226 @@ tmle_survival_risk <- function(data,
     diagnostics = diagnostics
   )
 }
+
+#' Cross-Fitted TMLE for Survival Risk
+#'
+#' Implements sample-splitting / cross-fitting TMLE. The data are split into
+#' V folds. For each fold, nuisance models (g, gC, Q) are trained on the
+#' other V-1 folds and predictions are generated for the held-out fold.
+#' The targeting step uses the cross-validated nuisance estimates, reducing
+#' overfitting bias.
+#'
+#' @param data Data frame with follow_time, event, treatment, and covariates.
+#' @param t_eval Numeric time point at which to evaluate risk.
+#' @param sl_lib_Q Character vector of SL libraries for outcome model.
+#' @param sl_lib_g Character vector of SL libraries for treatment PS.
+#' @param sl_lib_cens Character vector of SL libraries for censoring model.
+#' @param g_trunc Numeric vector of length 2 for truncation bounds.
+#' @param V Integer number of cross-fitting folds (default 5).
+#' @return A list with risk_1, risk_0, RD, RR, SEs, CIs, diagnostics.
+#' @export
+tmle_survival_risk_cf <- function(data,
+                                  t_eval = 180,
+                                  sl_lib_Q = c("SL.glm", "SL.mean"),
+                                  sl_lib_g = c("SL.glm", "SL.mean"),
+                                  sl_lib_cens = c("SL.glm", "SL.mean"),
+                                  g_trunc = c(0.01, 0.99),
+                                  V = 5) {
+
+  sl_lib_Q    <- filter_sl_libraries(sl_lib_Q)
+  sl_lib_g    <- filter_sl_libraries(sl_lib_g)
+  sl_lib_cens <- filter_sl_libraries(sl_lib_cens)
+
+  n <- nrow(data)
+
+  # Identify covariates
+  exclude_cols <- c("id", "follow_time", "event", "treatment", "switch",
+                    "race", "region")
+  covar_cols <- setdiff(names(data), exclude_cols)
+  covar_cols <- covar_cols[vapply(data[, covar_cols, drop = FALSE],
+                                 is.numeric, logical(1))]
+  W <- as.data.frame(data[, covar_cols, drop = FALSE])
+  A <- data$treatment
+  Y_binary <- as.integer(data$follow_time <= t_eval & data$event == 1)
+  censored <- as.integer(data$follow_time < t_eval & data$event == 0)
+  observed <- 1L - censored
+
+  # Create fold assignments
+  fold_ids <- sample(rep(seq_len(V), length.out = n))
+
+  # Storage for cross-validated predictions
+  g1W_cv <- numeric(n)
+  gC_cv  <- numeric(n)
+  QAW_cv <- numeric(n)
+  Q1W_cv <- numeric(n)
+  Q0W_cv <- numeric(n)
+  trunc_lower_total <- 0L
+  trunc_upper_total <- 0L
+
+  for (v in seq_len(V)) {
+    train_idx <- which(fold_ids != v)
+    test_idx  <- which(fold_ids == v)
+    W_train <- W[train_idx, , drop = FALSE]
+    W_test  <- W[test_idx, , drop = FALSE]
+    A_train <- A[train_idx]
+
+    # --- g model ---
+    g_fit_v <- tryCatch({
+      SuperLearner::SuperLearner(
+        Y = A_train, X = W_train, family = stats::binomial(),
+        SL.library = sl_lib_g, cvControl = list(V = 3)
+      )
+    }, error = function(e) {
+      fit <- stats::glm(A_train ~ ., data = W_train, family = "binomial")
+      list(glm_fit = fit, is_glm = TRUE)
+    })
+    if (!is.null(g_fit_v$is_glm)) {
+      g1W_cv[test_idx] <- stats::predict(g_fit_v$glm_fit,
+                                          newdata = W_test,
+                                          type = "response")
+    } else {
+      g1W_cv[test_idx] <- as.numeric(predict(g_fit_v,
+                                              newdata = W_test)$pred)
+    }
+    tr <- truncate_ps(g1W_cv[test_idx], g_trunc[1], g_trunc[2])
+    g1W_cv[test_idx] <- tr$p
+    trunc_lower_total <- trunc_lower_total + tr$n_lower
+    trunc_upper_total <- trunc_upper_total + tr$n_upper
+
+    # --- gC model ---
+    cens_train <- censored[train_idx]
+    cens_W_train <- cbind(W_train, A = A_train)
+    cens_W_test  <- cbind(W_test, A = A[test_idx])
+    gC_fit_v <- tryCatch({
+      SuperLearner::SuperLearner(
+        Y = 1 - cens_train, X = as.data.frame(cens_W_train),
+        family = stats::binomial(),
+        SL.library = sl_lib_cens, cvControl = list(V = 3)
+      )
+    }, error = function(e) {
+      uncens_train <- 1 - cens_train
+      fit <- stats::glm(uncens_train ~ ., data = as.data.frame(cens_W_train),
+                        family = "binomial")
+      list(glm_fit = fit, is_glm = TRUE)
+    })
+    if (!is.null(gC_fit_v$is_glm)) {
+      gC_cv[test_idx] <- pmax(
+        stats::predict(gC_fit_v$glm_fit,
+                       newdata = as.data.frame(cens_W_test),
+                       type = "response"),
+        g_trunc[1])
+    } else {
+      gC_cv[test_idx] <- pmax(
+        as.numeric(predict(gC_fit_v,
+                           newdata = as.data.frame(cens_W_test))$pred),
+        g_trunc[1])
+    }
+
+    # --- Q model ---
+    Y_train <- Y_binary[train_idx]
+    Q_W_train <- cbind(W_train, A = A_train)
+    Q_W_test  <- cbind(W_test, A = A[test_idx])
+    Q_fit_v <- tryCatch({
+      SuperLearner::SuperLearner(
+        Y = Y_train, X = as.data.frame(Q_W_train),
+        family = stats::binomial(),
+        SL.library = sl_lib_Q, cvControl = list(V = 3)
+      )
+    }, error = function(e) {
+      fit <- stats::glm(Y_train ~ ., data = as.data.frame(Q_W_train),
+                        family = "binomial")
+      list(glm_fit = fit, is_glm = TRUE)
+    })
+
+    W1_test <- as.data.frame(cbind(W_test, A = 1))
+    W0_test <- as.data.frame(cbind(W_test, A = 0))
+    if (!is.null(Q_fit_v$is_glm) && isTRUE(Q_fit_v$is_glm)) {
+      QAW_cv[test_idx] <- stats::predict(Q_fit_v$glm_fit,
+                                          newdata = as.data.frame(Q_W_test),
+                                          type = "response")
+      Q1W_cv[test_idx] <- stats::predict(Q_fit_v$glm_fit,
+                                          newdata = W1_test,
+                                          type = "response")
+      Q0W_cv[test_idx] <- stats::predict(Q_fit_v$glm_fit,
+                                          newdata = W0_test,
+                                          type = "response")
+    } else {
+      QAW_cv[test_idx] <- as.numeric(
+        predict(Q_fit_v, newdata = as.data.frame(Q_W_test))$pred)
+      Q1W_cv[test_idx] <- as.numeric(
+        predict(Q_fit_v, newdata = W1_test)$pred)
+      Q0W_cv[test_idx] <- as.numeric(
+        predict(Q_fit_v, newdata = W0_test)$pred)
+    }
+  }
+
+  # Bound Q predictions
+  QAW_cv <- pmin(pmax(QAW_cv, 0.001), 0.999)
+  Q1W_cv <- pmin(pmax(Q1W_cv, 0.001), 0.999)
+  Q0W_cv <- pmin(pmax(Q0W_cv, 0.001), 0.999)
+
+  # Targeting step
+  H1 <- observed * A / (g1W_cv * gC_cv)
+  H0 <- observed * (1 - A) / ((1 - g1W_cv) * gC_cv)
+  offset_Q <- stats::qlogis(QAW_cv)
+  valid <- is.finite(H1) & is.finite(H0) & is.finite(offset_Q)
+
+  eps_fit <- tryCatch({
+    stats::glm(Y_binary ~ -1 + H1 + H0, offset = offset_Q,
+               family = stats::binomial(), subset = valid)
+  }, error = function(e) list(coefficients = c(H1 = 0, H0 = 0)))
+
+  eps1 <- stats::coef(eps_fit)["H1"]
+  eps0 <- stats::coef(eps_fit)["H0"]
+  if (is.na(eps1)) eps1 <- 0
+  if (is.na(eps0)) eps0 <- 0
+
+  Q1W_star <- stats::plogis(stats::qlogis(Q1W_cv) + eps1 / gC_cv)
+  Q0W_star <- stats::plogis(stats::qlogis(Q0W_cv) + eps0 / gC_cv)
+
+  risk_1 <- mean(Q1W_star)
+  risk_0 <- mean(Q0W_star)
+  RD <- risk_1 - risk_0
+  RR <- if (risk_0 > 1e-10) risk_1 / risk_0 else NA_real_
+
+  IC_1 <- H1 * (Y_binary - QAW_cv) + Q1W_star - risk_1
+  IC_0 <- H0 * (Y_binary - QAW_cv) + Q0W_star - risk_0
+  IC_RD <- IC_1 - IC_0
+  se_RD <- sqrt(mean(IC_RD^2) / n)
+  ci_RD <- RD + c(-1.96, 1.96) * se_RD
+
+  se_1 <- sqrt(mean(IC_1^2) / n)
+  se_0 <- sqrt(mean(IC_0^2) / n)
+
+  if (!is.na(RR) && risk_0 > 1e-10 && risk_1 > 1e-10) {
+    IC_logRR <- IC_1 / risk_1 - IC_0 / risk_0
+    se_logRR <- sqrt(mean(IC_logRR^2) / n)
+    ci_RR <- exp(log(RR) + c(-1.96, 1.96) * se_logRR)
+  } else {
+    ci_RR <- c(NA_real_, NA_real_)
+  }
+
+  diagnostics <- list(
+    cross_fitting_V = V,
+    clever_covariate = list(
+      H1_mean = mean(H1[A == 1 & observed == 1], na.rm = TRUE),
+      H0_mean = mean(H0[A == 0 & observed == 1], na.rm = TRUE)
+    ),
+    ic = list(ic_rd_mean = mean(IC_RD), ic_rd_sd = stats::sd(IC_RD)),
+    truncation = list(g_n_lower = trunc_lower_total,
+                      g_n_upper = trunc_upper_total),
+    positivity = list(min_g1W = min(g1W_cv), max_g1W = max(g1W_cv)),
+    eps = list(eps1 = unname(eps1), eps0 = unname(eps0)),
+    n_observed = sum(observed), n_censored = sum(1 - observed)
+  )
+
+  list(
+    risk_1 = risk_1, risk_0 = risk_0, RD = RD, RR = RR,
+    se_RD = se_RD, ci_RD = ci_RD, se_1 = se_1, se_0 = se_0,
+    ci_RR = ci_RR, t_eval = t_eval, n = n, diagnostics = diagnostics
+  )
+}
+
 
 #' Filter SuperLearner Libraries
 #'
