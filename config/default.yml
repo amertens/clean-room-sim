@@ -7,7 +7,7 @@
 dgp:
   "N": 5000                  # sample size per replicate (use 50000+ for production)
   p_sof: 0.36                # treatment assignment probability
-  h0: 5e-5                   # baseline hazard
+  h0: 5.0e-5                 # baseline hazard
   HR_early: 1.25             # early hazard ratio (treatment vs control)
   HR_late: 0.70              # late hazard ratio (non-PH phase)
   tau: 45                    # change-point for non-PH (days)
