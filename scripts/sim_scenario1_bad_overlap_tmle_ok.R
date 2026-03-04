@@ -314,19 +314,27 @@ for (r in seq_len(PARAMS$reps)) {
   })
 
   # ---- Estimator 2: Crude (unadjusted) RD ----
-  p1_crude <- mean(Y[A == 1])
-  p0_crude <- mean(Y[A == 0])
   n1 <- sum(A == 1)
   n0 <- sum(A == 0)
-  rd_crude <- p1_crude - p0_crude
-  se_crude <- sqrt(p1_crude * (1 - p1_crude) / n1 +
-                     p0_crude * (1 - p0_crude) / n0)
-  ci_crude <- rd_crude + c(-1.96, 1.96) * se_crude
+  if (n1 >= 1 && n0 >= 1) {
+    p1_crude <- mean(Y[A == 1])
+    p0_crude <- mean(Y[A == 0])
+    rd_crude <- p1_crude - p0_crude
+    se_crude <- sqrt(p1_crude * (1 - p1_crude) / n1 +
+                       p0_crude * (1 - p0_crude) / n0)
+    ci_crude <- rd_crude + c(-1.96, 1.96) * se_crude
+  } else {
+    rd_crude <- NA_real_; se_crude <- NA_real_
+    ci_crude <- c(NA_real_, NA_real_)
+  }
 
   # ---- Estimator 3: IPTW RD (Hajek) with bootstrap CI ----
   iptw_hajek <- function(Y, A, w) {
-    r1 <- sum(w * A * Y) / sum(w * A)
-    r0 <- sum(w * (1 - A) * Y) / sum(w * (1 - A))
+    denom1 <- sum(w * A)
+    denom0 <- sum(w * (1 - A))
+    if (denom1 < 1e-10 || denom0 < 1e-10) return(NA_real_)
+    r1 <- sum(w * A * Y) / denom1
+    r0 <- sum(w * (1 - A) * Y) / denom0
     r1 - r0
   }
 
@@ -351,11 +359,13 @@ for (r in seq_len(PARAMS$reps)) {
     boot_iptw[b] <- iptw_hajek(Y_b, A_b, w_b)
   }
   boot_iptw_clean <- boot_iptw[is.finite(boot_iptw)]
-  se_iptw <- sd(boot_iptw_clean)
+  se_iptw <- if (length(boot_iptw_clean) >= 2) sd(boot_iptw_clean) else NA_real_
   ci_iptw <- if (length(boot_iptw_clean) >= 20) {
-    quantile(boot_iptw_clean, c(0.025, 0.975))
-  } else {
+    unname(quantile(boot_iptw_clean, c(0.025, 0.975)))
+  } else if (!is.na(se_iptw)) {
     rd_iptw + c(-1.96, 1.96) * se_iptw
+  } else {
+    c(NA_real_, NA_real_)
   }
 
   # ---- Collect replicate results ----
