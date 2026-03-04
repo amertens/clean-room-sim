@@ -226,16 +226,19 @@ cat("\nNote: The HR estimate assumes proportional hazards. ",
 
 tmle_180 <- stage3_out$results$t180$tmle
 diag_180 <- tmle_180$diagnostics
-if (!is.null(diag_180) && is.null(diag_180$error)) {
+has_full_diag <- !is.null(diag_180) && is.null(diag_180$error) &&
+  is.numeric(diag_180$clever_covariate$H1_mean)
+if (has_full_diag) {
   cat("Clever covariate H1 mean:", round(diag_180$clever_covariate$H1_mean, 4), "\n")
   cat("IC mean (should be ~0):", round(diag_180$ic$ic_rd_mean, 6), "\n")
   cat("Positivity: min g =", round(diag_180$positivity$min_g1W, 4),
       ", max g =", round(diag_180$positivity$max_g1W, 4), "\n")
   cat("Observations censored:", diag_180$n_censored, "\n")
-  cat("Fluctuation eps:", round(diag_180$eps$eps1, 4),
-      ",", round(diag_180$eps$eps0, 4), "\n")
-} else if (!is.null(diag_180$error)) {
-  cat("TMLE diagnostics unavailable:", diag_180$error, "\n")
+  cat("Fluctuation eps:", round(as.numeric(diag_180$eps$eps1), 4),
+      ",", round(as.numeric(diag_180$eps$eps0), 4), "\n")
+} else {
+  msg <- if (!is.null(diag_180$error)) diag_180$error else "diagnostics fields missing or non-numeric"
+  cat("TMLE diagnostics unavailable:", msg, "\n")
 }
 ```
 
