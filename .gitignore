@@ -1,4 +1,8 @@
 output/
 *.html
 *.pdf
-.Rproj.user
+.Rproj.user/
+.Rhistory
+*.log
+*.tex
+*_files/
