@@ -1,0 +1,6 @@
+"scenario","ps_convergence","mean_ps_runtime","mean_ess_trt","mean_ess_ctl","mean_max_smd","mean_ps_min","mean_ps_max"
+"dep_censor",1,0.016,111.1,239.7,0.1851,0.0327,0.9665
+"nonlinear",1,0.016,101.8,231.2,0.1689,0.0135,0.9835
+"np_hazard",1,0.012,108,187.4,0.1764,0.0358,0.9849
+"simple",1,0.008,134,249.6,0.0569,0.088,0.9138
+"switching",1,0.012,114.3,229.1,0.1689,0.0196,0.9682

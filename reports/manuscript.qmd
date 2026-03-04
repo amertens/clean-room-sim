@@ -1,0 +1,538 @@
+---
+title: "Outcome-Blind Estimator Validation for Targeted Learning in a Clean-Room Pharmacoepidemiology Simulation"
+author: "Andrew N. Mertens"
+format: html
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+#bibliography: references.bib
+---
+
+# 1. Introduction
+
+## 1.1 Motivation
+
+Real-world data (RWD) studies in pharmacoepidemiology increasingly support regulatory safety evaluations, yet the credibility of these analyses depends on the transparency and rigor of the analytic workflow. In conventional observational studies, analytic decisions---variable selection, model specification, positivity handling, sensitivity analyses---are often made iteratively after inspecting outcome data, creating researcher degrees of freedom that can inflate false-positive rates and undermine reproducibility [@Lash2021; @Hernan2016].
+
+Clean-room study designs address this problem by imposing governance structures that separate analytic roles, restrict outcome access, and require pre-specification of the analysis plan before outcome data are examined. This approach draws on principles from registered reports and pre-analysis plans in clinical trials, adapted for the complexity of observational data analysis [@Nosek2018; @Berger2021].
+
+This paper describes a simulation study that evaluates the performance of targeted learning estimators---specifically TMLE and AIPW with Super Learner---within a staged clean-room framework. The simulation is calibrated to a realistic pharmacoepidemiologic safety question: whether sofosbuvir-containing (SOF) hepatitis C virus (HCV) treatment regimens are associated with elevated risk of acute kidney injury (AKI) compared with non-SOF direct-acting antiviral (DAA) regimens.
+
+## 1.2 The clean-room staged framework
+
+We organize the analysis into four stages:
+
+- **Stage 1 (Pre-specification)**: Define the causal question, target trial, estimand, identification assumptions, and estimation strategy. Document all analytic decisions in a pre-registered Statistical Analysis Plan (SAP).
+- **Stage 2 (Outcome-blind diagnostics)**: With treatment and covariate data available but outcomes withheld, evaluate propensity score overlap, effective sample size (ESS), standardized mean differences (SMD), and weight behavior. Confirm that the planned analysis is feasible without modifying the estimand based on outcome information.
+- **Stage 3 (Outcome-blind simulation)**: Using a pre-specified data-generating process (DGP) that reflects the target study's covariate structure and plausible treatment-outcome relationships, run the full estimation pipeline on simulated data. Evaluate bias, coverage, and variance calibration of the planned estimators. Validate---rather than discover---the analytic plan's adequacy.
+- **Stage 4 (Unblinded estimation)**: Apply the validated pipeline to the real data with outcome access. Report results alongside pre-specified diagnostics and sensitivity analyses.
+
+### 1.2.1 Conceptual components: governance, outcome-blind diagnostics, outcome-blind simulation
+
+Readers should distinguish four components that serve different roles in this framework:
+
+**Clean-room governance** refers to the organizational and access-control structure: role separation between data providers, methodologists, quality assurance, privacy compliance, and reporting teams. Governance rules determine who has access to which data at each stage, require documentation of analytic decisions, and enforce sign-off procedures before results are released. Clean-room governance is a workflow framework, not a statistical method.
+
+**Outcome-blind diagnostics** are analyses performed during Stage 2 that evaluate the feasibility of the planned analysis without access to outcome data. These include propensity score overlap assessment, effective sample size under inverse probability weights, standardized mean differences before and after weighting, and examination of weight distributions. Outcome-blind diagnostics can identify practical positivity violations, covariate balance problems, and data quality issues that would compromise any downstream estimation strategy.
+
+**Outcome-blind simulation** is the Stage 3 activity in which the full estimation pipeline is applied to synthetic data generated from a pre-specified DGP. The purpose is not to discover the best estimator post hoc, but to validate that the pre-specified analysis plan---including estimator choice, Super Learner library, truncation parameters, and variance estimation---performs adequately under conditions resembling the target study. Simulation results that reveal poor coverage or substantial bias trigger revision of the analysis plan *before* outcomes are accessed, preserving the integrity of pre-specification.
+
+**Targeted learning estimation** (TMLE, AIPW) is the statistical framework applied at Stage 4 to produce causal effect estimates. The targeting step, efficient influence function, and double robustness properties are statistical properties of the estimator, not features of the governance framework.
+
+These four components are complementary but conceptually distinct. Clean-room governance structures the workflow; outcome-blind diagnostics and simulations validate the analytic plan; targeted learning provides the estimation machinery.
+
+# 2. Methods
+
+## 2.1 Target trial framing and treatment strategy
+
+Causal inference from observational data proceeds by emulating a hypothetical randomized trial---the **target trial** [@Hernan2016]. Making the target trial explicit clarifies the scientific question and disciplines analytic choices.
+
+**Eligibility.** Adults aged $\geq$ 18 years with chronic HCV who are eligible for DAA treatment, with at least 365 days of continuous enrollment prior to the index date, no prior AKI event, and no prior HCV treatment (SOF or non-SOF).
+
+**Treatment strategies.** Two static treatment strategies are compared: (1) initiate a SOF-containing DAA regimen at baseline; (2) initiate a non-SOF DAA regimen at baseline.
+
+**Time zero.** The index date is the date of treatment initiation. Eligibility criteria and baseline covariates are assessed using the 365-day lookback period.
+
+**Treatment strategy and switching.** The primary estimand corresponds to a hypothetical intervention in which individuals initiate the assigned regimen at baseline and are followed regardless of subsequent treatment changes. Treatment switching is handled as a censoring event (see Section 2.5), and the estimand is interpreted as the effect of initial treatment assignment in a setting where switching is eliminated---that is, censoring at switch is treated as an intervention that removes switching from the observed data. This corresponds to an "initiator" or "intention-to-treat-like" estimand under hypothetical elimination of switching, rather than a sustained treatment strategy. We note this distinction explicitly because different handling of switching (e.g., per-protocol, as-treated) would correspond to different estimands.
+
+**Follow-up.** From time zero until the first AKI event, administrative censoring, treatment switching (plus a 30-day risk window), or 720 days, whichever comes first.
+
+**Outcome.** Cause-specific cumulative incidence of AKI at pre-specified evaluation times $t^* \in \{90, 180\}$ days. These time points were chosen because 90 days approximates one treatment course for most DAA regimens (capturing acute drug-related toxicity), while 180 days captures any delayed nephrotoxic effects that may emerge after treatment completion.
+
+## 2.2 Target parameter
+
+The causal estimand is the **risk difference** at a pre-specified time $t^*$, under hypothetical elimination of censoring:
+
+$$\psi(t^*) = E\bigl[Y_{t^*}^{a=1, \bar{c}=0}\bigr] - E\bigl[Y_{t^*}^{a=0, \bar{c}=0}\bigr]$$
+
+where $Y_{t^*}^{a, \bar{c}=0}$ denotes the potential AKI indicator at time $t^*$ under treatment strategy $a$ and under a hypothetical intervention that eliminates all censoring (both administrative and switching-related). The superscript $\bar{c} = 0$ represents a hypothetical world in which no individual is censored before $t^*$---this is an intervention on the censoring process, not a data manipulation.
+
+This estimand targets **cause-specific cumulative incidence**. Competing events (e.g., death from non-AKI causes) are not explicitly modeled in the current simulation. In the DGP, event times represent AKI occurrence only, and censoring encompasses administrative loss to follow-up and treatment switching. The absence of competing risks is a simplification; in a real-world application, death as a competing event would require either a composite outcome, a competing-risks framework (e.g., Fine-Gray subdistribution hazard or cause-specific cumulative incidence function), or explicit causal modeling of the competing event. We note this as a limitation of the current simulation (see Discussion).
+
+Optionally, we also report the risk ratio $E[Y_{t^*}^{a=1, \bar{c}=0}] / E[Y_{t^*}^{a=0, \bar{c}=0}]$.
+
+## 2.3 Identification assumptions
+
+Identification of the causal estimand from observed data requires the following assumptions:
+
+**Consistency.** The observed outcome for an individual who received treatment $a$ equals the counterfactual outcome under intervention $a$: if $A_i = a$, then $Y_i = Y_i^{a}$. This requires that the treatment is well-defined and that there are no hidden treatment versions.
+
+**Conditional exchangeability (no unmeasured confounding).** The potential outcomes are independent of treatment assignment, conditional on measured baseline covariates:
+
+$$Y^{a, \bar{c}=0} \perp\!\!\!\perp A \mid W$$
+
+In our simulation, confounding operates exclusively through baseline covariates $W$ (demographics, clinical history, concomitant medications). There are no time-varying confounders between treatment initiation and outcome. Therefore, conditional exchangeability must hold given the baseline covariate vector $W$. In settings with time-varying confounders affecting both censoring and outcome, the required assumption would be *sequential* conditional exchangeability: at each time $t$, the potential outcomes are independent of treatment and censoring conditional on the full observed history through $t$.
+
+For censoring, we additionally require:
+
+$$Y^{a} \perp\!\!\!\perp C_t \mid A, W \quad \text{(independent censoring given } A, W\text{)}$$
+
+In the dependent-censoring scenario, this assumption is satisfied because censoring depends only on $A$ and $W$ (through the outcome linear predictor), both of which are conditioned on. In a real-world analysis, this assumption requires that all factors driving loss to follow-up and treatment switching are captured in the measured covariate set.
+
+**Positivity.** Within every stratum of the measured confounders that has positive probability in the target population, every treatment level must have a positive probability of being assigned:
+
+$$0 < P(A = 1 \mid W = w) < 1 \quad \text{for all } w \text{ with } P(W = w) > 0$$
+
+Note that positivity is defined with respect to *strata of measured confounders*, not with respect to individual-level probabilities in isolation. Two types of positivity problems arise in practice:
+
+- **Theoretical (structural) violations** occur when certain covariate combinations deterministically preclude a treatment. For example, if a specific drug is contraindicated in patients with severe renal impairment, no adjustment method can estimate the treatment effect in that stratum because the counterfactual is undefined by design. These violations represent a fundamental identification problem.
+
+- **Practical (random) violations** occur when certain covariate strata could in principle receive either treatment but do so rarely in the observed data. These lead to extreme inverse probability weights, inflated variance, and unstable estimates. The causal effect is formally identified but may be poorly estimable.
+
+**No interference.** One individual's treatment does not affect another individual's outcome. This is plausible for individual-level drug treatments.
+
+### 2.3.1 Connecting assumptions to Stage-2 diagnostics
+
+Several Stage-2 (outcome-blind) diagnostics directly evaluate the plausibility and practical implications of these assumptions:
+
+| Assumption | Diagnostic | What it reveals |
+|---|---|---|
+| Positivity | Propensity score overlap plot | Separation near 0 or 1 indicates near-violations |
+| Positivity | Effective sample size (ESS) | $n_{\text{eff}} = (\sum w_i)^2 / \sum w_i^2$; low ESS indicates that a few observations dominate |
+| Positivity | Maximum inverse probability weight | Extreme weights signal instability |
+| Exchangeability (partial) | Weighted SMD | Residual imbalance after weighting suggests incomplete confounding adjustment |
+| Positivity + truncation | Truncation sensitivity | Varying truncation bounds evaluates the bias-variance trade-off |
+
+These diagnostics cannot verify exchangeability (which depends on unmeasured confounders), but they can identify settings where the analysis is likely to be unreliable regardless of the estimation method.
+
+## 2.4 Data-generating process
+
+The simulation DGP is implemented in `R/dgp/DGP.R` via the function `generate_hcv_data()`. We describe each component with sufficient detail for independent reproduction.
+
+### 2.4.1 Baseline covariates (W)
+
+A cohort of $N = 125{,}000$ individuals is generated with:
+
+- **Demographics**: age $\sim \max(N(48, 13), 18)$; sex (58% male); race (5 categories: white 48%, Black 14%, Hispanic 6%, Asian 2%, other 30%); US region (NE 20%, MW 18%, S 37%, W 25%); enrollment duration $\sim \text{Poisson}(420)$ days.
+- **Clinical history** (independent Bernoulli): CKD (8%), prior AKI (5%), cirrhosis (18%), portal hypertension (4%), ESLD (2%), heart failure (7%), hypertension (45%), HIV (4%), sepsis (3%), diabetes (20%), cancer (8%), and others.
+- **Concomitant medications** (independent Bernoulli): NSAIDs (25%), ACE inhibitors/ARBs (30%), diuretics (22%), aminoglycosides (5%), contrast agents (8%), statins (15%), and others.
+- **Continuous**: BMI $\sim N(28, 5)$.
+
+**Eligibility exclusions** remove individuals with enrollment < 365 days, age < 18, prior AKI, or prior HCV treatment (SOF or non-SOF).
+
+### 2.4.2 Treatment assignment model
+
+Treatment $A \in \{0, 1\}$ (SOF vs. non-SOF) is assigned via a logistic model with target prevalence $p_{\text{SOF}} \approx 0.36$.
+
+**Simple scenario** (`complexity = FALSE`):
+$$\text{logit}\, P(A = 1 \mid W) = \alpha_0 + 0.015 \cdot \text{age} + 0.30 \cdot \text{cirrhosis} + 0.25 \cdot \text{CKD} + 0.15 \cdot \text{HIV} + 0.10 \cdot \text{diabetes} - 0.10 \cdot \text{cancer} + \epsilon_i$$
+where $\epsilon_i \sim N(0, 0.6)$ and $\alpha_0 = \text{logit}(p_{\text{SOF}}) - \overline{\text{lp}}_0$ ensures the marginal treatment prevalence is approximately $p_{\text{SOF}}$.
+
+**Complex scenario** (`complexity = TRUE`): the linear predictor additionally includes:
+$$0.02 \cdot \text{BMI}^2/100 - 0.3 \cdot \sin(0.1 \cdot \text{BMI}) + 0.5 \cdot (\text{age}/50)^3 + 1.5 \cdot \text{CKD} \times \text{cancer} + 0.8 \cdot \text{HIV} \times \log(1 + \text{age})$$
+
+These nonlinear and interaction terms ensure that a correctly specified parametric logistic model is unavailable to the analyst, requiring flexible estimation.
+
+Propensity scores are clipped to $[0.05, 0.95]$ to enforce positivity by construction, although practical near-violations remain possible in the complex scenario.
+
+### 2.4.3 Outcome model (AKI event times)
+
+Individual event times are generated from an exponential (proportional hazards) or piecewise exponential (non-proportional hazards) model:
+
+$$h_i(t) = h_0 \cdot \exp(\eta_i) \cdot \text{HR}(A_i, t)$$
+
+where the baseline log-hazard linear predictor $\eta_i$ is:
+
+**Simple** (`complexity = FALSE`):
+$$\eta_i = -2.8 + 0.03 \cdot \text{age}_i + 0.7 \cdot \text{CKD}_i + 0.5 \cdot \text{cirrhosis}_i + 0.3 \cdot \text{HF}_i + 0.25 \cdot \text{NSAID}_i + 0.20 \cdot \text{contrast}_i$$
+
+**Complex** (`complexity = TRUE`):
+$$\eta_i = -2.8 + 0.03 \cdot \text{age}_i + 0.0005 \cdot \text{age}_i^2 + 0.7 \cdot \text{CKD}_i + 0.5 \cdot \text{cirrhosis}_i + 0.02 \cdot \text{BMI}_i^2/100 - 0.3 \cdot \sin(0.1 \cdot \text{BMI}_i) + 0.4 \cdot \text{HF}_i \cdot \text{ACE/ARB}_i + 0.6 \cdot \text{NSAID}_i \cdot A_i + 0.3 \cdot \text{contrast}_i \cdot \log(1 + \text{age}_i)$$
+
+The treatment hazard ratio function $\text{HR}(A, t)$ is defined as:
+
+**Proportional hazards** (`np_hazard = FALSE`): $\text{HR}(A=1, t) = 1.25$ for all $t$. Event times are exponential with rate $h_0 \cdot \exp(\eta_i) \cdot 1.25^{A_i}$.
+
+**Non-proportional hazards** (`np_hazard = TRUE`): A piecewise exponential model with change-point at $\tau = 45$ days:
+
+$$\text{HR}(A=1, t) = \begin{cases} 1.25 & \text{if } t \leq \tau \\ 0.70 & \text{if } t > \tau \end{cases}$$
+
+Event times are generated from the piecewise exponential distribution via inversion: for rates $r_1 = h_0 \exp(\eta_i) \cdot 1.25$ and $r_2 = h_0 \exp(\eta_i) \cdot 0.70$, with $U \sim \text{Uniform}(0,1)$:
+$$T_i = \begin{cases} -\log(1 - U) / r_{1,i} & \text{if } U \leq 1 - e^{-r_{1,i}\tau} \\ \tau - \log\bigl(\frac{1-U}{e^{-r_{1,i}\tau}}\bigr) / r_{2,i} & \text{otherwise} \end{cases}$$
+
+The non-proportional hazards scenario means that standard Cox regression (which assumes a constant log-HR) will be misspecified for the treatment effect.
+
+Default baseline hazard parameters: $h_0 = 3 \times 10^{-4}$ (simple) or $h_0 = 5 \times 10^{-5}$ (complex).
+
+### 2.4.4 Censoring model
+
+**Administrative censoring** (`dep_censor = FALSE`): $C_{\text{admin}} \sim \text{Exp}(\text{rate} = 1/100)$, independent of covariates and treatment.
+
+**Dependent (informative) censoring** (`dep_censor = TRUE`):
+$$C_{\text{admin}} \sim \text{Exp}\bigl(\text{rate} = (1/100) \cdot \exp(0.04 \cdot \eta_i + 0.03 \cdot A_i)\bigr)$$
+
+where $\eta_i$ is the outcome linear predictor. This creates informative censoring: patients at higher baseline AKI risk and SOF-treated patients are censored at higher rates. The censoring depends on $A$ and $W$ only through variables included in the adjustment set, so the conditional independent censoring assumption remains identifiable given $(A, W)$.
+
+A hard administrative cutoff is applied at $T_{\max} = 720$ days.
+
+### 2.4.5 Treatment switching model
+
+Treatment switching is implemented as **censoring at crossover** rather than as a modeled time-varying treatment exposure. This means the estimand approximates the treatment effect under hypothetical elimination of switching, conditional on the switching mechanism being correctly specified.
+
+**Simple switching** (`switch_on = FALSE`): Treatment duration $\sim \text{Poisson}(84)$ for SOF, $\text{Poisson}(70)$ for non-SOF. Switching is rare (3% Bernoulli) and induces censoring at switch time plus a 30-day risk window.
+
+**Informative switching** (`switch_on = TRUE`): Switching time follows a survival process:
+$$\text{Switch time} \sim \text{Exp}(\lambda_{\text{sw}})$$
+$$\lambda_{\text{sw}} = \lambda_0 \cdot \exp(\gamma_A \cdot A_i + \gamma_{\text{CKD}} \cdot \text{CKD}_i)$$
+
+with $\lambda_0 = 2.5 \times 10^{-5}$, $\gamma_A = 0.60$, $\gamma_{\text{CKD}} = 0.40$. Patients are censored at (switch time + 30-day risk window) or $T_{\max}$, whichever is earlier. The switching mechanism depends on both treatment assignment and CKD status, creating informative censoring that requires adjustment through the censoring model $\hat{g}_C$.
+
+### 2.4.6 Observed data structure
+
+For each individual, the observed follow-up time is:
+$$\tilde{T}_i = \min(T_i^{\text{event}},\; C_i^{\text{admin}},\; C_i^{\text{switch}})$$
+
+The event indicator is:
+$$\Delta_i = I(T_i^{\text{event}} \leq \tilde{T}_i)$$
+
+where $I(\cdot)$ is the indicator function, equal to 1 if the AKI event occurred before any censoring event, and 0 otherwise. Latent variables (true event times, censoring times) are excluded from the analysis dataset.
+
+## 2.5 Estimators
+
+### 2.5.1 TMLE (targeted maximum likelihood estimation)
+
+TMLE is a **substitution estimator** that produces causal effect estimates by evaluating an updated outcome regression at the counterfactual treatment values [@vanderLaan2006; @vanderLaan2011]. The procedure has three stages:
+
+1. **Initial estimation of nuisance parameters.** Two nuisance functions are estimated:
+   - The outcome regression: $\bar{Q}(A, W) = E[Y_{t^*} \mid A, W]$
+   - The propensity score (treatment mechanism): $g(W) = P(A = 1 \mid W)$
+   - The censoring mechanism: $g_C(A, W) = P(C = 0 \mid A, W)$ (in survival settings)
+
+   These are estimated using Super Learner (see Section 2.6).
+
+2. **Targeting step.** The initial outcome regression $\hat{\bar{Q}}$ is updated along a least-favorable parametric submodel so that the empirical mean of the **efficient influence function (EIF)** is approximately zero. The fluctuation submodel for bounded outcomes is:
+$$\text{logit}\,\hat{\bar{Q}}^*(A, W) = \text{logit}\,\hat{\bar{Q}}(A, W) + \epsilon \cdot H(A, W)$$
+where $H(A, W) = A/\hat{g}(W) - (1-A)/(1-\hat{g}(W))$ is the clever covariate, and $\epsilon$ is estimated by maximum likelihood. The targeting step is what distinguishes TMLE from a naive plug-in estimator: it adjusts the initial fit to reduce bias for the specific target parameter, ensuring that the estimating equation corresponding to the EIF is solved.
+
+3. **Substitution.** The ATE estimate is obtained by substituting the *updated* regression into the parameter mapping:
+$$\hat{\psi}_{\text{TMLE}} = \frac{1}{n}\sum_{i=1}^n \bigl[\hat{\bar{Q}}^*(1, W_i) - \hat{\bar{Q}}^*(0, W_i)\bigr]$$
+
+Because TMLE solves the EIF equation, it achieves:
+
+- **Double robustness**: consistency if either $\hat{\bar{Q}}$ or $\hat{g}$ is consistently estimated.
+- **Semiparametric efficiency**: when both nuisance models are consistently estimated, TMLE achieves the smallest possible asymptotic variance among regular asymptotically linear estimators.
+- **Asymptotic linearity**: $\hat{\psi} - \psi_0 = n^{-1}\sum_{i} \text{EIF}(O_i) + o_p(n^{-1/2})$, enabling Wald-type inference.
+
+As a substitution estimator, TMLE guarantees that estimates remain within the parameter space (e.g., risk estimates between 0 and 1).
+
+### 2.5.2 TMLE with cross-fitting (TMLE-CF)
+
+Cross-fitting (also called sample splitting) decouples nuisance parameter training from evaluation, mitigating Donsker-class and empirical process conditions that are required for theoretical guarantees when highly adaptive learners are used [@Chernozhukov2018; @Zheng2011]. Data are partitioned into $V$ folds; for each fold, nuisance parameters are estimated on the remaining $V-1$ folds and predictions are generated on the held-out fold. The targeting step and substitution are then performed on the full-sample predictions. This is the approach used in **cross-validated TMLE (CV-TMLE)** [@Zheng2011].
+
+Cross-fitting is particularly important when the Super Learner library includes highly adaptive algorithms (e.g., HAL, deep learners) that may not satisfy the entropy conditions required by standard TMLE theory.
+
+### 2.5.3 AIPW (augmented inverse probability weighting)
+
+AIPW is a doubly robust estimator that, like TMLE, combines outcome regression and propensity score estimation. However, AIPW is **not a substitution estimator**: it directly evaluates the EIF rather than updating an outcome model. The AIPW estimate is:
+
+$$\hat{\psi}_{\text{AIPW}} = \frac{1}{n}\sum_{i=1}^n \Biggl[\frac{A_i(Y_i - \hat{\bar{Q}}(1, W_i))}{\hat{g}(W_i)} - \frac{(1-A_i)(Y_i - \hat{\bar{Q}}(0, W_i))}{1 - \hat{g}(W_i)} + \hat{\bar{Q}}(1, W_i) - \hat{\bar{Q}}(0, W_i)\Biggr]$$
+
+AIPW shares the double-robustness and semiparametric efficiency properties of TMLE. A practical limitation is that, because AIPW is not a substitution estimator, its estimates may **fall outside the parameter space** (e.g., estimated risk differences outside $[-1, 1]$, or estimated risks outside $[0, 1]$). This can occur when propensity scores are extreme or the sample is small.
+
+### 2.5.4 Cox proportional hazards regression
+
+Cox PH regression estimates a **conditional hazard ratio** comparing SOF to non-SOF:
+
+$$h(t \mid A, W) = h_0(t) \exp(\beta A + W\gamma)$$
+
+where $\beta$ is the (assumed constant) log-hazard ratio for treatment. Cox PH does **not** directly estimate the target parameter $\psi(t^*)$ (a marginal risk difference at a specific time $t^*$). It estimates a different quantity---a conditional hazard ratio---under a proportional hazards assumption. It is included as a comparator to represent the standard pharmacoepidemiologic approach and to demonstrate the consequences of target parameter misalignment and model misspecification (particularly when the true treatment effect is non-proportional). Results from Cox PH should be interpreted with this caveat.
+
+### 2.5.5 Unadjusted comparison
+
+An unadjusted risk difference (crude comparison of AKI rates between SOF and non-SOF groups) serves as a reference to quantify the magnitude of confounding bias.
+
+## 2.6 Super Learner for nuisance parameter estimation
+
+Super Learner is an ensemble machine learning method that selects the optimal weighted combination of candidate algorithms by minimizing **cross-validated risk** [@vanderLaan2007; @Polley2010].
+
+The analyst specifies:
+
+- A **loss function** appropriate to the prediction task:
+  - *Squared error loss* for continuous outcomes
+  - *Negative log-likelihood (Bernoulli deviance)* for binary outcomes (used for $\bar{Q}$)
+  - *Logistic loss* for the treatment model $g(W)$
+
+- A **library of candidate learners**, including both parametric and non-parametric algorithms:
+  - GLM (generalized linear model)
+  - GAM (generalized additive model, via `mgcv`)
+  - Random forest (via `ranger`)
+  - XGBoost (gradient boosted trees)
+  - BART (Bayesian additive regression trees, via `dbarts`)
+  - HAL (highly adaptive lasso, optional)
+  - `SL.mean` (intercept-only model, as a baseline reference)
+
+Super Learner finds the convex combination of candidate learners that minimizes the cross-validated risk. By including a diverse library, the ensemble adapts to the complexity of the true nuisance functions without requiring the analyst to select a single model specification.
+
+## 2.7 Outcome-blind simulation phase
+
+The outcome-blind simulation phase (Stage 3) serves as a **design validation and pre-specification tool**. Its purpose is to confirm that the pre-specified analysis plan---estimator choice, Super Learner library, truncation bounds, variance estimation, and diagnostic criteria---performs adequately under realistic data-generating conditions before outcome data are accessed.
+
+The outcome-blind simulation phase does not "discover" the best estimator. Rather, it validates the feasibility and robustness of pre-specified analytic choices. If simulations reveal that the planned estimator exhibits poor coverage or substantial bias under plausible DGP scenarios, the analysis plan is revised *before* unblinding. This revision is principled and documented, preserving the integrity of pre-specification.
+
+Key validation targets include:
+
+- **Bias**: Does the estimator recover the known true treatment effect (Monte Carlo ground truth)?
+- **Coverage**: Do 95% confidence intervals contain the true parameter value at approximately the nominal rate?
+- **Variance calibration**: Do influence-curve-based standard error estimates agree with the empirical standard deviation across simulation replicates?
+- **Robustness**: Is performance maintained across DGP scenarios of varying complexity (proportional vs. non-proportional hazards, independent vs. dependent censoring, linear vs. non-linear nuisance functions)?
+
+The simulation validates the full pipeline, not just the point estimator---variance estimation, truncation, and diagnostics are all exercised.
+
+# 3. Simulation Design
+
+## 3.1 Design
+
+The simulation evaluates five DGP scenarios that progressively introduce realistic complications:
+
+| Scenario | Confounding | Censoring | Switching | Outcome model |
+|---|---|---|---|---|
+| 1. Unconfounded | None (randomized) | Independent | None | Simple, PH |
+| 2. Baseline confounding | Measured baseline | Independent | None | Simple, PH |
+| 3. Informative censoring | Measured baseline | Dependent on $(A, W)$ | None | Complex, PH |
+| 4. Treatment switching | Measured baseline | Dependent on $(A, W)$ | Informative (depends on $A$, CKD) | Complex, non-PH |
+| 5. Positivity stress | Measured baseline, strong | Dependent on $(A, W)$ | Informative | Complex, non-PH |
+
+Each scenario is run for **200 simulation replicates** at $n = 50{,}000$ per replicate. The choice of 200 replicates reflects a trade-off between computational cost (each replicate involves Super Learner with cross-validation) and Monte Carlo precision. With 200 replicates, the Monte Carlo standard error for a coverage estimate of 0.95 is approximately $\sqrt{0.95 \times 0.05 / 200} \approx 0.015$, meaning coverage estimates have a 95% Monte Carlo confidence interval of roughly $\pm 3$ percentage points. This is sufficient to detect substantial departures from nominal coverage (e.g., 88% vs. 95%) but may not resolve small differences (e.g., 93% vs. 95%). The implications for interpreting coverage results are discussed in Section 4.
+
+### 3.1.1 Ground truth
+
+The Monte Carlo "true" treatment effect for each scenario is computed by generating $N = 200{,}000$ observations under each counterfactual treatment assignment (`treat_override = "all_treated"` and `treat_override = "all_control"`) and computing the difference in mean outcomes at each $t^*$. With $N = 200{,}000$, the Monte Carlo standard error of the ground truth is on the order of $\sqrt{p(1-p)/200{,}000}$, which for typical AKI rates ($p \approx 0.01\text{--}0.05$) is approximately $2\text{--}5 \times 10^{-4}$. This Monte Carlo error is small relative to the estimator standard errors (which are on the order of $10^{-2}\text{--}10^{-3}$), but it is not zero. Any discrepancy between the Monte Carlo truth and the true parameter value will appear as a small systematic component in bias calculations.
+
+## 3.2 Evaluation metrics
+
+For each scenario, we compute:
+
+- **Bias**: $\overline{\hat{\psi}} - \psi_{\text{true}}$, where $\overline{\hat{\psi}}$ is the average estimate across replicates and $\psi_{\text{true}}$ is the Monte Carlo ground truth.
+- **Root mean squared error (RMSE)**: $\sqrt{n_{\text{rep}}^{-1} \sum_r (\hat{\psi}_r - \psi_{\text{true}})^2}$.
+- **Empirical SE vs. IC-based SE**: Comparison of the standard deviation of $\hat{\psi}$ across replicates with the average estimated standard error (from the EIF).
+- **95% CI coverage**: Proportion of replicates in which the Wald-type 95% CI contains $\psi_{\text{true}}$.
+
+# 4. Results
+
+*[Simulation results, tables, and figures to be populated after running the simulation pipeline. The following subsections describe how results should be interpreted.]*
+
+## 4.1 Interpreting coverage and Monte Carlo error
+
+Coverage is computed as the fraction of simulation replicates in which the estimated 95% confidence interval contains the Monte Carlo ground truth $\psi_{\text{true}}$. Several factors complicate interpretation:
+
+**Monte Carlo variability in coverage estimates.** With 200 replicates, coverage is itself a random variable. A nominal 95% coverage rate will fluctuate: the 95% Monte Carlo confidence interval for a true coverage of 0.95 is approximately $[0.92, 0.98]$. Coverage estimates within this range are consistent with nominal performance and should not be over-interpreted. Coverage below 0.90 or above 0.99 is more informative.
+
+**Near-positivity violations.** When propensity scores are close to 0 or 1, the clever covariate $H(A, W)$ becomes large, inflating both the point estimate variance and the EIF-based variance estimate. In finite samples, the EIF variance estimator may underestimate the true variance, leading to under-coverage. Truncation mitigates this at the cost of introducing bias.
+
+**Truncation effects.** Truncating propensity scores at $[0.01, 0.99]$ introduces a bias-variance trade-off. Coverage can deteriorate if the truncation-induced bias exceeds the reduction in variance, particularly in the positivity-stress scenario.
+
+**EIF variance estimation.** The influence-curve-based variance estimator assumes that the nuisance parameter estimates converge at rates sufficient for the remainder term to be negligible. When flexible learners are used without cross-fitting, or when the effective sample size is small, this assumption may be violated.
+
+## 4.2 TMLE-CF standard error inflation and stability
+
+Cross-fitted TMLE (TMLE-CF) may exhibit larger or more variable standard error estimates than standard TMLE in certain scenarios. Plausible explanations include:
+
+- **Fold instability**: When the sample is split into folds, some folds may contain fewer observations in regions of the covariate space where positivity is marginal. The resulting nuisance estimates can vary substantially across folds, inflating the variance of the cross-fitted estimator.
+
+- **Limited Super Learner library**: If the candidate learner library is insufficiently diverse, the Super Learner's performance may degrade when trained on smaller fold-specific training sets, leading to higher-variance nuisance estimates.
+
+- **Variance inflation under small effective sample size**: Cross-fitting can amplify the impact of near-positivity violations because each fold has a smaller effective sample size for estimating nuisance parameters in thin covariate regions.
+
+These phenomena do not indicate a defect in cross-fitting per se---cross-fitting provides stronger theoretical guarantees---but they highlight the importance of adequate library specification and sample size relative to the complexity of the nuisance functions. Useful diagnostics include examining fold-specific propensity score distributions, fold-specific ESS, and the variability of Super Learner coefficients across folds.
+
+# 5. Discussion
+
+## 5.1 Summary of findings
+
+*[To be completed with simulation results.]*
+
+## 5.2 Outcome-blind simulation as a design validation tool
+
+The outcome-blind simulation phase should be understood as a **design validation** step within the clean-room governance framework, not as a data-driven estimator selection procedure. Its role is to confirm that the pre-specified analysis plan---estimator, Super Learner library, truncation bounds, and diagnostic criteria---produces estimates with acceptable bias, coverage, and variance calibration under plausible data-generating conditions.
+
+This distinction is important. If the outcome-blind phase were used to select among estimators based on their simulated performance and then apply the selected estimator to real outcome data, the procedure would introduce a form of post-hoc analytic flexibility that the clean-room framework is designed to prevent. Instead, the outcome-blind simulation phase validates pre-specified choices and identifies potential problems (e.g., poor coverage under informative censoring) that require plan revisions before outcome access.
+
+Pre-specified revisions triggered by simulation results---such as expanding the Super Learner library or adjusting truncation bounds---are documented in the decision log and are permissible under the clean-room governance protocol precisely because they occur before outcome unblinding.
+
+## 5.3 Limitations
+
+Several limitations of the current simulation should be noted:
+
+- **No competing risks.** The DGP does not model competing events such as death. In a real-world HCV-AKI study, death before AKI would be a competing risk that could bias cause-specific cumulative incidence estimates. Future extensions should incorporate competing risks, either by modeling them explicitly or by using subdistribution hazard approaches.
+
+- **Baseline confounding only.** The current DGP generates confounding through baseline covariates. Time-varying confounding---where covariates measured after treatment initiation affect both treatment continuation and outcome---is not simulated. Extending the simulation to include time-varying confounders would require longitudinal TMLE (LTMLE) estimation.
+
+- **Switching as censoring.** Treatment switching is handled by censoring at crossover, which approximates a hypothetical intervention that eliminates switching. This requires correct specification of the switching model for valid inference. An alternative would be to model switching as a time-varying treatment and use a sustained treatment strategy estimand, which would require a different estimation approach.
+
+- **Monte Carlo replicates.** The 200 replicates per scenario provide adequate power to detect large performance differences but may not resolve small differences in coverage or bias.
+
+## 5.4 Sensitivity analyses beyond the simulation scenarios
+
+In a real-world application of this framework, the analysis plan would include sensitivity analyses beyond those captured by the DGP scenarios. Standard sensitivity analyses for targeted learning studies in pharmacoepidemiology include:
+
+- **Unmeasured confounding.** Because conditional exchangeability is untestable, sensitivity analyses quantify how strong an unmeasured confounder would need to be to explain away the observed effect. Approaches include the E-value [@VanderWeele2017], which provides a minimum strength of association (on the risk ratio scale) that an unmeasured confounder would need to have with both treatment and outcome to fully explain the point estimate, and formal bias functions that parameterize the bias as a function of confounder prevalence and effect size.
+
+- **Truncation sensitivity.** The choice of truncation bounds for the propensity score (e.g., $[0.01, 0.99]$ vs. $[0.05, 0.95]$ vs. $[0.10, 0.90]$) trades off bias against variance. Reporting results across multiple truncation levels demonstrates whether conclusions are robust to this analytic decision.
+
+- **Alternative Super Learner libraries.** Results may depend on the composition of the Super Learner library. Sensitivity to library specification can be assessed by running the analysis with alternative libraries (e.g., parametric only, non-parametric only, with or without HAL).
+
+- **Negative control outcomes and exposures.** A negative control outcome is one that should not be causally affected by the treatment; a negative control exposure is one that should not causally affect the outcome. Detecting associations with negative controls suggests residual confounding or systematic bias and serves as an empirical falsification test [@Lipsitch2010].
+
+# 6. Conclusion
+
+*[To be completed with simulation results. The conclusion should summarize: (1) the performance of TMLE with Super Learner relative to comparators; (2) the value of outcome-blind simulation as a design validation tool; (3) practical recommendations for implementing clean-room targeted learning in pharmacoepidemiologic safety studies.]*
+
+# 7. Reproducibility
+
+## 7.1 Software environment
+
+All analyses are implemented in R. The following packages are required:
+
+| Package | Purpose |
+|---|---|
+| `tmle` | Point-treatment TMLE estimation |
+| `ltmle` | Longitudinal TMLE for survival outcomes |
+| `lmtp` | Modified treatment policy estimation (alternative TMLE) |
+| `SuperLearner` | Ensemble machine learning for nuisance parameters |
+| `ranger` | Random forest learner for Super Learner library |
+| `xgboost` | Gradient boosted trees for Super Learner library |
+| `mgcv` | GAM learner for Super Learner library |
+| `glmnet` | Penalized regression learner |
+| `dbarts` | BART learner for Super Learner library |
+| `hal9001` | Highly adaptive lasso (optional) |
+| `tidyverse` | Data manipulation and visualization |
+| `data.table` | Fast data operations for simulation loops |
+| `here` | Project-relative file paths |
+| `survival` | Cox PH regression comparator |
+
+## 7.2 Configuration
+
+The Super Learner library, truncation bounds, number of cross-validation folds, and all DGP parameters are specified in the configuration files archived with the repository. The appendix reproduces the DGP function call and Super Learner specification used for each scenario.
+
+Truncation bounds for the propensity score: $[\delta_{\min}, \delta_{\max}] = [0.01, 0.99]$ (primary analysis), with sensitivity analyses at $[0.05, 0.95]$ and $[0.10, 0.90]$.
+
+## 7.3 Seeds and reproducibility
+
+All simulation seeds are fixed and stored. The DGP function accepts a `seed` argument that sets the random number generator state before each replicate. Session information (R version, package versions, platform) is captured and archived with each run.
+
+## 7.4 Unit tests
+
+The test suite (`tests/test_sim.R`) covers:
+
+- **DGP validity**: verifies that generated datasets have expected dimensions, covariate distributions within specified tolerances, treatment prevalence near the target, and no missing values in required fields after cohort exclusions.
+- **Estimator smoke tests**: confirms that the TMLE, AIPW, and Cox pipelines run to completion on a small simulated dataset and produce estimates within the parameter space.
+- **Reproducibility**: confirms that running the DGP with the same seed produces identical datasets.
+
+## 7.5 Code availability
+
+All simulation code, DGP functions, estimation pipelines, and analysis scripts are archived in the project repository with version control. The repository structure follows the clean-room governance framework, with separate directories for the DGP (`R/dgp/`), estimation pipeline (`R/tmle/`), simulation driver (`simulation/`), and reports (`reports/`).
+
+# References
+
+::: {#refs}
+:::
+
+Berger ML, Sox H, Willke RJ, et al. Good practices for real-world data studies of treatment and/or comparative effectiveness: recommendations from the joint ISPOR-ISPE Special Task Force on Real-World Evidence in Health Care Decision Making. *Pharmacoepidemiology and Drug Safety*. 2017;26(9):1033-1039.
+
+Chernozhukov V, Chetverikov D, Demirer M, et al. Double/debiased machine learning for treatment and structural parameters. *The Econometrics Journal*. 2018;21(1):C1-C68.
+
+Hernan MA, Robins JM. Using big data to emulate a target trial when a randomized trial is not available. *American Journal of Epidemiology*. 2016;183(8):758-764.
+
+Lash TL, VanderWeele TJ, Haneuse S, Rothman KJ. *Modern Epidemiology*. 4th ed. Wolters Kluwer; 2021.
+
+Lipsitch M, Tchetgen Tchetgen E, Cohen T. Negative controls: a tool for detecting confounding and bias in observational studies. *Epidemiology*. 2010;21(3):383-388.
+
+Nosek BA, Ebersole CR, DeHaven AC, Mellor DT. The preregistration revolution. *Proceedings of the National Academy of Sciences*. 2018;115(11):2600-2606.
+
+Petersen ML, van der Laan MJ. Causal models and learning from data: integrating causal modeling and statistical estimation. *Epidemiology*. 2014;25(3):418-426.
+
+Polley EC, van der Laan MJ. Super Learner in prediction. U.C. Berkeley Division of Biostatistics Working Paper Series. 2010; Working Paper 266.
+
+van der Laan MJ, Polley EC, Hubbard AE. Super Learner. *Statistical Applications in Genetics and Molecular Biology*. 2007;6(1):Article 25.
+
+van der Laan MJ, Rubin D. Targeted maximum likelihood learning. *The International Journal of Biostatistics*. 2006;2(1):Article 11.
+
+van der Laan MJ, Rose S. *Targeted Learning: Causal Inference for Observational and Experimental Data*. New York: Springer; 2011.
+
+van der Laan MJ, Rose S. *Targeted Learning in Data Science: Causal Inference for Complex Longitudinal Studies*. New York: Springer; 2018.
+
+VanderWeele TJ, Ding P. Sensitivity analysis in observational research: introducing the E-value. *Annals of Internal Medicine*. 2017;167(4):268-274.
+
+Zheng W, van der Laan MJ. Cross-validated targeted minimum-loss-based estimation. In: van der Laan MJ, Rose S, eds. *Targeted Learning*. Springer; 2011:459-474.
+
+# Appendix: DGP Configuration
+
+## A.1 Simple scenario
+
+```r
+generate_hcv_data(
+  N           = 50000,
+  p_sof       = 0.36,
+  h0          = 3e-4,
+  HR_early    = 1.25,
+  HR_late     = 0.70,
+  tau         = 45,
+  max_follow  = 720,
+  risk_window = 30,
+  np_hazard   = FALSE,
+  dep_censor  = FALSE,
+  complexity  = FALSE,
+  switch_on   = FALSE,
+  seed        = <replicate-specific>
+)
+```
+
+## A.2 Complex scenario (Scenario 4: treatment switching)
+
+```r
+generate_hcv_data(
+  N           = 50000,
+  p_sof       = 0.36,
+  h0          = 5e-5,
+  HR_early    = 1.25,
+  HR_late     = 0.70,
+  tau         = 45,
+  max_follow  = 720,
+  risk_window = 30,
+  np_hazard   = TRUE,
+  dep_censor  = TRUE,
+  complexity  = TRUE,
+  switch_on   = TRUE,
+  lambda_sw0  = 2.5e-5,
+  gamma_A     = 0.60,
+  gamma_ckd   = 0.40,
+  seed        = <replicate-specific>
+)
+```
+
+## A.3 Super Learner library specification
+
+```r
+SL.library <- c(
+  "SL.glm",
+  "SL.gam",
+  "SL.ranger",
+  "SL.xgboost",
+  "SL.dbarts",
+  "SL.mean"
+)
+
+# Cross-validation folds for Super Learner
+cvControl <- list(V = 10)
+
+# Truncation bounds for propensity scores
+g.bounds <- c(0.01, 0.99)
+```

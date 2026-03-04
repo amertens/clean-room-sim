@@ -6,11 +6,38 @@ date: "`r format(Sys.Date(), '%B %d, %Y')`"
 editor: source
 ---
 
-## Purpose and context
+## Purpose and Context
 
-This tutorial shows how to run **targeted maximum likelihood estimation (TMLE)** on a simulated dataset inside the clean room design. The walkthrough emphasizes the steps and the different teams involved in a clean room workflow so analysts can adapt the pattern to their own experiments.
+This tutorial shows how to apply **targeted maximum likelihood estimation (TMLE)** to a simulated dataset within the clean-room design framework. The walkthrough covers the causal roadmap—from scientific question through estimation, diagnostics, and simulation validation—so that analysts can adapt this pattern to their own studies.
 
-## Roles and teams
+The motivating application is a pharmacoepidemiologic safety study: estimating the causal effect of sofosbuvir-based hepatitis C treatment on the risk of acute kidney injury.
+
+## Relationship Between Clean-Room Design and Targeted Learning
+
+Readers should distinguish three separate ideas that work together in this project:
+
+**Clean-room design** is a *governance and workflow structure*. It separates analytic roles—data provision, method specification, quality assurance, privacy review, and reporting—so that no single team controls all decisions. The goal is to reduce researcher degrees of freedom and prevent post-hoc analytic choices that could bias results. Clean-room design is not itself a statistical method; it is an organizational framework that any estimation strategy can operate within.
+
+**Outcome-blind design and simulation** is a *design validation step*. Before analysts access real outcome data, simulations are used to evaluate whether the planned analytic approach can recover known treatment effects under realistic data-generating conditions. This step tests the analysis pipeline—model specifications, diagnostics, and decision rules—without being influenced by the study results. The simulations in this repository serve this purpose.
+
+**Targeted learning / TMLE** is the *statistical estimation framework* used within the clean room. TMLE provides a principled approach to causal effect estimation that combines flexible machine learning with semiparametric efficiency theory. It is the "engine" that produces treatment effect estimates, while the clean-room design governs how and when that engine is run.
+
+In short: the clean room governs *who does what and when*; outcome-blind simulation validates *whether the plan works*; and TMLE provides *how the causal effect is estimated*.
+
+## Target Trial Framing
+
+Causal inference from observational data proceeds by emulating a hypothetical randomized trial—the **target trial**. Making the target trial explicit clarifies the scientific question and guides analytic choices. Key components include:
+
+- **Eligibility criteria**: Who would be enrolled? In this study, adults with chronic HCV who are eligible for DAA treatment, with no prior AKI, and at least 365 days of enrollment history.
+- **Treatment strategies**: What interventions are compared? Here, initiation of a sofosbuvir-containing regimen versus a non-sofosbuvir DAA regimen.
+- **Treatment assignment**: In the target trial, treatment would be randomly assigned. In the observational emulation, confounding adjustment substitutes for randomization.
+- **Time zero**: When does follow-up begin? At the date of treatment initiation, which must be well-defined to avoid immortal time bias.
+- **Follow-up and outcome**: Follow patients from time zero until the first AKI event, administrative censoring, or end of study, whichever comes first.
+- **Outcome definition**: Binary indicator of AKI occurrence within the follow-up window.
+
+The target trial framing ensures that the statistical analysis answers a question that corresponds to a well-defined intervention.
+
+## Roles and Teams
 
 | Team | Responsibilities |
 | --- | --- |
@@ -21,14 +48,21 @@ This tutorial shows how to run **targeted maximum likelihood estimation (TMLE)**
 | Privacy & Compliance | Verify outputs comply with disclosure controls and sign off on release policies. |
 | Reporting | Convert analysis outputs into stakeholder-friendly narratives and visualizations. |
 
-## Workflow steps
+## Workflow: Following the Causal Roadmap
 
-1. **Design the estimand**: The Methods team defines the average treatment effect (ATE) of a binary treatment `A` on outcome `Y`, conditional on baseline covariates `W`.
-2. **Simulate or ingest data**: Simulation & QA generates synthetic data that respects the planned relationships; Data Providers confirm field definitions.
-3. **Prepare the analysis environment**: Platform ensures required packages are installed (`tmle`, `dplyr`, `ggplot2`).
-4. **Run TMLE**: Methods implements TMLE with appropriate outcome and propensity models; QA reviews diagnostics.
-5. **Interpret and package results**: Reporting summarizes effect estimates and uncertainty; Privacy & Compliance checks export rules before sharing.
-6. **Archive and version**: Platform and Methods store the script and seed values so the clean room run is reproducible.
+The analysis workflow roughly follows the causal roadmap:
+
+1. **Scientific question**: What is the causal effect of sofosbuvir-based HCV treatment on AKI risk?
+2. **Target trial specification**: Define eligibility, treatment strategies, time zero, follow-up, and outcome (see above).
+3. **Causal model**: Specify the structural relationships among covariates, treatment, censoring, and outcome.
+4. **Statistical model**: Choose a semiparametric statistical model that does not assume parametric forms for nuisance functions.
+5. **Identification assumptions**: State and evaluate consistency, exchangeability, positivity, and no interference.
+6. **Estimation strategy**: Apply TMLE with Super Learner for flexible nuisance parameter estimation.
+7. **Diagnostics**: Assess propensity score overlap, effective sample size, and influence curve behavior.
+8. **Simulation validation**: Use outcome-blind simulations to verify that the pipeline recovers known treatment effects.
+9. **Applied example**: Run the full pipeline on the study data.
+
+This tutorial demonstrates steps 4–8 using a simple simulation, then describes how these steps extend to the full HCV-AKI data-generating process.
 
 ## Setup
 
@@ -45,9 +79,44 @@ invisible(lapply(required_packages, library, character.only = TRUE))
 set.seed(1010)  # Platform and QA keep seeds for reproducibility
 ```
 
-## Simulate data inside the clean room
+## Identification Assumptions
 
-The Simulation & QA team generates covariates `W1` and `W2`, a treatment `A` with an informative propensity score, and a continuous outcome `Y`.
+Before estimation, the Methods team must articulate and evaluate the causal assumptions required for the target parameter to be identified from observed data:
+
+1. **Consistency**: The observed outcome for a patient who received treatment $a$ equals the potential outcome $Y(a)$. This requires that the treatment is well-defined and that there are no hidden versions of treatment.
+
+2. **Conditional exchangeability (no unmeasured confounding)**: $Y(a) \perp\!\!\!\perp A \mid W$ — conditional on measured covariates $W$, treatment assignment is independent of potential outcomes. This is the central untestable assumption. It requires that all common causes of treatment and outcome are measured and adjusted for.
+
+3. **Positivity**: Within every stratum of the measured confounders $W$ that has positive probability in the population, every treatment level has a positive probability of being assigned:
+$$0 < P(A = 1 \mid W = w) < 1 \quad \text{for all } w \text{ where } P(W = w) > 0.$$
+Note that positivity is defined with respect to *strata of the confounders*, not with respect to every individual in isolation. Two types of positivity violations arise in practice:
+
+    - **Theoretical (structural) violations** occur when certain covariate strata *cannot* receive a given treatment (e.g., a contraindicated drug). These represent a fundamental identification problem—the causal effect is not defined in those strata.
+    - **Practical (random) violations** occur when certain covariate strata could in principle receive either treatment but do so very rarely in the observed data. These lead to highly variable inverse probability weights and unstable estimates, even though the causal effect is in principle identified.
+
+    Diagnostics for assessing positivity include:
+
+    - **Propensity score overlap plots**: Histograms or density plots of the estimated propensity score $\hat{g}(W)$, stratified by treatment group. Good overlap means the distributions largely coincide; separation near 0 or 1 indicates near-violations.
+    - **Inverse probability weight distributions**: Examining the distribution of $1/\hat{g}(W)$ and $1/(1 - \hat{g}(W))$. Extreme weights signal near-violations.
+    - **Effective sample size**: $n_{\text{eff}} = (\sum w_i)^2 / \sum w_i^2$, where $w_i$ are the inverse probability weights. A small effective sample size relative to the actual sample size indicates that a few observations are dominating the estimate.
+
+4. **No interference**: One patient's treatment does not affect another patient's outcome. This is generally plausible for individual-level drug treatments.
+
+## Simulate Data Inside the Clean Room
+
+The Simulation & QA team generates covariates `W1` and `W2`, a treatment `A` with an informative propensity score, and a continuous outcome `Y`. This simple simulation serves as a proof-of-concept; the full HCV-AKI data-generating process is described in a later section.
+
+### Data-generating process specification
+
+The simulation follows an explicit structural causal model:
+
+- **Covariates**: $W_1 \sim \text{Bernoulli}(0.5)$, $W_2 \sim N(0, 1)$
+- **Treatment assignment**: $A \mid W \sim \text{Bernoulli}(\text{expit}(-0.4 + 1.2 W_1 + 0.5 W_2))$
+- **Outcome**: $Y = 1 + 0.8 A + 0.5 W_1 - 0.2 W_2 + \epsilon$, where $\epsilon \sim N(0, 1)$
+
+The true average treatment effect is $\psi_0 = 0.8$.
+
+Both the propensity score and outcome models are correctly specified as linear in this simple example, which means that *all identification assumptions are satisfied by construction*: confounders ($W_1$, $W_2$) are fully observed (exchangeability), treatment probabilities are bounded away from 0 and 1 (positivity), and the outcome is a deterministic function of $(A, W, \epsilon)$ (consistency). There is no censoring in this basic example.
 
 ```{r}
 n <- 1000
@@ -63,7 +132,7 @@ sim_data <- tibble(W1, W2, A, Y)
 head(sim_data)
 ```
 
-## Quick diagnostic plots
+## Quick Diagnostic Plots
 
 Simulation & QA and Methods review distributions and treatment balance before estimation.
 
@@ -76,9 +145,54 @@ sim_data %>%
        x = "W2")
 ```
 
+## What Is TMLE?
+
+TMLE (targeted maximum likelihood estimation, also called targeted minimum loss-based estimation) is a **substitution estimator** for causal parameters. Unlike inverse probability weighting, which reweights observed outcomes, TMLE produces estimates by evaluating a model for the outcome regression—after updating that model to reduce bias for the specific causal parameter of interest.
+
+### The TMLE procedure
+
+TMLE proceeds in three stages:
+
+1. **Initial estimation of nuisance parameters.** Two nuisance functions are estimated from the data:
+    - The **outcome regression** (or Q-model): $\bar{Q}(A, W) = E[Y \mid A, W]$, which predicts the outcome given treatment and covariates.
+    - The **propensity score** (or g-model): $g(W) = P(A = 1 \mid W)$, which predicts the probability of treatment given covariates.
+
+    These nuisance parameters are not themselves the target of inference. They are estimated flexibly—ideally using data-adaptive methods such as Super Learner—so that the analysis does not rely on correct parametric specification of either model.
+
+2. **The targeting (fluctuation) step.** The initial outcome regression estimate $\hat{\bar{Q}}(A, W)$ is updated using information from the propensity score. Specifically, the initial fit is fluctuated along a parametric submodel defined by the **clever covariate**:
+$$H(A, W) = \frac{A}{\hat{g}(W)} - \frac{1 - A}{1 - \hat{g}(W)}$$
+    A small univariate fluctuation parameter $\epsilon$ is estimated by regressing the residuals on $H(A, W)$, and the initial estimate is updated: $\hat{\bar{Q}}^*(A, W) = \hat{\bar{Q}}(A, W) + \epsilon \cdot H(A, W)$ (or the logistic-fluctuation analog for bounded outcomes). The targeting step is constructed so that the updated estimate $\hat{\bar{Q}}^*$ solves the **efficient influence function (EIF) equation**: the empirical mean of the EIF evaluated at $\hat{\bar{Q}}^*$ and $\hat{g}$ equals zero. This is the key property that distinguishes TMLE from a plug-in estimator using the initial fit alone.
+
+3. **Substitution.** The targeted estimate of the ATE is obtained by plugging the updated outcome regression into the parameter mapping:
+$$\hat{\psi}_{TMLE} = \frac{1}{n} \sum_{i=1}^n \left[\hat{\bar{Q}}^*(1, W_i) - \hat{\bar{Q}}^*(0, W_i)\right]$$
+    That is, for each individual, predict the outcome under treatment and under control using the *updated* regression, then average the difference.
+
+### Why does the targeting step matter?
+
+Solving the EIF equation yields three important properties:
+
+- **Asymptotic linearity**: $\hat{\psi}_{TMLE} - \psi_0 = \frac{1}{n}\sum_{i=1}^n \text{EIF}(O_i) + o_p(1/\sqrt{n})$, which guarantees regular $\sqrt{n}$ convergence and asymptotic normality under standard conditions.
+- **Semiparametric efficiency**: When both nuisance models are consistently estimated, TMLE achieves the semiparametric efficiency bound—no regular estimator can have smaller asymptotic variance.
+- **Double robustness**: The estimator is consistent if *either* the outcome regression *or* the propensity score is consistently estimated (but not necessarily both). This provides a layer of protection against model misspecification that purely outcome-regression-based or purely weighting-based estimators lack.
+
+## Super Learner for Nuisance Parameter Estimation
+
+The initial estimates of the outcome regression $\bar{Q}$ and propensity score $g$ should be as accurate as possible, since TMLE inherits bias from poor initial estimates even after the targeting step. **Super Learner** is an ensemble machine learning method that combines multiple candidate algorithms to minimize prediction error.
+
+Super Learner works by minimizing **cross-validated risk** over a library of candidate learners. The analyst must specify:
+
+- A **loss function** appropriate to the prediction task:
+    - *Squared error loss* for continuous outcomes (e.g., $E[Y \mid A, W]$ when $Y$ is continuous)
+    - *Negative log-likelihood (Bernoulli) loss* for binary outcomes (e.g., $P(Y = 1 \mid A, W)$ when $Y$ is binary)
+    - *Logistic loss* is commonly used for the treatment model $P(A = 1 \mid W)$
+
+- A **library of candidate learners**, which may include both parametric models (GLM, penalized regression) and non-parametric algorithms (random forests, gradient boosting, neural networks, GAMs, highly adaptive lasso). The Super Learner finds the convex combination of candidates that minimizes the cross-validated risk. By including a diverse library, the ensemble adapts to the complexity of the true data-generating process without requiring the analyst to choose a single model in advance.
+
+In this tutorial, we use simple main-effects GLMs for both Q and g. In practice, and as specified in the TL-SAP for this project, the library should include flexible learners: GLM, GAM, random forest, XGBoost, HAL, and a mean-only baseline.
+
 ## Run TMLE
 
-The Methods team fits TMLE for the average treatment effect. The `tmle` function automatically performs the targeting step after estimating the outcome regression (`Q`) and treatment mechanism (`g`).
+The Methods team fits TMLE for the average treatment effect. The `tmle()` function performs the full procedure: it estimates the initial outcome regression and propensity score, computes the clever covariate, runs the targeting step, and returns the substitution estimate along with influence-curve-based inference.
 
 ```{r}
 # Outcome and propensity models use simple main effects; these can be replaced with Super Learner libraries.
@@ -91,13 +205,13 @@ ate_tmle <- tmle(Y = sim_data$Y,
 summary(ate_tmle)
 ```
 
-## Interpret results
+## Interpret Results
 
 Reporting and Methods interpret the TMLE output:
 
-- **`psi`**: the estimated ATE (difference in mean outcome if everyone were treated vs not treated).
-- **`CI`**: 95% confidence interval for the ATE.
-- **`p-value`**: significance test for a null effect.
+- **`psi`**: the estimated ATE (difference in mean potential outcome if everyone were treated vs. not treated). In this simulation, the true ATE is 0.8; the estimate should be close to this value.
+- **`CI`**: 95% confidence interval for the ATE, derived from the estimated variance of the efficient influence function.
+- **`p-value`**: Wald test for the null hypothesis of no treatment effect.
 
 ```{r}
 ate <- ate_tmle$estimates$ATE$psi
@@ -105,7 +219,103 @@ ci <- ate_tmle$estimates$ATE$CI
 cat(sprintf("TMLE ATE estimate: %.3f (95%% CI: %.3f, %.3f)\n", ate, ci[1], ci[2]))
 ```
 
-## Clean room release checklist
+## Practical Implementation Considerations
+
+### Cross-fitting
+
+When data-adaptive (machine learning) algorithms are used to estimate nuisance parameters, standard TMLE can exhibit bias due to overfitting: the same observations used to train the nuisance models are used in the targeting step. **Cross-fitting** (also called sample splitting) addresses this by partitioning the data into folds, estimating nuisance parameters on each training fold, and applying predictions to the held-out fold. This is the approach used in **cross-validated TMLE (CV-TMLE)**, which preserves the theoretical guarantees of TMLE even when highly adaptive learners are employed.
+
+### Variance estimation and confidence intervals
+
+TMLE confidence intervals are derived from the **efficient influence function (EIF)**. The estimated variance is:
+$$\hat{\sigma}^2 = \frac{1}{n} \sum_{i=1}^n \text{EIF}(O_i; \hat{\bar{Q}}^*, \hat{g})^2$$
+
+This approach yields valid inference under standard regularity conditions. However, when **positivity violations** are present—that is, when some estimated propensity scores $\hat{g}(W)$ are close to 0 or 1—the clever covariate $H(A, W)$ becomes large, inflating the EIF values. In such cases, influence-curve-based variance estimates may be unreliable (typically anti-conservative), and truncation of $\hat{g}$ at boundaries like [0.01, 0.99] introduces a bias-variance trade-off that should be evaluated via sensitivity analysis.
+
+### Point treatment vs. longitudinal TMLE
+
+This tutorial demonstrates **point treatment TMLE**, where treatment is assigned once at baseline and the outcome is observed at a single time. For settings with **time-varying treatments, time-varying confounding, and censoring over follow-up**, the analysis requires **longitudinal TMLE (LTMLE)**. LTMLE extends the procedure via **sequential regression**: starting from the final time point and working backward, the outcome regression is iterated at each time step, with targeting steps that account for the treatment and censoring mechanisms at each node. The R packages `ltmle` and `lmtp` implement longitudinal TMLE for survival and time-to-event outcomes, and the TL-SAP for this project specifies their use for the full HCV-AKI analysis.
+
+## Full HCV-AKI Data-Generating Process
+
+The simple simulation above is a proof of concept. The full data-generating process implemented in `R/dgp/DGP.R` via `generate_hcv_data()` creates a realistic pharmacoepidemiologic cohort. This section describes it in enough detail that the simulation design could be independently reproduced.
+
+### Baseline covariates (W)
+
+A cohort of N = 125,000 individuals is generated with:
+
+- **Demographics**: age $\sim N(48, 13)$ truncated below 18; sex (58% male); race (5 categories); region (4 US regions); enrollment duration $\sim \text{Poisson}(420)$ days
+- **Clinical history** (binary): CKD (8%), prior AKI (5%), cirrhosis (18%), portal hypertension (4%), ESLD (2%), heart failure (7%), hypertension (45%), HIV (4%), sepsis (3%), diabetes (20%), cancer (8%), and others
+- **Medications** (binary): NSAIDs (25%), ACE/ARBs (30%), diuretics (22%), aminoglycosides (5%), contrast agents (8%), statins (15%), and others
+- **Continuous**: BMI $\sim N(28, 5)$
+
+**Cohort eligibility** excludes patients with enrollment < 365 days, age < 18, prior AKI, or prior HCV treatment.
+
+### Treatment assignment model (A | W)
+
+Treatment (sofosbuvir-based regimen, target prevalence ~36%) is assigned via a logistic model:
+
+- **Simple** (`complexity = FALSE`): $\text{logit}(P(A=1 \mid W)) = \alpha_0 + 0.015 \cdot \text{age} + 0.30 \cdot \text{cirrhosis} + 0.25 \cdot \text{CKD} + 0.15 \cdot \text{HIV} + 0.10 \cdot \text{diabetes} - 0.10 \cdot \text{cancer} + \epsilon$, where $\epsilon \sim N(0, 0.6)$.
+- **Complex** (`complexity = TRUE`): adds $0.02 \cdot \text{BMI}^2/100$, $-0.3 \cdot \sin(0.1 \cdot \text{BMI})$, $0.5 \cdot (\text{age}/50)^3$, $1.5 \cdot \text{CKD} \times \text{cancer}$, $0.8 \cdot \text{HIV} \times \log(1 + \text{age})$.
+
+Propensity scores are clipped to $[0.05, 0.95]$ to enforce positivity. Counterfactual overrides (`all_treated`, `all_control`) allow computation of the true causal effect by running the outcome model under each fixed treatment.
+
+### Outcome model (Y | A, W)
+
+The outcome is time to first AKI event, generated from an exponential (or piecewise exponential) hazard:
+
+- **Baseline hazard**: $h(t) = h_0 \cdot \exp(\text{linear predictor})$
+
+- **Simple outcome model** (`complexity = FALSE`): linear predictor = $-2.8 + 0.03 \cdot \text{age} + 0.7 \cdot \text{CKD} + 0.5 \cdot \text{cirrhosis} + 0.3 \cdot \text{heart failure} + 0.25 \cdot \text{NSAID} + 0.20 \cdot \text{contrast}$. Treatment effect is a constant hazard ratio (HR = 1.25).
+
+- **Complex outcome model** (`complexity = TRUE`): adds $0.0005 \cdot \text{age}^2$, $0.02 \cdot \text{BMI}^2/100$, $-0.3 \cdot \sin(0.1 \cdot \text{BMI})$, interactions $0.4 \cdot \text{heart failure} \times \text{ACE/ARB}$, $0.6 \cdot \text{NSAID} \times A$, $0.3 \cdot \text{contrast} \times \log(1+\text{age})$.
+
+- **Non-proportional hazards** (`np_hazard = TRUE`): A piecewise exponential model with a change-point at $\tau = 45$ days. The treatment HR is 1.25 (harmful) in the early period (0–45 days) and 0.70 (protective) in the late period (>45 days). This means standard Cox regression, which assumes a constant HR, will be misspecified.
+
+### Censoring mechanisms
+
+**Administrative censoring**:
+
+- Independent (`dep_censor = FALSE`): $C \sim \text{Exp}(\text{rate} = 1/100)$.
+- Dependent (`dep_censor = TRUE`): censoring rate depends on the baseline risk linear predictor and treatment: $\text{rate} = (1/100) \cdot \exp(0.04 \cdot \text{lp\_out} + 0.03 \cdot A)$. This creates informative censoring, violating the independent-censoring assumption used by naive methods.
+- Hard administrative cutoff at 720 days.
+
+**Treatment switching** (`switch_on = TRUE`): Switching is a survival process with baseline hazard $\lambda_0 = 2.5 \times 10^{-5}$ and log-hazard ratios $\gamma_A = 0.60$ (for treatment) and $\gamma_{\text{CKD}} = 0.40$ (for CKD). Patients are censored at switch time + 30-day risk window. This creates informative censoring linked to both treatment and patient characteristics.
+
+### Observed data
+
+Follow-up time = $\min$( event time, administrative censoring, switch censoring). The event indicator is 1 if the AKI event occurred before any censoring. Latent variables (true event times, censoring times) are excluded from the analysis dataset.
+
+### Which causal assumptions hold?
+
+| Assumption | Simple scenario | Complex scenario |
+|---|---|---|
+| Consistency | Satisfied by construction | Satisfied by construction |
+| Exchangeability | Satisfied (all confounders measured) | Satisfied (all confounders measured) |
+| Positivity | Enforced by clipping to [0.05, 0.95] | Enforced, but near-violations possible |
+| Independent censoring | Satisfied (censoring independent of covariates) | **Violated** (dependent censoring) |
+| Correct model specification (for parametric methods) | Plausible for linear models | **Violated** (non-linear terms, interactions) |
+
+The complex scenario is deliberately designed to challenge standard methods while remaining identifiable for flexible semiparametric estimators that can handle dependent censoring.
+
+### Pre-configured scenarios
+
+1. **Simple** (`sim_hcv_aki.csv`): proportional hazards, independent censoring, linear models, $h_0 = 3 \times 10^{-4}$.
+2. **Complex** (`sim_hcv_aki_complex.csv`): non-proportional hazards, dependent censoring, non-linear models with interactions, $h_0 = 5 \times 10^{-5}$.
+
+## Sensitivity Analyses
+
+Targeted learning studies should include sensitivity analyses to evaluate the robustness of conclusions to analytic choices and untestable assumptions:
+
+- **Unmeasured confounding**: Because conditional exchangeability cannot be tested from observed data, formal sensitivity analyses quantify how strong an unmeasured confounder would need to be to explain away the estimated effect. Methods include the E-value and bias-function approaches.
+
+- **Truncation sensitivity for inverse probability weights**: The choice of truncation bounds for $\hat{g}(W)$ (e.g., [0.01, 0.99] vs. [0.05, 0.95] vs. [0.10, 0.90]) trades off bias against variance. Reporting results across multiple truncation levels demonstrates whether conclusions are sensitive to this choice.
+
+- **Negative control outcomes and exposures**: A negative control outcome is an outcome that should *not* be affected by the treatment; a negative control exposure is a variable that should *not* affect the outcome. If the analysis detects an association with a negative control, it suggests residual confounding or model misspecification. These serve as empirical falsification tests.
+
+- **Alternative outcome definitions**: Varying the outcome definition (e.g., different AKI diagnostic code sets, different risk windows) tests whether results are robust to measurement choices.
+
+## Clean Room Release Checklist
 
 1. **Methods**: Confirm model choices and sensitivity checks are documented.
 2. **Simulation & QA**: Verify the synthetic data process is reproducible and meets design targets.
@@ -113,7 +323,7 @@ cat(sprintf("TMLE ATE estimate: %.3f (95%% CI: %.3f, %.3f)\n", ate, ci[1], ci[2]
 4. **Platform**: Package the Qmd, session info, and seeds into version control; ensure compute environment is recorded.
 5. **Reporting**: Prepare the final summary and graphics with any approved blurring or aggregation.
 
-## Session info
+## Session Info
 
 Platform can capture the full session info for reproducibility or audits.
 

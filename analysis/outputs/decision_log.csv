@@ -1,0 +1,13 @@
+"meeting_id","date_time","stage","model_component","decision","justification","triggered_by","outcome_blind_confirm","approver","protocol_version"
+"MTG-20260302130427-4877","2026-03-02 13:04:27","stage1","Cohort","Cohort built and feasibility assessed","N = 4268 ; events = 12","pre-specified protocol",TRUE,"analyst",1
+"MTG-20260302130429-3776","2026-03-02 13:04:29","stage2","PS","PS model fitted with SL.glm, SL.gam, SL.ranger, SL.mean","Pre-specified SL library from config","pre-specified",TRUE,"analyst",1
+"MTG-20260302130429-3776","2026-03-02 13:04:29","stage2","PS","Truncation at [ 0.01 , 0.99 ] ; truncated: 0 lower, 0 upper","Pre-specified truncation bounds from config","pre-specified",TRUE,"analyst",1
+"MTG-20260302130429-3776","2026-03-02 13:04:29","stage2","Balance","Max weighted SMD = 0.0051","Threshold = 0.25","SMD diagnostic",TRUE,"analyst",1
+"MTG-20260302130745-4877","2026-03-02 13:07:45","stage1","Cohort","Cohort built and feasibility assessed","N = 4268 ; events = 12","pre-specified protocol",TRUE,"analyst",1
+"MTG-20260303064519-4877","2026-03-03 06:45:19","stage1","Cohort","Cohort built and feasibility assessed","N = 4268 ; events = 12","pre-specified protocol",TRUE,"analyst",1
+"MTG-20260303064524-3776","2026-03-03 06:45:24","stage2","PS","PS model fitted with SL.glm, SL.gam, SL.ranger, SL.mean","Pre-specified SL library from config","pre-specified",TRUE,"analyst",1
+"MTG-20260303064524-3776","2026-03-03 06:45:24","stage2","PS","Truncation at [ 0.01 , 0.99 ] ; truncated: 0 lower, 0 upper","Pre-specified truncation bounds from config","pre-specified",TRUE,"analyst",1
+"MTG-20260303064524-3776","2026-03-03 06:45:24","stage2","Balance","Max weighted SMD = 0.0051","Threshold = 0.25","SMD diagnostic",TRUE,"analyst",1
+"MTG-20260303064958-7593","2026-03-03 06:49:58","stage3","Q","Outcome model fitted with SL library: SL.glm, SL.gam, SL.ranger, SL.glmnet, SL.mean","Pre-specified from config","pre-specified",TRUE,"analyst",1
+"MTG-20260303064958-7593","2026-03-03 06:49:58","stage3","Estimator","Primary estimand: Risk difference at t = 90, 180 days (PH-free)","Pre-specified in TL-SAP","pre-specified",TRUE,"analyst",1
+"MTG-20260303064958-7593","2026-03-03 06:49:58","stage3","Estimator","Secondary estimand: Cox PH hazard ratio (assumes PH)","Pre-specified in TL-SAP; PH test included as diagnostic","pre-specified",TRUE,"analyst",1
