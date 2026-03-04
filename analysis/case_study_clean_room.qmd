@@ -26,16 +26,45 @@ The analysis proceeds through four stages with explicit checkpoints:
 3. **Stage 3**: Outcome modeling and estimation (TMLE + comparators)
 4. **Stage 4**: Reporting and lock
 
+**Estimand**: The primary estimand is the cumulative incidence (risk) at 90 and
+180 days under hypothetical treatment vs control, operationalized as binary
+endpoints $Y_t = I(T \le t \text{ and event} = 1)$. The risk difference (RD) and
+risk ratio (RR) do not rely on proportional hazards assumptions. A secondary
+estimand is the Cox PH hazard ratio (which does assume PH). Inference uses
+nonparametric bootstrap CIs as the primary method, with IC-based SEs reported
+for TMLE and IPTW. Bootstrap is preferred in this vignette because with
+realistic event rates (2--4%) and finite samples, IC-based SEs can be unstable.
+
 ```{r setup}
 #| label: setup
 
-# Source all R modules
+# Source all R modules (for helper functions used in rendering)
 r_files <- list.files("../R", pattern = "\\.R$", recursive = TRUE,
                       full.names = TRUE)
 for (f in r_files) source(f)
 
 # Load configuration
 cfg <- load_config("../config/default.yml")
+
+# --- Check for precomputed outputs ---
+rds_files <- c(
+  stage1 = "../outputs/stage1_feasibility.rds",
+  stage2 = "../outputs/stage2_design_adequacy.rds",
+  stage3 = "../outputs/stage3_estimation.rds"
+)
+missing <- names(rds_files)[!file.exists(rds_files)]
+if (length(missing) > 0) {
+  stop("Precomputed outputs not found: ",
+       paste(rds_files[missing], collapse = ", "),
+       "\n\nRun the pipeline first:\n",
+       "  Rscript scripts/00_run_all_stages.R\n",
+       "or:  make run\n",
+       call. = FALSE)
+}
+
+stage1_out <- readRDS(rds_files["stage1"])
+stage2_out <- readRDS(rds_files["stage2"])
+stage3_out <- readRDS(rds_files["stage3"])
 ```
 
 ## Stage 1: Cohort Feasibility and Build
@@ -43,41 +72,15 @@ cfg <- load_config("../config/default.yml")
 Stage 1 generates the analysis cohort and produces feasibility summaries.
 **No outcome-by-treatment comparisons are permitted at this stage.**
 
-```{r stage1}
-#| label: stage1
-
-# Generate cohort data using simple scenario
-set_deterministic_seed(cfg$dgp$seed)
-cohort_data <- generate_hcv_data(
-  N = cfg$dgp$N,
-  h0 = cfg$dgp$h0,
-  HR_early = cfg$dgp$HR_early,
-  HR_late = cfg$dgp$HR_late,
-  tau = cfg$dgp$tau,
-  max_follow = cfg$dgp$max_follow,
-  np_hazard = FALSE,
-  dep_censor = FALSE,
-  complexity = FALSE,
-  switch_on = FALSE,
-  seed = cfg$dgp$seed
-)
-
-# Run Stage 1
-stage1_out <- stage1_build_cohort(
-  data = cohort_data,
-  cfg = cfg,
-  output_dir = "../outputs/stage1"
-)
-
-cat("Checkpoint 1:", stage1_out$checkpoint, "\n")
-```
-
-### Stage 1 Report
+Checkpoint criteria: N $\ge$ `r cfg$stage1$min_N`, treated fraction $\ge$
+`r cfg$stage1$min_treated_frac`, events $\ge$ `r cfg$stage1$min_events`,
+missingness $\le$ `r cfg$stage1$max_missingness`.
 
 ```{r stage1-report}
 #| label: stage1-report
 
 report <- stage1_out$report
+cat(sprintf("Checkpoint 1: %s\n\n", stage1_out$checkpoint))
 cat(sprintf("Cohort size: %d\n", report$N_total))
 cat(sprintf("Treated (SOF): %d (%.1f%%)\n",
             report$N_treated, report$frac_treated * 100))
@@ -94,16 +97,14 @@ Stage 2 evaluates propensity score overlap, covariate balance, and weight
 distributions. **This stage does NOT fit outcome models or compute treatment
 effects.**
 
-```{r stage2}
-#| label: stage2
+Checkpoint criteria: max weighted SMD $\le$ `r cfg$stage2$max_smd`,
+ESS fraction $\ge$ `r cfg$stage2$min_ess_frac`,
+PS overlap fraction $\ge$ `r cfg$stage2$min_ps_overlap`.
 
-stage2_out <- stage2_design_checks(
-  cohort = stage1_out$cohort,
-  cfg = cfg,
-  output_dir = "../outputs/stage2"
-)
+```{r stage2-report}
+#| label: stage2-report
 
-cat("Checkpoint 2:", stage2_out$checkpoint, "\n")
+cat(sprintf("Checkpoint 2: %s\n", stage2_out$checkpoint))
 ```
 
 ### Propensity Score Overlap
@@ -186,21 +187,18 @@ Stage 3 runs TMLE and comparator estimators. It only proceeds if Stage 2
 checkpoint is PASS.
 
 **Primary estimand**: Cumulative risk at 90 and 180 days (risk difference
-and risk ratio). This estimand does NOT rely on proportional hazards.
+and risk ratio). The estimand is $Y_t = I(T \le t \text{ and event}=1)$;
+censoring is handled via IPCW in TMLE and IPTW. This estimand does NOT
+rely on proportional hazards.
 
 **Secondary estimand**: Cox PH hazard ratio (labeled as such).
 
-```{r stage3}
-#| label: stage3
+**Inference**: Bootstrap CIs (percentile method) are the primary inference
+for all three estimators. IC-based SEs are also reported for TMLE and IPTW.
 
-stage3_out <- stage3_estimation(
-  cohort = stage1_out$cohort,
-  stage2_result = stage2_out,
-  cfg = cfg,
-  output_dir = "../outputs/stage3"
-)
+```{r stage3-table}
+#| label: stage3-table
 
-# Display results table
 knitr::kable(stage3_out$summary, digits = 5,
              caption = "Stage 3: Effect Estimates by Method and Time Point")
 ```
@@ -211,12 +209,16 @@ knitr::kable(stage3_out$summary, digits = 5,
 #| label: cox-secondary
 
 cox_hr <- stage3_out$results$cox_hr
-cat(sprintf("Hazard Ratio: %.4f (95%% CI: %.4f, %.4f)\n",
-            cox_hr$HR, cox_hr$ci_HR[1], cox_hr$ci_HR[2]))
-cat(sprintf("PH Test p-value: %.4f\n", cox_hr$ph_test$pvalue))
-cat(sprintf("PH Violated (p < 0.05): %s\n", cox_hr$ph_test$ph_violated))
-cat("\nNote: The HR estimate assumes proportional hazards. ",
-    "When PH is violated, interpret with caution.\n")
+if (!is.null(cox_hr) && !is.na(cox_hr$HR)) {
+  cat(sprintf("Hazard Ratio: %.4f (95%% CI: %.4f, %.4f)\n",
+              cox_hr$HR, cox_hr$ci_HR[1], cox_hr$ci_HR[2]))
+  cat(sprintf("PH Test p-value: %.4f\n", cox_hr$ph_test$pvalue))
+  cat(sprintf("PH Violated (p < 0.05): %s\n", cox_hr$ph_test$ph_violated))
+  cat("\nNote: The HR estimate assumes proportional hazards. ",
+      "When PH is violated, interpret with caution.\n")
+} else {
+  cat("Cox PH estimation did not produce valid results.\n")
+}
 ```
 
 ### TMLE Diagnostics (180 days)
@@ -236,6 +238,13 @@ if (has_full_diag) {
   cat("Observations censored:", diag_180$n_censored, "\n")
   cat("Fluctuation eps:", round(as.numeric(diag_180$eps$eps1), 4),
       ",", round(as.numeric(diag_180$eps$eps0), 4), "\n")
+
+  # Positivity warnings
+  frac_boundary <- diag_180$positivity$frac_near_boundary
+  if (!is.null(frac_boundary) && frac_boundary > 0.05) {
+    cat("\nWARNING: ", round(frac_boundary * 100, 1),
+        "% of observations have g near 0/1 boundary.\n")
+  }
 } else {
   msg <- if (!is.null(diag_180$error)) diag_180$error else "diagnostics fields missing or non-numeric"
   cat("TMLE diagnostics unavailable:", msg, "\n")
@@ -256,34 +265,6 @@ cfg_local$output$stage3_dir <- "../outputs/stage3"
 stage4_report(cfg = cfg_local, output_dir = "../outputs/report")
 ```
 
-## Now Run with Complex Scenario
-
-```{r complex-scenario}
-#| label: complex-scenario
-
-set_deterministic_seed(cfg$dgp$seed)
-cohort_complex <- generate_hcv_data(
-  N = cfg$dgp$N,
-  h0 = cfg$dgp$h0,
-  HR_early = cfg$dgp$HR_early,
-  HR_late = cfg$dgp$HR_late,
-  tau = cfg$dgp$tau,
-  max_follow = cfg$dgp$max_follow,
-  np_hazard = TRUE,
-  dep_censor = TRUE,
-  complexity = TRUE,
-  switch_on = TRUE,
-  seed = cfg$dgp$seed + 1000
-)
-
-# Stage 1 (complex)
-s1_cx <- stage1_build_cohort(data = cohort_complex, cfg = cfg,
-                              output_dir = "../outputs/stage1")
-cat("Complex - Checkpoint 1:", s1_cx$checkpoint, "\n")
-cat("Complex - N:", s1_cx$report$N_total,
-    ", Events:", s1_cx$report$overall_N_events, "\n")
-```
-
 ## Decision Log
 
 ```{r decision-log}
@@ -296,6 +277,19 @@ if (file.exists("../outputs/decision_log.csv")) {
                caption = "Decision Log Excerpt")
 }
 ```
+
+## Limitations
+
+This analysis uses simulated data with illustrative parameters. The DGP is
+calibrated to produce realistic event rates (~2--4% at 180 days) and
+confounding structure, but in real studies additional data-quality checks,
+measurement-validity assessment, and sensitivity analyses (e.g., for
+unmeasured confounding, informative censoring models, and positivity
+violations) are required. The SL library is intentionally minimal
+(GLM + mean) for computational speed; production analyses should include
+flexible learners (GAM, random forest, elastic net). The staged clean-room
+design supports pre-specification of the treatment model and estimand before
+any outcome data are examined.
 
 ## Appendix
 

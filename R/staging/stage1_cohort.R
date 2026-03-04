@@ -33,6 +33,20 @@ stage1_build_cohort <- function(data = NULL, spec = NULL, cfg = NULL,
     data <- do.call(generate_hcv_data, spec)
   }
 
+  # --- Pre-flight checks ---
+  required_cols <- c("treatment", "event", "follow_time")
+  missing_cols <- setdiff(required_cols, names(data))
+  if (length(missing_cols) > 0) {
+    stop("Stage 1 pre-flight: missing required columns: ",
+         paste(missing_cols, collapse = ", "), call. = FALSE)
+  }
+  if (!all(data$treatment %in% c(0L, 1L))) {
+    stop("Stage 1 pre-flight: 'treatment' must be binary 0/1.", call. = FALSE)
+  }
+  if (!all(data$event %in% c(0L, 1L))) {
+    stop("Stage 1 pre-flight: 'event' must be binary 0/1.", call. = FALSE)
+  }
+
   # --- Feasibility summaries (outcome-blind) ---
   N_total    <- nrow(data)
   N_treated  <- sum(data$treatment == 1)
@@ -80,6 +94,8 @@ stage1_build_cohort <- function(data = NULL, spec = NULL, cfg = NULL,
 
   # --- Checkpoint evaluation ---
   thresholds <- cfg$stage1
+  min_events <- if (!is.null(thresholds$min_events)) thresholds$min_events else 50
+
   criteria <- list(
     N_total       = list(value = N_total,
                          threshold = thresholds$min_N,
@@ -90,6 +106,9 @@ stage1_build_cohort <- function(data = NULL, spec = NULL, cfg = NULL,
     frac_control  = list(value = round(frac_control, 4),
                          threshold = thresholds$min_control_frac,
                          pass = frac_control >= thresholds$min_control_frac),
+    N_events      = list(value = overall_N_events,
+                         threshold = min_events,
+                         pass = overall_N_events >= min_events),
     max_missingness = list(
       value = if (length(miss_summary) > 0)
         round(max(miss_summary), 4) else 0,
@@ -106,7 +125,8 @@ stage1_build_cohort <- function(data = NULL, spec = NULL, cfg = NULL,
   # Log initial decisions
   mtg <- start_meeting("stage1", protocol_version = 1L)
   mtg <- log_decision(mtg, "Cohort", "Cohort built and feasibility assessed",
-                      paste("N =", N_total, "; events =", overall_N_events),
+                      paste("N =", N_total, "; events =", overall_N_events,
+                            "; event rate =", round(overall_event_rate, 4)),
                       triggered_by = "pre-specified protocol")
   close_meeting(mtg)
 

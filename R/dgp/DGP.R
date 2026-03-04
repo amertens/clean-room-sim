@@ -11,6 +11,9 @@ NULL
 #' nonlinear confounding, informative censoring, treatment switching,
 #' and non-proportional hazards.
 #'
+#' The DGP is calibrated so that the marginal event rate at 180 days is
+#' approximately 2-4%, which supports stable estimation with N >= 5000.
+#'
 #' @param N Integer sample size (pre-exclusion).
 #' @param p_sof Numeric target SOF treatment probability.
 #' @param h0 Numeric baseline hazard rate.
@@ -34,7 +37,7 @@ NULL
 #'   missForest.
 #' @param seed Integer seed for reproducibility; NULL to use current state.
 #'
-#' @return A data.frame (tibble) with columns: id, age, sex_male, race, region,
+#' @return A data.frame with columns: id, age, sex_male, race, region,
 #'   ckd, heart_failure, sepsis, dehydration, obstruction, cirrhosis,
 #'   portal_htn, esld, hiv, diabetes, hypertension, bmi, overweight_obese,
 #'   smoking, alcohol, substance_abuse, cancer, chemo, nsaid, acearb, diuretic,
@@ -43,22 +46,22 @@ NULL
 #'
 #' @export
 generate_hcv_data <- function(
-    N               = 125000,
-    p_sof           = 0.36,
-    h0              = 5e-5,
-    HR_early        = 1.25,
-    HR_late         = 0.70,
+    N               = 8000,
+    p_sof           = 0.40,
+    h0              = 8e-4,
+    HR_early        = 1.30,
+    HR_late         = 0.75,
     tau             = 45,
-    max_follow      = 720,
+    max_follow      = 365,
     risk_window     = 30,
-    np_hazard       = TRUE,
-    dep_censor      = TRUE,
-    complexity      = TRUE,
-    switch_on       = TRUE,
+    np_hazard       = FALSE,
+    dep_censor      = FALSE,
+    complexity      = FALSE,
+    switch_on       = FALSE,
     lambda_sw0      = 2.5e-5,
     gamma_A         = 0.60,
     gamma_ckd       = 0.40,
-    censor_base     = 1/100,
+    censor_base     = 1/800,
     treat_override  = c("simulate", "all_treated", "all_control"),
     add_missing     = FALSE,
     impute          = FALSE,
@@ -73,7 +76,7 @@ generate_hcv_data <- function(
   # --------------------------------------------------------------------------
   raw <- data.frame(
     id          = seq_len(N),
-    age         = pmax(stats::rnorm(N, 48, 13), 18),
+    age         = pmax(stats::rnorm(N, 55, 10), 18),
     sex_male    = stats::rbinom(N, 1, 0.58),
     race        = sample(c("white", "black", "hispanic", "asian", "other"), N,
                          replace = TRUE,
@@ -88,37 +91,37 @@ generate_hcv_data <- function(
   # 2. Clinical history and concomitant medications
   # --------------------------------------------------------------------------
   add_bin <- function(p) stats::rbinom(N, 1, p)
-  raw$ckd             <- add_bin(.08)
-  raw$prior_aki       <- add_bin(.05)
-  raw$heart_failure   <- add_bin(.07)
-  raw$sepsis          <- add_bin(.03)
-  raw$dehydration     <- add_bin(.06)
+  raw$ckd             <- add_bin(.12)
+  raw$prior_aki       <- add_bin(.03)
+  raw$heart_failure   <- add_bin(.10)
+  raw$sepsis          <- add_bin(.04)
+  raw$dehydration     <- add_bin(.08)
   raw$obstruction     <- add_bin(.04)
-  raw$cirrhosis       <- add_bin(.18)
-  raw$portal_htn      <- add_bin(.04)
-  raw$esld            <- add_bin(.02)
-  raw$hiv             <- add_bin(.04)
-  raw$diabetes        <- add_bin(.20)
-  raw$hypertension    <- add_bin(.45)
-  raw$bmi             <- stats::rnorm(N, 28, 5)
-  raw$overweight_obese <- add_bin(.20)
+  raw$cirrhosis       <- add_bin(.22)
+  raw$portal_htn      <- add_bin(.06)
+  raw$esld            <- add_bin(.03)
+  raw$hiv             <- add_bin(.05)
+  raw$diabetes        <- add_bin(.25)
+  raw$hypertension    <- add_bin(.48)
+  raw$bmi             <- stats::rnorm(N, 29, 5)
+  raw$overweight_obese <- add_bin(.25)
   raw$smoking         <- add_bin(.40)
   raw$alcohol         <- add_bin(.18)
   raw$substance_abuse <- add_bin(.25)
   raw$cancer          <- add_bin(.08)
-  raw$chemo           <- add_bin(.01)
-  raw$nsaid           <- add_bin(.25)
-  raw$acearb          <- add_bin(.30)
-  raw$diuretic        <- add_bin(.22)
+  raw$chemo           <- add_bin(.02)
+  raw$nsaid           <- add_bin(.28)
+  raw$acearb          <- add_bin(.32)
+  raw$diuretic        <- add_bin(.24)
   raw$aminoglycoside  <- add_bin(.05)
-  raw$contrast        <- add_bin(.08)
-  raw$statin          <- add_bin(.15)
-  raw$aspirin         <- add_bin(.10)
-  raw$beta_blocker    <- add_bin(.14)
-  raw$ccb             <- add_bin(.16)
-  raw$art             <- add_bin(.05)
-  raw$prior_sof       <- add_bin(.05)
-  raw$prior_nonsof    <- add_bin(.05)
+  raw$contrast        <- add_bin(.10)
+  raw$statin          <- add_bin(.18)
+  raw$aspirin         <- add_bin(.12)
+  raw$beta_blocker    <- add_bin(.16)
+  raw$ccb             <- add_bin(.18)
+  raw$art             <- add_bin(.06)
+  raw$prior_sof       <- add_bin(.03)
+  raw$prior_nonsof    <- add_bin(.03)
 
   # --------------------------------------------------------------------------
   # 3. Baseline exclusions
@@ -133,14 +136,14 @@ generate_hcv_data <- function(
   # --------------------------------------------------------------------------
   if (treat_override == "simulate") {
     lp0 <- with(cohort,
-                0.015 * age + 0.30 * cirrhosis + 0.25 * ckd +
-                  0.15 * hiv + 0.10 * diabetes -
-                  0.10 * cancer + stats::rnorm(N_c, 0, 0.6))
+                0.01 * (age - 55) + 0.40 * cirrhosis + 0.30 * ckd +
+                  0.20 * hiv + 0.15 * diabetes -
+                  0.10 * cancer + stats::rnorm(N_c, 0, 0.5))
     if (complexity) {
       lp0 <- with(cohort, lp0 +
-                    0.02 * (bmi^2) / 100 - 0.3 * sin(0.1 * bmi) +
-                    0.5 * (age / 50)^3 +
-                    1.5 * ckd * cancer + 0.8 * hiv * log1p(age))
+                    0.01 * (bmi - 29)^2 / 100 +
+                    0.3 * (age / 55)^2 - 0.3 +
+                    0.8 * ckd * diabetes)
     }
     alpha0  <- stats::qlogis(p_sof) - mean(lp0)
     p_trt   <- pmin(pmax(stats::plogis(alpha0 + lp0), 0.05), 0.95)
@@ -150,19 +153,21 @@ generate_hcv_data <- function(
   }
 
   # --------------------------------------------------------------------------
-  # 5. Individual baseline hazard
+  # 5. Individual baseline hazard (calibrated for ~2% marginal risk at 180d)
   # --------------------------------------------------------------------------
   if (!complexity) {
     lp_out <- with(cohort,
-                   -2.8 + 0.03 * age + 0.7 * ckd + 0.5 * cirrhosis +
-                     0.3 * heart_failure + 0.25 * nsaid + 0.20 * contrast)
+                   0.02 * (age - 55) + 0.8 * ckd + 0.5 * cirrhosis +
+                     0.4 * heart_failure + 0.3 * nsaid + 0.3 * contrast +
+                     0.2 * diabetes + 0.15 * diuretic)
   } else {
     lp_out <- with(cohort,
-                   -2.8 + 0.03 * age + 0.0005 * age^2 + 0.7 * ckd +
+                   0.02 * (age - 55) + 0.0003 * (age - 55)^2 + 0.8 * ckd +
                      0.5 * cirrhosis +
-                     0.02 * (bmi^2) / 100 - 0.3 * sin(0.1 * bmi) +
-                     0.4 * heart_failure * acearb +
-                     0.6 * nsaid * treatment + 0.3 * contrast * log1p(age))
+                     0.01 * (bmi - 29)^2 / 100 +
+                     0.5 * heart_failure * acearb +
+                     0.4 * nsaid * ckd + 0.3 * contrast +
+                     0.2 * diabetes + 0.15 * diuretic)
   }
   base_rate <- h0 * exp(lp_out)
 
@@ -193,7 +198,8 @@ generate_hcv_data <- function(
   if (!dep_censor) {
     censor_admin <- stats::rexp(N_c, rate = censor_base)
   } else {
-    c_rate <- censor_base * exp(0.04 * lp_out + 0.03 * cohort$treatment)
+    c_rate <- censor_base * exp(0.3 * ckd + 0.2 * cohort$cirrhosis +
+                                  0.1 * cohort$treatment)
     censor_admin <- stats::rexp(N_c, rate = c_rate)
   }
   cohort$censor_admin <- pmin(censor_admin, max_follow)
