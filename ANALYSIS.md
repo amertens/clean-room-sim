@@ -27,8 +27,7 @@ clean-room-sim/
 ├── tests/
 │   └── test_sim.R                 # Tests (placeholder)
 ├── tutorial code/
-│   ├── tmle_clean_room_tutorial.qmd   # Quarto tutorial: TMLE in clean-room design
-│   └── frengression_example.Rmd       # R Markdown: calling Python frengression from R
+│   └── tmle_clean_room_tutorial.qmd   # Quarto tutorial: TMLE in clean-room design
 ├── data/                          # Generated simulation datasets (CSV)
 └── clean-room-sim.Rproj           # RStudio project file
 ```
