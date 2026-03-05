@@ -55,11 +55,14 @@ inverse probability of treatment weighted (IPTW) estimators become unstable
 because a few observations receive extreme weights that dominate the estimate.
 Unadjusted comparisons are biased by confounding regardless of overlap quality.
 
-Targeted minimum loss-based estimation (TMLE), however, is *doubly robust*:
+Targeted minimum loss-based estimation (TMLE) is *doubly robust*:
 it is consistent if either the outcome model $Q(A,W)$ or the treatment model
-$g(W)$ is correctly specified. When $Q$ is well-learned, TMLE can produce
-valid inference even when the propensity score model struggles. This simulation
-demonstrates that property.
+$g(W)$ is correctly specified. In this scenario, TMLE point estimates remain
+close to the truth despite severe practical overlap violations because the
+covariate driving near-positivity has minimal influence on the outcome model.
+However, standard influence-curve based Wald intervals may undercover in finite
+samples under near-positivity, motivating bootstrap-based inference checks.
+This simulation demonstrates these properties.
 
 ## Estimand
 
@@ -234,6 +237,12 @@ violation* in most replicates: many estimated propensity scores fall near the
 boundaries, the effective sample size is substantially reduced by extreme
 weights, and maximum weights are large. In a real analysis, Stage 2 would flag
 these issues before any outcome data are examined.
+
+Under a propensity-score-only feasibility gate, these diagnostics would
+typically trigger redesign or analysis termination; the purpose of this
+scenario is to illustrate how outcome-blind operating characteristic simulations
+can justify proceeding with a doubly robust estimator when the outcome surface
+remains learnable in the regions with poor overlap.
 
 ## Stage 3: Estimator Performance
 
@@ -468,7 +477,10 @@ correctly specified. In this DGP:
 
 3. The IC-based standard error accounts for the double robustness and
    remains well-calibrated because the influence curve is not inflated in
-   the extreme-PS region (where $Q$ is smooth).
+   the extreme-PS region (where $Q$ is smooth). However, in finite samples
+   under more severe near-positivity, IC-based Wald intervals may undercover,
+   motivating complementary variance estimation via targeted bootstrap
+   (EIF resampling with nuisance fits held fixed).
 
 ### Why IPTW struggles
 
@@ -506,6 +518,20 @@ This scenario illustrates a realistic situation in observational studies:
 
 4. **Unadjusted analyses are not a fallback.** Confounding bias makes crude
    comparisons unreliable regardless of overlap quality.
+
+### Limitations
+
+Because the DGP is constructed so that the primary positivity violations arise
+from a covariate weakly related to the outcome, these results do not imply that
+TMLE will yield reliable inference under all forms of limited overlap,
+particularly when outcome prediction also depends strongly on the covariates
+inducing near-deterministic treatment.
+
+::: {.callout-note}
+For an extended analysis with additional estimators (adjusted regression,
+PS-matched regression, targeted bootstrap variance), see the
+[v2 narrative](scenario1_v2_narrative.qmd).
+:::
 
 ## Appendix: Replicate-Level Data
 
