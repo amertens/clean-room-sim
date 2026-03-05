@@ -210,16 +210,18 @@ est_crude <- function(Y, A) {
 # C1. Adjusted regression (misspecified GLM, bootstrap CI)
 # ---------------------------------------------------------------------------
 
-est_reg_adj_v3 <- function(dat, B_boot = 200) {
+est_reg_adj_v3 <- function(dat, B_boot = 0) {
   tryCatch({
     # Intentionally misspecified: no W1^2, abs(W3), or interactions
     fit <- glm(Y ~ A + W1 + W2 + W3 + W4, data = dat, family = "binomial")
     d1 <- d0 <- dat; d1$A <- 1; d0$A <- 0
-    rd <- mean(predict(fit, d1, type = "response")) -
-          mean(predict(fit, d0, type = "response"))
+    p1_i <- predict(fit, d1, type = "response")
+    p0_i <- predict(fit, d0, type = "response")
+    rd <- mean(p1_i) - mean(p0_i)
 
     se <- NA_real_; ci <- c(NA_real_, NA_real_)
     if (B_boot > 0) {
+      # Nonparametric bootstrap (optional, slow)
       n <- nrow(dat)
       boot_rd <- numeric(B_boot)
       for (b in seq_len(B_boot)) {
@@ -237,6 +239,12 @@ est_reg_adj_v3 <- function(dat, B_boot = 200) {
       se <- if (length(ok) >= 10) sd(ok) else NA_real_
       ci <- if (length(ok) >= 20) unname(quantile(ok, c(0.025, 0.975)))
             else c(NA_real_, NA_real_)
+    } else {
+      # Analytic SE: SD of unit-level g-computation RD / sqrt(n)
+      n <- nrow(dat)
+      rd_i <- p1_i - p0_i
+      se <- sd(rd_i) / sqrt(n)
+      ci <- rd + c(-1.96, 1.96) * se
     }
     list(estimate = rd, se = se, ci_low = ci[1], ci_high = ci[2],
          success = TRUE, warnings = NA_character_)
@@ -249,18 +257,21 @@ est_reg_adj_v3 <- function(dat, B_boot = 200) {
 # C1. IPTW (Hajek, bootstrap CI)
 # ---------------------------------------------------------------------------
 
-est_iptw_v3 <- function(Y, A, g_bounded, dat, B_boot = 200, p = NULL) {
+est_iptw_v3 <- function(Y, A, g_bounded, dat, B_boot = 0, p = NULL) {
   tryCatch({
+    n <- length(Y)
     w <- A / g_bounded + (1 - A) / (1 - g_bounded)
     d1 <- sum(w * A); d0 <- sum(w * (1 - A))
     if (d1 < 1e-10 || d0 < 1e-10)
       return(list(estimate = NA, se = NA, ci_low = NA, ci_high = NA,
                   success = FALSE, warnings = "zero denominator"))
-    rd <- sum(w * A * Y) / d1 - sum(w * (1 - A) * Y) / d0
+    mu1 <- sum(w * A * Y) / d1
+    mu0 <- sum(w * (1 - A) * Y) / d0
+    rd <- mu1 - mu0
 
     se <- NA_real_; ci <- c(NA_real_, NA_real_)
     if (B_boot > 0 && !is.null(p)) {
-      n <- nrow(dat)
+      # Nonparametric bootstrap (optional, slow)
       boot_rd <- numeric(B_boot)
       for (b in seq_len(B_boot)) {
         idx <- sample(n, n, replace = TRUE)
@@ -280,6 +291,13 @@ est_iptw_v3 <- function(Y, A, g_bounded, dat, B_boot = 200, p = NULL) {
       se <- if (length(ok) >= 10) sd(ok) else NA_real_
       ci <- if (length(ok) >= 20) unname(quantile(ok, c(0.025, 0.975)))
             else c(NA_real_, NA_real_)
+    } else {
+      # Analytic Hajek SE: influence-function based
+      phi1 <- w * A * (Y - mu1) / d1 * n
+      phi0 <- w * (1 - A) * (Y - mu0) / d0 * n
+      phi  <- phi1 - phi0
+      se <- sqrt(sum(phi^2) / n^2)
+      ci <- rd + c(-1.96, 1.96) * se
     }
     list(estimate = rd, se = se, ci_low = ci[1], ci_high = ci[2],
          success = TRUE, warnings = NA_character_)
@@ -447,7 +465,7 @@ est_tmle_ml <- function(Y, A, W, p) {
     train_dat$Y_f <- factor(train_dat$Y)
     fit <- ranger::ranger(Y_f ~ A + W1 + W2 + W3 + W4,
                           data = train_dat, probability = TRUE,
-                          num.trees = 300, min.node.size = 20)
+                          num.trees = 100, min.node.size = 20)
     return(list(type = "ranger", fit = fit))
   }
   # Fallback: enriched GLM with polynomial/interaction terms
@@ -471,7 +489,7 @@ est_tmle_ml <- function(Y, A, W, p) {
     train_dat$A_f <- factor(train_dat$A)
     fit <- ranger::ranger(A_f ~ W1 + W2 + W3 + W4,
                           data = train_dat, probability = TRUE,
-                          num.trees = 300, min.node.size = 20)
+                          num.trees = 100, min.node.size = 20)
     return(list(type = "ranger", fit = fit))
   }
   fit <- glm(A ~ W1 + W2 + W3 + W4 + I(W1^2) + I(W3^2),

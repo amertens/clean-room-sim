@@ -56,18 +56,18 @@ source(file.path("R", "sim_helpers_v3.R"))
 
 params_base <- list(
   # Sample sizes
-  n_main    = 500,
-  n_truth   = 200000,
-  reps      = 200,
+  n_main    = 200,
+  n_truth   = 50000,
+  reps      = 50,
   master_seed = 20260305,
 
   # Bootstrap / cross-fitting
-  B_regboot   = 200,    # bootstrap for adjusted regression CI
-  B_iptw      = 200,    # bootstrap for IPTW CI
-  B_matchboot = 200,    # pairs bootstrap for PS-match CI
-  B_multboot  = 500,    # Rademacher multiplier bootstrap for TMLE
+  B_regboot   = 0,      # 0 = use analytic SE for adj regression (no bootstrap)
+  B_iptw      = 0,      # 0 = use analytic SE for IPTW (no bootstrap)
+  B_matchboot = 100,    # pairs bootstrap for PS-match CI (keep small)
+  B_multboot  = 200,    # Rademacher multiplier bootstrap for TMLE
   B_npboot_tmle = 0,    # full NP bootstrap for TMLE (OFF)
-  V_cf        = 5,      # folds for cross-fitted TMLE
+  V_cf        = 3,      # folds for cross-fitted TMLE
 
   # PS clipping
   ps_clip_true = c(0.005, 0.995),
@@ -113,8 +113,8 @@ params_base <- list(
   match_caliper = NULL,  # NULL → 0.2*sd(logit(ps))
 
   # SuperLearner libraries for TMLE-ML
-  Q_SL_library_ml = c("SL.glm", "SL.ranger", "SL.gam", "SL.glmnet", "SL.mean"),
-  g_SL_library_ml = c("SL.glm", "SL.ranger", "SL.glmnet", "SL.mean"),
+  Q_SL_library_ml = c("SL.mean", "SL.glmnet", "SL.xgboost"),
+  g_SL_library_ml = c("SL.mean", "SL.glmnet", "SL.xgboost"),
 
   # Output
   output_dir    = "results/scenario1_v3",
