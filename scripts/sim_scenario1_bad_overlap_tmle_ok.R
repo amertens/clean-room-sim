@@ -258,7 +258,7 @@ compute_truth <- function(truth_N, seed, p) {
   )
 }
 
-truth <- compute_truth(PARAMS$truth_N, seed = PARAMS$master_seed, params = PARAMS)
+truth <- compute_truth(PARAMS$truth_N, seed = PARAMS$master_seed, p = PARAMS)
 message("  RD_true = ", round(truth$RD_true, 6))
 message("  E[Y^1]  = ", round(truth$EY1, 4), ",  E[Y^0] = ", round(truth$EY0, 4))
 
