@@ -1,0 +1,533 @@
+---
+title: "Simulation Scenario 1: Bad Overlap, TMLE OK"
+subtitle: "Double robustness under near-positivity violations"
+author: "Andrew N. Mertens"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    self-contained: true
+    fig-width: 8
+    fig-height: 5
+execute:
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| label: setup
+#| code-fold: false
+
+library(ggplot2)
+theme_set(theme_minimal(base_size = 13))
+
+# Load precomputed simulation outputs
+out_dir <- "../outputs/sim_scenario1"
+rds_files <- c(
+  params  = file.path(out_dir, "params_used.rds"),
+  truth   = file.path(out_dir, "truth.rds"),
+  results = file.path(out_dir, "replicate_results.rds")
+)
+csv_file <- file.path(out_dir, "summary_metrics.csv")
+
+missing <- names(rds_files)[!file.exists(rds_files)]
+if (length(missing) > 0 || !file.exists(csv_file)) {
+  stop("Simulation outputs not found in ", out_dir,
+       "\n\nRun the simulation first:\n",
+       "  Rscript scripts/sim_scenario1_bad_overlap_tmle_ok.R\n",
+       call. = FALSE)
+}
+
+params  <- readRDS(rds_files["params"])
+truth   <- readRDS(rds_files["truth"])
+res     <- readRDS(rds_files["results"])
+summary <- read.csv(csv_file, stringsAsFactors = FALSE)
+```
+
+## Motivation
+
+Propensity score--based estimators require *positivity*: every subject must
+have a nonzero probability of receiving each treatment level. When this
+assumption is nearly violated --- many propensity scores crowd near 0 or 1 ---
+inverse probability of treatment weighted (IPTW) estimators become unstable
+because a few observations receive extreme weights that dominate the estimate.
+Unadjusted comparisons are biased by confounding regardless of overlap quality.
+
+Targeted minimum loss-based estimation (TMLE), however, is *doubly robust*:
+it is consistent if either the outcome model $Q(A,W)$ or the treatment model
+$g(W)$ is correctly specified. When $Q$ is well-learned, TMLE can produce
+valid inference even when the propensity score model struggles. This simulation
+demonstrates that property.
+
+## Estimand
+
+The target estimand is the average treatment effect on the risk difference
+scale:
+
+$$\text{RD} = E[Y^1] - E[Y^0]$$
+
+where $Y^a$ is the counterfactual binary outcome under intervention $A = a$.
+
+## Data-Generating Process
+
+### Covariates
+
+Four baseline covariates are generated independently:
+
+| Variable | Distribution | Role |
+|----------|-------------|------|
+| $W_1$ | $N(0, 1)$ | Shared confounder (moderate in both $g$ and $Q$) |
+| $W_2$ | Bernoulli(0.5) | Binary confounder |
+| $W_3$ | $N(0, 1)$ | Continuous confounder |
+| $W_4$ | $N(0, 1)$ | **Overlap driver**: strong in $g$, weak in $Q$ |
+
+### Treatment mechanism (poor overlap by design)
+
+The propensity score is generated as:
+
+$$g(W) = \text{expit}\!\bigl(\alpha_g + s \cdot (
+  `r params$coef_W1_g` \cdot W_1 +
+  `r params$coef_W2_g` \cdot W_2 +
+  (`r params$coef_W3_g`) \cdot W_3 +
+  `r params$coef_W4_g` \cdot W_4
+)\bigr)$$
+
+where $s = `r params$strength_overlap`$ is the overlap strength multiplier and
+$\alpha_g$ is chosen so that $P(A=1) \approx 0.5$. True propensity scores are
+clipped to $[`r params$eps_clip`,\; `r 1 - params$eps_clip`]$.
+
+The key structural feature: **$W_4$ has coefficient `r params$coef_W4_g` in the
+treatment model but only `r params$coef_W4_Q` in the outcome model.** This means
+the PS is extreme primarily in regions of the covariate space where the outcome
+is not changing much, so $Q(A,W)$ remains smooth and learnable even where $g$ is
+near 0 or 1.
+
+### Outcome model (learnable)
+
+$$Q(A,W) = \text{expit}\!\bigl(
+  `r params$alpha_Q` +
+  `r params$effect_A` \cdot A +
+  `r params$coef_W1_Q` \cdot W_1 +
+  `r params$coef_W2_Q` \cdot W_2 +
+  (`r params$coef_W3_Q`) \cdot W_3 +
+  `r params$coef_W4_Q` \cdot W_4
+  `r if (params$nonlinear_Q) paste0("+ 0.3 \\cdot W_1^2") else ""`
+\bigr)$$
+
+The outcome model includes all four covariates with a correctly specified
+GLM as one of the learners in the SuperLearner library, ensuring $Q$ is
+well-estimated.
+
+### Ground truth
+
+```{r truth-display}
+#| label: truth-display
+#| code-fold: false
+
+cat(sprintf("True RD:    %.6f\n", truth$RD_true))
+cat(sprintf("E[Y^1]:     %.4f\n", truth$EY1))
+cat(sprintf("E[Y^0]:     %.4f\n", truth$EY0))
+cat(sprintf("Truth N:    %s\n", format(truth$truth_N, big.mark = ",")))
+cat(sprintf("Method:     %s\n", truth$note))
+```
+
+## Simulation Design
+
+```{r sim-design}
+#| label: sim-design
+
+cat(sprintf("Replicates:          %d\n", params$reps))
+cat(sprintf("Sample size (N):     %d\n", params$N))
+cat(sprintf("Overlap strength:    %.1f\n", params$strength_overlap))
+cat(sprintf("PS clipping:         [%.3f, %.3f]\n", params$eps_clip, 1 - params$eps_clip))
+cat(sprintf("g truncation:        [%.2f, %.2f]\n", params$g_trunc[1], params$g_trunc[2]))
+cat(sprintf("IPTW bootstrap B:    %d\n", params$iptw_boot_B))
+cat(sprintf("Master seed:         %d\n", params$master_seed))
+```
+
+### Estimators
+
+| Estimator | Description | Inference |
+|-----------|-------------|-----------|
+| **TMLE** (primary) | Doubly robust; outcome model via SuperLearner (`r paste(params$Q_SL_library, collapse=", ")`), PS via SuperLearner (`r paste(params$g_SL_library, collapse=", ")`) | IC-based Wald CI |
+| **Crude RD** | Unadjusted difference in sample proportions | Wald CI (binomial SE) |
+| **IPTW RD** | Hajek estimator with truncated inverse probability weights | Percentile bootstrap CI (B=`r params$iptw_boot_B`) |
+
+## Stage 2: Outcome-Blind Overlap Diagnostics
+
+Before examining any treatment--outcome associations, we assess propensity
+score overlap using only treatment assignment and covariates. This mirrors the
+clean-room protocol where design adequacy is evaluated before unblinding
+outcomes.
+
+```{r overlap-diagnostics}
+#| label: overlap-diagnostics
+
+cat(sprintf("Fraction of replicates flagged 'bad' overlap: %.1f%%\n",
+            mean(res$overlap_flag == "bad") * 100))
+cat(sprintf("\nAcross %d replicates:\n", nrow(res)))
+cat(sprintf("  Mean fraction g_hat < 0.05 or > 0.95:  %.3f\n",
+            mean(res$fraction_extreme)))
+cat(sprintf("  Mean ESS / N:                           %.3f\n",
+            mean(res$ess_frac)))
+cat(sprintf("  Mean max IPTW weight:                   %.1f\n",
+            mean(res$max_w)))
+cat(sprintf("  Median max IPTW weight:                 %.1f\n",
+            median(res$max_w)))
+cat(sprintf("  Mean min g_hat:                         %.4f\n",
+            mean(res$min_g)))
+cat(sprintf("  Mean max g_hat:                         %.4f\n",
+            mean(res$max_g)))
+```
+
+### Distribution of Propensity Score Extremity
+
+```{r ps-extreme-hist}
+#| label: ps-extreme-hist
+#| fig-height: 4
+
+ggplot(res, aes(x = fraction_extreme)) +
+  geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+  geom_vline(xintercept = params$diag_extreme_threshold,
+             linetype = "dashed", color = "red", linewidth = 0.8) +
+  annotate("text", x = params$diag_extreme_threshold + 0.02,
+           y = Inf, vjust = 2, hjust = 0, color = "red", size = 3.5,
+           label = paste0("threshold = ", params$diag_extreme_threshold)) +
+  labs(title = "Fraction of observations with extreme PS per replicate",
+       x = "Fraction with g_hat < 0.05 or g_hat > 0.95",
+       y = "Count")
+```
+
+### Effective Sample Size Under IPTW
+
+```{r ess-hist}
+#| label: ess-hist
+#| fig-height: 4
+
+ggplot(res, aes(x = ess_frac)) +
+  geom_histogram(bins = 30, fill = "darkorange", alpha = 0.7) +
+  geom_vline(xintercept = params$diag_ess_threshold,
+             linetype = "dashed", color = "red", linewidth = 0.8) +
+  annotate("text", x = params$diag_ess_threshold + 0.01,
+           y = Inf, vjust = 2, hjust = 0, color = "red", size = 3.5,
+           label = paste0("threshold = ", params$diag_ess_threshold)) +
+  labs(title = "Effective sample size fraction (ESS / N) per replicate",
+       x = "ESS / N", y = "Count")
+```
+
+### Maximum IPTW Weight
+
+```{r max-weight-hist}
+#| label: max-weight-hist
+#| fig-height: 4
+
+ggplot(res, aes(x = max_w)) +
+  geom_histogram(bins = 30, fill = "firebrick", alpha = 0.7) +
+  labs(title = "Maximum IPTW weight per replicate",
+       x = "Max weight", y = "Count")
+```
+
+The diagnostics confirm that this DGP produces a *practical near-positivity
+violation* in most replicates: many estimated propensity scores fall near the
+boundaries, the effective sample size is substantially reduced by extreme
+weights, and maximum weights are large. In a real analysis, Stage 2 would flag
+these issues before any outcome data are examined.
+
+## Stage 3: Estimator Performance
+
+### Summary Table
+
+```{r summary-table}
+#| label: summary-table
+#| code-fold: false
+
+knitr::kable(summary, digits = 4,
+             caption = "Simulation performance metrics by estimator and subset")
+```
+
+### Interpretation of Metrics
+
+```{r metrics-interpret}
+#| label: metrics-interpret
+
+sm <- summary[summary$subset == "all", ]
+tmle_row  <- sm[sm$method == "TMLE", ]
+crude_row <- sm[sm$method == "Crude", ]
+iptw_row  <- sm[sm$method == "IPTW", ]
+
+cat("=== TMLE (primary) ===\n")
+cat(sprintf("  Bias:      %+.4f\n", tmle_row$bias))
+cat(sprintf("  RMSE:      %.4f\n", tmle_row$rmse))
+cat(sprintf("  Emp SD:    %.4f\n", tmle_row$emp_sd))
+cat(sprintf("  Mean SE:   %.4f\n", tmle_row$mean_se))
+cat(sprintf("  Coverage:  %.1f%%\n", tmle_row$coverage * 100))
+
+cat("\n=== Crude RD ===\n")
+cat(sprintf("  Bias:      %+.4f\n", crude_row$bias))
+cat(sprintf("  RMSE:      %.4f\n", crude_row$rmse))
+cat(sprintf("  Coverage:  %.1f%%\n", crude_row$coverage * 100))
+
+cat("\n=== IPTW ===\n")
+cat(sprintf("  Bias:      %+.4f\n", iptw_row$bias))
+cat(sprintf("  RMSE:      %.4f\n", iptw_row$rmse))
+cat(sprintf("  Emp SD:    %.4f\n", iptw_row$emp_sd))
+cat(sprintf("  Mean SE:   %.4f\n", iptw_row$mean_se))
+cat(sprintf("  Coverage:  %.1f%%\n", iptw_row$coverage * 100))
+```
+
+### Sampling Distribution of Estimators
+
+```{r sampling-dist}
+#| label: sampling-dist
+#| fig-height: 6
+
+est_long <- data.frame(
+  method = rep(c("TMLE", "Crude", "IPTW"), each = nrow(res)),
+  estimate = c(res$tmle_est, res$crude_est, res$iptw_est),
+  stringsAsFactors = FALSE
+)
+est_long <- est_long[!is.na(est_long$estimate), ]
+est_long$method <- factor(est_long$method, levels = c("TMLE", "IPTW", "Crude"))
+
+ggplot(est_long, aes(x = estimate, fill = method)) +
+  geom_histogram(bins = 40, alpha = 0.7) +
+  geom_vline(xintercept = truth$RD_true, linetype = "solid",
+             color = "black", linewidth = 1) +
+  annotate("text", x = truth$RD_true, y = Inf, vjust = 2, hjust = -0.1,
+           label = paste0("True RD = ", round(truth$RD_true, 4)),
+           fontface = "bold", size = 3.5) +
+  facet_wrap(~ method, scales = "free_y", ncol = 1) +
+  scale_fill_manual(values = c(TMLE = "steelblue", IPTW = "darkorange",
+                                Crude = "firebrick")) +
+  labs(title = "Sampling distributions of RD estimators",
+       x = "Estimated RD", y = "Count") +
+  guides(fill = "none")
+```
+
+The sampling distributions reveal the core finding:
+
+- **Crude RD** is centered far from the true RD (`r round(truth$RD_true, 4)`),
+  with the entire distribution shifted by confounding bias. Its narrow width
+  reflects the precision of the wrong answer.
+- **IPTW** is approximately centered on the truth but has a wide, heavy-tailed
+  distribution. The extreme weights amplify variability, and occasional
+  replicates produce outlying estimates.
+- **TMLE** is tightly centered on the truth. Despite the poor overlap, the
+  well-learned outcome model allows the targeting step to correct the plug-in
+  estimate without relying heavily on the unstable PS-based weights.
+
+### Bias Comparison
+
+```{r bias-plot}
+#| label: bias-plot
+#| fig-height: 4
+
+bias_df <- data.frame(
+  method = c("TMLE", "IPTW", "Crude"),
+  bias = c(tmle_row$bias, iptw_row$bias, crude_row$bias)
+)
+bias_df$method <- factor(bias_df$method, levels = c("TMLE", "IPTW", "Crude"))
+
+ggplot(bias_df, aes(x = method, y = bias, fill = method)) +
+  geom_col(alpha = 0.8, width = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_fill_manual(values = c(TMLE = "steelblue", IPTW = "darkorange",
+                                Crude = "firebrick")) +
+  labs(title = "Bias by estimator",
+       x = NULL, y = "Bias (estimate - truth)") +
+  guides(fill = "none")
+```
+
+### Coverage Comparison
+
+```{r coverage-plot}
+#| label: coverage-plot
+#| fig-height: 4
+
+cov_df <- data.frame(
+  method = c("TMLE", "IPTW", "Crude"),
+  coverage = c(tmle_row$coverage, iptw_row$coverage, crude_row$coverage),
+  n_reps = c(tmle_row$n_reps, iptw_row$n_reps, crude_row$n_reps)
+)
+cov_df$method <- factor(cov_df$method, levels = c("TMLE", "IPTW", "Crude"))
+# Wilson CI for coverage proportion
+cov_df$ci_lo <- cov_df$coverage - 1.96 * sqrt(cov_df$coverage * (1 - cov_df$coverage) / cov_df$n_reps)
+cov_df$ci_hi <- cov_df$coverage + 1.96 * sqrt(cov_df$coverage * (1 - cov_df$coverage) / cov_df$n_reps)
+
+ggplot(cov_df, aes(x = method, y = coverage, fill = method)) +
+  geom_col(alpha = 0.8, width = 0.6) +
+  geom_errorbar(aes(ymin = ci_lo, ymax = ci_hi), width = 0.2) +
+  geom_hline(yintercept = 0.95, linetype = "dashed", color = "grey40") +
+  annotate("text", x = 0.5, y = 0.95, label = "95% nominal",
+           hjust = -0.1, vjust = -0.5, color = "grey40", size = 3.5) +
+  scale_fill_manual(values = c(TMLE = "steelblue", IPTW = "darkorange",
+                                Crude = "firebrick")) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  labs(title = "95% CI coverage by estimator",
+       subtitle = "Error bars: Monte Carlo uncertainty in coverage estimate",
+       x = NULL, y = "Coverage") +
+  guides(fill = "none")
+```
+
+### SE Calibration: TMLE
+
+A well-calibrated SE estimator should produce $\text{mean}(\widehat{\text{SE}})
+\approx \text{empirical SD}$ of the point estimates. If the IC-based SE
+systematically underestimates variability, coverage will fall below nominal.
+
+```{r se-calibration}
+#| label: se-calibration
+
+if (!is.na(tmle_row$mean_se) && !is.na(tmle_row$emp_sd)) {
+  ratio <- tmle_row$mean_se / tmle_row$emp_sd
+  cat(sprintf("TMLE SE calibration:\n"))
+  cat(sprintf("  Empirical SD of estimates:  %.4f\n", tmle_row$emp_sd))
+  cat(sprintf("  Mean IC-based SE:           %.4f\n", tmle_row$mean_se))
+  cat(sprintf("  Ratio (mean SE / emp SD):   %.3f\n", ratio))
+  if (ratio > 0.90 && ratio < 1.10) {
+    cat("  Interpretation: well-calibrated (ratio near 1.0)\n")
+  } else if (ratio < 0.90) {
+    cat("  Interpretation: SE underestimates variability; coverage may be below nominal\n")
+  } else {
+    cat("  Interpretation: SE overestimates variability; CIs are conservative\n")
+  }
+}
+```
+
+```{r se-scatter}
+#| label: se-scatter
+#| fig-height: 4
+
+tmle_ok <- res[res$tmle_ok == TRUE, ]
+if (nrow(tmle_ok) > 0) {
+  ggplot(tmle_ok, aes(x = tmle_se, y = abs(tmle_est - truth$RD_true))) +
+    geom_point(alpha = 0.4, color = "steelblue") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey40") +
+    labs(title = "TMLE: estimated SE vs absolute error",
+         subtitle = "Points near the diagonal indicate well-calibrated SEs",
+         x = "IC-based SE", y = "|Estimate - Truth|")
+}
+```
+
+### Overlap Severity and Estimator Error
+
+```{r overlap-vs-error}
+#| label: overlap-vs-error
+#| fig-height: 5
+
+if (nrow(tmle_ok) > 0) {
+  err_df <- data.frame(
+    fraction_extreme = rep(tmle_ok$fraction_extreme, 3),
+    abs_error = c(
+      abs(tmle_ok$tmle_est - truth$RD_true),
+      abs(tmle_ok$iptw_est - truth$RD_true),
+      abs(tmle_ok$crude_est - truth$RD_true)
+    ),
+    method = rep(c("TMLE", "IPTW", "Crude"), each = nrow(tmle_ok))
+  )
+  err_df$method <- factor(err_df$method, levels = c("TMLE", "IPTW", "Crude"))
+
+  ggplot(err_df, aes(x = fraction_extreme, y = abs_error, color = method)) +
+    geom_point(alpha = 0.3, size = 1.5) +
+    geom_smooth(method = "loess", se = FALSE, linewidth = 1) +
+    scale_color_manual(values = c(TMLE = "steelblue", IPTW = "darkorange",
+                                   Crude = "firebrick")) +
+    labs(title = "Absolute error vs overlap severity",
+         x = "Fraction of observations with extreme PS",
+         y = "|Estimate - Truth|",
+         color = "Estimator")
+}
+```
+
+This plot shows how each estimator's error relates to the severity of the
+overlap problem within each replicate. Crude error is large regardless of
+overlap (confounding bias dominates). IPTW error increases with overlap
+severity (extreme weights amplify noise). TMLE error stays low even as
+overlap worsens, demonstrating its robustness through outcome model learning.
+
+## Discussion
+
+### Why TMLE succeeds here
+
+TMLE's double robustness means it is consistent if *either* $Q$ or $g$ is
+correctly specified. In this DGP:
+
+1. The outcome model $Q(A,W)$ is a logistic regression with a mild
+   nonlinearity ($0.3 W_1^2$), which is well-captured by GLM or GAM
+   learners in the SuperLearner ensemble.
+
+2. The variable driving poor overlap ($W_4$) has a strong coefficient in
+   the treatment model ($`r params$coef_W4_g`$) but a near-zero coefficient
+   in the outcome model ($`r params$coef_W4_Q`$). This means the outcome
+   surface is *flat* in the direction of PS extremity. The targeting step
+   in TMLE, which updates the initial $Q$ estimate using the clever
+   covariate $H = A/g - (1-A)/(1-g)$, can make small, well-behaved
+   corrections even when $g$ is near the boundary.
+
+3. The IC-based standard error accounts for the double robustness and
+   remains well-calibrated because the influence curve is not inflated in
+   the extreme-PS region (where $Q$ is smooth).
+
+### Why IPTW struggles
+
+IPTW relies entirely on the treatment model $g(W)$. When propensity scores
+are near 0 or 1:
+
+- Inverse probability weights become very large for a small number of
+  observations, inflating variance.
+- The effective sample size shrinks, reducing the amount of information
+  available for estimation.
+- Bootstrap CIs may under-cover because the bootstrap distribution of the
+  Hajek estimator can be irregular with extreme weights.
+
+### Why crude RD fails
+
+The unadjusted estimator ignores confounding entirely. Covariates $W_1$
+through $W_4$ affect both treatment assignment and (to varying degrees) the
+outcome, inducing selection bias. The confounding bias dominates the sampling
+variability, producing CIs that never contain the truth.
+
+### Implications for practice
+
+This scenario illustrates a realistic situation in observational studies:
+
+1. **Stage 2 diagnostics would flag a problem.** A clean-room analysis would
+   detect the poor overlap before any outcomes are examined, alerting analysts
+   to the positivity concern.
+
+2. **TMLE provides a path forward** when the outcome model is well-specified
+   and the positivity violation is *practical* (no structural zeros). The
+   analyst should invest in a rich, correctly-specified $Q$ library.
+
+3. **IPTW alone is insufficient** under near-positivity violations. Truncation
+   helps but does not fully address the instability.
+
+4. **Unadjusted analyses are not a fallback.** Confounding bias makes crude
+   comparisons unreliable regardless of overlap quality.
+
+## Appendix: Replicate-Level Data
+
+```{r replicate-table}
+#| label: replicate-table
+
+# Show first 10 replicates as a sample
+display_cols <- c("rep", "event_rate", "fraction_extreme", "ess_frac",
+                  "max_w", "overlap_flag", "tmle_est", "crude_est", "iptw_est")
+knitr::kable(head(res[, display_cols], 10), digits = 4,
+             caption = "First 10 replicates (sample)")
+```
+
+### Session Info
+
+```{r session-info}
+#| label: session-info
+
+si_file <- file.path(out_dir, "sessionInfo.txt")
+if (file.exists(si_file)) {
+  cat(readLines(si_file), sep = "\n")
+} else {
+  sessionInfo()
+}
+```
