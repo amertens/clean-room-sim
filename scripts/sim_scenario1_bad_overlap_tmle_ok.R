@@ -9,34 +9,69 @@
 #
 # This script is standalone and does NOT depend on the main repo pipeline.
 # It implements a "clean-room style" three-stage flow internally:
-#   Stage 1 — Pre-specification (estimand, estimators, thresholds)
-#   Stage 2 — Outcome-blind diagnostics (PS overlap, ESS, weights)
-#   Stage 3 — Estimation + simulation validation (bias, RMSE, coverage)
+#   Stage 1 -- Pre-specification (estimand, estimators, thresholds)
+#   Stage 2 -- Outcome-blind diagnostics (PS overlap, ESS, weights)
+#   Stage 3 -- Estimation + simulation validation (bias, RMSE, coverage)
 #
 # Usage:
 #   Rscript scripts/sim_scenario1_bad_overlap_tmle_ok.R
 #
 # Tunable parameters are defined immediately below. Adjust N, reps,
 # strength_overlap, truth_N, etc. before running.
+#
+# ===========================================================================
+# TUNING GUIDE
+# ===========================================================================
+# The DGP separates "what drives treatment" from "what drives outcome".
+# W4 is a strong predictor of treatment but a WEAK predictor of outcome,
+# while W1 moderately predicts both. This is the key structural feature
+# that lets TMLE succeed: the outcome model Q(A,W) is smooth and learnable
+# even in regions where the PS is extreme, because PS extremity is mostly
+# driven by W4 (which barely affects Y).
+#
+# To make overlap WORSE (more extreme PS):
+#   - Increase strength_overlap (try 1.5 -> 2.0 -> 2.5)
+#   - Decrease eps_clip (try 0.005 -> 0.002 -> 0.001)
+#
+# To make IPTW perform WORSE relative to TMLE:
+#   - Increase strength_overlap (larger weights, more instability)
+#   - Decrease N (less data to stabilize weighted estimator)
+#
+# To make TMLE coverage CLOSER to 0.95:
+#   - Increase N (IC-based SE more accurate in larger samples)
+#   - Increase coef_W4_Q toward 0 (less outcome variation at PS boundary)
+#   - Ensure Q.SL.library is rich enough to learn Q well
+#
+# To make crude bias LARGER:
+#   - Increase coef_W1_Q and/or coef_W1_g (stronger shared confounding)
+#
+# For PRECISION of coverage estimates:
+#   - reps=50 gives ~+-6pp MC error; reps=200 gives ~+-3pp; reps=500 ~+-2pp
 # ===========================================================================
 
 # ---- Tunable parameters (edit these) ---- #
 PARAMS <- list(
   # Simulation size
-  N             = 1500,     # sample size per replicate
-  reps          = 50,       # number of Monte Carlo replicates
-  truth_N       = 50000,    # sample size for ground truth computation
-  master_seed   = 20240301, # master seed for reproducibility
+  N             = 2000,     # sample size per replicate
+  reps          = 200,      # MC reps (200+ recommended for stable coverage)
+  truth_N       = 100000,   # sample size for ground truth (exact plug-in)
+  master_seed   = 20260304, # master seed for reproducibility
 
-
-  # DGP: overlap
-
-  strength_overlap = 1.0,   # multiplier on PS model coefficients (higher = worse overlap)
+  # DGP: treatment mechanism (controls overlap)
+  strength_overlap = 1.5,   # global multiplier on g-model coefficients
+  coef_W1_g     = 1.5,      # W1 effect on treatment (shared confounder)
+  coef_W2_g     = 0.8,      # W2 effect on treatment
+  coef_W3_g     = -0.5,     # W3 effect on treatment
+  coef_W4_g     = 3.5,      # W4 effect on treatment (overlap driver, weak in Q)
   eps_clip      = 0.005,    # clip g_true to [eps, 1-eps]
 
-  # DGP: outcome
-  effect_A      = 0.6,      # treatment effect on log-odds scale
-  alpha_Q       = -1.5,     # intercept for outcome model (targets ~10% event rate)
+  # DGP: outcome model (controls what Q must learn)
+  effect_A      = 0.5,      # treatment effect on log-odds scale
+  alpha_Q       = -2.0,     # intercept (targets ~10-15% marginal event rate)
+  coef_W1_Q     = 0.8,      # W1 effect on outcome (shared confounder)
+  coef_W2_Q     = 0.4,      # W2 effect on outcome
+  coef_W3_Q     = -0.3,     # W3 effect on outcome
+  coef_W4_Q     = 0.05,     # W4 effect on outcome (weak! key for TMLE success)
   nonlinear_Q   = TRUE,     # add 0.3*W1^2 to outcome model
 
   # TMLE / estimation
@@ -100,11 +135,11 @@ dir.create(PARAMS$output_dir, recursive = TRUE, showWarnings = FALSE)
 #   Y is a binary endpoint. No time-to-event structure in this scenario.
 #
 # Planned estimators:
-#   1. TMLE (primary) — uses both outcome model Q and treatment model g;
+#   1. TMLE (primary) -- uses both outcome model Q and treatment model g;
 #      doubly robust, so good Q can compensate for poor g estimation.
-#   2. Crude RD (comparator) — unadjusted difference in means.
+#   2. Crude RD (comparator) -- unadjusted difference in means.
 #      Expected to be biased due to confounding.
-#   3. IPTW RD (comparator) — inverse probability weighted.
+#   3. IPTW RD (comparator) -- inverse probability weighted.
 #      Expected to be unstable/under-covered due to extreme weights
 #      from poor overlap.
 #
@@ -115,6 +150,12 @@ dir.create(PARAMS$output_dir, recursive = TRUE, showWarnings = FALSE)
 #     - fraction of g_hat in (0, 0.05) or (0.95, 1) exceeds 30%, OR
 #     - ESS/N under IPTW weights < 0.20
 #   This scenario is DESIGNED to trigger "bad" in most replicates.
+#
+# Key DGP feature:
+#   W4 is a strong driver of treatment assignment but has near-zero
+#   effect on the outcome. This means the PS is extreme (poor overlap)
+#   but Q(A,W) remains smooth and learnable in the region of extremity.
+#   TMLE exploits this through its Q-model targeting step.
 # ===========================================================================
 
 message("\n--- Stage 1: Pre-specification ---")
@@ -136,45 +177,48 @@ expit <- function(x) 1 / (1 + exp(-x))
 #'
 #' @param N sample size
 #' @param seed replicate seed
-#' @param strength_overlap multiplier on PS coefficients (higher = worse)
-#' @param eps_clip clip g_true to [eps, 1-eps]
-#' @param effect_A treatment effect on log-odds
-#' @param alpha_Q outcome intercept
-#' @param nonlinear_Q if TRUE, add 0.3*W1^2 to outcome
+#' @param p list of parameters (PARAMS)
 #' @return list with data (data.frame), g_true, Q_true
-generate_data <- function(N,
-                          seed           = NULL,
-                          strength_overlap = 1.0,
-                          eps_clip       = 0.005,
-                          effect_A       = 0.6,
-                          alpha_Q        = -1.5,
-                          nonlinear_Q    = TRUE) {
+generate_data <- function(N, seed = NULL, p = PARAMS) {
   if (!is.null(seed)) set.seed(seed)
 
   # Covariates
-  W1 <- rnorm(N, 0, 1)
-  W2 <- rbinom(N, 1, 0.5)
-  W3 <- rnorm(N, 0, 1)
+  W1 <- rnorm(N, 0, 1)       # shared confounder (moderate in both g and Q)
+  W2 <- rbinom(N, 1, 0.5)    # binary confounder
+  W3 <- rnorm(N, 0, 1)       # continuous confounder
+  W4 <- rnorm(N, 0, 1)       # overlap driver: strong in g, weak in Q
 
-  # Treatment mechanism with poor overlap
-  lp_g_raw <- strength_overlap * (3.0 * W1 + 1.5 * W2 - 1.0 * W3)
+  # ---- Treatment mechanism ----
+  # W4 dominates treatment assignment, creating extreme PS values,
+  # but W4 barely affects Y, so Q is smooth at the PS boundary.
+  lp_g_raw <- p$strength_overlap * (
+    p$coef_W1_g * W1 +
+    p$coef_W2_g * W2 +
+    p$coef_W3_g * W3 +
+    p$coef_W4_g * W4
+  )
   # Center so marginal P(A=1) ~ 0.5
   alpha_g <- -mean(lp_g_raw)
   lp_g <- alpha_g + lp_g_raw
   g_true <- expit(lp_g)
-  # Clip to [eps, 1-eps]
-  g_true <- pmin(pmax(g_true, eps_clip), 1 - eps_clip)
+  # Clip to [eps, 1-eps] -- practical positivity, not structural violation
+  g_true <- pmin(pmax(g_true, p$eps_clip), 1 - p$eps_clip)
   A <- rbinom(N, 1, g_true)
 
-  # Outcome model — learnable by GLM (+ optional mild nonlinearity)
-  lp_Q <- alpha_Q + effect_A * A + 1.0 * W1 + 0.5 * W2 - 0.5 * W3
-  if (nonlinear_Q) {
+  # ---- Outcome model ----
+  # Learnable by GLM (plus optional mild nonlinearity).
+  # W4 coefficient is near zero: outcome is nearly unaffected by the
+  # variable that drives PS extremity.
+  lp_Q <- p$alpha_Q + p$effect_A * A +
+    p$coef_W1_Q * W1 + p$coef_W2_Q * W2 +
+    p$coef_W3_Q * W3 + p$coef_W4_Q * W4
+  if (p$nonlinear_Q) {
     lp_Q <- lp_Q + 0.3 * W1^2
   }
   Q_true <- expit(lp_Q)
   Y <- rbinom(N, 1, Q_true)
 
-  dat <- data.frame(W1 = W1, W2 = W2, W3 = W3, A = A, Y = Y)
+  dat <- data.frame(W1 = W1, W2 = W2, W3 = W3, W4 = W4, A = A, Y = Y)
 
   list(data = dat, g_true = g_true, Q_true = Q_true)
 }
@@ -186,19 +230,22 @@ generate_data <- function(N,
 
 message("\n--- Computing ground truth RD ---")
 
-compute_truth <- function(truth_N, seed, params) {
+compute_truth <- function(truth_N, seed, p) {
   set.seed(seed)
   W1 <- rnorm(truth_N, 0, 1)
   W2 <- rbinom(truth_N, 1, 0.5)
   W3 <- rnorm(truth_N, 0, 1)
+  W4 <- rnorm(truth_N, 0, 1)
 
-  # Exact risks under A=1 and A=0 (no randomness — use expit directly)
-  lp_Q1 <- params$alpha_Q + params$effect_A * 1 + 1.0 * W1 + 0.5 * W2 - 0.5 * W3
-  lp_Q0 <- params$alpha_Q + params$effect_A * 0 + 1.0 * W1 + 0.5 * W2 - 0.5 * W3
-  if (params$nonlinear_Q) {
-    lp_Q1 <- lp_Q1 + 0.3 * W1^2
-    lp_Q0 <- lp_Q0 + 0.3 * W1^2
+  # Exact risks under A=1 and A=0 (no randomness -- use expit directly)
+  lp_base <- p$alpha_Q +
+    p$coef_W1_Q * W1 + p$coef_W2_Q * W2 +
+    p$coef_W3_Q * W3 + p$coef_W4_Q * W4
+  if (p$nonlinear_Q) {
+    lp_base <- lp_base + 0.3 * W1^2
   }
+  lp_Q1 <- lp_base + p$effect_A * 1
+  lp_Q0 <- lp_base + p$effect_A * 0
   p1 <- expit(lp_Q1)
   p0 <- expit(lp_Q0)
 
@@ -229,17 +276,9 @@ for (r in seq_len(PARAMS$reps)) {
   rep_seed <- PARAMS$master_seed + r
 
   # Generate data
-  sim <- generate_data(
-    N                = PARAMS$N,
-    seed             = rep_seed,
-    strength_overlap = PARAMS$strength_overlap,
-    eps_clip         = PARAMS$eps_clip,
-    effect_A         = PARAMS$effect_A,
-    alpha_Q          = PARAMS$alpha_Q,
-    nonlinear_Q      = PARAMS$nonlinear_Q
-  )
+  sim <- generate_data(N = PARAMS$N, seed = rep_seed, p = PARAMS)
   dat <- sim$data
-  W   <- dat[, c("W1", "W2", "W3"), drop = FALSE]
+  W   <- dat[, c("W1", "W2", "W3", "W4"), drop = FALSE]
   A   <- dat$A
   Y   <- dat$Y
   n   <- nrow(dat)
@@ -248,7 +287,7 @@ for (r in seq_len(PARAMS$reps)) {
   # Stage 2: Outcome-blind diagnostics (uses only A and W)
   # ------------------------------------------------------------------
   # Fit PS with GLM (fast, adequate for diagnostics)
-  g_fit <- glm(A ~ W1 + W2 + W3, data = dat, family = "binomial")
+  g_fit <- glm(A ~ W1 + W2 + W3 + W4, data = dat, family = "binomial")
   g_hat <- fitted(g_fit)
 
   # Diagnostics
@@ -341,7 +380,7 @@ for (r in seq_len(PARAMS$reps)) {
   rd_iptw <- iptw_hajek(Y, A, w_iptw)
 
   # Bootstrap for IPTW SE/CI
-  set.seed(rep_seed + 1000000)
+  set.seed(rep_seed + 1000000L)
   boot_iptw <- numeric(PARAMS$iptw_boot_B)
   for (b in seq_len(PARAMS$iptw_boot_B)) {
     idx <- sample(n, n, replace = TRUE)
@@ -350,7 +389,7 @@ for (r in seq_len(PARAMS$reps)) {
     Y_b <- d_b$Y
 
     g_b <- tryCatch({
-      fit_b <- glm(A ~ W1 + W2 + W3, data = d_b, family = "binomial")
+      fit_b <- glm(A ~ W1 + W2 + W3 + W4, data = d_b, family = "binomial")
       fitted(fit_b)
     }, error = function(e) rep(0.5, n))
 
@@ -402,7 +441,7 @@ for (r in seq_len(PARAMS$reps)) {
     stringsAsFactors = FALSE
   )
 
-  if (r %% 10 == 0 || r == 1) {
+  if (r %% 25 == 0 || r == 1) {
     message("  Replicate ", r, "/", PARAMS$reps,
             "  overlap=", overlap_flag,
             "  TMLE=", if (tmle_res$ok) round(tmle_res$est, 4) else "FAIL",
@@ -419,7 +458,6 @@ for (r in seq_len(PARAMS$reps)) {
 res_df <- do.call(rbind, results)
 
 compute_metrics <- function(df, true_rd, label = "all") {
-  # Remove replicates where TMLE failed
   tmle_ok <- df[df$tmle_ok == TRUE, , drop = FALSE]
 
   make_row <- function(method, est, ci_lo, ci_hi, se_col = NULL) {
@@ -473,31 +511,6 @@ if (nrow(res_bad) > 0) {
 
 summary_metrics <- rbind(metrics_all, metrics_bad)
 
-# Add a row with overlap diagnostics
-overlap_summary <- data.frame(
-  subset  = "diagnostics",
-  method  = "overlap",
-  n_reps  = PARAMS$reps,
-  bias    = round(mean(res_df$fraction_extreme), 4),  # mean fraction extreme
-  rmse    = round(mean(res_df$ess_frac), 4),           # mean ESS/N
-  emp_sd  = round(mean(res_df$max_w), 2),              # mean max weight
-  mean_se = round(mean(res_df$overlap_flag == "bad"), 4), # fraction flagged bad
-  coverage = NA,
-  stringsAsFactors = FALSE
-)
-names(overlap_summary)[4:7] <- c("mean_frac_extreme", "mean_ess_frac",
-                                  "mean_max_w", "frac_flagged_bad")
-# Rename back for CSV compatibility
-overlap_meta <- data.frame(
-  subset = "diagnostics", method = "overlap_summary",
-  n_reps = PARAMS$reps,
-  bias = NA, rmse = NA, emp_sd = NA, mean_se = NA,
-  coverage = NA,
-  stringsAsFactors = FALSE
-)
-# Actually, just keep it clean: add overlap info as a note in the console
-# and keep summary_metrics as the clean CSV.
-
 
 # ===========================================================================
 # Print results
@@ -510,6 +523,9 @@ message("\nTrue RD: ", round(truth$RD_true, 6))
 message("Replicates: ", PARAMS$reps, " (N=", PARAMS$N, ")")
 message("Strength overlap: ", PARAMS$strength_overlap)
 message("PS clip: [", PARAMS$eps_clip, ", ", 1 - PARAMS$eps_clip, "]")
+message("W4 coef in g: ", PARAMS$coef_W4_g,
+        "  |  W4 coef in Q: ", PARAMS$coef_W4_Q,
+        "  (overlap driver, weak in outcome)")
 message("\nOverlap diagnostics across replicates:")
 message("  Mean fraction g < 0.05 or g > 0.95: ",
         round(mean(res_df$fraction_extreme), 3))
@@ -524,6 +540,27 @@ print(metrics_all)
 if (nrow(res_bad) > 0) {
   message("\n--- Estimator Performance (overlap_flag == 'bad' only) ---")
   print(metrics_bad)
+}
+
+# Quick interpretation
+message("\n--- Interpretation ---")
+tmle_cov <- metrics_all$coverage[metrics_all$method == "TMLE"]
+crude_cov <- metrics_all$coverage[metrics_all$method == "Crude"]
+iptw_cov <- metrics_all$coverage[metrics_all$method == "IPTW"]
+tmle_bias <- metrics_all$bias[metrics_all$method == "TMLE"]
+crude_bias <- metrics_all$bias[metrics_all$method == "Crude"]
+if (!is.na(tmle_cov) && tmle_cov >= 0.92) {
+  message("  TMLE coverage ", tmle_cov, " is near nominal (target: ~0.95)")
+} else {
+  message("  TMLE coverage ", tmle_cov, " is below target.",
+          " Try: increase N, or reduce coef_W4_Q toward 0")
+}
+if (!is.na(crude_cov) && crude_cov < 0.10) {
+  message("  Crude coverage ", crude_cov, " -- confounding bias dominates (good)")
+}
+if (!is.na(iptw_cov) && iptw_cov < tmle_cov - 0.05) {
+  message("  IPTW coverage ", iptw_cov, " -- worse than TMLE by ",
+          round(tmle_cov - iptw_cov, 2), " (overlap instability)")
 }
 
 
