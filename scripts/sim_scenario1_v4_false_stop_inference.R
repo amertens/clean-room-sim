@@ -89,7 +89,7 @@ params_base <- list(
   preset    = preset,
 
   # Bootstrap / cross-fitting (from preset)
-  B_regboot     = 0,                          # analytic SE for adj regression
+  B_regboot     = 50,                         # GLM bootstrap for adj regression (fast)
   B_iptw        = 0,                          # analytic SE for IPTW
   B_matchboot   = preset_config$B_matchboot,  # pairs bootstrap for PS-match
   B_npboot_tmle = preset_config$B_npboot_tmle,# full NP bootstrap for TMLE-ML
@@ -98,11 +98,11 @@ params_base <- list(
 
   # PS clipping
   ps_clip_true = c(0.005, 0.995),
-  ps_clip_hat  = c(0.01, 0.99),
+  ps_clip_hat  = c(0.025, 0.975),  # tighter clipping (max weight=40 not 100)
 
   # Overlap regime (replicate-level mixture)
   p_bad = 0.50,          # P(bad overlap replicate)
-  s_ok  = 0.8,           # treatment-strength multiplier for OK overlap
+  s_ok  = 0.5,           # treatment-strength multiplier for OK overlap (was 0.8)
   # s_bad is mode-specific, set below
 
   # Treatment model coefficients (before multiplier)
@@ -131,12 +131,12 @@ params_base <- list(
   h3_coef   = 0.35,       # |W3| (v3 was 0.5)
   # beta4_Q, tau_int1, tau_int2, tau_int3 are mode-specific
 
-  # Overlap flag thresholds (Stage 2)
+  # Overlap flag thresholds (Stage 2) — loosened so ok-regime mostly passes
   overlap_flag_thresholds = list(
     extreme_ps   = 0.05,
-    extreme_prop = 0.30,    # v3 was 0.35 — slightly tighter
-    ess_frac     = 0.30,    # v3 was 0.25 — slightly tighter
-    max_w        = 40       # v3 was 50 — slightly tighter
+    extreme_prop = 0.40,    # fraction of PS outside (0.05,0.95)
+    ess_frac     = 0.20,    # ESS/n floor
+    max_w        = 60       # max IPTW weight
   ),
 
   # Matching

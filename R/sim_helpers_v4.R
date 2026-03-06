@@ -401,7 +401,7 @@ est_tmle_glm <- function(Y, A, W, p) {
     fit <- tmle::tmle(Y = Y, A = A, W = W, family = "binomial",
                       Q.SL.library = "SL.glm",
                       g.SL.library = "SL.glm",
-                      gbound = p$ps_clip_hat)
+                      gbound = p$ps_clip_hat[1])
     ate <- fit$estimates$ATE
     eif <- fit$estimates$IC$IC.ATE
 
@@ -427,7 +427,7 @@ est_tmle_ml <- function(Y, A, W, p) {
 
     fit <- tmle::tmle(Y = Y, A = A, W = W, family = "binomial",
                       Q.SL.library = Q_lib, g.SL.library = g_lib,
-                      gbound = p$ps_clip_hat)
+                      gbound = p$ps_clip_hat[1])
     ate <- fit$estimates$ATE
     eif <- fit$estimates$IC$IC.ATE
 
@@ -442,7 +442,7 @@ est_tmle_ml <- function(Y, A, W, p) {
       fit <- tmle::tmle(Y = Y, A = A, W = W, family = "binomial",
                         Q.SL.library = "SL.glm",
                         g.SL.library = "SL.glm",
-                        gbound = p$ps_clip_hat)
+                        gbound = p$ps_clip_hat[1])
       ate <- fit$estimates$ATE
       eif <- fit$estimates$IC$IC.ATE
       list(estimate = ate$psi, se = sqrt(ate$var.psi),
@@ -484,7 +484,7 @@ est_tmle_ml_npboot <- function(Y, A, W, p, B = 75) {
     g_lib <- filter_sl_libs(p$g_SL_library_ml)
     fit <- tmle::tmle(Y = Y, A = A, W = W, family = "binomial",
                       Q.SL.library = Q_lib, g.SL.library = g_lib,
-                      gbound = p$ps_clip_hat)
+                      gbound = p$ps_clip_hat[1])
     ate <- fit$estimates$ATE
     eif <- fit$estimates$IC$IC.ATE
     list(psi = ate$psi, se_ic = sqrt(ate$var.psi),
@@ -495,7 +495,7 @@ est_tmle_ml_npboot <- function(Y, A, W, p, B = 75) {
       fit <- tmle::tmle(Y = Y, A = A, W = W, family = "binomial",
                         Q.SL.library = "SL.glm",
                         g.SL.library = "SL.glm",
-                        gbound = p$ps_clip_hat)
+                        gbound = p$ps_clip_hat[1])
       ate <- fit$estimates$ATE
       eif <- fit$estimates$IC$IC.ATE
       list(psi = ate$psi, se_ic = sqrt(ate$var.psi),
@@ -539,14 +539,14 @@ est_tmle_ml_npboot <- function(Y, A, W, p, B = 75) {
       tmle::tmle(Y = Y_b, A = A_b, W = W_b, family = "binomial",
                  Q.SL.library = point_fit$Q_lib,
                  g.SL.library = point_fit$g_lib,
-                 gbound = p$ps_clip_hat)
+                 gbound = p$ps_clip_hat[1])
     }, error = function(e) {
       # Fallback to GLM for this bootstrap resample
       tryCatch(
         tmle::tmle(Y = Y_b, A = A_b, W = W_b, family = "binomial",
                    Q.SL.library = "SL.glm",
                    g.SL.library = "SL.glm",
-                   gbound = p$ps_clip_hat),
+                   gbound = p$ps_clip_hat[1]),
         error = function(e2) NULL)
     })
 
