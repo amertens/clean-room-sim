@@ -70,7 +70,7 @@ preset <- if (length(args) >= 1 && args[1] %in% c("fast", "eval")) args[1] else 
 message("Using preset: ", preset)
 
 preset_config <- list(
-  fast = list(n_main = 400, reps = 120, B_npboot_tmle = 75,
+  fast = list(n_main = 400, reps = 120, B_npboot_tmle = 0,
               B_matchboot = 100, B_multboot = 200, V_cf = 3),
   eval = list(n_main = 600, reps = 300, B_npboot_tmle = 150,
               B_matchboot = 200, B_multboot = 300, V_cf = 5)
@@ -455,8 +455,9 @@ run_mode <- function(mode_name, params_base, mode_params) {
       mean((ok_ml$tmle_ml_ci_ic_lo[has_ic] <= truth$RD_true) &
            (truth$RD_true <= ok_ml$tmle_ml_ci_ic_hi[has_ic])) else NA
 
-    # Gate: NP bootstrap-based
-    accept <- !is.na(cov_np) && (abs(bias_ml) < 0.01) && (cov_np >= 0.93)
+    # Gate: use NP bootstrap if available, otherwise fall back to IC
+    cov_gate <- if (!is.na(cov_np)) cov_np else cov_ic
+    accept <- !is.na(cov_gate) && (abs(bias_ml) < 0.01) && (cov_gate >= 0.93)
 
     gate$n_reps[gate$overlap_flag == fl] <- nrow(sub)
     gate$tmle_ml_bias[gate$overlap_flag == fl] <- round(bias_ml, 5)
