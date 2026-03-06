@@ -1,0 +1,5 @@
+"mode","overlap_flag","n_reps","tmle_ml_bias","tmle_ml_cov_mb","tmle_ml_rmse","acceptable"
+"weak","ok",10,-0.00579,0.8,0.09739,FALSE
+"weak","bad",40,-0.02894,0.8,0.14756,FALSE
+"strong","ok",10,0.00831,0.7,0.12459,FALSE
+"strong","bad",40,-0.00876,0.675,0.15745,FALSE
