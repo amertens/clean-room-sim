@@ -83,6 +83,7 @@ params_base <- list(
   alpha2_g = 0.8,       # W2
   alpha3_g = -0.5,      # W3
   alpha4_g = 3.0,       # W4 — overlap driver
+  g_intercept_shift = -0.5,  # shift P(A=1) below 0.5 → more controls for matching
 
   # Subject-level W4 mixture (off by default)
   use_subject_mixture = FALSE,

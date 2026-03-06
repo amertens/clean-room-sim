@@ -85,7 +85,7 @@ sim_data_v3 <- function(n, seed = NULL, p, overlap_regime = NULL) {
     p$alpha1_g * W1 + p$alpha2_g * W2 +
     p$alpha3_g * W3 + p$alpha4_g * W4
   )
-  alpha0_g <- -mean(lp_g_raw)          # center to ~P(A=1)≈0.5
+  alpha0_g <- -mean(lp_g_raw) + p$g_intercept_shift  # shift P(A=1)
   lp_g <- alpha0_g + lp_g_raw
   g_true <- expit(lp_g)
   g_true <- pmin(pmax(g_true, p$ps_clip_true[1]), p$ps_clip_true[2])
