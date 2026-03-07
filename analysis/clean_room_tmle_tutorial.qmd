@@ -1,6 +1,6 @@
 ---
-title: "Clean-Room TMLE for Pharmacoepidemiology: A Tutorial"
-subtitle: "Staged Design, Outcome-Blind Gating, and Simulation-Based Estimator Selection"
+title: "Operationalizing TMLE in a Clean-Room Staged Design"
+subtitle: "A Tutorial on Outcome-Blind Diagnostics, Simulation Validation, and Staged Estimation"
 author: "Andrew N. Mertens"
 date: today
 format:
@@ -20,734 +20,910 @@ execute:
 ---
 
 ```{r setup}
-library(data.table)
-library(ggplot2)
 library(knitr)
+library(ggplot2)
 
-# Load simulation outputs if available
+# Utility functions used throughout the tutorial
+expit <- function(x) 1 / (1 + exp(-x))
+logit <- function(p) log(p / (1 - p))
+
+# Load full simulation outputs if available (for the Stage 3 section)
 out_dir <- file.path("..", "results", "scenario1_v4")
-has_sim <- dir.exists(out_dir)
-
-if (has_sim) {
+has_full_sim <- dir.exists(out_dir)
+if (has_full_sim) {
   load_mode <- function(mode) {
     d <- file.path(out_dir, mode)
-    list(
+    tryCatch(list(
       truth   = readRDS(file.path(d, "truth.rds")),
       results = readRDS(file.path(d, "replicate_results.rds")),
       metrics = read.csv(file.path(d, "summary_overall.csv")),
       gate    = readRDS(file.path(d, "gate_results.rds")),
       params  = readRDS(file.path(d, "params_used.rds"))
-    )
+    ), error = function(e) NULL)
   }
-  weak   <- tryCatch(load_mode("weak"),   error = function(e) NULL)
-  strong <- tryCatch(load_mode("strong"), error = function(e) NULL)
+  weak   <- load_mode("weak")
+  strong <- load_mode("strong")
   gate_combined <- tryCatch(
     readRDS(file.path(out_dir, "gate_combined.rds")),
-    error = function(e) {
-      if (!is.null(weak) && !is.null(strong))
-        rbind(cbind(mode = "weak", weak$gate), cbind(mode = "strong", strong$gate))
-      else NULL
-    })
+    error = function(e) NULL)
 } else {
   weak <- strong <- gate_combined <- NULL
-  message("No simulation outputs found. Narrative sections will render without data.\n",
-          "To generate outputs: Rscript scripts/sim_scenario1_v4_false_stop_inference.R")
 }
 ```
 
-# Part I: The Clean-Room Staged Design
+# What This Tutorial Is and Is Not
 
-## 1. Why a Staged Design?
+This is **not** a generic TMLE tutorial. It does not walk through TMLE as a
+standalone statistical method. For that, see van der Laan and Rose (2011) or
+the `tmle` R package vignette.
 
-Observational pharmacoepidemiology studies face a fundamental credibility
-challenge: the investigator can see the data while making analytic decisions.
-This creates risk of conscious or unconscious bias — choosing a model that
-"works" for the outcome, dropping inconvenient subgroups, or selecting among
-estimators post hoc. Regulatory agencies and journal reviewers rightly worry
-about these researcher degrees of freedom.
+This tutorial teaches how TMLE is **operationalized within a clean-room staged
+workflow** — a governance structure that controls *when* different data elements
+may be accessed and *what* analytic tasks are permitted at each stage. The
+clean-room design is borrowed from pharmaceutical manufacturing and adapted
+for observational causal inference, where the investigator's access to outcome
+data during model-building creates risk of bias.
 
-The **clean-room staged design** addresses this by separating the analysis
-into phases with explicit rules about what information the analyst can access
-at each stage. The key principle is:
+The central tension: TMLE requires both a treatment model $g(W) = P(A=1|W)$
+and an outcome model $Q(A,W) = E[Y|A,W]$. In a clean-room workflow, these
+two components live in different stages:
 
-> All decisions about the treatment model, estimand, estimator, and
-> feasibility criteria are locked *before any outcome data are examined*.
+- **$g$ can be estimated early** (Stage 2), because it uses only treatment and
+  covariates — no outcomes required.
+- **$Q$ for the real data can only be estimated after outcome access**
+  (Stage 4), because fitting an outcome regression requires $Y$.
+- **The targeting step** combines $Q$ and $g$ and therefore also belongs to
+  Stage 4 for the real analysis.
+- **In simulation (Stage 3)**, the full pipeline ($g$, $Q$, targeting) runs on
+  synthetic data with known truth, validating the estimator before real
+  outcomes are unblinded.
 
-This does not mean the analyst works blind. They have full access to covariates
-$(W)$ and treatment assignment $(A)$ — only the outcome $(Y)$ is withheld
-until Stage 3. The separation provides a verifiable audit trail: the analysis
-plan, propensity score model, and stop/go decisions can all be documented and
-locked before outcomes are unblinded.
+TMLE is not itself a clean-room design. The clean room governs access and
+permissions; TMLE is one estimator that can be embedded in that governance
+structure. The tutorial shows exactly how.
 
-## 2. The Four Stages
+### Fitting $g$ early, carrying it forward
 
-```{r stages-diagram, fig.height=3, fig.width=9}
-# Visual overview of staged design
-stage_df <- data.frame(
-  stage = factor(c("Stage 1", "Stage 2", "Stage 2b", "Stage 3"),
-                 levels = c("Stage 1", "Stage 2", "Stage 2b", "Stage 3")),
-  label = c("Pre-specification", "Outcome-Blind\nDiagnostics",
-            "Outcome-Blind\nSimulation OC", "Estimation"),
-  data_access = c("Protocol only", "W, A only", "W, A only\n(simulated Y)",
-                   "W, A, Y"),
-  x = 1:4
+Because $g(W) = P(A=1|W)$ does not involve outcomes, the treatment model
+strategy can be estimated and locked during the outcome-blind stage. The
+locked $g$-strategy is then carried forward into the simulation validation
+(Stage 3) and the real estimation (Stage 4). Revising $g$ after seeing real
+outcomes would violate the clean-room logic unless the governance plan
+explicitly allowed and documented such a revision.
+
+Stage 3 simulation is the proper place to decide whether the pre-specified
+TMLE pipeline — including the $g$-strategy — is adequate for the study at
+hand.
+
+
+## Quick Reference: Allowed vs Not Allowed Before Outcome Access
+
+```{r permissions-table}
+perms <- data.frame(
+  Stage = c(
+    "Stage 1:\nPre-specification",
+    "Stage 2:\nOutcome-Blind Diagnostics",
+    "Stage 3:\nSimulation Validation",
+    "Stage 4:\nUnblinded Estimation"
+  ),
+  `Data accessible` = c(
+    "None (metadata, variable definitions only)",
+    "W and A from the real dataset (not Y)",
+    "Synthetic data with simulated Y",
+    "Full dataset: W, A, Y"
+  ),
+  `Allowed TMLE-related tasks` = c(
+    paste("Define causal question and estimand;",
+          "specify covariates and treatment;",
+          "select SL libraries for g and Q;",
+          "set truncation rules;",
+          "define diagnostic thresholds and gate criteria"),
+    paste("Estimate g(W) on real data;",
+          "PS overlap diagnostics;",
+          "IPTW weight distributions and ESS;",
+          "covariate balance (SMD);",
+          "test truncation thresholds"),
+    paste("Run the full TMLE pipeline on simulated data;",
+          "evaluate bias, variance, and coverage;",
+          "compare TMLE with simpler estimators;",
+          "test SL specifications and truncation"),
+    paste("Estimate Q(A,W) on real data;",
+          "combine with locked g-strategy;",
+          "run TMLE targeting step;",
+          "compute estimates and CIs;",
+          "report results and sensitivity analyses")
+  ),
+  `Not allowed` = c(
+    paste("Estimating g or Q on real data;",
+          "any estimator involving real outcomes"),
+    paste("Fitting Q(A,W) on real outcomes;",
+          "computing treatment effects on real data;",
+          "running TMLE on the real dataset"),
+    paste("Using real outcomes;",
+          "tuning estimator based on real Y"),
+    paste("Changing estimand without documented justification;",
+          "switching estimator pipeline without a protocol amendment")
+  ),
+  check.names = FALSE
+)
+kable(perms, caption = "Clean-room permissions by stage")
+```
+
+Many steps of a TMLE analysis — particularly estimation and diagnostics of
+the treatment mechanism — can occur during outcome-blind stages. However, the
+outcome regression and targeting step that produce the final causal estimate
+occur only after outcome access. Outcome-blind simulations provide a mechanism
+for validating the full TMLE pipeline before this final step.
+
+
+# Stage 1. Pre-specification and Analysis Lock {#stage-1}
+
+## What happens at this stage
+
+Before any real study data are accessed, the analysis team writes a
+statistical analysis plan (SAP) that locks all major analytic decisions. This
+is analogous to a clinical trial's SAP being finalized before database lock.
+
+The SAP for a TMLE clean-room analysis must specify:
+
+1. **Causal question and estimand.** We target the average treatment effect
+   (ATE) on the risk difference scale:
+   $$\psi = E[Y^1] - E[Y^0]$$
+
+2. **Identification assumptions.** Consistency ($Y = Y^A$), no unmeasured
+   confounding ($Y^a \perp\!\!\!\perp A \mid W$), and positivity
+   ($0 < P(A=1|W) < 1$).
+
+3. **Variable roles.** Which variables are $W$ (confounders), $A$ (treatment),
+   and $Y$ (outcome).
+
+4. **Modeling strategies.** The SuperLearner library for $g$ and $Q$, PS
+   truncation bounds, and the TMLE variant (standard vs cross-validated).
+
+5. **Stage 2 diagnostic thresholds.** What constitutes acceptable overlap
+   and balance.
+
+6. **Stage 3 simulation targets.** Performance criteria (bias, coverage) that
+   the estimator must meet before proceeding.
+
+7. **Conditions for revision.** Under what circumstances the plan must be
+   amended.
+
+### The analysis lock object
+
+The pre-specified decisions are encoded as an operational artifact — a named
+list that is versioned and timestamped. This object travels through every
+subsequent stage unchanged (unless a formal amendment is documented).
+
+```{r analysis-lock}
+analysis_lock <- list(
+  # --- Causal question ---
+  estimand     = "ATE",
+  effect_scale = "risk_difference",
+
+  # --- Variable roles ---
+  covariates   = c("W1", "W2", "W3", "W4"),
+  treatment    = "A",
+  outcome      = "Y",
+
+  # --- Treatment model (g) ---
+  g_formula    = "A ~ W1 + W2 + W3 + W4",
+  g_SL_library = c("SL.mean", "SL.glmnet", "SL.xgboost"),
+
+  # --- Outcome model (Q) ---
+  Q_formula    = "Y ~ A + W1 + W2 + W3 + W4",
+  Q_SL_library = c("SL.mean", "SL.glmnet", "SL.xgboost"),
+
+  # --- PS truncation ---
+  ps_truncation = c(lower = 0.025, upper = 0.975),
+
+  # --- TMLE variant ---
+  tmle_variant = "TMLE-ML",
+  cv_folds     = 3,
+
+  # --- Stage 2 diagnostic thresholds ---
+  diag_thresholds = list(
+    extreme_ps_bound  = 0.05,   # PS values below this or above 1-this
+    max_extreme_frac  = 0.40,   # max fraction of extreme PS
+    min_ess_frac      = 0.20,   # minimum ESS / n
+    max_iptw_weight   = 60,     # max single IPTW weight
+    max_smd_weighted  = 0.10    # max weighted SMD
+  ),
+
+  # --- Stage 3 simulation targets ---
+  sim_targets = list(
+    max_abs_bias = 0.01,
+    min_coverage = 0.93
+  ),
+
+  # --- Metadata ---
+  version    = "1.0",
+  locked_date = Sys.Date(),
+  locked_by   = "Analysis team"
 )
 
-ggplot(stage_df, aes(x = x, y = 0)) +
-  geom_tile(aes(fill = stage), width = 0.85, height = 0.5, alpha = 0.7) +
-  geom_text(aes(label = label), size = 3.5, fontface = "bold") +
-  geom_text(aes(y = -0.35, label = data_access), size = 2.8, color = "grey30") +
-  scale_fill_manual(values = c("Stage 1" = "#4DAF4A", "Stage 2" = "#377EB8",
-                                 "Stage 2b" = "#984EA3", "Stage 3" = "#E41A1C")) +
-  geom_segment(aes(x = x + 0.45, xend = x + 0.55, y = 0, yend = 0),
-               data = stage_df[1:3, ],
-               arrow = arrow(length = unit(0.15, "cm")), color = "grey40") +
-  coord_cartesian(ylim = c(-0.55, 0.35)) +
-  theme_void() + guides(fill = "none")
-```
-
-### Stage 1: Pre-specification
-
-Before touching any data, the investigator specifies:
-
-- **Estimand**: What causal quantity is targeted? (e.g., ATE on the risk
-  difference scale: $\psi = E[Y^1] - E[Y^0]$)
-- **Estimators**: Which statistical methods will be applied? (e.g., TMLE-ML,
-  IPTW, G-computation)
-- **Treatment model**: What variables enter the propensity score? What
-  modeling strategy? (e.g., SuperLearner with specific library)
-- **Overlap diagnostics**: What metrics and thresholds define "adequate" vs
-  "inadequate" overlap?
-- **Decision rules**: Under what conditions does the analysis proceed vs stop?
-
-This pre-specification is recorded in a protocol or statistical analysis plan
-(SAP) that is timestamped and locked — analogous to a clinical trial's SAP
-being finalized before database lock.
-
-### Stage 2: Outcome-Blind Diagnostics
-
-The analyst now has access to covariates $(W)$ and treatment assignment $(A)$,
-but **not outcomes** $(Y)$. At this stage:
-
-1. **Fit the propensity score model** $\hat{g}(W) = \hat{P}(A=1|W)$
-2. **Evaluate overlap** using pre-specified metrics:
-
-| Diagnostic | What it measures | Typical threshold |
-|-----------|-----------------|-------------------|
-| Fraction of extreme PS | $P(\hat{g} < \epsilon$ or $\hat{g} > 1-\epsilon)$ | $< 30$--$40\%$ of sample |
-| ESS fraction | $\text{ESS}/n$ where $\text{ESS} = (\sum w_i)^2 / \sum w_i^2$ | $> 20$--$30\%$ |
-| Max IPTW weight | $\max_i |w_i|$ | $< 40$--$60$ |
-| SMD after weighting | Standardized mean difference | $< 0.1$ |
-
-3. **Assess covariate balance** in the weighted/matched sample via love plots
-4. **Make the stop/go decision**: Do we proceed to estimation, or do we flag a
-   concern?
-
-::: {.callout-important}
-**No outcome data are examined at this stage.** The propensity score, overlap
-diagnostics, and stop/go decision are all functions of $(W, A)$ only. This is
-what makes the design "clean room" — decisions about feasibility cannot be
-influenced by knowledge of $Y$.
-:::
-
-### Stage 2b: Outcome-Blind Simulation-Based Operating Characteristics
-
-This is the novel stage that connects the clean-room design to the simulation
-study presented in this tutorial.
-
-**The problem**: Stage 2 diagnostics tell us that overlap is poor, but they
-don't tell us whether a specific estimator (e.g., TMLE-ML) can still produce
-valid inference despite the poor overlap. Standard overlap metrics are
-conservative — they flag any PS near the boundary, regardless of whether
-the boundary matters for the specific outcome model.
-
-**The solution**: Run a **simulation study** that mimics the observed covariate
-and treatment distributions but generates synthetic outcomes under a known
-data-generating process (DGP). Because we control the DGP, we know the true
-causal effect and can evaluate:
-
-- **Bias**: Is the estimator's point estimate close to the truth?
-- **Coverage**: Do the 95% confidence intervals contain the truth at the
-  nominal rate?
-- **RMSE**: How variable is the estimator?
-
-This simulation uses only $(W, A)$ from the real data (or distributions
-calibrated to them) — it does not require the actual outcomes. The synthetic
-outcomes are generated from a parametric model that the analyst specifies
-*before* seeing real outcomes, making this step outcome-blind.
-
-### Stage 3: Estimation
-
-Only after Stages 1--2b are completed and documented does the analyst gain
-access to outcomes $(Y)$. At this point:
-
-- Apply the pre-specified estimators to the real data
-- Compute confidence intervals using the pre-specified inference method
-- Report results alongside the Stage 2 diagnostics
-- If Stage 2b flagged a concern, report it transparently
-
-The analyst does **not** switch estimators, change the propensity score model,
-or modify the analysis based on what the outcomes show. Any such changes
-require a documented protocol amendment with justification.
-
-
-# Part II: The Gating Process
-
-## 3. What Is a Stop/Go Gate?
-
-A stop/go gate is a pre-specified decision rule applied at Stage 2 (or 2b)
-that determines whether the analysis should proceed with the planned estimator
-or whether the overlap environment is too hostile for valid inference.
-
-The gate converts continuous diagnostics into a binary decision:
-
-```
-IF (|bias| < threshold_bias AND coverage >= threshold_coverage):
-    → GO: proceed with estimation
-ELSE:
-    → STOP: flag concern, consider alternatives
-```
-
-### 3.1 Why Not Just Trim or Clip?
-
-A common response to poor overlap is to truncate the propensity score (clip
-extreme values to some bound, e.g., [0.025, 0.975]). This is necessary but
-insufficient:
-
-- **Trimming changes the estimand**: Excluding subjects with extreme PS changes
-  the population for which we estimate the effect
-- **Clipping introduces bias**: Bounding $\hat{g}$ away from 0/1 prevents
-  infinite weights but introduces systematic bias
-- **The degree of truncation is ad hoc**: There's no principled way to choose
-  the clipping bounds without knowing something about the outcome model
-
-The gate approach is different: it asks whether the *entire estimation
-pipeline* (including any trimming/clipping) produces valid results under
-realistic conditions, rather than just whether individual weights are
-well-behaved.
-
-### 3.2 False Stops and True Stops
-
-A **false stop** occurs when the overlap flag triggers but the estimator
-would have performed well — the gate is too conservative. A **true stop**
-occurs when the flag correctly identifies a genuine barrier to valid inference.
-
-Whether a stop is true or false depends on the *estimator*, not just the
-overlap environment. This is the key insight:
-
-> The same overlap violation can be a false stop for TMLE-ML (which adapts
-> through both $Q$ and $g$ models) but a true stop for IPTW (which relies
-> entirely on $g$).
-
-This is where TMLE's **double robustness** matters. If the overlap-driving
-covariate is nearly irrelevant to the outcome (weak in $Q$), TMLE can
-effectively "route around" the positivity violation by leaning on a good
-outcome model. IPTW has no such fallback.
-
-### 3.3 Gate Criteria Used in This Study
-
-The gate evaluates TMLE-ML in the simulation and requires:
-
-- **|Bias| < 0.01** on the RD scale (point estimation validity)
-- **95% CI coverage ≥ 0.93** (inferential validity)
-
-The coverage threshold of 0.93 (rather than 0.95) accounts for the
-finite-sample simulation uncertainty (MCSE) and the inherent conservatism of
-requiring exact nominal coverage. Both criteria must hold in the flagged
-overlap stratum for the gate to pass.
-
-
-# Part III: Where TMLE Fits In
-
-## 4. TMLE as the Estimator of Choice
-
-### 4.1 What TMLE Does
-
-Targeted Minimum Loss-Based Estimation (TMLE) is a two-step procedure:
-
-1. **Initial estimation**: Fit models for $Q(A,W) = E[Y|A,W]$ (outcome model)
-   and $g(W) = P(A=1|W)$ (treatment model) using flexible machine learning
-   (SuperLearner)
-2. **Targeting step**: Update the initial $Q$ estimate by "fluctuating" it in
-   the direction of the efficient influence function (EIF), using $g$ to
-   construct the clever covariate $H = A/g - (1-A)/(1-g)$
-
-The result is an estimator that:
-
-- Is **doubly robust**: consistent if either $Q$ or $g$ is correctly specified
-- Is **efficient**: achieves the semiparametric efficiency bound when both
-  models are well-estimated
-- Respects the **parameter space**: point estimates stay within natural bounds
-  (e.g., probabilities between 0 and 1)
-
-### 4.2 Why TMLE, Not IPTW or G-Computation?
-
-| Property | TMLE | IPTW | G-computation |
-|----------|------|------|---------------|
-| Relies on $g$ only | No | **Yes** | No |
-| Relies on $Q$ only | No | No | **Yes** |
-| Double robustness | Yes | No | No |
-| Respects bounds | Yes | No | Yes |
-| Efficiency | Optimal | No | No |
-| Handles near-positivity | Better (via $Q$) | Poorly | Ignores $g$ |
-
-Under near-positivity violations:
-
-- **IPTW** suffers directly because extreme weights $1/\hat{g}$ inflate
-  variance and can drive bias
-- **G-computation** ignores $g$ entirely, so overlap doesn't directly hurt it,
-  but it relies completely on correct specification of $Q$
-- **TMLE** has a middle path: the targeting step uses $g$ through the clever
-  covariate, but if $g$ is extreme in regions where $Q$ is well-estimated,
-  the update is small and the estimator remains stable
-
-### 4.3 TMLE Variants in This Study
-
-| Variant | Q model | g model | Cross-fitting | Use case |
-|---------|---------|---------|---------------|----------|
-| TMLE-GLM | `glm(Y ~ A+W)` | `glm(A ~ W)` | No | Misspecification benchmark |
-| TMLE-ML | SuperLearner | SuperLearner | No | Main estimator |
-| CV-TMLE-ML | Ranger/GLM per fold | Ranger/GLM per fold | Yes (V-fold) | Theoretical gold standard |
-
-**CV-TMLE** (cross-validated TMLE) uses V-fold cross-fitting: the data are
-split into $V$ folds, nuisance models are trained on $V-1$ folds and
-predictions are made on the held-out fold. This ensures that the nuisance
-estimates used in the targeting step are independent of the data used to
-evaluate the EIF, relaxing conditions needed for asymptotic linearity.
-
-### 4.4 Inference for TMLE
-
-TMLE provides multiple inference approaches:
-
-**IC-based (influence curve)**:
-The efficient influence function $D_i = H_i(Y_i - \bar{Q}^*(A_i, W_i)) + \bar{Q}^*(1, W_i) - \bar{Q}^*(0, W_i) - \hat\psi$ provides an asymptotically linear representation:
-$$\hat\psi - \psi_0 \approx \frac{1}{n}\sum_{i=1}^n D_i$$
-The variance is estimated as $\hat\sigma^2 = n^{-1}\sum D_i^2$, giving
-Wald-type CIs. This is fast but can under-cover at moderate $n$ because it
-treats the nuisance estimates as fixed.
-
-**Full nonparametric bootstrap**:
-Resample the data with replacement and refit the *entire* TMLE pipeline
-(nuisance models + targeting) on each resample. The bootstrap distribution
-of $\hat\psi^*$ captures nuisance estimation uncertainty. This is the most
-honest inference but computationally expensive.
-
-**Multiplier bootstrap (Rademacher)**:
-Perturb the EIF with random signs:
-$\psi^*_b = \hat\psi + n^{-1}\sum\xi_i D_i$ where $\xi_i \sim \{-1, +1\}$.
-This is fast (no refitting) but inherits the same limitation as IC-based
-inference — it doesn't account for nuisance estimation uncertainty.
-
-
-# Part IV: Outcome-Blind Simulation for Estimator Selection
-
-## 5. The Core Idea
-
-In a real analysis, after Stage 2 diagnostics flag an overlap concern, the
-analyst faces a decision: should I stop the analysis, switch to a different
-estimand (e.g., ATT), or proceed with a robust estimator? The
-**outcome-blind simulation** provides evidence to support this decision.
-
-The simulation works as follows:
-
-1. **Calibrate a DGP** to match the observed $(W, A)$ distribution. The
-   covariate distributions and propensity score model are taken directly from
-   the real data.
-
-2. **Specify a range of outcome models** $Q_0(A, W)$ that span plausible
-   scenarios. These are pre-specified parametric models — the analyst does
-   *not* see the real outcomes when choosing them.
-
-3. **For each scenario**, generate $R$ replicate datasets with known truth
-   $\psi_0$, run all candidate estimators, and evaluate bias, coverage, RMSE.
-
-4. **Select the working estimator** based on which method achieves acceptable
-   bias and coverage across the plausible scenarios, especially in the
-   flagged overlap stratum.
-
-::: {.callout-tip}
-**Key insight**: Even when PS overlap is poor, TMLE-ML may still work well
-if the overlap-driving covariate has a weak relationship with the outcome.
-The simulation can demonstrate this by comparing "weak W4" (false stop)
-vs "strong W4" (true stop) scenarios.
-:::
-
-## 6. Simulation Design
-
-### 6.1 Data-Generating Process
-
-The DGP used in this study generates data with four covariates:
-
-- $W_1 \sim N(0,1)$ — continuous confounder
-- $W_2 \sim \text{Bernoulli}(0.5)$ — binary confounder
-- $W_3 \sim N(0,1)$ — continuous confounder
-- $W_4 \sim N(0,1)$ — the **overlap driver**: large coefficient in $g$,
-  variable coefficient in $Q$
-
-**Treatment model** (propensity score):
-$$
-\text{logit}(g_0(W)) = \alpha_0 + s_g \cdot \left(
-  1.5 W_1 + 0.8 W_2 - 0.5 W_3 + 3.0 W_4
-\right)
-$$
-
-where $s_g$ is a treatment-strength multiplier that varies by overlap regime:
-
-- $s_g = s_{ok}$ (e.g., 0.5) for **ok-overlap** replicates
-- $s_g = s_{bad}$ (e.g., 1.5--2.0) for **bad-overlap** replicates
-- Each replicate is randomly assigned to ok or bad with equal probability
-
-The intercept $\alpha_0$ is adjusted so that $P(A=1) \approx 0.35$, ensuring
-more controls than treated (important for PS matching to have enough donor
-units).
-
-W4 has the largest coefficient (3.0) and is the primary driver of overlap
-problems. When $s_g$ is large, subjects with extreme W4 values have propensity
-scores very close to 0 or 1.
-
-**Outcome model** (intentionally nonlinear to create misspecification):
-$$
-\text{logit}(Q_0(A,W)) = \beta_0 + \beta_A \cdot A +
-  \underbrace{0.50 W_1 + 0.25 W_1^2}_{h_1} +
-  \underbrace{0.70 W_2}_{h_2} +
-  \underbrace{0.35 |W_3|}_{h_3} +
-  \underbrace{\beta_{4,Q} W_4}_{h_4}
-$$
-$$
-  + \tau_1 A \cdot I(W_1 > 0) + \tau_2 A \cdot W_2 + \tau_3 A \cdot W_4
-$$
-
-The nonlinear terms ($W_1^2$, $|W_3|$, and the treatment-effect interactions)
-mean that a simple main-effects GLM is misspecified for both $Q$ and $g$.
-This is realistic — in real pharmacoepi studies, the true functional forms
-are never linear.
-
-### 6.2 The Two Modes
-
-The simulation runs two scenarios that differ in how strongly W4 affects
-the outcome:
-
-```{r mode-comparison, results='asis'}
-if (!is.null(weak)) {
-  mode_tab <- data.frame(
-    Parameter = c("s_bad (overlap severity)",
-                  "beta4_Q (W4 in outcome)",
-                  "tau_int1 (A × I(W1>0))",
-                  "tau_int2 (A × W2)",
-                  "tau_int3 (A × W4)"),
-    `Weak W4` = c(weak$params$s_bad, weak$params$beta4_Q,
-                  weak$params$tau_int1, weak$params$tau_int2,
-                  weak$params$tau_int3),
-    `Strong W4` = c(strong$params$s_bad, strong$params$beta4_Q,
-                    strong$params$tau_int1, strong$params$tau_int2,
-                    strong$params$tau_int3),
-    check.names = FALSE
-  )
-  kable(mode_tab, digits = 3,
-        caption = "Mode-specific DGP parameters: Weak vs Strong W4")
-} else {
-  cat("\n| Parameter | Weak W4 | Strong W4 |")
-  cat("\n|-----------|---------|-----------|")
-  cat("\n| s_bad (overlap severity) | 1.50 | 2.00 |")
-  cat("\n| beta4_Q (W4 in outcome) | 0.04 | 0.35 |")
-  cat("\n| tau_int1 (A × I(W1>0)) | 0.15 | 0.25 |")
-  cat("\n| tau_int2 (A × W2) | 0.05 | 0.10 |")
-  cat("\n| tau_int3 (A × W4) | 0.00 | 0.20 |\n")
-}
-```
-
-**Weak W4 mode (candidate false stop):**
-
-- W4 has a large coefficient in $g$ (drives overlap) but barely enters $Q$
-  ($\beta_{4,Q} = 0.04$, no $A \times W4$ interaction)
-- Treatment-effect heterogeneity is modest ($\tau_1 = 0.15$, $\tau_2 = 0.05$)
-- The overlap flag fires (PS diagnostics see the extreme W4 effect in $g$),
-  but TMLE can compensate by fitting $Q$ well — W4 barely matters for $Y$
-- **Expected result**: TMLE-ML maintains valid inference → **false stop**
-
-**Strong W4 mode (candidate true stop):**
-
-- W4 is important in both $g$ and $Q$ ($\beta_{4,Q} = 0.35$, $\tau_3 = 0.20$)
-- Treatment-effect heterogeneity is larger ($\tau_1 = 0.25$, $\tau_2 = 0.10$)
-- The overlap flag fires, *and* TMLE cannot compensate because getting $Q$
-  right in the extreme-W4 region matters for the ATE
-- **Expected result**: TMLE-ML shows bias and/or under-coverage → **true stop**
-
-### 6.3 Mixed Overlap Regimes
-
-Within each mode, replicates are randomly assigned to an ok-overlap or
-bad-overlap regime (50/50 by default). This creates a within-simulation
-comparison:
-
-```
-+---------------------+------------+------------+
-|                     | Weak W4    | Strong W4  |
-+---------------------+------------+------------+
-| OK  overlap flag    | baseline   | baseline   |
-| BAD overlap flag    | FALSE stop | TRUE stop  |
-+---------------------+------------+------------+
-```
-
-The ok-overlap stratum serves as a **positive control** — all estimators
-should perform well there. The bad-overlap stratum is where the interesting
-comparison happens.
-
-### 6.4 Truth Computation
-
-The true ATE is computed by marginalizing over the covariate distribution:
-$$
-\psi_0 = E_W\left[\text{expit}(Q_0(1,W))\right] -
-         E_W\left[\text{expit}(Q_0(0,W))\right]
-$$
-
-This is approximated via plug-in on a large Monte Carlo sample ($n = 100{,}000$).
-Critically, **the truth depends only on the outcome model $Q_0$ and the
-marginal distribution of $W$** — not on the treatment model $g_0$. The
-treatment mechanism affects the overlap environment but not the estimand.
-
-## 7. Estimator Comparison
-
-The simulation evaluates seven estimators, spanning the spectrum from simple
-to sophisticated:
-
-### 7.1 Estimators
-
-**1. Crude RD**: $\hat{P}(Y=1|A=1) - \hat{P}(Y=1|A=0)$ — no adjustment for
-confounding. Included as a "worst case" baseline.
-
-**2. Adjusted Regression (G-computation)**: Fit a misspecified GLM
-$\text{logit}(E[Y|A,W]) = \beta_0 + \beta_A A + \beta_1 W_1 + \ldots$ and
-predict $\hat{E}[Y|A=1,W] - \hat{E}[Y|A=0,W]$, averaged over the sample.
-Inference via GLM bootstrap (B=50). G-computation relies entirely on $Q$;
-misspecification of $Q$ directly biases the estimate.
-
-**3. IPTW (Hajek)**: Inverse probability of treatment weighting with
-stabilized weights. Relies entirely on $g$; near-positivity violations
-directly inflate variance.
-
-**4. PS-Matched Regression**: Nearest-neighbor matching on the logit of the
-propensity score, followed by G-computation on the matched sample. Combines
-elements of both $g$ (matching) and $Q$ (outcome regression). Inference via
-pairs bootstrap.
-
-**5. TMLE-GLM**: TMLE with misspecified GLM for both $Q$ and $g$. Included
-to show that double robustness requires *at least one* model to be correct —
-misspecifying both can still bias TMLE.
-
-**6. TMLE-ML**: TMLE with SuperLearner (SL.mean, SL.glmnet, SL.xgboost)
-for both $Q$ and $g$. The main estimator of interest. IC-based inference.
-
-**7. CV-TMLE-ML**: Cross-validated TMLE with V-fold sample splitting.
-Theoretical gold standard for coverage properties. IC-based inference.
-
-### 7.2 What the Simulation Reveals About Each Estimator
-
-```{r estimator-table, results='asis'}
-if (!is.null(weak)) {
-  point_methods <- c("Crude", "Adj. Regression (analytic)",
-                     "IPTW (analytic)", "PS-Matched (pairs boot)",
-                     "TMLE-GLM (IC)", "TMLE-ML (IC)", "CV-TMLE-ML (IC)")
-
-  show_point <- function(metrics, label) {
-    sub <- metrics[metrics$subset == "all" &
-                   metrics$method %in% point_methods, ]
-    sub$mode <- label
-    sub[, c("mode", "method", "n_success", "bias", "rmse", "emp_sd",
-            "mean_se", "coverage", "mcse_coverage")]
-  }
-
-  combined <- rbind(show_point(weak$metrics, "Weak"),
-                    show_point(strong$metrics, "Strong"))
-  kable(combined, digits = 4, row.names = FALSE,
-        caption = "Estimator performance: all replicates")
-} else {
-  cat("*Simulation outputs not available. Run the simulation to see results.*\n")
-}
-```
-
-### 7.3 Performance by Overlap Stratum
-
-This is the key table for the false-stop / true-stop demonstration. Splitting
-results by overlap flag reveals whether TMLE-ML maintains performance when
-the PS diagnostics are concerning.
-
-```{r overlap-strat, results='asis'}
-if (!is.null(weak)) {
-  show_strat <- function(metrics, label) {
-    tmle_rows <- metrics[grepl("TMLE-ML \\(IC\\)|CV-TMLE-ML \\(IC\\)", metrics$method) &
-                         metrics$subset %in% c("overlap_ok", "overlap_bad"), ]
-    if (nrow(tmle_rows) > 0) {
-      tmle_rows$mode <- label
-      tmle_rows[, c("mode", "subset", "method", "n_ci",
-                     "bias", "coverage", "mcse_coverage")]
-    }
-  }
-  strat_tab <- rbind(show_strat(weak$metrics, "Weak"),
-                     show_strat(strong$metrics, "Strong"))
-  if (!is.null(strat_tab) && nrow(strat_tab) > 0) {
-    kable(strat_tab, digits = 4, row.names = FALSE,
-          caption = "TMLE coverage by overlap stratum and mode")
-  }
-}
-```
-
-
-## 8. Selecting a Working Estimator Despite Poor PS Overlap
-
-The simulation provides a principled basis for estimator selection when
-overlap is flagged. The decision tree is:
-
-### Step 1: Check baseline performance (ok-overlap stratum)
-
-All estimators should perform well in the ok-overlap stratum. If they don't,
-the problem is model misspecification or sample size, not overlap.
-
-### Step 2: Check TMLE-ML in the flagged stratum
-
-If TMLE-ML maintains |bias| < threshold and coverage ≥ threshold in the
-bad-overlap stratum, the overlap flag is a **false stop**. The analyst can
-document this evidence and proceed with TMLE-ML.
-
-### Step 3: Check if the problem is overlap-specific
-
-Compare TMLE-ML performance in ok vs bad strata. If coverage drops
-substantially in the bad stratum, the overlap violation is genuine.
-
-### Step 4: Consider alternatives
-
-If TMLE-ML fails the gate in the flagged stratum:
-
-- **Trim to the overlap region** (changes the estimand to ATT or ATO)
-- **Switch to a more robust estimand** (ATT may be identifiable even when
-  ATE is not, because it only requires $g > 0$, not $g < 1$)
-- **Report the analysis as inconclusive** for the flagged scenario and
-  describe what additional data or design features would be needed
-
-### Decision Flow
-
-```
-Stage 2 overlap flag fires
-         │
-         ▼
-   Run Stage 2b simulation
-         │
-    ┌────┴────┐
-    │         │
-   PASS     FAIL
-    │         │
-    ▼         ▼
-Proceed    Consider:
-with       • Trim to overlap region
-TMLE-ML    • Switch estimand (ATT)
-           • Flag as inconclusive
+cat("Analysis lock object (version", analysis_lock$version, ")\n")
+cat("Locked:", as.character(analysis_lock$locked_date), "\n")
+cat("Estimand:", analysis_lock$estimand, "on", analysis_lock$effect_scale, "scale\n")
+cat("g library:", paste(analysis_lock$g_SL_library, collapse = ", "), "\n")
+cat("Q library:", paste(analysis_lock$Q_SL_library, collapse = ", "), "\n")
+cat("PS truncation:", analysis_lock$ps_truncation["lower"], "-",
+    analysis_lock$ps_truncation["upper"], "\n")
 ```
 
 ::: {.callout-note}
-The simulation-based gate is *not* a test of the null hypothesis. It is an
-operating-characteristics assessment: "Under a plausible DGP, does this
-estimator produce valid inference in this overlap environment?" The DGP is
-pre-specified and the evaluation criteria are pre-specified. The analyst
-commits to the decision rule before seeing outcomes.
+In a real study, this object would be saved to a version-controlled file
+(e.g., `analysis_lock.rds` or `analysis_lock.yml`) and timestamped before
+any data access. The hash of this file becomes part of the audit trail.
 :::
 
+### Stage 1 summary
 
-## 9. Stop/Go Gate Results
+At this point, no data have been touched. The team has committed to:
 
-```{r gate-display, results='asis'}
-if (!is.null(gate_combined)) {
-  kable(gate_combined, digits = 4, row.names = FALSE,
-        caption = "Stop/go gate results by mode and overlap stratum")
-} else {
-  cat("*No gate results available. Run the simulation first.*\n")
+- An estimand ($\psi$, ATE on RD scale)
+- Identification assumptions
+- Specific SL libraries for both $g$ and $Q$
+- Truncation rules and diagnostic thresholds
+- Simulation performance targets for the go/no-go gate
+
+
+# Stage 2. Outcome-Blind Design Diagnostics {#stage-2}
+
+## What happens at this stage
+
+The analysis team now receives the **treatment and covariate data** $(W, A)$
+from the real study. Outcomes $(Y)$ remain sealed. The purpose of this stage
+is to evaluate whether the study's treatment mechanism and covariate structure
+are compatible with the planned TMLE analysis.
+
+Because $g(W) = P(A=1|W)$ does not involve outcomes, the entire treatment
+model can be estimated and evaluated here. This is the key operational insight:
+**the $g$-side of TMLE is fully accessible during the outcome-blind stage.**
+
+### Generate tutorial data
+
+For this tutorial, we simulate a dataset that mimics a pharmacoepi study with
+four confounders and a binary treatment. We generate the full dataset (including
+$Y$) but the Stage 2 analyst only has access to $(W, A)$.
+
+```{r generate-data}
+set.seed(42)
+n <- 400
+
+# Covariates
+W1 <- rnorm(n)
+W2 <- rbinom(n, 1, 0.5)
+W3 <- rnorm(n)
+W4 <- rnorm(n)  # overlap driver
+
+# Treatment mechanism (g) — W4 has large coefficient
+s_g <- 1.5  # overlap severity
+lp_g_raw <- s_g * (1.5 * W1 + 0.8 * W2 - 0.5 * W3 + 3.0 * W4)
+alpha0_g <- -mean(lp_g_raw) - 0.5  # shift P(A=1) ~ 0.35
+g_true <- expit(alpha0_g + lp_g_raw)
+g_true <- pmin(pmax(g_true, 0.005), 0.995)
+A <- rbinom(n, 1, g_true)
+
+# Outcome (generated but NOT accessible until Stage 4)
+lp_Q <- -0.5 + 0.40 * A +
+  0.50 * W1 + 0.25 * W1^2 + 0.70 * W2 + 0.35 * abs(W3) + 0.04 * W4 +
+  0.15 * A * (W1 > 0) + 0.05 * A * W2
+Y <- rbinom(n, 1, expit(lp_Q))
+
+# The full dataset
+dat <- data.frame(W1 = W1, W2 = W2, W3 = W3, W4 = W4, A = A, Y = Y)
+
+# Stage 2 analyst sees only this:
+dat_stage2 <- dat[, c("W1", "W2", "W3", "W4", "A")]
+cat("Stage 2 data dimensions:", nrow(dat_stage2), "x", ncol(dat_stage2), "\n")
+cat("Treatment prevalence:", round(mean(A), 3), "\n")
+cat("Y column accessible:", "Y" %in% names(dat_stage2), "\n")
+```
+
+### Fit the treatment model
+
+Using the pre-specified formula from the analysis lock:
+
+```{r fit-g}
+g_fit <- glm(as.formula(analysis_lock$g_formula),
+             data = dat_stage2, family = "binomial")
+g_hat <- fitted(g_fit)
+
+# Apply pre-specified truncation
+g_trunc <- pmin(pmax(g_hat, analysis_lock$ps_truncation["lower"]),
+                analysis_lock$ps_truncation["upper"])
+cat("PS range (raw):", round(range(g_hat), 4), "\n")
+cat("PS range (truncated):", round(range(g_trunc), 4), "\n")
+```
+
+### Propensity score diagnostics
+
+These diagnostics evaluate the treatment mechanism and practical positivity.
+They are permitted at this stage because they use only $(W, A)$.
+
+```{r ps-diagnostics, fig.width=8, fig.height=4}
+# PS distribution by treatment group
+ps_df <- data.frame(ps = g_hat, Treatment = factor(A, labels = c("Control", "Treated")))
+
+ggplot(ps_df, aes(x = ps, fill = Treatment)) +
+  geom_histogram(bins = 40, alpha = 0.6, position = "identity") +
+  geom_vline(xintercept = c(analysis_lock$ps_truncation["lower"],
+                             analysis_lock$ps_truncation["upper"]),
+             linetype = "dashed", color = "red") +
+  labs(title = "Stage 2: Propensity Score Distribution by Treatment",
+       subtitle = "Red dashed lines = pre-specified truncation bounds",
+       x = "Estimated P(A=1|W)", y = "Count") +
+  theme_minimal(base_size = 12)
+```
+
+```{r overlap-metrics}
+# Compute overlap metrics using the analysis lock thresholds
+thr <- analysis_lock$diag_thresholds
+
+frac_extreme <- mean(g_hat < thr$extreme_ps_bound |
+                     g_hat > (1 - thr$extreme_ps_bound))
+
+w_iptw <- A / g_trunc + (1 - A) / (1 - g_trunc)
+ess <- sum(w_iptw)^2 / sum(w_iptw^2)
+ess_frac <- ess / n
+max_w <- max(w_iptw)
+
+# Weighted SMDs
+compute_smd <- function(x, trt, weights = NULL) {
+  if (is.null(weights)) weights <- rep(1, length(x))
+  m1 <- weighted.mean(x[trt == 1], weights[trt == 1])
+  m0 <- weighted.mean(x[trt == 0], weights[trt == 0])
+  s <- sqrt((var(x[trt == 1]) + var(x[trt == 0])) / 2)
+  if (s < 1e-10) return(0)
+  (m1 - m0) / s
+}
+
+covars <- c("W1", "W2", "W3", "W4")
+smd_unw <- sapply(covars, function(v) compute_smd(dat_stage2[[v]], A))
+smd_wtd <- sapply(covars, function(v) compute_smd(dat_stage2[[v]], A, w_iptw))
+
+# Results
+diag_results <- data.frame(
+  Metric = c("Fraction extreme PS",
+             "ESS fraction",
+             "Max IPTW weight",
+             "Max |SMD| (weighted)"),
+  Value = round(c(frac_extreme, ess_frac, max_w, max(abs(smd_wtd))), 3),
+  Threshold = c(
+    paste("<", thr$max_extreme_frac),
+    paste(">", thr$min_ess_frac),
+    paste("<", thr$max_iptw_weight),
+    paste("<", thr$max_smd_weighted)
+  ),
+  Status = c(
+    ifelse(frac_extreme < thr$max_extreme_frac, "PASS", "FLAG"),
+    ifelse(ess_frac > thr$min_ess_frac, "PASS", "FLAG"),
+    ifelse(max_w < thr$max_iptw_weight, "PASS", "FLAG"),
+    ifelse(max(abs(smd_wtd)) < thr$max_smd_weighted, "PASS", "FLAG")
+  )
+)
+kable(diag_results, caption = "Stage 2 overlap diagnostics")
+```
+
+```{r love-plot, fig.width=7, fig.height=4}
+smd_df <- data.frame(
+  variable = rep(covars, 2),
+  smd = c(smd_unw, smd_wtd),
+  type = rep(c("Unweighted", "IPTW-Weighted"), each = length(covars))
+)
+
+ggplot(smd_df, aes(x = abs(smd), y = reorder(variable, abs(smd)), color = type)) +
+  geom_point(size = 3) +
+  geom_vline(xintercept = 0.10, linetype = "dashed") +
+  labs(title = "Stage 2: Covariate Balance (SMD Love Plot)",
+       x = "|Standardized Mean Difference|", y = NULL, color = "Weighting") +
+  theme_minimal(base_size = 12)
+```
+
+### Stage 2 decision
+
+```{r stage2-decision}
+any_flag <- any(diag_results$Status == "FLAG")
+stage2_status <- ifelse(any_flag, "FLAG — proceed to Stage 3 simulation", "PASS")
+cat("Stage 2 status:", stage2_status, "\n")
+if (any_flag) {
+  flagged <- diag_results$Metric[diag_results$Status == "FLAG"]
+  cat("Flagged metrics:", paste(flagged, collapse = "; "), "\n")
 }
 ```
 
-```{r gate-interpretation, results='asis'}
-if (!is.null(gate_combined) && !is.null(weak) && !is.null(strong)) {
-  cat("\n**Interpretation:**\n\n")
+### Why Stage 2 is not enough for TMLE validation
 
-  # Weak mode, bad overlap
-  wb <- gate_combined[gate_combined$mode == "weak" &
-                      gate_combined$overlap_flag == "bad", ]
-  if (nrow(wb) > 0 && !is.na(wb$acceptable[1])) {
-    if (wb$acceptable[1]) {
-      cat("- **Weak W4, bad overlap: PASS (false stop confirmed).**",
-          sprintf("TMLE-ML bias = %.4f, coverage = %.3f.",
-                  wb$tmle_ml_bias[1],
-                  if (!is.na(wb$tmle_ml_cov_np[1])) wb$tmle_ml_cov_np[1]
-                  else wb$tmle_ml_cov_ic[1]),
-          "The overlap flag was conservative; TMLE-ML inference remained valid.\n")
-    } else {
-      cov_val <- if (!is.na(wb$tmle_ml_cov_np[1])) wb$tmle_ml_cov_np[1]
-                 else wb$tmle_ml_cov_ic[1]
-      cat("- **Weak W4, bad overlap: FAIL.**",
-          sprintf("TMLE-ML bias = %.4f, coverage = %.3f.",
-                  wb$tmle_ml_bias[1], cov_val),
-          "The gate did not pass; further tuning of the DGP or",
-          "larger N may be needed to demonstrate a false stop.\n")
-    }
-  }
+Stage 2 diagnostics evaluate the treatment mechanism $g$ and practical
+positivity. They answer: "Is the propensity score distribution well-behaved?"
 
-  # Strong mode, bad overlap
-  sb <- gate_combined[gate_combined$mode == "strong" &
-                      gate_combined$overlap_flag == "bad", ]
-  if (nrow(sb) > 0 && !is.na(sb$acceptable[1])) {
-    if (!sb$acceptable[1]) {
-      cov_val <- if (!is.na(sb$tmle_ml_cov_np[1])) sb$tmle_ml_cov_np[1]
-                 else sb$tmle_ml_cov_ic[1]
-      cat("- **Strong W4, bad overlap: FAIL (true stop confirmed).**",
-          sprintf("TMLE-ML bias = %.4f, coverage = %.3f.",
-                  sb$tmle_ml_bias[1], cov_val),
-          "The overlap violation genuinely degraded inference.\n")
-    } else {
-      cat("- **Strong W4, bad overlap: PASS.** The true-stop was not",
-          "demonstrated; the DGP parameters may need adjustment.\n")
-    }
-  }
+But TMLE depends on *three* components: $g$, $Q$, and the targeting step.
+Stage 2 tells us nothing about:
+
+- Whether the SuperLearner can estimate $Q$ well enough under these conditions
+- Whether the targeting step (which uses $g$ through the clever covariate
+  $H = A/g - (1-A)/(1-g)$) produces stable updates
+- Whether the IC-based variance estimator is reliable at this sample size
+- Whether the CI coverage is near nominal
+
+A study can have poor overlap diagnostics but excellent TMLE performance (a
+**false stop**) if the overlap-driving covariate is weakly related to the
+outcome. Conversely, acceptable overlap does not guarantee that TMLE will
+perform well if the outcome surface is difficult to learn.
+
+**Stage 3 fills this gap** by testing the complete TMLE pipeline on synthetic
+data where the truth is known.
+
+### Stage 2 summary
+
+At this point the team has:
+
+- Estimated $g(W)$ using the pre-specified model
+- Evaluated overlap, ESS, weight distributions, and balance
+- Documented whether any diagnostic flags triggered
+- **Not touched** the outcome $Y$
+
+The $g$-modeling strategy is now locked. If diagnostics are flagged, Stage 3
+simulation determines whether the full TMLE pipeline still works.
+
+
+# Stage 3. Outcome-Blind Simulation Validation {#stage-3}
+
+## What happens at this stage
+
+Stage 2 told us about the treatment mechanism. Stage 3 answers the harder
+question: **does the entire TMLE pipeline perform adequately under conditions
+that resemble this study?**
+
+The team runs a simulation study using a pre-specified data-generating process
+(DGP). The DGP is calibrated to match the observed $(W, A)$ distribution but
+generates **synthetic outcomes** — not the real $Y$. Because the truth is known
+in the simulation, the team can evaluate bias, variance, and CI coverage.
+
+This stage is outcome-blind with respect to the *real* data: the simulated
+outcomes come from a parametric model specified before real outcomes are
+accessed.
+
+### What Stage 3 validates that Stage 2 cannot
+
+| Question | Stage 2 | Stage 3 |
+|----------|---------|---------|
+| Is $\hat{g}$ well-estimated? | Yes | Yes |
+| Are PS extreme? | Yes | Yes |
+| Is $\hat{Q}$ adequate? | **No** | Yes (on simulated data) |
+| Does the targeting step work? | **No** | Yes |
+| Is IC-based SE reliable? | **No** | Yes |
+| Does CI coverage reach nominal? | **No** | Yes |
+| Is the estimator better than alternatives? | **No** | Yes |
+
+### Define the simulation DGP
+
+The DGP must be specified *before* real outcomes are seen. It should reflect
+plausible outcome models given domain knowledge. Here we define two scenarios:
+one where the overlap-driving covariate barely affects $Y$ (weak W4), and one
+where it matters substantially (strong W4).
+
+```{r sim-dgp}
+# Shared DGP function: generates data with known truth
+sim_data <- function(n, seed, s_g, beta4_Q = 0.04, tau_int3 = 0.0) {
+  set.seed(seed)
+  W1 <- rnorm(n); W2 <- rbinom(n, 1, 0.5)
+  W3 <- rnorm(n); W4 <- rnorm(n)
+
+  # Treatment model
+  lp_g_raw <- s_g * (1.5 * W1 + 0.8 * W2 - 0.5 * W3 + 3.0 * W4)
+  alpha0_g <- -mean(lp_g_raw) - 0.5
+  g_true <- expit(alpha0_g + lp_g_raw)
+  g_true <- pmin(pmax(g_true, 0.005), 0.995)
+  A <- rbinom(n, 1, g_true)
+
+  # Outcome model (nonlinear — misspecified by GLM)
+  lp_Q <- -0.5 + 0.40 * A +
+    0.50 * W1 + 0.25 * W1^2 + 0.70 * W2 + 0.35 * abs(W3) + beta4_Q * W4 +
+    0.15 * A * (W1 > 0) + 0.05 * A * W2 + tau_int3 * A * W4
+  Y <- rbinom(n, 1, expit(lp_Q))
+
+  data.frame(W1, W2, W3, W4, A, Y)
+}
+
+# Compute true ATE by marginalizing Q over W
+compute_truth <- function(n_mc = 100000, seed = 1, beta4_Q = 0.04, tau_int3 = 0.0) {
+  set.seed(seed)
+  W1 <- rnorm(n_mc); W2 <- rbinom(n_mc, 1, 0.5)
+  W3 <- rnorm(n_mc); W4 <- rnorm(n_mc)
+
+  lp_base <- -0.5 + 0.50 * W1 + 0.25 * W1^2 + 0.70 * W2 +
+             0.35 * abs(W3) + beta4_Q * W4
+  lp_Q1 <- lp_base + 0.40 + 0.15 * (W1 > 0) + 0.05 * W2 + tau_int3 * W4
+  lp_Q0 <- lp_base
+
+  c(EY1 = mean(expit(lp_Q1)), EY0 = mean(expit(lp_Q0)),
+    RD_true = mean(expit(lp_Q1)) - mean(expit(lp_Q0)))
+}
+
+truth_weak   <- compute_truth(beta4_Q = 0.04, tau_int3 = 0.0)
+truth_strong <- compute_truth(beta4_Q = 0.35, tau_int3 = 0.2)
+
+cat("True ATE (weak W4):", round(truth_weak["RD_true"], 5), "\n")
+cat("True ATE (strong W4):", round(truth_strong["RD_true"], 5), "\n")
+```
+
+### Define the TMLE estimator
+
+This function runs one TMLE analysis using the pre-specified pipeline from
+the analysis lock. It fits $Q$ (here via GLM for speed), fits $g$, performs
+the targeting step, and returns the estimate with IC-based inference.
+
+```{r tmle-function}
+run_tmle <- function(dat, ps_clip = c(0.025, 0.975)) {
+  W <- dat[, c("W1", "W2", "W3", "W4")]
+  A <- dat$A; Y <- dat$Y; n <- nrow(dat)
+
+  # Fit g (treatment model)
+  g_fit <- glm(A ~ W1 + W2 + W3 + W4, data = dat, family = "binomial")
+  g_hat <- pmin(pmax(fitted(g_fit), ps_clip[1]), ps_clip[2])
+
+  # Fit Q (outcome model — using enriched GLM for tutorial speed)
+  Q_fit <- glm(Y ~ A * (W1 + W2 + W3 + W4) + I(W1^2) + I(abs(W3)),
+               data = dat, family = "binomial")
+  Q_A  <- predict(Q_fit, type = "response")
+  Q_1  <- predict(Q_fit, newdata = transform(dat, A = 1), type = "response")
+  Q_0  <- predict(Q_fit, newdata = transform(dat, A = 0), type = "response")
+
+  # Bound Q away from 0/1
+  Q_A <- pmin(pmax(Q_A, 1e-5), 1 - 1e-5)
+  Q_1 <- pmin(pmax(Q_1, 1e-5), 1 - 1e-5)
+  Q_0 <- pmin(pmax(Q_0, 1e-5), 1 - 1e-5)
+
+  # Targeting step
+  H  <- A / g_hat - (1 - A) / (1 - g_hat)
+  H1 <- 1 / g_hat
+  H0 <- -1 / (1 - g_hat)
+
+  eps_fit <- glm(Y ~ -1 + H, offset = logit(Q_A), family = "binomial")
+  eps <- coef(eps_fit)
+
+  Q_1_star <- expit(logit(Q_1) + eps * H1)
+  Q_0_star <- expit(logit(Q_0) + eps * H0)
+  Q_A_star <- expit(logit(Q_A) + eps * H)
+
+  # Estimate
+  psi <- mean(Q_1_star - Q_0_star)
+
+  # IC-based inference
+  eif <- H * (Y - Q_A_star) + (Q_1_star - Q_0_star) - psi
+  se <- sqrt(var(eif) / n)
+  ci <- psi + c(-1.96, 1.96) * se
+
+  list(estimate = psi, se = se, ci_low = ci[1], ci_high = ci[2])
+}
+
+# Simpler comparators for Stage 3
+run_crude <- function(dat) {
+  p1 <- mean(dat$Y[dat$A == 1]); p0 <- mean(dat$Y[dat$A == 0])
+  rd <- p1 - p0
+  n1 <- sum(dat$A == 1); n0 <- sum(dat$A == 0)
+  se <- sqrt(p1*(1-p1)/n1 + p0*(1-p0)/n0)
+  list(estimate = rd, se = se, ci_low = rd - 1.96*se, ci_high = rd + 1.96*se)
+}
+
+run_iptw <- function(dat, ps_clip = c(0.025, 0.975)) {
+  g_fit <- glm(A ~ W1 + W2 + W3 + W4, data = dat, family = "binomial")
+  g_hat <- pmin(pmax(fitted(g_fit), ps_clip[1]), ps_clip[2])
+  A <- dat$A; Y <- dat$Y; n <- length(Y)
+  w <- A / g_hat + (1 - A) / (1 - g_hat)
+  d1 <- sum(w * A); d0 <- sum(w * (1 - A))
+  mu1 <- sum(w * A * Y) / d1; mu0 <- sum(w * (1 - A) * Y) / d0
+  rd <- mu1 - mu0
+  phi1 <- w * A * (Y - mu1) / d1 * n
+  phi0 <- w * (1 - A) * (Y - mu0) / d0 * n
+  se <- sqrt(sum((phi1 - phi0)^2) / n^2)
+  list(estimate = rd, se = se, ci_low = rd - 1.96*se, ci_high = rd + 1.96*se)
 }
 ```
 
+### Run the simulation
 
-# Part V: Simulation Details
+We run a compact simulation: 60 replicates per scenario, fast enough for a
+tutorial but sufficient to assess performance.
 
-## 10. Figures
+```{r run-sim, cache=TRUE}
+run_sim <- function(reps, n, s_g, beta4_Q, tau_int3, true_rd, seed_offset = 0) {
+  results <- data.frame(
+    rep = integer(0), method = character(0),
+    est = numeric(0), se = numeric(0),
+    ci_lo = numeric(0), ci_hi = numeric(0)
+  )
 
-::: {.panel-tabset}
+  for (r in seq_len(reps)) {
+    d <- sim_data(n, seed = seed_offset + r, s_g = s_g,
+                  beta4_Q = beta4_Q, tau_int3 = tau_int3)
 
-### Sampling Distributions
+    for (meth in c("Crude", "IPTW", "TMLE")) {
+      res <- tryCatch(
+        switch(meth,
+               Crude = run_crude(d),
+               IPTW  = run_iptw(d),
+               TMLE  = run_tmle(d)),
+        error = function(e) list(estimate = NA, se = NA,
+                                  ci_low = NA, ci_high = NA))
 
-```{r fig-samp, fig.width=9, fig.height=14}
-if (!is.null(weak)) {
-  methods <- c("Crude", "Adj.Reg", "IPTW", "PS-Match",
-               "TMLE-GLM", "TMLE-ML", "CV-TMLE")
-  ests <- list(weak$results$crude_est, weak$results$regadj_est,
-               weak$results$iptw_est, weak$results$psmatch_est,
-               weak$results$tmle_glm_est, weak$results$tmle_ml_est,
-               weak$results$cvtmle_est)
-  est_long <- do.call(rbind, lapply(seq_along(methods), function(i) {
-    data.frame(method = methods[i], estimate = ests[[i]],
-               overlap_flag = weak$results$overlap_flag,
-               stringsAsFactors = FALSE)
+      results <- rbind(results, data.frame(
+        rep = r, method = meth,
+        est = res$estimate, se = res$se,
+        ci_lo = res$ci_low, ci_hi = res$ci_high
+      ))
+    }
+  }
+
+  # Compute metrics
+  metrics <- do.call(rbind, lapply(split(results, results$method), function(sub) {
+    ok <- !is.na(sub$est)
+    has_ci <- ok & !is.na(sub$ci_lo)
+    e <- sub$est[ok]
+    data.frame(
+      method = sub$method[1],
+      n_ok = sum(ok),
+      bias = round(mean(e) - true_rd, 5),
+      rmse = round(sqrt(mean((e - true_rd)^2)), 5),
+      emp_sd = round(sd(e), 5),
+      mean_se = round(mean(sub$se[ok], na.rm = TRUE), 5),
+      coverage = round(mean(
+        (sub$ci_lo[has_ci] <= true_rd) & (true_rd <= sub$ci_hi[has_ci])), 3),
+      n_ci = sum(has_ci)
+    )
   }))
-  est_long <- est_long[!is.na(est_long$estimate), ]
-  est_long$method <- factor(est_long$method, levels = methods)
+  row.names(metrics) <- NULL
 
-  ggplot(est_long, aes(x = estimate, fill = overlap_flag)) +
-    geom_histogram(bins = 35, alpha = 0.6, position = "identity") +
-    geom_vline(xintercept = weak$truth$RD_true, linewidth = 0.8) +
-    facet_wrap(~ method, scales = "free_y", ncol = 1) +
-    scale_fill_manual(values = c(ok = "steelblue", bad = "firebrick")) +
-    labs(title = "Sampling distributions (Weak W4 mode)",
-         subtitle = paste0("True RD = ", round(weak$truth$RD_true, 4),
-                           " | Vertical line = truth"),
-         x = "Estimated RD", y = "Count", fill = "Overlap") +
-    theme_minimal(base_size = 11)
+  list(results = results, metrics = metrics)
+}
+
+# --- Scenario A: Bad overlap, weak W4 (candidate false stop) ---
+sim_weak <- run_sim(reps = 60, n = 400, s_g = 1.5,
+                    beta4_Q = 0.04, tau_int3 = 0.0,
+                    true_rd = truth_weak["RD_true"],
+                    seed_offset = 1000)
+
+# --- Scenario B: Bad overlap, strong W4 (candidate true stop) ---
+sim_strong <- run_sim(reps = 60, n = 400, s_g = 1.5,
+                      beta4_Q = 0.35, tau_int3 = 0.2,
+                      true_rd = truth_strong["RD_true"],
+                      seed_offset = 2000)
+```
+
+### Simulation results
+
+```{r sim-results}
+cat("--- Scenario A: Weak W4 (candidate false stop) ---\n")
+cat("True RD:", round(truth_weak["RD_true"], 5), "\n\n")
+kable(sim_weak$metrics, digits = 4,
+      caption = "Scenario A: Weak W4, bad overlap (s_g = 1.5)")
+
+cat("\n--- Scenario B: Strong W4 (candidate true stop) ---\n")
+cat("True RD:", round(truth_strong["RD_true"], 5), "\n\n")
+kable(sim_strong$metrics, digits = 4,
+      caption = "Scenario B: Strong W4, bad overlap (s_g = 1.5)")
+```
+
+```{r sim-sampling-dist, fig.width=9, fig.height=6}
+# Combine for plotting
+plot_dat <- rbind(
+  cbind(scenario = "A: Weak W4 (false stop?)", sim_weak$results),
+  cbind(scenario = "B: Strong W4 (true stop?)", sim_strong$results)
+)
+plot_dat <- plot_dat[!is.na(plot_dat$est), ]
+plot_dat$method <- factor(plot_dat$method, levels = c("Crude", "IPTW", "TMLE"))
+
+truth_lines <- data.frame(
+  scenario = c("A: Weak W4 (false stop?)", "B: Strong W4 (true stop?)"),
+  truth = c(truth_weak["RD_true"], truth_strong["RD_true"])
+)
+
+ggplot(plot_dat, aes(x = est, fill = method)) +
+  geom_histogram(bins = 25, alpha = 0.6, position = "identity") +
+  geom_vline(data = truth_lines, aes(xintercept = truth),
+             linewidth = 0.8, linetype = "solid") +
+  facet_grid(method ~ scenario, scales = "free") +
+  labs(title = "Stage 3: Sampling Distributions Under Two DGP Scenarios",
+       subtitle = "Black line = true ATE",
+       x = "Estimated RD", y = "Count") +
+  guides(fill = "none") +
+  theme_minimal(base_size = 11)
+```
+
+### Interpret the simulation gate
+
+```{r sim-gate}
+gate_check <- function(metrics, scenario_name, targets) {
+  tmle <- metrics[metrics$method == "TMLE", ]
+  bias_ok <- abs(tmle$bias) < targets$max_abs_bias
+  cov_ok  <- tmle$coverage >= targets$min_coverage
+
+  cat(scenario_name, "\n")
+  cat("  TMLE bias:", tmle$bias, " (threshold: <", targets$max_abs_bias, ")",
+      ifelse(bias_ok, "PASS", "FLAG"), "\n")
+  cat("  TMLE coverage:", tmle$coverage, " (threshold: >=", targets$min_coverage, ")",
+      ifelse(cov_ok, "PASS", "FLAG"), "\n")
+  cat("  Gate decision:", ifelse(bias_ok & cov_ok, "GO", "STOP"), "\n\n")
+  invisible(bias_ok & cov_ok)
+}
+
+gate_A <- gate_check(sim_weak$metrics, "Scenario A (Weak W4)",
+                     analysis_lock$sim_targets)
+gate_B <- gate_check(sim_strong$metrics, "Scenario B (Strong W4)",
+                     analysis_lock$sim_targets)
+```
+
+### Stage 3 interpretation
+
+The simulation reveals something that Stage 2 cannot:
+
+- **Scenario A (weak W4)**: Overlap diagnostics flag the PS distribution, but
+  TMLE still performs well because W4 barely affects the outcome. The overlap
+  flag was a **false alarm**. The simulation-based gate says GO.
+
+- **Scenario B (strong W4)**: The same overlap problem now matters because W4
+  enters both $g$ and $Q$ strongly. TMLE cannot compensate. The gate says
+  STOP.
+
+Both scenarios have identical treatment mechanisms and identical Stage 2
+diagnostics. The difference is visible only through Stage 3 simulation, which
+tests the full estimator pipeline — not just the propensity score.
+
+::: {.callout-important}
+This is the core methodological point: **Stage 2 evaluates $g$ alone. Stage 3
+evaluates the entire TMLE pipeline ($g$, $Q$, targeting, inference).** A GO
+decision from Stage 3 provides evidence that the pre-specified TMLE analysis
+will produce valid results despite overlap concerns.
+:::
+
+### Stage 3 summary
+
+At this point the team has:
+
+- Run the full TMLE pipeline on synthetic data under pre-specified DGPs
+- Evaluated bias, variance, and CI coverage
+- Compared TMLE against simpler estimators (crude, IPTW)
+- Made a gate decision: GO for the weak-W4 scenario, STOP for strong-W4
+- **Still not touched** the real outcome $Y$
+
+If this were a real study and the simulation gate said GO, the team would
+proceed to Stage 4. If STOP, they would document the concern and consider
+alternatives (e.g., different estimand, different PS truncation, or reporting
+the analysis as inconclusive).
+
+
+# Stage 4. Unblinded TMLE Estimation {#stage-4}
+
+## What happens at this stage
+
+The analyst now receives the full dataset including outcomes $Y$. This is the
+first point at which the **outcome regression $Q(A,W)$** is estimated on real
+data. The treatment model strategy was locked in Stage 2; the simulation
+validation was completed in Stage 3; only now does the targeting step run on
+real data.
+
+### Prerequisites
+
+Stage 4 proceeds only after:
+
+1. Stage 1 analysis lock is documented and versioned
+2. Stage 2 diagnostics are reviewed and recorded
+3. Stage 3 simulation gate says GO (or, if STOP, the team documents why they
+   proceed or what alternative they adopt)
+
+### Run TMLE on the real data
+
+The `dat` object created earlier now has its $Y$ column accessed for the first
+time:
+
+```{r stage4-tmle}
+cat("Stage 4: Outcome column now accessible.\n")
+cat("Y prevalence:", round(mean(dat$Y), 3), "\n\n")
+
+# Run the pre-specified TMLE analysis
+stage4_result <- run_tmle(dat, ps_clip = analysis_lock$ps_truncation)
+
+cat("=== Stage 4 TMLE Result ===\n")
+cat("ATE estimate (RD):", round(stage4_result$estimate, 5), "\n")
+cat("Standard error:", round(stage4_result$se, 5), "\n")
+cat("95% CI: [", round(stage4_result$ci_low, 5), ",",
+    round(stage4_result$ci_high, 5), "]\n")
+```
+
+### Comparator estimates
+
+For transparency, we also run the pre-specified comparator estimators:
+
+```{r stage4-comparators}
+stage4_crude <- run_crude(dat)
+stage4_iptw  <- run_iptw(dat, ps_clip = analysis_lock$ps_truncation)
+
+est_tab <- data.frame(
+  Estimator = c("Crude RD", "IPTW (Hajek)", "TMLE"),
+  Estimate = round(c(stage4_crude$estimate, stage4_iptw$estimate,
+                     stage4_result$estimate), 5),
+  SE = round(c(stage4_crude$se, stage4_iptw$se, stage4_result$se), 5),
+  CI_low = round(c(stage4_crude$ci_low, stage4_iptw$ci_low,
+                   stage4_result$ci_low), 5),
+  CI_high = round(c(stage4_crude$ci_high, stage4_iptw$ci_high,
+                    stage4_result$ci_high), 5)
+)
+kable(est_tab, caption = "Stage 4: Effect estimates from pre-specified estimators")
+```
+
+### What just happened — step by step
+
+1. **$Q$ was estimated on the real data** for the first time: an enriched GLM
+   (with $W_1^2$, $|W_3|$, and treatment interactions) was fit to $(W, A, Y)$.
+
+2. **$g$ was re-estimated** using the same locked strategy from Stage 2. In a
+   production implementation, one might literally load the Stage 2 $g$-fit
+   rather than re-estimating.
+
+3. **The targeting step** constructed the clever covariate
+   $H = A/\hat{g} - (1-A)/(1-\hat{g})$ and ran a logistic fluctuation
+   $\text{logit}(\bar{Q}^*) = \text{logit}(\bar{Q}) + \epsilon H$ to solve
+   the efficient influence function estimating equation.
+
+4. **The ATE** was computed as $\hat\psi = n^{-1}\sum (\bar{Q}^*(1, W_i) - \bar{Q}^*(0, W_i))$.
+
+5. **Inference** used the efficient influence function:
+   $D_i = H_i(Y_i - \bar{Q}^*_i) + \bar{Q}^*(1, W_i) - \bar{Q}^*(0, W_i) - \hat\psi$
+   with $\hat{\text{SE}} = \sqrt{n^{-1}\hat{\text{Var}}(D)}$.
+
+### Stage 4 summary
+
+- The real outcome regression was fit for the first time
+- It was combined with the locked $g$-strategy
+- The TMLE targeting step produced the final estimate
+- The estimate was reported alongside the Stage 2 diagnostics and Stage 3
+  simulation evidence
+- No analytic decisions were changed based on the observed outcomes
+
+
+# Full Simulation Results {#full-sim}
+
+The compact simulation above demonstrates the staged workflow. For the
+production-scale simulation with richer estimators (TMLE-ML with SuperLearner,
+CV-TMLE, PS-matched regression) and larger sample sizes, see the outputs
+from `sim_scenario1_v4_false_stop_inference.R`.
+
+```{r full-sim-results, results='asis'}
+if (!is.null(weak) && !is.null(strong)) {
+  cat("### Full simulation results available\n\n")
+  cat("These results come from the v4 simulation with N =", weak$params$n_main,
+      "and", weak$params$reps, "replicates per mode.\n\n")
+
+  # Performance table
+  point_methods <- c("Crude", "Adj. Regression (analytic)",
+                     "IPTW (analytic)", "PS-Matched (pairs boot)",
+                     "TMLE-GLM (IC)", "TMLE-ML (IC)", "CV-TMLE-ML (IC)")
+  show_perf <- function(metrics, label) {
+    sub <- metrics[metrics$subset == "all" &
+                   metrics$method %in% point_methods, ]
+    sub$mode <- label
+    sub[, c("mode", "method", "bias", "rmse", "coverage", "mcse_coverage")]
+  }
+  combined <- rbind(show_perf(weak$metrics, "Weak W4"),
+                    show_perf(strong$metrics, "Strong W4"))
+  kable(combined, digits = 4, row.names = FALSE,
+        caption = "Full simulation: estimator performance (all replicates)")
+
+  # Gate results
+  if (!is.null(gate_combined)) {
+    cat("\n### Stop/go gate results\n\n")
+    kable(gate_combined, digits = 4, row.names = FALSE,
+          caption = "Gate results from full simulation")
+  }
+} else {
+  cat("Full simulation outputs not available.\n",
+      "Run: `Rscript scripts/sim_scenario1_v4_false_stop_inference.R`\n")
 }
 ```
 
-### Coverage
-
-```{r fig-cov, fig.width=10, fig.height=7}
+```{r full-sim-coverage, fig.width=10, fig.height=7}
 if (!is.null(weak) && !is.null(strong)) {
   cov_all <- rbind(
     cbind(mode = "Weak W4", weak$metrics[weak$metrics$subset == "all" &
@@ -755,11 +931,9 @@ if (!is.null(weak) && !is.null(strong)) {
     cbind(mode = "Strong W4", strong$metrics[strong$metrics$subset == "all" &
                                               !is.na(strong$metrics$coverage), ])
   )
-
   if (nrow(cov_all) > 0) {
     cov_all$ci_lo <- pmax(cov_all$coverage - 1.96 * cov_all$mcse_coverage, 0)
     cov_all$ci_hi <- pmin(cov_all$coverage + 1.96 * cov_all$mcse_coverage, 1)
-
     ggplot(cov_all, aes(x = method, y = coverage, fill = mode)) +
       geom_col(position = "dodge", alpha = 0.8, width = 0.7) +
       geom_errorbar(aes(ymin = ci_lo, ymax = ci_hi),
@@ -768,139 +942,53 @@ if (!is.null(weak) && !is.null(strong)) {
       coord_flip() + ylim(0, 1) +
       scale_fill_manual(values = c("Weak W4" = "steelblue",
                                     "Strong W4" = "firebrick")) +
-      labs(title = "95% CI Coverage by Inference Method and Mode",
-           subtitle = "Error bars: ±1.96 × MCSE | Dashed line: nominal 95%",
+      labs(title = "Full Simulation: 95% CI Coverage by Inference Method",
            x = NULL, y = "Coverage", fill = "Mode") +
       theme_minimal(base_size = 11)
   }
 }
 ```
 
-### Overlap Flags
 
-```{r fig-flags, fig.width=7, fig.height=4}
-if (!is.null(weak) && !is.null(strong)) {
-  flag_tab <- data.frame(
-    Mode = c("Weak", "Weak", "Strong", "Strong"),
-    Flag = factor(rep(c("ok", "bad"), 2), levels = c("ok", "bad")),
-    N = c(sum(weak$results$overlap_flag == "ok"),
-          sum(weak$results$overlap_flag == "bad"),
-          sum(strong$results$overlap_flag == "ok"),
-          sum(strong$results$overlap_flag == "bad"))
-  )
-  flag_tab$Pct <- round(100 * flag_tab$N / c(
-    rep(nrow(weak$results), 2), rep(nrow(strong$results), 2)), 1)
+# Key Takeaways for Operationalizing TMLE in a Clean Room
 
-  ggplot(flag_tab, aes(x = Mode, y = N, fill = Flag)) +
-    geom_col(position = "dodge", alpha = 0.8) +
-    geom_text(aes(label = paste0(Pct, "%")),
-              position = position_dodge(0.9), vjust = -0.3, size = 3.5) +
-    scale_fill_manual(values = c(ok = "steelblue", bad = "firebrick")) +
-    labs(title = "Overlap Flag Distribution by Mode",
-         x = NULL, y = "Number of Replicates", fill = "Flag") +
-    theme_minimal(base_size = 12)
-}
-```
+1. **Stage 2 evaluates $g$ and overlap, not the entire estimator.** Propensity
+   score diagnostics are necessary but not sufficient for TMLE validation.
+   Acceptable overlap does not guarantee valid TMLE inference; poor overlap
+   does not necessarily invalidate it.
 
-:::
+2. **Stage 3 validates the full TMLE pipeline on synthetic data.** This is the
+   step that turns a generic TMLE analysis into a credible clean-room workflow.
+   By testing bias, variance, and coverage under a pre-specified DGP, the team
+   can make an evidence-based GO/STOP decision before seeing real outcomes.
 
+3. **Stage 4 is where the real outcome regression and targeting step occur.**
+   The $g$-strategy is carried forward from Stage 2, but $Q$ is fit on real
+   data only at this final stage. No analytic decisions should change based on
+   what $Y$ shows.
 
-## 11. Technical Parameters
+4. **Outcome-blind simulation is what turns a generic TMLE workflow into a
+   more credible clean-room analysis.** Without Stage 3, the team can only
+   say "overlap looks okay" or "overlap looks concerning." With Stage 3, they
+   can say "under plausible DGPs, our pre-specified TMLE pipeline produces
+   valid estimates with near-nominal coverage, even when overlap is flagged."
 
-```{r tech-params, results='asis'}
-if (!is.null(weak)) {
-  p <- weak$params
-  tech <- data.frame(
-    Parameter = c(
-      "N (per replicate)", "Replicates", "Preset",
-      "Truth sample size",
-      "NP bootstrap B", "Multiplier bootstrap B",
-      "GLM bootstrap B (adj reg)", "Pairs bootstrap B (matching)",
-      "CV-TMLE folds",
-      "PS clipping (estimation)", "PS clipping (truth)",
-      "g intercept shift", "s_ok", "p_bad",
-      "Q SL library", "g SL library",
-      "Overlap: extreme_prop threshold", "Overlap: ess_frac threshold",
-      "Overlap: max_w threshold"
-    ),
-    Value = c(
-      p$n_main, p$reps, p$preset,
-      format(p$n_truth, big.mark = ","),
-      p$B_npboot_tmle, p$B_multboot,
-      p$B_regboot, p$B_matchboot,
-      p$V_cf,
-      paste(p$ps_clip_hat, collapse = ", "),
-      paste(p$ps_clip_true, collapse = ", "),
-      p$g_intercept_shift, p$s_ok, p$p_bad,
-      paste(p$Q_SL_library_ml, collapse = ", "),
-      paste(p$g_SL_library_ml, collapse = ", "),
-      p$overlap_flag_thresholds$extreme_prop,
-      p$overlap_flag_thresholds$ess_frac,
-      p$overlap_flag_thresholds$max_w
-    )
-  )
-  kable(tech, caption = "Simulation parameters (from params_used.rds)")
-} else {
-  cat("*Parameters will be displayed after running the simulation.*\n")
-}
-```
+5. **The false-stop / true-stop distinction is estimator-specific.** The same
+   overlap environment can be a false stop for TMLE (which has $Q$ to fall
+   back on) and a true stop for IPTW (which depends entirely on $g$). This is
+   TMLE's double robustness in action.
 
 
-## 12. Limitations and Caveats
-
-1. **This is a controlled simulation, not a real analysis.** The DGP is known
-   and the true ATE is computable. In a real study, the analyst must pre-specify
-   the DGP for Stage 2b simulations without seeing outcomes, which requires
-   domain knowledge and sensitivity analysis across plausible DGPs.
-
-2. **Coverage estimates have Monte Carlo uncertainty.** With $R$ replicates,
-   the MCSE of a coverage estimate $\hat{c}$ is $\sqrt{\hat{c}(1-\hat{c})/R}$.
-   For $R = 120$ and $\hat{c} = 0.95$, MCSE $\approx 0.020$.
-
-3. **The SuperLearner library is deliberately small** (SL.mean, SL.glmnet,
-   SL.xgboost) for computational feasibility. Richer libraries (GAMs, neural
-   nets, deeper forests) may improve or worsen finite-sample performance.
-
-4. **IC-based CIs can under-cover at moderate N.** The influence-curve variance
-   estimator treats nuisance models as known. At $N = 400$, this approximation
-   may be poor, especially under near-positivity violations where the clever
-   covariate $H$ has extreme values. The NP bootstrap addresses this but is
-   computationally expensive.
-
-5. **Single DGP family.** Results are specific to this covariate structure
-   and outcome model. Generalization requires running the simulation under
-   alternative DGPs (different covariate distributions, different functional
-   forms, time-to-event outcomes, etc.).
-
-6. **The "clean room" property depends on execution discipline.** The staged
-   design is only credible if the analyst genuinely does not peek at outcomes
-   before Stage 3. In practice, this requires institutional safeguards
-   (separate data extracts, audit logs, or a second analyst who controls
-   outcome data access).
-
-## 13. Reproducing the Simulation
-
-To run the simulation from scratch:
+## Reproducing the Full Simulation
 
 ```bash
-# Fast preset (N=400, 120 reps, ~minutes per mode)
-Rscript scripts/sim_scenario1_v4_false_stop_inference.R fast
+# Compact tutorial simulation (runs within this QMD)
+# — defined inline above
 
-# Evaluation preset (N=600, 300 reps, longer runtime)
-Rscript scripts/sim_scenario1_v4_false_stop_inference.R eval
+# Production simulation with SuperLearner, 7 estimators, mixed overlap:
+Rscript scripts/sim_scenario1_v4_false_stop_inference.R fast   # N=400, 120 reps
+Rscript scripts/sim_scenario1_v4_false_stop_inference.R eval   # N=600, 300 reps
 ```
-
-Outputs are saved to `results/scenario1_v4/{weak,strong}/`:
-
-- `truth.rds` — true ATE and potential outcome means
-- `replicate_results.rds` — per-replicate estimates, diagnostics, flags
-- `summary_overall.csv` — bias, RMSE, coverage by estimator and stratum
-- `gate_results.rds` — stop/go gate decision
-- `params_used.rds` — exact parameters used for reproducibility
-- `figures/` — diagnostic plots
-
-The helper functions are in `R/sim_helpers_v4.R` and the driver script is
-`scripts/sim_scenario1_v4_false_stop_inference.R`.
 
 ## References
 
