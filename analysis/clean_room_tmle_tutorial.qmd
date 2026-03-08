@@ -38,12 +38,14 @@ variance, and empirical coverage to make a GO/STOP gate decision. Only in
 **Stage 4** are real outcomes accessed and the outcome regression fitted for the
 first time. Using a simulated hepatitis C antiviral safety example, we
 demonstrate the workflow with three simulation scenarios that illustrate distinct
-clean-room decision states: acceptable overlap with a modest TMLE efficiency
-gain over matching, overlap stress where both matching and TMLE fail, and overlap
-stress where the analysis pipeline remains adequate despite reduced matching
-feasibility. The tutorial shows that propensity-score diagnostics and full
-estimator validation are not interchangeable, and that outcome-blind simulation
-is necessary to determine whether a planned analysis should proceed.
+clean-room decision states: acceptable overlap where TMLE achieves a modest
+precision gain by leveraging outcome-model learning, overlap stress where all
+estimators — including TMLE — fail, and overlap stress where the analysis
+pipeline remains adequate despite reduced matching feasibility. The tutorial
+shows that propensity-score diagnostics and full estimator validation are not
+interchangeable, that TMLE can improve precision when the outcome surface
+contains learnable structure, and that outcome-blind simulation is necessary to
+determine whether a planned analysis should proceed.
 
 ```{r setup}
 library(knitr)
@@ -71,6 +73,20 @@ and the real outcome regression and targeting step occur only after the earlier
 stages are completed. The result is an analysis whose credibility does not rest
 solely on post-hoc sensitivity checks, because the key analytic decisions were
 locked before outcomes were seen.
+
+::: {.callout-note}
+### Tutorial vs. production clean-room implementation
+
+In a real operational clean-room analysis, the workflow would also include
+role separation (e.g., a blinded analyst team and an unblinded data
+custodian), audit trails with timestamped artifacts, frozen data extracts,
+and versioned analysis scripts archived at each stage transition. This
+tutorial simplifies those operational components so the reader can focus on
+the statistical logic — the sequence of analysis lock → outcome-blind
+diagnostics → outcome-blind simulation validation → unblinded estimation.
+The core sequencing principle is the same in both settings: analytic
+decisions are locked before outcome data are accessed.
+:::
 
 ### The running example
 
@@ -220,6 +236,14 @@ amendment is documented.
 ```{r analysis-lock}
 create_analysis_lock <- function() {
   list(
+    # --- Protocol metadata ---
+    protocol_id   = "HCV-AKI-2024-001",
+    version       = "1.0",
+    locked_date   = Sys.Date(),
+    locked_by     = "Analysis team (blinded)",
+    blinded       = TRUE,  # TRUE until Stage 4 unblinding
+    status        = "pre-outcome",
+
     # --- Causal question ---
     study       = "HCV antiviral safety: SOF vs non-SOF",
     estimand    = "ATE",
@@ -235,6 +259,9 @@ create_analysis_lock <- function() {
     g_SL_library = c("SL.mean", "SL.glmnet", "SL.xgboost"),
 
     # --- Outcome model (Q) ---
+    Q_formula   = paste("Y ~ A*(age + I(age^2) + ckd + cirrhosis + diabetes +",
+                        "nsaid + renal_risk + I(renal_risk^2)) +",
+                        "A:ckd + I(age^2)"),
     Q_SL_library = c("SL.mean", "SL.glmnet", "SL.xgboost"),
 
     # --- PS truncation ---
@@ -261,22 +288,26 @@ create_analysis_lock <- function() {
       n_reps       = 200
     ),
 
-    # --- Metadata ---
-    version     = "1.0",
-    locked_date = Sys.Date(),
-    locked_by   = "Analysis team"
+    # --- Amendment rule ---
+    amendment_rule = paste("If Stage 3 returns STOP, the team may file a",
+                           "documented amendment to expand the learner library",
+                           "or increase the sample size. The amended plan must",
+                           "be re-validated through Stage 3 before proceeding",
+                           "to Stage 4.")
   )
 }
 
 analysis_lock <- create_analysis_lock()
 
-cat("Analysis lock (version", analysis_lock$version, ")\n")
+cat("Analysis lock (", analysis_lock$protocol_id, " v", analysis_lock$version, ")\n", sep = "")
 cat("Study:", analysis_lock$study, "\n")
 cat("Locked:", as.character(analysis_lock$locked_date), "\n")
+cat("Blinded:", analysis_lock$blinded, " | Status:", analysis_lock$status, "\n")
 cat("Estimand:", analysis_lock$estimand, "on", analysis_lock$effect_scale, "scale\n")
 cat("Covariates:", paste(analysis_lock$covariates, collapse = ", "), "\n")
 cat("PS truncation:", analysis_lock$ps_truncation["lower"], "-",
     analysis_lock$ps_truncation["upper"], "\n")
+cat("Amendment rule:", analysis_lock$amendment_rule, "\n")
 ```
 
 ::: {.callout-note}
@@ -311,6 +342,17 @@ Because $g(W) = P(A=1|W)$ does not involve outcomes, the entire treatment model
 can be estimated here. This is the key operational insight: **the $g$-side of
 TMLE is fully accessible during the outcome-blind stage.**
 
+::: {.callout-note collapse="true"}
+### Operational note: Stage 2 in practice
+In a real clean-room implementation, the analyst would receive a blinded
+analytic dataset or restricted data extract with outcomes masked or removed.
+All Stage 2 diagnostics would be scripted, versioned, and archived as part of
+the audit trail. Any changes to the $g$-strategy triggered by Stage 2
+findings (e.g., adding a covariate interaction to improve balance) would
+require documented justification and an updated analysis lock before
+proceeding to Stage 3.
+:::
+
 ### Generate the HCV tutorial dataset
 
 We simulate a dataset that mimics an HCV antiviral safety study. We generate
@@ -342,9 +384,12 @@ simulate_hcv_scenario <- function(n, seed,
   A <- rbinom(n, 1, g_true)
 
   # --- Outcome model (Q): AKI ---
-  lp_Q <- alpha_Y + 0.25*A + 0.15*age + 0.10*age^2 +
+  # Includes nonlinear age effect, renal_risk^2, and A:ckd interaction
+  # so the DGP has learnable structure that a richer Q can exploit
+  lp_Q <- alpha_Y + 0.25*A + 0.15*age + 0.10*age^2 + 0.05*age^3 +
            0.90*ckd + 0.55*cirrhosis + 0.45*diabetes + 0.30*nsaid +
-           beta_rr_Q*renal_risk + beta_int*A*renal_risk
+           beta_rr_Q*renal_risk + 0.08*renal_risk^2 +
+           0.35*A*ckd + beta_int*A*renal_risk
   Y <- rbinom(n, 1, expit(lp_Q))
 
   data.frame(age, ckd, cirrhosis, diabetes, nsaid, renal_risk, A, Y)
@@ -590,6 +635,18 @@ Each DGP is calibrated to match the observed $(W, A)$ distribution but generates
 **synthetic outcomes** — not the real $Y$. Because the truth is known in the
 simulation, the team can evaluate bias, variance, and CI coverage.
 
+::: {.callout-note collapse="true"}
+### Operational note: Stage 3 in practice
+In a production clean-room analysis, Stage 3 simulations would be pre-run
+from versioned scripts and their results archived as part of the audit trail.
+The candidate DGPs are specified before outcome access, based on clinical
+domain knowledge and the observed covariate/treatment distributions from
+Stage 2. The analyst does not select a DGP post hoc to justify proceeding —
+the scenarios are locked as part of the Stage 1 analysis plan or a documented
+Stage 2 amendment. The purpose is to stress-test the locked estimator pipeline
+under plausible candidate outcome surfaces before unblinding.
+:::
+
 We run **three scenarios** to demonstrate three distinct clean-room decision
 states, using four estimators: crude RD, PS-matched regression, IPTW, and TMLE.
 
@@ -612,13 +669,17 @@ states, using four estimators: crude RD, PS-matched regression, IPTW, and TMLE.
 
 | Scenario | Overlap / matching | Outcome role of `renal_risk` | Expected TMLE gate | Main lesson |
 |----------|--------------------|------------------------------|--------------------|-------------|
-| **1** | Acceptable | Moderate ($\beta_{rr}=0.35$) | GO | TMLE offers modest precision gain over matching |
-| **2** | Overlap stress, reduced matching feasibility | Strong ($\beta_{rr}=1.30$, interaction $0.60$) | STOP | Overlap stress + strong confounding defeats all estimators |
-| **3** | Overlap stress, reduced matching feasibility | Near-zero ($\beta_{rr}=0.03$) | GO | Reduced matching feasibility ≠ failed analysis pipeline |
+| **1** | Acceptable | Moderate ($\beta_{rr}=0.35$), with $A \times \text{ckd}$ interaction | GO | TMLE precision gain via outcome-model learning |
+| **2** | Overlap stress, reduced matching feasibility | Strong ($\beta_{rr}=1.30$, $A \times \text{renal\_risk}$ interaction $0.60$) | STOP | Overlap stress + strong confounding defeats all estimators |
+| **3** | Overlap stress, reduced matching feasibility | Near-zero ($\beta_{rr}=0.03$), with $A \times \text{ckd}$ interaction | GO | Reduced matching feasibility ≠ failed pipeline; TMLE remains competitive |
 
-Scenarios 2 and 3 share nearly the same treatment mechanism (`b_rr` = 2.4 in
-$g$), so their Stage 2 overlap and matching diagnostics are similarly poor.
-The key difference is whether `renal_risk` matters for the outcome.
+Scenarios 2 and 3 share the same treatment mechanism (`b_rr` = 2.4 in
+$g$), so their Stage 2 overlap and matching diagnostics are similarly stressed.
+The key difference is whether `renal_risk` matters for the outcome. All three
+scenarios include nonlinear age effects ($\text{age}^3$), quadratic
+`renal_risk`, and an $A \times \text{ckd}$ treatment-effect interaction in
+the DGP — structure that TMLE's richer $Q$ model can learn but that a
+simple paired-difference matching estimator cannot exploit.
 
 ### Define the simulation DGP
 
@@ -638,10 +699,10 @@ compute_truth_hcv <- function(n_mc = 500000, seed = 1,
   nsaid      <- rbinom(n_mc, 1, 0.25)
   renal_risk <- rnorm(n_mc, 0, 1)
 
-  lp_base <- alpha_Y + 0.15*age + 0.10*age^2 +
+  lp_base <- alpha_Y + 0.15*age + 0.10*age^2 + 0.05*age^3 +
              0.90*ckd + 0.55*cirrhosis + 0.45*diabetes + 0.30*nsaid +
-             beta_rr_Q*renal_risk
-  EY1 <- mean(expit(lp_base + 0.25 + beta_int*renal_risk))
+             beta_rr_Q*renal_risk + 0.08*renal_risk^2
+  EY1 <- mean(expit(lp_base + 0.25 + 0.35*ckd + beta_int*renal_risk))
   EY0 <- mean(expit(lp_base))
 
   c(EY1 = EY1, EY0 = EY0, RD = EY1 - EY0)
@@ -663,9 +724,11 @@ cat("  Scenario 3 (weak renal_risk):   ", round(truth_3["RD"], 5), "\n")
 ### Define the estimators
 
 This function runs one TMLE analysis using the pre-specified pipeline. The $Q$
-model is an enriched GLM that matches the DGP structure (main effects, `age^2`,
-and `A:renal_risk` interaction). For tutorial speed we use GLMs rather than
-SuperLearner.
+model is an enriched GLM with flexible terms: cubic age, quadratic
+`renal_risk`, and treatment interactions with `ckd` and `renal_risk`. This
+richer specification — pre-committed in the analysis lock — lets TMLE exploit
+learnable outcome-model structure that simpler design-only estimators cannot
+access. For tutorial speed we use GLMs rather than SuperLearner.
 
 ```{r tmle-function}
 run_tmle_once <- function(dat, ps_clip = c(0.025, 0.975)) {
@@ -676,9 +739,12 @@ run_tmle_once <- function(dat, ps_clip = c(0.025, 0.975)) {
                data = dat, family = "binomial")
   g_hat <- pmin(pmax(fitted(g_fit), ps_clip[1]), ps_clip[2])
 
-  # --- Fit Q (outcome model) — enriched GLM ---
-  Q_fit <- glm(Y ~ A + age + I(age^2) + ckd + cirrhosis + diabetes +
-                 nsaid + renal_risk + A:renal_risk,
+  # --- Fit Q (outcome model) — enriched GLM with flexible terms ---
+  # Richer than comparator models: includes nonlinear age, renal_risk^2,
+  # and treatment interactions with ckd and renal_risk
+  Q_fit <- glm(Y ~ A + age + I(age^2) + I(age^3) + ckd + cirrhosis + diabetes +
+                 nsaid + renal_risk + I(renal_risk^2) +
+                 A:ckd + A:renal_risk,
                data = dat, family = "binomial")
   Q_A <- predict(Q_fit, type = "response")
   Q_1 <- predict(Q_fit, newdata = transform(dat, A = 1), type = "response")
@@ -997,11 +1063,16 @@ psm_1  <- sim_1$metrics[sim_1$metrics$method == "PS-Matched", ]
 cat("**Decision summary:** Matching was acceptable (retained ",
     round(100 * diag_1$matched_frac), "% of treated), ",
     "but TMLE achieved ", sep = "")
+iptw_1 <- sim_1$metrics[sim_1$metrics$method == "IPTW", ]
 if (!is.na(psm_1$emp_sd) && tmle_1$emp_sd < psm_1$emp_sd) {
   cat("lower empirical SD (",
       round(tmle_1$emp_sd, 4), " vs. ", round(psm_1$emp_sd, 4),
+      " for matching, ", round(iptw_1$emp_sd, 4), " for IPTW",
       ") and lower RMSE (", round(tmle_1$rmse, 4), " vs. ", round(psm_1$rmse, 4),
-      "), so TMLE would be preferred for efficiency.\n", sep = "")
+      " for matching). ",
+      "This precision gain reflects TMLE's ability to exploit learnable structure ",
+      "in the outcome surface (nonlinear age effects, treatment-by-CKD interaction) ",
+      "that design-only estimators cannot access.\n", sep = "")
 } else {
   cat("comparable or better performance metrics, so TMLE would be preferred.\n")
 }
@@ -1054,6 +1125,8 @@ cat("\n**Gate decision:**", gate_3$decision, "\n\n")
 
 # Decision summary
 tmle_3 <- sim_3$metrics[sim_3$metrics$method == "TMLE", ]
+psm_3 <- sim_3$metrics[sim_3$metrics$method == "PS-Matched", ]
+iptw_3 <- sim_3$metrics[sim_3$metrics$method == "IPTW", ]
 cat("**Decision summary:** Matching feasibility was reduced (retained only ",
     round(100 * diag_3$matched_frac), "% of treated). ", sep = "")
 if (gate_3$decision == "GO" || gate_3$decision == "FLAG") {
@@ -1062,7 +1135,15 @@ if (gate_3$decision == "GO" || gate_3$decision == "FLAG") {
       ", coverage = ", round(tmle_3$coverage, 3),
       "), so the clean-room workflow would allow the analysis to proceed. ",
       "Because `renal_risk` barely affects the outcome, the outcome model compensates ",
-      "for the stressed treatment model.\n", sep = "")
+      "for the stressed treatment model. ", sep = "")
+  if (!is.na(psm_3$rmse) && tmle_3$rmse < psm_3$rmse) {
+    cat("TMLE achieved lower RMSE than PS-matching (",
+        round(tmle_3$rmse, 4), " vs. ", round(psm_3$rmse, 4),
+        "), illustrating the benefit of outcome-model learning under overlap stress.\n",
+        sep = "")
+  } else {
+    cat("\n")
+  }
 } else {
   cat("TMLE also failed the gate (|bias| = ", round(abs(tmle_3$bias), 4),
       ", coverage = ", round(tmle_3$coverage, 3),
@@ -1110,8 +1191,10 @@ cat("The three scenarios tell a coherent story about the relationship between ",
     "propensity-score diagnostics and TMLE validation:\n\n")
 
 cat("- **Scenario 1** (gate: ", gate_1$decision,
-    ") shows that when overlap is acceptable, both matching and TMLE work well, ",
-    "with TMLE offering a modest precision gain through its use of the outcome model.\n\n", sep = "")
+    ") shows that when overlap is acceptable, both matching and TMLE work well. ",
+    "TMLE offers a modest precision gain because its richer outcome model can capture ",
+    "nonlinear age effects and treatment-effect heterogeneity that design-only estimators ",
+    "cannot exploit.\n\n", sep = "")
 
 cat("- **Scenario 2** (gate: ", gate_2$decision,
     ") shows that when overlap is stressed *and* the overlap-driving covariate ",
@@ -1121,8 +1204,10 @@ cat("- **Scenario 2** (gate: ", gate_2$decision,
 cat("- **Scenario 3** (gate: ", gate_3$decision,
     ") shows that reduced matching feasibility alone does not automatically ",
     "invalidate the analysis pipeline. When the overlap-driving covariate barely affects the ",
-    "outcome, the analysis pipeline — including TMLE — performs adequately despite ",
-    "the overlap stress. Only Stage 3 can reveal this.\n\n", sep = "")
+    "outcome, TMLE's outcome model can compensate for the stressed treatment model. ",
+    "TMLE may also offer a precision advantage over matching here, because the richer Q ",
+    "captures outcome structure that a simple paired difference cannot. ",
+    "Only Stage 3 can reveal this.\n\n", sep = "")
 
 cat("Scenarios 2 and 3 have nearly identical Stage 2 overlap diagnostics ",
     "(both have `b_rr` = 2.4 in the treatment model). The difference is ",
@@ -1141,7 +1226,7 @@ if (all_go && s2_stop) {
   cat("::: {.callout-tip}\n",
       "### Lesson from this run\n\n",
       "This tutorial run produced the intended three-way contrast:\n\n",
-      "1. **Scenario 1 (GO):** Overlap was acceptable, and TMLE offered a modest precision gain over matching.\n",
+      "1. **Scenario 1 (GO):** Overlap was acceptable, and TMLE offered a modest precision gain by leveraging outcome-model learning.\n",
       "2. **Scenario 2 (STOP):** Overlap was stressed and all estimators failed — a genuine ",
       "problem that Stage 3 correctly identifies.\n",
       "3. **Scenario 3 (GO):** Overlap was stressed and matching feasibility was reduced, but the ",
@@ -1176,6 +1261,19 @@ well — not whether the full estimator produces valid estimates. Outcome-blind
 simulation is what turns a generic TMLE workflow into a credible clean-room
 analysis.
 :::
+
+### When might TMLE be preferred?
+
+TMLE is not uniformly superior to design-only estimators. When the outcome
+surface is simple and overlap is adequate, matching and IPTW may perform
+comparably. However, when the outcome model contains learnable structure —
+nonlinear covariate effects, treatment-effect heterogeneity, or interactions
+— TMLE can improve precision by combining information from both the treatment
+and outcome models. This makes TMLE especially attractive in clean-room
+workflows: the richer outcome-model specification is pre-committed at Stage 1,
+validated through simulation at Stage 3, and applied to real data only at
+Stage 4, so the precision gain is achieved without data-adaptive model
+selection on outcomes.
 
 
 # A Brief Intuition for the Efficient Influence Function {#eif-intuition}
@@ -1222,6 +1320,18 @@ The analyst now receives the full dataset including outcomes $Y$. This is the
 data. The treatment model strategy was locked in Stage 2; the simulation
 validation was completed in Stage 3; only now does the targeting step run on
 real data.
+
+::: {.callout-note collapse="true"}
+### Operational note: Stage 4 in practice
+In a real clean-room analysis, outcome unblinding would occur only after
+Stage 3 results have been reviewed and the GO/STOP decision documented.
+The Stage 4 analysis script would be pre-specified (or at least minimally
+modifiable) — typically the same code validated in Stage 3, applied to the
+real dataset. Any deviations from the locked analysis plan triggered by
+unexpected findings (e.g., convergence issues, data quality problems) would
+need to be documented as formal amendments and reported alongside the primary
+results.
+:::
 
 ### Prerequisites
 
@@ -1281,8 +1391,8 @@ kable(est_tab, caption = "Stage 4: Effect estimates on the real (simulated) data
 ### What just happened — step by step
 
 1. **$Q$ was estimated on the real data** for the first time: an enriched GLM
-   with treatment-by-covariate interactions and $\text{age}^2$ was fit to
-   $(W, A, Y)$.
+   with cubic age, quadratic renal risk, and treatment-by-covariate
+   interactions was fit to $(W, A, Y)$.
 
 2. **$g$ was re-estimated** using the same locked strategy from Stage 2. (In
    a production analysis, one might load the Stage 2 $\hat{g}$ object instead.)
@@ -1455,10 +1565,11 @@ cat("2. **Stage 3 validates the full TMLE pipeline on synthetic data.** By testi
     "   bias, variance, and empirical coverage under pre-specified DGPs, the team\n",
     "   makes an evidence-based GO/STOP decision before seeing real outcomes.\n\n")
 
-cat("3. **TMLE may offer a modest precision gain even when matching is feasible.**\n",
+cat("3. **TMLE may offer a modest precision gain when the outcome surface is learnable.**\n",
     "   Scenario 1 (gate: ", gate_1$decision,
     ") showed that both matching and TMLE worked well,\n",
-    "   with TMLE achieving slightly lower variance by leveraging the outcome model.\n\n", sep = "")
+    "   but TMLE achieved lower variance by exploiting nonlinear age effects and\n",
+    "   treatment-effect heterogeneity that design-only estimators cannot capture.\n\n", sep = "")
 
 cat("4. **Overlap stress plus strong confounding through the overlap driver can\n",
     "   defeat all estimators.** Scenario 2 (gate: ", gate_2$decision,
@@ -1469,10 +1580,10 @@ cat("4. **Overlap stress plus strong confounding through the overlap driver can\
 cat("5. **Reduced matching feasibility does not automatically invalidate the analysis pipeline.**\n",
     "   Scenario 3 (gate: ", gate_3$decision,
     ") showed that when the overlap-driving covariate\n",
-    "   barely affects the outcome, the full pipeline — including TMLE — performs\n",
-    "   adequately despite the overlap stress. This is precisely why Stage 3\n",
-    "   simulation is necessary: it tests whether the pipeline works at the study's\n",
-    "   sample size, rather than relying on overlap diagnostics alone.\n\n", sep = "")
+    "   barely affects the outcome, TMLE remains competitive or preferable because\n",
+    "   the outcome model can compensate for the stressed treatment model. Stage 3\n",
+    "   simulation is necessary to determine whether this compensation actually works\n",
+    "   at the study's sample size.\n\n", sep = "")
 
 cat("6. **Stage 4 is where the real outcome regression and targeting step occur.**\n",
     "   The $g$-strategy is carried forward from Stage 2, but $Q$ is fit on real\n",
