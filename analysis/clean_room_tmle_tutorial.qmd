@@ -19,6 +19,32 @@ execute:
   message: false
 ---
 
+## Abstract {.unnumbered}
+
+Targeted Maximum Likelihood Estimation (TMLE) is a doubly robust, semiparametric
+efficient estimator increasingly used in pharmacoepidemiology and comparative
+effectiveness research. However, TMLE's reliance on both a treatment model and
+an outcome model creates an operational challenge: in a credible analysis, key
+modeling decisions should be locked before outcome data are examined. This
+tutorial introduces a **four-stage clean-room workflow** that resolves this
+tension. In **Stage 1**, the analysis team pre-specifies and locks the estimand,
+covariate set, learner libraries, truncation rules, and performance thresholds.
+In **Stage 2**, the team accesses only treatment and covariate data to estimate
+the propensity score, evaluate overlap, assess matching feasibility, and lock the
+treatment-model strategy — without touching outcomes. In **Stage 3**, the team
+runs the full TMLE pipeline on synthetic data generated under pre-specified,
+outcome-blind data-generating processes with known truth, evaluating bias,
+variance, and empirical coverage to make a GO/STOP gate decision. Only in
+**Stage 4** are real outcomes accessed and the outcome regression fitted for the
+first time. Using a simulated hepatitis C antiviral safety example, we
+demonstrate the workflow with three simulation scenarios that illustrate distinct
+clean-room decision states: acceptable overlap with a modest TMLE efficiency
+gain over matching, overlap stress where both matching and TMLE fail, and overlap
+stress where the analysis pipeline remains adequate despite reduced matching
+feasibility. The tutorial shows that propensity-score diagnostics and full
+estimator validation are not interchangeable, and that outcome-blind simulation
+is necessary to determine whether a planned analysis should proceed.
+
 ```{r setup}
 library(knitr)
 library(ggplot2)
@@ -107,10 +133,10 @@ different stages:
 ```{r permissions-table}
 perms <- data.frame(
   Stage = c(
-    "Stage 1:\nPre-specification",
-    "Stage 2:\nOutcome-Blind\nDiagnostics",
-    "Stage 3:\nSimulation\nValidation",
-    "Stage 4:\nUnblinded\nEstimation"
+    "Stage 1: Pre-specification",
+    "Stage 2: Outcome-Blind Diagnostics",
+    "Stage 3: Simulation Validation",
+    "Stage 4: Unblinded Estimation"
   ),
   `Data accessible` = c(
     "None (metadata, variable definitions only)",
@@ -151,7 +177,15 @@ perms <- data.frame(
   ),
   check.names = FALSE
 )
-kable(perms, caption = "Clean-room permissions by stage")
+kable(perms, caption = "Clean-room permissions by stage",
+      col.names = c("Stage", "Data accessible", "Allowed TMLE-related tasks", "Not allowed"),
+      align = c("l", "l", "l", "l")) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                            full_width = TRUE, font_size = 13) |>
+  kableExtra::column_spec(1, bold = TRUE, width = "12em") |>
+  kableExtra::column_spec(2, width = "14em") |>
+  kableExtra::column_spec(3, width = "20em") |>
+  kableExtra::column_spec(4, width = "14em")
 ```
 
 
@@ -317,7 +351,7 @@ simulate_hcv_scenario <- function(n, seed,
 }
 
 # Generate the "real" study data (n = 2000)
-# Using Scenario 3 parameters: poor overlap (b_rr=2.4), weak renal_risk in Q
+# Using Scenario 3 parameters: overlap stress (b_rr=2.4), weak renal_risk in Q
 dat_full <- simulate_hcv_scenario(n = 2000, seed = 42,
                                    b_rr_g = 2.4, beta_rr_Q = 0.03,
                                    beta_int = 0.00)
@@ -565,7 +599,8 @@ states, using four estimators: crude RD, PS-matched regression, IPTW, and TMLE.
 |----------|---------|---------|
 | Is $\hat{g}$ well-estimated? | Yes | Yes |
 | Are PS values extreme? | Yes | Yes |
-| Is matching feasible? | Yes | Yes |
+| Can adequate matching be achieved on the observed data? | Yes | Partially |
+| Does the matched estimator perform adequately under plausible DGPs? | **No** | Yes |
 | Is $\hat{Q}$ adequate? | **No** | Yes (on synthetic data) |
 | Does the targeting step work? | **No** | Yes |
 | Is IC-based SE reliable? | **No** | Yes |
@@ -577,9 +612,9 @@ states, using four estimators: crude RD, PS-matched regression, IPTW, and TMLE.
 
 | Scenario | Overlap / matching | Outcome role of `renal_risk` | Expected TMLE gate | Main lesson |
 |----------|--------------------|------------------------------|--------------------|-------------|
-| **1** | Acceptable | Moderate ($\beta_{rr}=0.35$) | GO | TMLE more efficient than matching |
-| **2** | Poor | Strong ($\beta_{rr}=1.30$, interaction $0.60$) | STOP | Poor overlap + strong confounding defeats TMLE |
-| **3** | Poor | Near-zero ($\beta_{rr}=0.03$) | GO | Poor matching ≠ poor TMLE |
+| **1** | Acceptable | Moderate ($\beta_{rr}=0.35$) | GO | TMLE offers modest precision gain over matching |
+| **2** | Overlap stress, reduced matching feasibility | Strong ($\beta_{rr}=1.30$, interaction $0.60$) | STOP | Overlap stress + strong confounding defeats all estimators |
+| **3** | Overlap stress, reduced matching feasibility | Near-zero ($\beta_{rr}=0.03$) | GO | Reduced matching feasibility ≠ failed analysis pipeline |
 
 Scenarios 2 and 3 share nearly the same treatment mechanism (`b_rr` = 2.4 in
 $g$), so their Stage 2 overlap and matching diagnostics are similarly poor.
@@ -614,9 +649,9 @@ compute_truth_hcv <- function(n_mc = 500000, seed = 1,
 
 # Scenario 1: Moderate overlap, moderate renal_risk in Q
 truth_1 <- compute_truth_hcv(beta_rr_Q = 0.35, beta_int = 0.00)
-# Scenario 2: Poor overlap, strong renal_risk in Q + interaction
+# Scenario 2: Overlap stress, strong renal_risk in Q + interaction
 truth_2 <- compute_truth_hcv(beta_rr_Q = 1.30, beta_int = 0.60)
-# Scenario 3: Poor overlap, near-zero renal_risk in Q
+# Scenario 3: Overlap stress, near-zero renal_risk in Q
 truth_3 <- compute_truth_hcv(beta_rr_Q = 0.03, beta_int = 0.00)
 
 cat("True ATE by scenario:\n")
@@ -829,14 +864,14 @@ sim_1 <- run_stage3_simulation(
   true_rd = truth_1["RD"], seed_offset = 1000,
   ps_clip = analysis_lock$ps_truncation)
 
-# --- Scenario 2: Poor overlap, strong renal_risk in Q ---
+# --- Scenario 2: Overlap stress, strong renal_risk in Q ---
 sim_2 <- run_stage3_simulation(
   reps = n_reps, n = n_sim,
   b_rr_g = 2.4, beta_rr_Q = 1.30, beta_int = 0.60,
   true_rd = truth_2["RD"], seed_offset = 2000,
   ps_clip = analysis_lock$ps_truncation)
 
-# --- Scenario 3: Poor overlap, near-zero renal_risk in Q ---
+# --- Scenario 3: Overlap stress, near-zero renal_risk in Q ---
 sim_3 <- run_stage3_simulation(
   reps = n_reps, n = n_sim,
   b_rr_g = 2.4, beta_rr_Q = 0.03, beta_int = 0.00,
@@ -887,8 +922,8 @@ diag_3 <- compute_scenario_diagnostics(b_rr_g = 2.4,  beta_rr_Q = 0.03, beta_int
 
 diag_tab <- rbind(
   cbind(Scenario = "1: Moderate overlap", diag_1),
-  cbind(Scenario = "2: Poor overlap, strong Q", diag_2),
-  cbind(Scenario = "3: Poor overlap, weak Q", diag_3)
+  cbind(Scenario = "2: Overlap stress, strong Q", diag_2),
+  cbind(Scenario = "3: Overlap stress, weak Q", diag_3)
 )
 # Add qualitative label
 diag_tab$quality <- ifelse(diag_tab$frac_extreme < 0.15 & diag_tab$matched_frac > 0.70,
@@ -943,7 +978,7 @@ gate_check <- function(metrics, scenario_name, targets) {
 }
 ```
 
-### Scenario 1: Matching acceptable, TMLE more efficient
+### Scenario 1: Acceptable overlap, modest TMLE precision gain
 
 ```{r scenario1-results, results='asis'}
 cat("**True RD:**", round(truth_1["RD"], 5), "\n\n")
@@ -972,13 +1007,13 @@ if (!is.na(psm_1$emp_sd) && tmle_1$emp_sd < psm_1$emp_sd) {
 }
 ```
 
-### Scenario 2: Matching poor, TMLE fails → STOP
+### Scenario 2: Overlap stress, all estimators fail → STOP
 
 ```{r scenario2-results, results='asis'}
 cat("**True RD:**", round(truth_2["RD"], 5), "\n\n")
 kable(sim_2$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
       digits = 4, row.names = FALSE,
-      caption = "Scenario 2: Poor overlap (b_rr = 2.4), strong renal_risk in Q (beta = 1.30, interaction = 0.60)")
+      caption = "Scenario 2: Overlap stress (b_rr = 2.4), strong renal_risk in Q (beta = 1.30, interaction = 0.60)")
 
 gate_2 <- gate_check(sim_2$metrics, "Scenario 2", analysis_lock$sim_targets)
 cat("\n")
@@ -987,10 +1022,10 @@ cat("\n**Gate decision:**", gate_2$decision, "\n\n")
 
 # Decision summary
 tmle_2 <- sim_2$metrics[sim_2$metrics$method == "TMLE", ]
-cat("**Decision summary:** Matching was poor (retained only ",
+cat("**Decision summary:** Matching feasibility was reduced (retained only ",
     round(100 * diag_2$matched_frac), "% of treated). ", sep = "")
 if (gate_2$decision == "STOP") {
-  cat("TMLE failed the pre-specified Stage 3 gate ",
+  cat("TMLE also failed the pre-specified Stage 3 gate ",
       "(|bias| = ", round(abs(tmle_2$bias), 4),
       ", coverage = ", round(tmle_2$coverage, 3),
       "), so the clean-room workflow would stop the analysis. ",
@@ -1004,13 +1039,13 @@ if (gate_2$decision == "STOP") {
 }
 ```
 
-### Scenario 3: Matching poor, TMLE succeeds → GO
+### Scenario 3: Overlap stress, analysis pipeline adequate → GO
 
 ```{r scenario3-results, results='asis'}
 cat("**True RD:**", round(truth_3["RD"], 5), "\n\n")
 kable(sim_3$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
       digits = 4, row.names = FALSE,
-      caption = "Scenario 3: Poor overlap (b_rr = 2.4), weak renal_risk in Q (beta = 0.03)")
+      caption = "Scenario 3: Overlap stress (b_rr = 2.4), weak renal_risk in Q (beta = 0.03)")
 
 gate_3 <- gate_check(sim_3$metrics, "Scenario 3", analysis_lock$sim_targets)
 cat("\n")
@@ -1019,15 +1054,15 @@ cat("\n**Gate decision:**", gate_3$decision, "\n\n")
 
 # Decision summary
 tmle_3 <- sim_3$metrics[sim_3$metrics$method == "TMLE", ]
-cat("**Decision summary:** Matching was poor (retained only ",
+cat("**Decision summary:** Matching feasibility was reduced (retained only ",
     round(100 * diag_3$matched_frac), "% of treated). ", sep = "")
 if (gate_3$decision == "GO" || gate_3$decision == "FLAG") {
-  cat("However, TMLE met the Stage 3 gate ",
+  cat("However, the analysis pipeline performed adequately — TMLE met the Stage 3 gate ",
       "(|bias| = ", round(abs(tmle_3$bias), 4),
       ", coverage = ", round(tmle_3$coverage, 3),
       "), so the clean-room workflow would allow the analysis to proceed. ",
       "Because `renal_risk` barely affects the outcome, the outcome model compensates ",
-      "for the difficult treatment model — double robustness in practice.\n", sep = "")
+      "for the stressed treatment model.\n", sep = "")
 } else {
   cat("TMLE also failed the gate (|bias| = ", round(abs(tmle_3$bias), 4),
       ", coverage = ", round(tmle_3$coverage, 3),
@@ -1042,8 +1077,8 @@ if (gate_3$decision == "GO" || gate_3$decision == "FLAG") {
 ```{r sim-sampling-dist, fig.width=10, fig.height=9}
 plot_dat <- rbind(
   cbind(scenario = "1: Moderate overlap", sim_1$results),
-  cbind(scenario = "2: Poor overlap,\nstrong Q effect", sim_2$results),
-  cbind(scenario = "3: Poor overlap,\nweak Q effect", sim_3$results)
+  cbind(scenario = "2: Overlap stress,\nstrong Q effect", sim_2$results),
+  cbind(scenario = "3: Overlap stress,\nweak Q effect", sim_3$results)
 )
 plot_dat <- plot_dat[!is.na(plot_dat$est), ]
 plot_dat$method <- factor(plot_dat$method,
@@ -1051,8 +1086,8 @@ plot_dat$method <- factor(plot_dat$method,
 
 truth_lines <- data.frame(
   scenario = c("1: Moderate overlap",
-               "2: Poor overlap,\nstrong Q effect",
-               "3: Poor overlap,\nweak Q effect"),
+               "2: Overlap stress,\nstrong Q effect",
+               "3: Overlap stress,\nweak Q effect"),
   truth = c(truth_1["RD"], truth_2["RD"], truth_3["RD"])
 )
 
@@ -1075,20 +1110,19 @@ cat("The three scenarios tell a coherent story about the relationship between ",
     "propensity-score diagnostics and TMLE validation:\n\n")
 
 cat("- **Scenario 1** (gate: ", gate_1$decision,
-    ") shows that when overlap is acceptable, both matching and TMLE work — ",
-    "but TMLE may offer better efficiency through its use of the outcome model.\n\n", sep = "")
+    ") shows that when overlap is acceptable, both matching and TMLE work well, ",
+    "with TMLE offering a modest precision gain through its use of the outcome model.\n\n", sep = "")
 
 cat("- **Scenario 2** (gate: ", gate_2$decision,
-    ") shows that when overlap is poor *and* the overlap-driving covariate ",
+    ") shows that when overlap is stressed *and* the overlap-driving covariate ",
     "strongly predicts the outcome, the full estimator pipeline fails. ",
     "Neither matching nor TMLE can rescue the analysis.\n\n", sep = "")
 
 cat("- **Scenario 3** (gate: ", gate_3$decision,
-    ") shows that poor matching diagnostics alone do not automatically ",
-    "invalidate TMLE. When the overlap-driving covariate barely affects the ",
-    "outcome, the outcome model compensates for the difficult treatment model. ",
-    "This is double robustness working in practice — and only Stage 3 can ",
-    "reveal it.\n\n", sep = "")
+    ") shows that reduced matching feasibility alone does not automatically ",
+    "invalidate the analysis pipeline. When the overlap-driving covariate barely affects the ",
+    "outcome, the analysis pipeline — including TMLE — performs adequately despite ",
+    "the overlap stress. Only Stage 3 can reveal this.\n\n", sep = "")
 
 cat("Scenarios 2 and 3 have nearly identical Stage 2 overlap diagnostics ",
     "(both have `b_rr` = 2.4 in the treatment model). The difference is ",
@@ -1107,14 +1141,15 @@ if (all_go && s2_stop) {
   cat("::: {.callout-tip}\n",
       "### Lesson from this run\n\n",
       "This tutorial run produced the intended three-way contrast:\n\n",
-      "1. **Scenario 1 (GO):** Matching was acceptable, and TMLE was more efficient.\n",
-      "2. **Scenario 2 (STOP):** Matching was poor and TMLE also failed — a genuine ",
+      "1. **Scenario 1 (GO):** Overlap was acceptable, and TMLE offered a modest precision gain over matching.\n",
+      "2. **Scenario 2 (STOP):** Overlap was stressed and all estimators failed — a genuine ",
       "problem that Stage 3 correctly identifies.\n",
-      "3. **Scenario 3 (GO):** Matching was poor, but TMLE succeeded — poor matching ",
-      "diagnostics alone would have unnecessarily stopped a valid analysis.\n\n",
-      "The core lesson: **propensity-score diagnostics and TMLE validation are not the ",
-      "same thing.** Stage 2 evaluates treatment-assignment stress and matching ",
-      "feasibility. Stage 3 validates the full TMLE pipeline. Clean-room outcome-blind ",
+      "3. **Scenario 3 (GO):** Overlap was stressed and matching feasibility was reduced, but the ",
+      "analysis pipeline — including TMLE — performed adequately. Reduced matching feasibility ",
+      "alone would have unnecessarily stopped a valid analysis.\n\n",
+      "The core lesson: **propensity-score diagnostics and full estimator validation are not the ",
+      "same thing.** Stage 2 evaluates overlap and matching feasibility on the observed data. ",
+      "Stage 3 validates the full analysis pipeline under plausible DGPs. Clean-room outcome-blind ",
       "simulation is what resolves whether the analysis should GO or STOP.\n",
       ":::\n", sep = "")
 } else {
@@ -1273,20 +1308,23 @@ if (s2_diag$any_flag) {
   cat("Stage 2 diagnostics did not flag major overlap concerns. ")
 }
 
-# The real dataset uses Scenario 3 parameters (poor overlap, weak renal_risk in Q)
+# The real dataset uses Scenario 3 parameters (overlap stress, weak renal_risk in Q)
 cat("The real study dataset was generated with the same DGP as Scenario 3 ",
-    "(poor overlap, weak `renal_risk` effect on outcome). ")
+    "(overlap stress, weak `renal_risk` effect on outcome). ",
+    "In practice, the analyst would not know which candidate Stage 3 scenario ",
+    "is closest to reality; interpretation should weigh results across all ",
+    "plausible DGPs.\n\n")
 
 if (gate_3$decision %in% c("GO", "FLAG")) {
   cat("Stage 3 simulation returned **", gate_3$decision,
       "** under Scenario 3, providing pre-registered evidence that the ",
-      "TMLE pipeline produces adequate finite-sample performance under these ",
-      "conditions — even though matching diagnostics were poor. ",
+      "analysis pipeline produces adequate finite-sample performance under these ",
+      "conditions — even though matching feasibility was reduced. ",
       "The Stage 4 estimate therefore carries credibility beyond a post-hoc ",
       "TMLE analysis, because the analytic decisions were locked before ",
       "outcomes were accessed.\n\n", sep = "")
 } else {
-  cat("Stage 3 simulation returned **STOP** under Scenario 3, meaning the TMLE ",
+  cat("Stage 3 simulation returned **STOP** under Scenario 3, meaning the analysis ",
       "pipeline did not meet pre-specified performance targets. In a real study, ",
       "this Stage 4 estimate would be reported with caveats, and the STOP finding ",
       "documented alongside the results. The team might consider a protocol ",
@@ -1298,6 +1336,9 @@ cat("No analytic decisions — estimand, SL library, truncation bounds, covariat
     "set — were changed based on the observed outcomes.\n")
 ```
 
+
+<details>
+<summary><strong>Full Simulation Results (production-scale)</strong></summary>
 
 # Full Simulation Results {#full-sim}
 
@@ -1364,6 +1405,8 @@ if (!is.null(weak) && !is.null(strong)) {
 }
 ```
 
+</details>
+
 
 # Common Mistakes When Operationalizing TMLE in a Clean Room {#common-mistakes}
 
@@ -1402,34 +1445,34 @@ if (!is.null(weak) && !is.null(strong)) {
 # Key Takeaways {#takeaways}
 
 ```{r takeaways-text, results='asis'}
-cat("1. **Propensity-score diagnostics and TMLE validation are not the same thing.**\n",
-    "   Stage 2 evaluates treatment-assignment stress and matching feasibility.\n",
-    "   Stage 3 validates the full TMLE pipeline ($g$, $Q$, targeting, inference).\n",
-    "   Acceptable overlap does not guarantee valid TMLE inference; poor overlap\n",
-    "   does not necessarily invalidate it.\n\n")
+cat("1. **Propensity-score diagnostics and full estimator validation are not the same thing.**\n",
+    "   Stage 2 evaluates overlap and matching feasibility on the observed data.\n",
+    "   Stage 3 validates the full analysis pipeline ($g$, $Q$, targeting, inference)\n",
+    "   under plausible DGPs. Acceptable overlap does not guarantee valid inference;\n",
+    "   overlap stress does not necessarily invalidate the pipeline.\n\n")
 
 cat("2. **Stage 3 validates the full TMLE pipeline on synthetic data.** By testing\n",
     "   bias, variance, and empirical coverage under pre-specified DGPs, the team\n",
     "   makes an evidence-based GO/STOP decision before seeing real outcomes.\n\n")
 
-cat("3. **TMLE may improve efficiency even when matching is feasible.**\n",
+cat("3. **TMLE may offer a modest precision gain even when matching is feasible.**\n",
     "   Scenario 1 (gate: ", gate_1$decision,
-    ") showed that both matching and TMLE worked,\n",
-    "   but TMLE achieved lower variance by leveraging the outcome model.\n\n", sep = "")
+    ") showed that both matching and TMLE worked well,\n",
+    "   with TMLE achieving slightly lower variance by leveraging the outcome model.\n\n", sep = "")
 
-cat("4. **Poor overlap plus strong confounding through the overlap driver can\n",
-    "   defeat TMLE.** Scenario 2 (gate: ", gate_2$decision,
+cat("4. **Overlap stress plus strong confounding through the overlap driver can\n",
+    "   defeat all estimators.** Scenario 2 (gate: ", gate_2$decision,
     ") showed that when `renal_risk`\n",
-    "   strongly predicts both treatment and outcome, the full estimator pipeline\n",
-    "   fails and the analysis should stop.\n\n", sep = "")
+    "   strongly predicts both treatment and outcome, neither matching nor TMLE\n",
+    "   nor IPTW can rescue the analysis.\n\n", sep = "")
 
-cat("5. **Poor matching diagnostics alone do not automatically invalidate TMLE.**\n",
+cat("5. **Reduced matching feasibility does not automatically invalidate the analysis pipeline.**\n",
     "   Scenario 3 (gate: ", gate_3$decision,
     ") showed that when the overlap-driving covariate\n",
-    "   barely affects the outcome, TMLE can compensate through double robustness.\n",
-    "   This is precisely why Stage 3 simulation is necessary: it tests whether\n",
-    "   double robustness actually helps at the study's sample size, rather than\n",
-    "   relying on asymptotic theory alone.\n\n", sep = "")
+    "   barely affects the outcome, the full pipeline — including TMLE — performs\n",
+    "   adequately despite the overlap stress. This is precisely why Stage 3\n",
+    "   simulation is necessary: it tests whether the pipeline works at the study's\n",
+    "   sample size, rather than relying on overlap diagnostics alone.\n\n", sep = "")
 
 cat("6. **Stage 4 is where the real outcome regression and targeting step occur.**\n",
     "   The $g$-strategy is carried forward from Stage 2, but $Q$ is fit on real\n",
