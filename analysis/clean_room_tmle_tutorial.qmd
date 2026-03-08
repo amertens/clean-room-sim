@@ -38,18 +38,21 @@ variance, and empirical coverage to make a GO/STOP gate decision. Only in
 **Stage 4** are real outcomes accessed and the outcome regression fitted for the
 first time. Using a simulated hepatitis C antiviral safety example, we
 demonstrate the workflow with three simulation scenarios that illustrate distinct
-clean-room decision states: acceptable overlap where TMLE achieves a modest
-precision gain by leveraging outcome-model learning, overlap stress where all
-estimators — including TMLE — fail, and overlap stress where the analysis
-pipeline remains adequate despite reduced matching feasibility. The tutorial
-shows that propensity-score diagnostics and full estimator validation are not
-interchangeable, that TMLE can improve precision when the outcome surface
-contains learnable structure, and that outcome-blind simulation is necessary to
-determine whether a planned analysis should proceed.
+clean-room decision states: acceptable overlap where TMLE achieves a precision
+gain by using penalized regression (`glmnet`) to learn outcome-model structure
+that design-only estimators cannot exploit, overlap stress where all estimators
+— including TMLE — fail, and overlap stress where TMLE remains competitive
+despite reduced matching feasibility because the outcome model compensates for
+the stressed treatment model. The tutorial shows that propensity-score
+diagnostics and full estimator validation are not interchangeable, that TMLE
+can improve precision when the outcome surface contains learnable structure,
+and that outcome-blind simulation is necessary to determine whether a planned
+analysis should proceed.
 
 ```{r setup}
 library(knitr)
 library(ggplot2)
+library(glmnet)
 set.seed(2024)
 
 # Utility functions
@@ -256,13 +259,15 @@ create_analysis_lock <- function() {
 
     # --- Treatment model (g) ---
     g_formula   = "A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk",
-    g_SL_library = c("SL.mean", "SL.glmnet", "SL.xgboost"),
+    g_SL_library = c("SL.mean", "SL.glm", "SL.glmnet"),
 
     # --- Outcome model (Q) ---
-    Q_formula   = paste("Y ~ A*(age + I(age^2) + ckd + cirrhosis + diabetes +",
-                        "nsaid + renal_risk + I(renal_risk^2)) +",
-                        "A:ckd + I(age^2)"),
-    Q_SL_library = c("SL.mean", "SL.glmnet", "SL.xgboost"),
+    Q_method    = "cv.glmnet (elastic net, alpha = 0.5)",
+    Q_features  = paste("Main effects + age^2, age^3, renal_risk^2 +",
+                        "treatment interactions (A:ckd, A:age, A:age^2,",
+                        "A:renal_risk, A:cirrhosis, A:diabetes) +",
+                        "covariate interactions (age:ckd, age:rr, ckd:rr)"),
+    Q_SL_library = c("SL.mean", "SL.glm", "SL.glmnet", "SL.gam"),
 
     # --- PS truncation ---
     ps_truncation = c(lower = 0.025, upper = 0.975),
@@ -363,6 +368,8 @@ simulate_hcv_scenario <- function(n, seed,
                                    b_rr_g    = 0.7,    # g coeff for renal_risk
                                    beta_rr_Q = 0.35,   # Q coeff for renal_risk
                                    beta_int  = 0.00,   # A:renal_risk interaction
+                                   beta_ckdA = 0.40,   # A:ckd interaction
+                                   beta_ageA = 0.00,   # A:age interaction
                                    alpha_A   = -0.15,  # treatment intercept
                                    alpha_Y   = -2.80) {
   set.seed(seed)
@@ -384,22 +391,24 @@ simulate_hcv_scenario <- function(n, seed,
   A <- rbinom(n, 1, g_true)
 
   # --- Outcome model (Q): AKI ---
-  # Includes nonlinear age effect, renal_risk^2, and A:ckd interaction
-  # so the DGP has learnable structure that a richer Q can exploit
-  lp_Q <- alpha_Y + 0.25*A + 0.15*age + 0.10*age^2 + 0.05*age^3 +
-           0.90*ckd + 0.55*cirrhosis + 0.45*diabetes + 0.30*nsaid +
+  # Includes nonlinear age (quadratic + cubic), renal_risk^2, and
+  # treatment-effect heterogeneity (A:ckd, A:age, A:renal_risk)
+  # so the DGP has learnable structure that a richer Q can exploit.
+  lp_Q <- alpha_Y + 0.25*A + 0.20*age + 0.15*age^2 + 0.05*age^3 +
+           0.90*ckd + 0.55*cirrhosis + 0.40*diabetes + 0.25*nsaid +
            beta_rr_Q*renal_risk + 0.08*renal_risk^2 +
-           0.35*A*ckd + beta_int*A*renal_risk
+           beta_ckdA*A*ckd + beta_ageA*A*age + beta_int*A*renal_risk
   Y <- rbinom(n, 1, expit(lp_Q))
 
   data.frame(age, ckd, cirrhosis, diabetes, nsaid, renal_risk, A, Y)
 }
 
-# Generate the "real" study data (n = 2000)
+# Generate the "real" study data (n = 3000)
 # Using Scenario 3 parameters: overlap stress (b_rr=2.4), weak renal_risk in Q
-dat_full <- simulate_hcv_scenario(n = 2000, seed = 42,
+dat_full <- simulate_hcv_scenario(n = 3000, seed = 42,
                                    b_rr_g = 2.4, beta_rr_Q = 0.03,
-                                   beta_int = 0.00)
+                                   beta_int = 0.00, beta_ckdA = 0.25,
+                                   beta_ageA = 0.10)
 
 # Stage 2 analyst sees only W and A — Y is sealed
 dat_stage2 <- dat_full[, c("age", "ckd", "cirrhosis", "diabetes",
@@ -667,19 +676,20 @@ states, using four estimators: crude RD, PS-matched regression, IPTW, and TMLE.
 
 ### Three scenarios for the HCV example
 
-| Scenario | Overlap / matching | Outcome role of `renal_risk` | Expected TMLE gate | Main lesson |
-|----------|--------------------|------------------------------|--------------------|-------------|
-| **1** | Acceptable | Moderate ($\beta_{rr}=0.35$), with $A \times \text{ckd}$ interaction | GO | TMLE precision gain via outcome-model learning |
-| **2** | Overlap stress, reduced matching feasibility | Strong ($\beta_{rr}=1.30$, $A \times \text{renal\_risk}$ interaction $0.60$) | STOP | Overlap stress + strong confounding defeats all estimators |
-| **3** | Overlap stress, reduced matching feasibility | Near-zero ($\beta_{rr}=0.03$), with $A \times \text{ckd}$ interaction | GO | Reduced matching feasibility ≠ failed pipeline; TMLE remains competitive |
+| Scenario | Overlap / matching | Outcome structure | Expected TMLE gate | Main lesson |
+|----------|--------------------|-------------------|--------------------|-------------|
+| **1** | Acceptable | Moderate `renal_risk` ($\beta_{rr}=0.35$), $A \times \text{ckd}$, $A \times \text{age}$ | GO | TMLE precision gain via richer Q |
+| **2** | Overlap stress | Strong `renal_risk` ($\beta_{rr}=1.30$, $A \times \text{renal\_risk}$ $=0.60$) | STOP | Overlap stress + strong confounding defeats all |
+| **3** | Overlap stress | Near-zero `renal_risk` ($\beta_{rr}=0.03$), $A \times \text{ckd}$, $A \times \text{age}$ | GO | TMLE competitive under overlap stress via Q-learning |
 
 Scenarios 2 and 3 share the same treatment mechanism (`b_rr` = 2.4 in
 $g$), so their Stage 2 overlap and matching diagnostics are similarly stressed.
 The key difference is whether `renal_risk` matters for the outcome. All three
-scenarios include nonlinear age effects ($\text{age}^3$), quadratic
-`renal_risk`, and an $A \times \text{ckd}$ treatment-effect interaction in
-the DGP — structure that TMLE's richer $Q$ model can learn but that a
-simple paired-difference matching estimator cannot exploit.
+scenarios include nonlinear age effects (quadratic + cubic), quadratic
+`renal_risk`, and treatment-effect heterogeneity ($A \times \text{ckd}$,
+$A \times \text{age}$). TMLE's `glmnet`-based $Q$ model with a rich
+feature matrix can learn this structure, while the PS-matched estimator uses
+only a simple paired difference that cannot exploit outcome modeling.
 
 ### Define the simulation DGP
 
@@ -690,6 +700,7 @@ plausible outcome models given clinical domain knowledge.
 # Compute true ATE by Monte Carlo marginalization over the covariate distribution
 compute_truth_hcv <- function(n_mc = 500000, seed = 1,
                                beta_rr_Q = 0.35, beta_int = 0.00,
+                               beta_ckdA = 0.40, beta_ageA = 0.00,
                                alpha_Y = -2.80) {
   set.seed(seed)
   age        <- rnorm(n_mc, 0, 1)
@@ -699,21 +710,25 @@ compute_truth_hcv <- function(n_mc = 500000, seed = 1,
   nsaid      <- rbinom(n_mc, 1, 0.25)
   renal_risk <- rnorm(n_mc, 0, 1)
 
-  lp_base <- alpha_Y + 0.15*age + 0.10*age^2 + 0.05*age^3 +
-             0.90*ckd + 0.55*cirrhosis + 0.45*diabetes + 0.30*nsaid +
+  lp_base <- alpha_Y + 0.20*age + 0.15*age^2 + 0.05*age^3 +
+             0.90*ckd + 0.55*cirrhosis + 0.40*diabetes + 0.25*nsaid +
              beta_rr_Q*renal_risk + 0.08*renal_risk^2
-  EY1 <- mean(expit(lp_base + 0.25 + 0.35*ckd + beta_int*renal_risk))
+  EY1 <- mean(expit(lp_base + 0.25 + beta_ckdA*ckd +
+                     beta_ageA*age + beta_int*renal_risk))
   EY0 <- mean(expit(lp_base))
 
   c(EY1 = EY1, EY0 = EY0, RD = EY1 - EY0)
 }
 
-# Scenario 1: Moderate overlap, moderate renal_risk in Q
-truth_1 <- compute_truth_hcv(beta_rr_Q = 0.35, beta_int = 0.00)
-# Scenario 2: Overlap stress, strong renal_risk in Q + interaction
-truth_2 <- compute_truth_hcv(beta_rr_Q = 1.30, beta_int = 0.60)
-# Scenario 3: Overlap stress, near-zero renal_risk in Q
-truth_3 <- compute_truth_hcv(beta_rr_Q = 0.03, beta_int = 0.00)
+# Scenario 1: Moderate overlap, moderate renal_risk, strong A:ckd heterogeneity
+truth_1 <- compute_truth_hcv(beta_rr_Q = 0.35, beta_int = 0.00,
+                              beta_ckdA = 0.40, beta_ageA = 0.15)
+# Scenario 2: Overlap stress, strong renal_risk in Q + A:renal_risk interaction
+truth_2 <- compute_truth_hcv(beta_rr_Q = 1.30, beta_int = 0.60,
+                              beta_ckdA = 0.40, beta_ageA = 0.00)
+# Scenario 3: Overlap stress, near-zero renal_risk, moderate heterogeneity
+truth_3 <- compute_truth_hcv(beta_rr_Q = 0.03, beta_int = 0.00,
+                              beta_ckdA = 0.25, beta_ageA = 0.10)
 
 cat("True ATE by scenario:\n")
 cat("  Scenario 1 (moderate renal_risk):", round(truth_1["RD"], 5), "\n")
@@ -724,31 +739,64 @@ cat("  Scenario 3 (weak renal_risk):   ", round(truth_3["RD"], 5), "\n")
 ### Define the estimators
 
 This function runs one TMLE analysis using the pre-specified pipeline. The $Q$
-model is an enriched GLM with flexible terms: cubic age, quadratic
-`renal_risk`, and treatment interactions with `ckd` and `renal_risk`. This
-richer specification — pre-committed in the analysis lock — lets TMLE exploit
-learnable outcome-model structure that simpler design-only estimators cannot
-access. For tutorial speed we use GLMs rather than SuperLearner.
+model uses `glmnet` (penalized logistic regression) with a rich design matrix
+including polynomial terms, pairwise interactions, and treatment-by-covariate
+interactions. This is a modest but meaningful upgrade over a plain GLM: `glmnet`
+automatically selects among the candidate features via cross-validated
+regularization, approximating what a small SuperLearner library would do but
+at tutorial speed. The $g$ model remains a simple logistic GLM.
 
 ```{r tmle-function}
+# Build the rich design matrix for Q estimation
+build_Q_design <- function(dat) {
+  A <- dat$A; age <- dat$age; ckd <- dat$ckd; cirrhosis <- dat$cirrhosis
+  diabetes <- dat$diabetes; nsaid <- dat$nsaid; rr <- dat$renal_risk
+
+  cbind(
+    A         = A,
+    age       = age,
+    age2      = age^2,
+    age3      = age^3,
+    ckd       = ckd,
+    cirrhosis = cirrhosis,
+    diabetes  = diabetes,
+    nsaid     = nsaid,
+    rr        = rr,
+    rr2       = rr^2,
+    # Treatment-effect heterogeneity terms
+    A_ckd     = A * ckd,
+    A_age     = A * age,
+    A_age2    = A * age^2,
+    A_rr      = A * rr,
+    A_cirr    = A * cirrhosis,
+    A_dm      = A * diabetes,
+    # Pairwise covariate interactions
+    age_ckd   = age * ckd,
+    age_rr    = age * rr,
+    ckd_rr    = ckd * rr
+  )
+}
+
 run_tmle_once <- function(dat, ps_clip = c(0.025, 0.975)) {
   n <- nrow(dat)
 
-  # --- Fit g (treatment model) ---
+  # --- Fit g (treatment model) — simple logistic GLM ---
   g_fit <- glm(A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk,
                data = dat, family = "binomial")
   g_hat <- pmin(pmax(fitted(g_fit), ps_clip[1]), ps_clip[2])
 
-  # --- Fit Q (outcome model) — enriched GLM with flexible terms ---
-  # Richer than comparator models: includes nonlinear age, renal_risk^2,
-  # and treatment interactions with ckd and renal_risk
-  Q_fit <- glm(Y ~ A + age + I(age^2) + I(age^3) + ckd + cirrhosis + diabetes +
-                 nsaid + renal_risk + I(renal_risk^2) +
-                 A:ckd + A:renal_risk,
-               data = dat, family = "binomial")
-  Q_A <- predict(Q_fit, type = "response")
-  Q_1 <- predict(Q_fit, newdata = transform(dat, A = 1), type = "response")
-  Q_0 <- predict(Q_fit, newdata = transform(dat, A = 0), type = "response")
+  # --- Fit Q (outcome model) — glmnet with rich design matrix ---
+  X_Q <- build_Q_design(dat)
+  Q_fit <- cv.glmnet(X_Q, dat$Y, family = "binomial", alpha = 0.5,
+                      nfolds = 5, type.measure = "deviance")
+  Q_A <- as.numeric(predict(Q_fit, X_Q, s = "lambda.min", type = "response"))
+
+  dat1 <- dat; dat1$A <- 1
+  dat0 <- dat; dat0$A <- 0
+  Q_1 <- as.numeric(predict(Q_fit, build_Q_design(dat1),
+                             s = "lambda.min", type = "response"))
+  Q_0 <- as.numeric(predict(Q_fit, build_Q_design(dat0),
+                             s = "lambda.min", type = "response"))
 
   # Bound Q away from 0/1
   Q_A <- pmin(pmax(Q_A, 1e-5), 1 - 1e-5)
@@ -780,6 +828,9 @@ run_tmle_once <- function(dat, ps_clip = c(0.025, 0.975)) {
 ```
 
 We also define three comparators: crude RD, IPTW, and PS-matched regression.
+These comparators use simpler estimation strategies that do not leverage
+outcome modeling — reflecting realistic practice where matching and IPTW
+rely primarily on design-stage adjustment.
 
 ```{r comparator-functions}
 run_crude <- function(dat) {
@@ -867,6 +918,7 @@ run_ps_matched <- function(dat, ps_clip = c(0.025, 0.975)) {
 
 ```{r run-sim, cache=TRUE}
 run_stage3_simulation <- function(reps, n, b_rr_g, beta_rr_Q, beta_int,
+                                   beta_ckdA = 0.40, beta_ageA = 0.00,
                                    alpha_A = -0.15, alpha_Y = -2.80,
                                    true_rd, seed_offset = 0,
                                    ps_clip = c(0.025, 0.975)) {
@@ -877,7 +929,8 @@ run_stage3_simulation <- function(reps, n, b_rr_g, beta_rr_Q, beta_int,
   for (r in seq_len(reps)) {
     d <- simulate_hcv_scenario(n, seed = seed_offset + r,
                                 b_rr_g = b_rr_g, beta_rr_Q = beta_rr_Q,
-                                beta_int = beta_int, alpha_A = alpha_A,
+                                beta_int = beta_int, beta_ckdA = beta_ckdA,
+                                beta_ageA = beta_ageA, alpha_A = alpha_A,
                                 alpha_Y = alpha_Y)
 
     for (meth in methods) {
@@ -920,13 +973,14 @@ run_stage3_simulation <- function(reps, n, b_rr_g, beta_rr_Q, beta_int,
   list(results = results, metrics = metrics)
 }
 
-n_sim <- 2000   # sample size per replicate
+n_sim <- 3000   # sample size per replicate (larger for glmnet stability)
 n_reps <- 200   # number of replicates
 
-# --- Scenario 1: Moderate overlap, moderate renal_risk in Q ---
+# --- Scenario 1: Moderate overlap, moderate renal_risk, A:ckd + A:age heterogeneity ---
 sim_1 <- run_stage3_simulation(
   reps = n_reps, n = n_sim,
   b_rr_g = 0.7, beta_rr_Q = 0.35, beta_int = 0.00,
+  beta_ckdA = 0.40, beta_ageA = 0.15,
   true_rd = truth_1["RD"], seed_offset = 1000,
   ps_clip = analysis_lock$ps_truncation)
 
@@ -934,13 +988,15 @@ sim_1 <- run_stage3_simulation(
 sim_2 <- run_stage3_simulation(
   reps = n_reps, n = n_sim,
   b_rr_g = 2.4, beta_rr_Q = 1.30, beta_int = 0.60,
+  beta_ckdA = 0.40, beta_ageA = 0.00,
   true_rd = truth_2["RD"], seed_offset = 2000,
   ps_clip = analysis_lock$ps_truncation)
 
-# --- Scenario 3: Overlap stress, near-zero renal_risk in Q ---
+# --- Scenario 3: Overlap stress, near-zero renal_risk, moderate heterogeneity ---
 sim_3 <- run_stage3_simulation(
   reps = n_reps, n = n_sim,
   b_rr_g = 2.4, beta_rr_Q = 0.03, beta_int = 0.00,
+  beta_ckdA = 0.25, beta_ageA = 0.10,
   true_rd = truth_3["RD"], seed_offset = 3000,
   ps_clip = analysis_lock$ps_truncation)
 ```
@@ -953,10 +1009,11 @@ for each scenario using a single representative dataset.
 ```{r scenario-diagnostics}
 compute_scenario_diagnostics <- function(n = 5000, seed = 99,
                                           b_rr_g, beta_rr_Q, beta_int,
+                                          beta_ckdA = 0.40, beta_ageA = 0.00,
                                           alpha_A = -0.15, alpha_Y = -2.80,
                                           ps_clip = c(0.025, 0.975)) {
   d <- simulate_hcv_scenario(n, seed, b_rr_g, beta_rr_Q, beta_int,
-                              alpha_A, alpha_Y)
+                              beta_ckdA, beta_ageA, alpha_A, alpha_Y)
 
   g_fit <- glm(A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk,
                data = d, family = "binomial")
@@ -982,9 +1039,12 @@ compute_scenario_diagnostics <- function(n = 5000, seed = 99,
   )
 }
 
-diag_1 <- compute_scenario_diagnostics(b_rr_g = 0.7,  beta_rr_Q = 0.35, beta_int = 0.00)
-diag_2 <- compute_scenario_diagnostics(b_rr_g = 2.4,  beta_rr_Q = 1.30, beta_int = 0.60)
-diag_3 <- compute_scenario_diagnostics(b_rr_g = 2.4,  beta_rr_Q = 0.03, beta_int = 0.00)
+diag_1 <- compute_scenario_diagnostics(b_rr_g = 0.7,  beta_rr_Q = 0.35, beta_int = 0.00,
+                                        beta_ckdA = 0.40, beta_ageA = 0.15)
+diag_2 <- compute_scenario_diagnostics(b_rr_g = 2.4,  beta_rr_Q = 1.30, beta_int = 0.60,
+                                        beta_ckdA = 0.40, beta_ageA = 0.00)
+diag_3 <- compute_scenario_diagnostics(b_rr_g = 2.4,  beta_rr_Q = 0.03, beta_int = 0.00,
+                                        beta_ckdA = 0.25, beta_ageA = 0.10)
 
 diag_tab <- rbind(
   cbind(Scenario = "1: Moderate overlap", diag_1),
@@ -995,7 +1055,7 @@ diag_tab <- rbind(
 diag_tab$quality <- ifelse(diag_tab$frac_extreme < 0.15 & diag_tab$matched_frac > 0.70,
                             "Acceptable", "Poor")
 kable(diag_tab, row.names = FALSE,
-      caption = "Stage 2-style diagnostics by scenario (computed on n = 5000 representative datasets)")
+      caption = "Stage 2-style diagnostics by scenario (n = 5000 representative datasets)")
 ```
 
 ### What the gate tests
@@ -1050,7 +1110,7 @@ gate_check <- function(metrics, scenario_name, targets) {
 cat("**True RD:**", round(truth_1["RD"], 5), "\n\n")
 kable(sim_1$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
       digits = 4, row.names = FALSE,
-      caption = "Scenario 1: Moderate overlap (b_rr = 0.7 in g, beta_rr = 0.35 in Q)")
+      caption = "Scenario 1: Moderate overlap (b_rr = 0.7), A:ckd + A:age heterogeneity")
 
 gate_1 <- gate_check(sim_1$metrics, "Scenario 1", analysis_lock$sim_targets)
 cat("\n")
@@ -1070,8 +1130,8 @@ if (!is.na(psm_1$emp_sd) && tmle_1$emp_sd < psm_1$emp_sd) {
       " for matching, ", round(iptw_1$emp_sd, 4), " for IPTW",
       ") and lower RMSE (", round(tmle_1$rmse, 4), " vs. ", round(psm_1$rmse, 4),
       " for matching). ",
-      "This precision gain reflects TMLE's ability to exploit learnable structure ",
-      "in the outcome surface (nonlinear age effects, treatment-by-CKD interaction) ",
+      "This precision gain reflects TMLE's glmnet-based Q model exploiting learnable ",
+      "structure (nonlinear age effects, treatment-by-CKD and treatment-by-age interactions) ",
       "that design-only estimators cannot access.\n", sep = "")
 } else {
   cat("comparable or better performance metrics, so TMLE would be preferred.\n")
@@ -1084,7 +1144,7 @@ if (!is.na(psm_1$emp_sd) && tmle_1$emp_sd < psm_1$emp_sd) {
 cat("**True RD:**", round(truth_2["RD"], 5), "\n\n")
 kable(sim_2$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
       digits = 4, row.names = FALSE,
-      caption = "Scenario 2: Overlap stress (b_rr = 2.4), strong renal_risk in Q (beta = 1.30, interaction = 0.60)")
+      caption = "Scenario 2: Overlap stress (b_rr = 2.4), strong renal_risk + A:renal_risk interaction")
 
 gate_2 <- gate_check(sim_2$metrics, "Scenario 2", analysis_lock$sim_targets)
 cat("\n")
@@ -1116,7 +1176,7 @@ if (gate_2$decision == "STOP") {
 cat("**True RD:**", round(truth_3["RD"], 5), "\n\n")
 kable(sim_3$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
       digits = 4, row.names = FALSE,
-      caption = "Scenario 3: Overlap stress (b_rr = 2.4), weak renal_risk in Q (beta = 0.03)")
+      caption = "Scenario 3: Overlap stress (b_rr = 2.4), weak renal_risk, A:ckd + A:age heterogeneity")
 
 gate_3 <- gate_check(sim_3$metrics, "Scenario 3", analysis_lock$sim_targets)
 cat("\n")
@@ -1192,9 +1252,9 @@ cat("The three scenarios tell a coherent story about the relationship between ",
 
 cat("- **Scenario 1** (gate: ", gate_1$decision,
     ") shows that when overlap is acceptable, both matching and TMLE work well. ",
-    "TMLE offers a modest precision gain because its richer outcome model can capture ",
-    "nonlinear age effects and treatment-effect heterogeneity that design-only estimators ",
-    "cannot exploit.\n\n", sep = "")
+    "TMLE offers a precision gain because its glmnet-based outcome model can capture ",
+    "nonlinear age effects and treatment-effect heterogeneity (A:ckd, A:age) that a ",
+    "simple paired-difference estimator cannot exploit.\n\n", sep = "")
 
 cat("- **Scenario 2** (gate: ", gate_2$decision,
     ") shows that when overlap is stressed *and* the overlap-driving covariate ",
@@ -1204,10 +1264,10 @@ cat("- **Scenario 2** (gate: ", gate_2$decision,
 cat("- **Scenario 3** (gate: ", gate_3$decision,
     ") shows that reduced matching feasibility alone does not automatically ",
     "invalidate the analysis pipeline. When the overlap-driving covariate barely affects the ",
-    "outcome, TMLE's outcome model can compensate for the stressed treatment model. ",
-    "TMLE may also offer a precision advantage over matching here, because the richer Q ",
-    "captures outcome structure that a simple paired difference cannot. ",
-    "Only Stage 3 can reveal this.\n\n", sep = "")
+    "outcome, TMLE's glmnet-based outcome model can compensate for the stressed treatment ",
+    "model by learning the remaining outcome structure (A:ckd, A:age interactions). ",
+    "Only Stage 3 can reveal whether this compensation works at the study's sample size.\n\n",
+    sep = "")
 
 cat("Scenarios 2 and 3 have nearly identical Stage 2 overlap diagnostics ",
     "(both have `b_rr` = 2.4 in the treatment model). The difference is ",
@@ -1226,7 +1286,7 @@ if (all_go && s2_stop) {
   cat("::: {.callout-tip}\n",
       "### Lesson from this run\n\n",
       "This tutorial run produced the intended three-way contrast:\n\n",
-      "1. **Scenario 1 (GO):** Overlap was acceptable, and TMLE offered a modest precision gain by leveraging outcome-model learning.\n",
+      "1. **Scenario 1 (GO):** Overlap was acceptable, and TMLE offered a precision gain by leveraging glmnet-based outcome-model learning.\n",
       "2. **Scenario 2 (STOP):** Overlap was stressed and all estimators failed — a genuine ",
       "problem that Stage 3 correctly identifies.\n",
       "3. **Scenario 3 (GO):** Overlap was stressed and matching feasibility was reduced, but the ",
@@ -1269,11 +1329,14 @@ surface is simple and overlap is adequate, matching and IPTW may perform
 comparably. However, when the outcome model contains learnable structure —
 nonlinear covariate effects, treatment-effect heterogeneity, or interactions
 — TMLE can improve precision by combining information from both the treatment
-and outcome models. This makes TMLE especially attractive in clean-room
-workflows: the richer outcome-model specification is pre-committed at Stage 1,
-validated through simulation at Stage 3, and applied to real data only at
-Stage 4, so the precision gain is achieved without data-adaptive model
-selection on outcomes.
+and outcome models. In this tutorial, the `glmnet`-based $Q$ model with a
+rich feature matrix can capture age nonlinearities and treatment-by-subgroup
+interactions that a simple paired difference after matching cannot exploit.
+This makes TMLE especially attractive in clean-room workflows: the richer
+outcome-model specification (including the learner library and feature set)
+is pre-committed at Stage 1, validated through simulation at Stage 3, and
+applied to real data only at Stage 4, so any precision gain is achieved
+without data-adaptive model selection on outcomes.
 
 
 # A Brief Intuition for the Efficient Influence Function {#eif-intuition}
@@ -1390,9 +1453,11 @@ kable(est_tab, caption = "Stage 4: Effect estimates on the real (simulated) data
 
 ### What just happened — step by step
 
-1. **$Q$ was estimated on the real data** for the first time: an enriched GLM
-   with cubic age, quadratic renal risk, and treatment-by-covariate
-   interactions was fit to $(W, A, Y)$.
+1. **$Q$ was estimated on the real data** for the first time: a penalized
+   logistic regression (`cv.glmnet`) with a rich feature set — polynomial
+   terms, treatment-by-covariate interactions, and covariate interactions —
+   was fit to $(W, A, Y)$ using 5-fold cross-validation to select the
+   regularization parameter.
 
 2. **$g$ was re-estimated** using the same locked strategy from Stage 2. (In
    a production analysis, one might load the Stage 2 $\hat{g}$ object instead.)
@@ -1565,11 +1630,12 @@ cat("2. **Stage 3 validates the full TMLE pipeline on synthetic data.** By testi
     "   bias, variance, and empirical coverage under pre-specified DGPs, the team\n",
     "   makes an evidence-based GO/STOP decision before seeing real outcomes.\n\n")
 
-cat("3. **TMLE may offer a modest precision gain when the outcome surface is learnable.**\n",
+cat("3. **TMLE may offer a precision gain when the outcome surface is learnable.**\n",
     "   Scenario 1 (gate: ", gate_1$decision,
     ") showed that both matching and TMLE worked well,\n",
-    "   but TMLE achieved lower variance by exploiting nonlinear age effects and\n",
-    "   treatment-effect heterogeneity that design-only estimators cannot capture.\n\n", sep = "")
+    "   but TMLE achieved lower variance by using glmnet to exploit nonlinear age effects\n",
+    "   and treatment-effect heterogeneity (A:ckd, A:age) that design-only estimators\n",
+    "   cannot capture.\n\n", sep = "")
 
 cat("4. **Overlap stress plus strong confounding through the overlap driver can\n",
     "   defeat all estimators.** Scenario 2 (gate: ", gate_2$decision,
@@ -1580,10 +1646,10 @@ cat("4. **Overlap stress plus strong confounding through the overlap driver can\
 cat("5. **Reduced matching feasibility does not automatically invalidate the analysis pipeline.**\n",
     "   Scenario 3 (gate: ", gate_3$decision,
     ") showed that when the overlap-driving covariate\n",
-    "   barely affects the outcome, TMLE remains competitive or preferable because\n",
-    "   the outcome model can compensate for the stressed treatment model. Stage 3\n",
-    "   simulation is necessary to determine whether this compensation actually works\n",
-    "   at the study's sample size.\n\n", sep = "")
+    "   barely affects the outcome, TMLE can remain competitive or preferable by\n",
+    "   learning the remaining outcome structure via a richer Q model. Stage 3\n",
+    "   simulation is necessary to determine whether this compensation works at\n",
+    "   the study's sample size and learner specification.\n\n", sep = "")
 
 cat("6. **Stage 4 is where the real outcome regression and targeting step occur.**\n",
     "   The $g$-strategy is carried forward from Stage 2, but $Q$ is fit on real\n",
