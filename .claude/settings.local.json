@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where R)",
+      "Read(//c/Program Files/R//**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" scripts/test_helpers_smoke.R)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" scripts/test_main_script_startup.R)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e ':*)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" scripts/_tmp_grid_size.R)",
+      "Bash(rm scripts/_tmp_grid_size.R)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" scripts/_tmp_check_grid.R)",
+      "Bash(rm scripts/_tmp_check_grid.R)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" scripts/_tmp_check_grid2.R)",
+      "Bash(rm scripts/_tmp_check_grid2.R)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" scripts/_tmp_check_grid3.R)",
+      "Bash(rm scripts/_tmp_check_grid3.R)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" scripts/_tmp_e2e_test.R)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" scripts/_tmp_parse_check.R)",
+      "Bash(rm scripts/_tmp_parse_check.R)",
+      "Bash(echo $CLAUDE_CODE_MAX_OUTPUT_TOKENS)",
+      "Bash(set)"
+    ]
+  }
+}

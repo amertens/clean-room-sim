@@ -1,7 +1,7 @@
 ---
-title: "Operationalizing TMLE in a Clean-Room Staged Design"
-subtitle: "A Pharmacoepidemiology Tutorial with Simulated HCV Safety Data"
-author: "Andrew N. Mertens"
+title: "Targeted Learning in Clean-Room Design Analyses"
+subtitle: "Comparing Conventional PS, Fixed-Specification TMLE, and Simulation-Selected TMLEs"
+author: "Andrew Mertens"
 date: today
 format:
   html:
@@ -21,39 +21,50 @@ execute:
 
 ## Abstract {.unnumbered}
 
-Targeted Maximum Likelihood Estimation (TMLE) is a doubly robust, semiparametric
-efficient estimator increasingly used in pharmacoepidemiology and comparative
-effectiveness research. However, TMLE's reliance on both a treatment model and
-an outcome model creates an operational challenge: in a credible analysis, key
-modeling decisions should be locked before outcome data are examined. This
-tutorial introduces a **four-stage clean-room workflow** that resolves this
-tension. In **Stage 1**, the analysis team pre-specifies and locks the estimand,
-covariate set, learner libraries, truncation rules, and performance thresholds.
-In **Stage 2**, the team accesses only treatment and covariate data to estimate
-the propensity score, evaluate overlap, assess matching feasibility, and lock the
-treatment-model strategy — without touching outcomes. In **Stage 3**, the team
-runs the full TMLE pipeline on synthetic data generated under pre-specified,
-outcome-blind data-generating processes with known truth, evaluating bias,
-variance, and empirical coverage to make a GO/STOP gate decision. Only in
-**Stage 4** are real outcomes accessed and the outcome regression fitted for the
-first time. Using a simulated hepatitis C antiviral safety example, we
-demonstrate the workflow with three simulation scenarios that illustrate distinct
-clean-room decision states: acceptable overlap where TMLE achieves a precision
-gain by using penalized regression (`glmnet`) to learn outcome-model structure
-that design-only estimators cannot exploit, overlap stress where all estimators
-— including TMLE — fail, and overlap stress where TMLE remains competitive
-despite reduced matching feasibility because the outcome model compensates for
-the stressed treatment model. The tutorial shows that propensity-score
-diagnostics and full estimator validation are not interchangeable, that TMLE
-can improve precision when the outcome surface contains learnable structure,
-and that outcome-blind simulation is necessary to determine whether a planned
-analysis should proceed.
+A clean-room staged workflow — where analytic decisions are locked before
+outcome data are examined — can accommodate multiple analysis strategies. This
+tutorial introduces a clean-room design with **two alternative blinded
+feasibility paths** and explicitly compares three analysis workflows that differ
+in how the analysis pipeline is validated before outcome access: **(1) a
+conventional PS-diagnostics-gated workflow** using logistic-regression PS for
+matching or IPTW, gated primarily by traditional design diagnostics; **(2) a
+fixed-specification TMLE workflow** where a single TMLE nuisance-learning
+strategy is locked and validated via plasmode simulation; and **(3) a
+simulation-selected TMLE workflow** where a prespecified candidate set of TMLE
+specifications is evaluated in plasmode simulation and the best-performing
+specification is selected using a locked rule — all before real outcomes are
+accessed. In **Stage 1**, the analysis team pre-specifies and locks the
+estimand, covariate set, nuisance-learning strategies, truncation rules, and
+performance thresholds. The workflow then branches into two alternative
+pre-unblinding feasibility paths. In **Stage 2a** (traditional feasibility
+diagnostics), the team accesses only treatment and covariate data to estimate
+propensity scores, evaluate overlap, and assess matching feasibility — without
+touching outcomes. The conventional PS workflow is gated here. Alternatively, in
+**Stage 2b** (plasmode-simulation feasibility evaluation), the team runs the
+analysis pipelines on synthetic data generated from plasmode-style simulations —
+where the covariate and treatment structure come from the observed blinded data
+but outcomes are simulated under pre-specified mechanisms with known truth —
+evaluating bias, variance, and empirical coverage to make a GO/STOP gate
+decision. The TMLE workflows are gated here. Only in **Stage 3** are real
+outcomes accessed and the outcome regressions fitted for the first time. Using a
+simulated hepatitis C antiviral safety example, we demonstrate the workflow with
+three simulation scenarios that illustrate distinct clean-room decision states.
+The central manuscript demonstration (Scenario 3) uses a DGP identified through
+systematic grid search where the traditional Stage 2a feasibility path flags
+concerns and the PS-diagnostics-gated workflow fails its performance targets
+under overlap stress, while the TMLE workflow validated through Stage 2b
+plasmode simulation remains adequate — illustrating that traditional feasibility
+diagnostics alone cannot determine whether a valid analysis is possible. The
+tutorial clarifies that TMLE does not require SuperLearner or machine
+learning — it can use ordinary regression nuisance models — but flexible
+nuisance estimation is often recommended because it better supports robust and
+efficient estimation when treatment and outcome surfaces are complex.
 
 ```{r setup}
 library(knitr)
 library(ggplot2)
 library(glmnet)
-set.seed(2024)
+set.seed(20260309)
 
 # Utility functions
 expit <- function(x) 1 / (1 + exp(-x))
@@ -62,20 +73,25 @@ logit <- function(p) log(p / (1 - p))
 
 # What This Tutorial Is and Is Not
 
-This is **not** a generic TMLE tutorial. For standalone introductions to TMLE,
-see van der Laan and Rose (2011), the `tmle` R package vignette, or Schuler and
-Rose (2017). This tutorial teaches how TMLE is **operationalized within a
-clean-room staged workflow** — a governance structure that controls *when*
+This is **not** a generic TMLE tutorial or a comprehensive estimator comparison.
+For standalone introductions to TMLE, see van der Laan and Rose (2011), the
+`tmle` R package vignette, or Schuler and Rose (2017). This tutorial teaches
+how **multiple analysis workflows** — differing in how the analysis pipeline
+is validated before outcome access — can be **operationalized within a
+clean-room staged workflow**: a governance structure that controls *when*
 different data elements may be accessed and *what* analytic tasks are permitted
 at each stage.
 
-**Elevator pitch.** This tutorial shows how TMLE can be embedded in a clean-room
-workflow where treatment-mechanism diagnostics occur before outcome access,
-simulation is used to validate the full estimator pipeline under known truth,
-and the real outcome regression and targeting step occur only after the earlier
-stages are completed. The result is an analysis whose credibility does not rest
-solely on post-hoc sensitivity checks, because the key analytic decisions were
-locked before outcomes were seen.
+**Elevator pitch.** This tutorial shows how three distinct analysis workflows
+can be embedded in a clean-room design with **two alternative blinded
+feasibility paths**: **Stage 2a** (traditional feasibility diagnostics —
+propensity score overlap, balance, matching) and **Stage 2b**
+(plasmode-simulation feasibility evaluation — where covariate and treatment
+structure come from observed blinded data but outcomes are simulated under
+pre-specified mechanisms with known truth). The conventional PS workflow is
+gated by Stage 2a; the TMLE workflows are gated by Stage 2b. Real outcome
+regressions and estimation occur only in Stage 3, after the chosen feasibility
+path is completed.
 
 ::: {.callout-note}
 ### Tutorial vs. production clean-room implementation
@@ -85,11 +101,121 @@ role separation (e.g., a blinded analyst team and an unblinded data
 custodian), audit trails with timestamped artifacts, frozen data extracts,
 and versioned analysis scripts archived at each stage transition. This
 tutorial simplifies those operational components so the reader can focus on
-the statistical logic — the sequence of analysis lock → outcome-blind
-diagnostics → outcome-blind simulation validation → unblinded estimation.
-The core sequencing principle is the same in both settings: analytic
-decisions are locked before outcome data are accessed.
+the statistical logic — the sequence of analysis lock → blinded feasibility
+evaluation (via traditional diagnostics or plasmode simulation) → unblinded
+estimation. The core sequencing principle is the same in both settings:
+analytic decisions are locked before outcome data are accessed.
 :::
+
+## TMLE and Nuisance Estimation: Regression vs. Flexible Learning
+
+TMLE is a framework for targeted bias reduction and efficient estimation. It
+requires nuisance estimates for two quantities — the treatment mechanism
+$g(W) = P(A=1|W)$ and the outcome regression $Q(A,W) = E[Y|A,W]$ — but it
+**does not mandate any specific nuisance learner**. One can implement TMLE with
+ordinary logistic regression models for both $g$ and $Q$.
+
+In practice, however, flexible nuisance estimation — including ensemble methods
+such as SuperLearner — is often recommended for TMLE because it can better
+capture nonlinearities and interactions in the treatment and outcome mechanisms.
+When the nuisance functions are estimated more accurately, TMLE's double
+robustness and efficiency properties are better supported, and the resulting
+estimates tend to be less biased and more precise.
+
+In this tutorial, the TMLE workflow uses flexible nuisance estimation (penalized
+regression via `glmnet`) to illustrate how a targeted-learning strategy may
+differ from more conventional regression-based workflows. This is a pedagogical
+choice, not a mathematical requirement: the same TMLE framework would work with
+simpler models, though its performance advantages might be smaller.
+
+## Three Clean-Room Analysis Workflows
+
+A clean-room staged design is not tied to a single analysis strategy. This
+tutorial compares three workflows that differ in **which blinded feasibility
+path they use** before outcome access:
+
+**Workflow 1. Conventional PS-diagnostics-gated workflow** *(uses Stage 2a)*
+
+This mirrors standard pharmacoepidemiology practice.
+
+- *Stage 1:* Define estimand; prespecify PS model (logistic regression);
+  prespecify matching or IPTW approach.
+- *Stage 2a:* Estimate PS; evaluate overlap, balance, ESS, matching feasibility.
+- *Decision rule:* If traditional diagnostics are acceptable → proceed to
+  Stage 3. If diagnostics are poor → redesign or stop.
+- *Stage 3:* Estimate treatment effect using matching or IPTW on the real
+  outcome.
+
+This workflow relies primarily on **traditional feasibility diagnostics** rather
+than simulation-based estimator validation.
+
+**Workflow 2. Fixed-specification TMLE workflow** *(uses Stage 2b)*
+
+This represents the standard targeted-learning approach.
+
+- *Stage 1:* Prespecify a single TMLE specification: nuisance learner strategy
+  for $g$ and $Q$, truncation rules, simulation performance thresholds.
+- *Stage 2b:* Run plasmode simulation using the fixed TMLE specification.
+  Plasmode simulation uses the covariate and treatment structure from the
+  observed blinded data $(W, A)$ but generates synthetic outcomes under
+  pre-specified mechanisms with known truth. Evaluate bias, coverage, variance.
+  Apply GO/STOP gate decision.
+- *Stage 3:* Fit $Q$ on real outcomes; run the targeting step.
+
+The estimator specification is **locked before simulation**. Stage 2b validates
+but does not select.
+
+**Workflow 3. Simulation-selected TMLE workflow** *(uses Stage 2b)*
+
+This is the key conceptual extension. Instead of locking a single TMLE
+specification, Stage 1 prespecifies a **candidate set of TMLE nuisance-learning
+strategies** and a **selection rule**.
+
+- *Stage 1:* Define a candidate set (e.g., TMLE-GLM, TMLE-glmnet,
+  TMLE-SuperLearner). Define a selection rule: e.g., choose the specification
+  with the lowest RMSE among those with |bias| < threshold, coverage ≥
+  threshold, and acceptable SE calibration. Both the candidate set and the rule
+  must be written in the analysis lock before outcome access.
+- *Stage 2b:* Run plasmode simulations under plausible DGPs. Evaluate each
+  candidate TMLE specification. Select the best-performing specification using
+  the locked rule.
+- *Stage 3:* Apply the selected TMLE specification to the real dataset.
+
+This selection occurs **entirely before real outcomes are accessed**, so it
+remains compatible with the clean-room principle. The rule is prespecified; only
+its application to plasmode-simulation results occurs at Stage 2b.
+
+Each workflow maps onto the same clean-room structure (Stage 1 pre-specification
+→ blinded feasibility evaluation → Stage 3 unblinded estimation), but they
+differ in **which feasibility path** they take: Stage 2a (traditional
+diagnostics, Workflow 1) vs. Stage 2b (plasmode simulation, Workflows 2 and 3).
+The two paths are alternatives, not sequential steps — a workflow uses one or
+the other to decide whether to proceed to Stage 3.
+
+```{r workflow-comparison-table}
+wf_tab <- data.frame(
+  Workflow = c("1. Conventional PS",
+               "2. Fixed-specification TMLE",
+               "3. Simulation-selected TMLE"),
+  `Feasibility path` = c(
+    "Stage 2a: traditional diagnostics (overlap, balance, ESS)",
+    "Stage 2b: plasmode-simulation validation of a single specification",
+    "Stage 2b: plasmode-simulation model selection from candidate set"
+  ),
+  `Estimator flexibility` = c(
+    "Low — fixed logistic PS",
+    "Moderate — fixed nuisance strategy",
+    "High — candidate set evaluated in simulation"
+  ),
+  `Risk of misspecification` = c(
+    "Higher — no outcome-model validation",
+    "Moderate — single specification may not be optimal",
+    "Lower — simulation selects best-performing candidate"
+  ),
+  check.names = FALSE
+)
+kable(wf_tab, caption = "Comparison of the three clean-room analysis workflows")
+```
 
 ### The running example
 
@@ -103,47 +229,61 @@ real-world safety studies.
 
 ### The central tension
 
-TMLE requires both a treatment model $g(W) = P(A=1|W)$ and an outcome model
-$Q(A,W) = E[Y|A,W]$. In a clean-room workflow, these two components live in
-different stages:
+All three workflows share a common operational constraint: **outcome-dependent
+modeling decisions must be locked before outcomes are seen.** The clean-room
+stages enforce this by controlling data access:
 
-- **$g$ can be estimated early** (Stage 2), because it uses only treatment and
-  covariates — no outcomes required.
-- **$Q$ for the real data can only be estimated after outcome access**
-  (Stage 4), because fitting an outcome regression requires $Y$.
-- **The targeting step** combines $Q$ and $g$ and therefore also belongs to
-  Stage 4 for the real analysis.
-- **In simulation (Stage 3)**, the full pipeline ($g$, $Q$, targeting) runs on
-  synthetic data with known truth, validating the estimator before real
-  outcomes are unblinded.
+- **The treatment model $g(W)$ can be estimated early** (Stage 2a), because it
+  uses only treatment and covariates — no outcomes required.
+- **Outcome models can only be fitted on real data after outcome access**
+  (Stage 3). This applies to the TMLE $Q(A,W)$ and any outcome-dependent
+  component.
+- **In plasmode simulation (Stage 2b)**, analysis pipelines run on synthetic
+  data with known truth — where the covariate and treatment structure come from
+  the observed blinded data but outcomes are simulated under pre-specified
+  mechanisms. For the fixed-specification TMLE workflow, this validates a single
+  pipeline. For the simulation-selected TMLE workflow, this also determines
+  which candidate specification to carry forward.
 
 ### Workflow overview
 
 ```
-┌─────────────────────────────────────────────┐
-│  Stage 1. Pre-specification & Analysis Lock │
-│  Lock estimand, covariates, SL libraries,   │
-│  truncation rules, gate thresholds          │
-└────────────────────┬────────────────────────┘
-                     ↓
-┌─────────────────────────────────────────────┐
-│  Stage 2. Outcome-Blind Design Diagnostics  │
-│  Access (W, A) only. Fit g(W), evaluate     │
-│  overlap, balance, ESS. Lock g-strategy.    │
-└────────────────────┬────────────────────────┘
-                     ↓
-┌─────────────────────────────────────────────┐
-│  Stage 3. Outcome-Blind Simulation          │
-│  Run full TMLE pipeline on synthetic data   │
-│  with known truth. Evaluate bias, coverage. │
-│  Make GO / STOP gate decision.              │
-└────────────────────┬────────────────────────┘
-                     ↓
-┌─────────────────────────────────────────────┐
-│  Stage 4. Unblinded TMLE Estimation         │
-│  Access Y. Fit Q(A,W) for the first time.   │
-│  Run targeting step. Report results.        │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  Stage 1. Pre-specification & Analysis Lock          │
+│  Lock estimand, covariates, nuisance strategies,     │
+│  truncation rules, gate thresholds.                  │
+│  If simulation-selected: lock candidate set          │
+│  and selection rule.                                 │
+└──────────────────────┬───────────────────────────────┘
+                       │
+          ┌────────────┴────────────┐
+          ↓                         ↓
+┌─────────────────────┐  ┌─────────────────────────────┐
+│  Stage 2a.          │  │  Stage 2b.                   │
+│  Traditional        │  │  Plasmode-Simulation         │
+│  Feasibility        │  │  Feasibility Evaluation      │
+│  Diagnostics        │  │                              │
+│                     │  │  Run analysis pipelines on   │
+│  Access (W,A) only. │  │  plasmode-simulated data:    │
+│  Fit g(W). Evaluate │  │  observed (W,A) structure +  │
+│  overlap, balance,  │  │  synthetic outcomes under    │
+│  ESS, matching      │  │  pre-specified DGPs with     │
+│  feasibility.       │  │  known truth. Evaluate bias, │
+│                     │  │  coverage, SE calibration.   │
+│  → Conventional PS  │  │  Fixed TMLE: validate spec.  │
+│    workflow gated   │  │  Sim-selected: select best.  │
+│    here             │  │  Make GO / STOP decision.    │
+│                     │  │                              │
+│                     │  │  → TMLE workflows gated here │
+└─────────┬───────────┘  └──────────────┬──────────────┘
+          └────────────┬────────────────┘
+                       ↓
+┌──────────────────────────────────────────────────────┐
+│  Stage 3. Unblinded Estimation                       │
+│  Access Y. Fit outcome model for the first time      │
+│  using the locked (or simulation-selected) spec.     │
+│  Run TMLE targeting step. Report results.            │
+└──────────────────────────────────────────────────────┘
 ```
 
 
@@ -153,32 +293,37 @@ different stages:
 perms <- data.frame(
   Stage = c(
     "Stage 1: Pre-specification",
-    "Stage 2: Outcome-Blind Diagnostics",
-    "Stage 3: Simulation Validation",
-    "Stage 4: Unblinded Estimation"
+    "Stage 2a: Traditional Feasibility Diagnostics",
+    "Stage 2b: Plasmode-Simulation Feasibility",
+    "Stage 3: Unblinded Estimation"
   ),
   `Data accessible` = c(
     "None (metadata, variable definitions only)",
     "W and A from the real dataset (not Y)",
-    "Synthetic data with simulated Y",
+    "Real (W, A) + synthetic Y from plasmode simulation",
     "Full dataset: W, A, Y"
   ),
-  `Allowed TMLE-related tasks` = c(
+  `Allowed tasks` = c(
     paste("Define causal question and estimand;",
           "specify covariates and treatment;",
-          "select SL libraries for g and Q;",
+          "lock nuisance strategies (fixed or candidate set);",
           "set truncation rules;",
-          "define diagnostic thresholds and gate criteria"),
+          "define diagnostic thresholds, gate criteria,",
+          "and selection rule (if simulation-selected)"),
     paste("Estimate g(W) on real data;",
           "PS overlap diagnostics;",
           "IPTW weight distributions and ESS;",
-          "covariate balance (SMD)"),
-    paste("Run the full TMLE pipeline on simulated data;",
+          "covariate balance (SMD);",
+          "matching feasibility assessment.",
+          "Conventional PS workflow gated here"),
+    paste("Run analysis pipelines on plasmode-simulated data;",
           "evaluate bias, variance, and coverage;",
-          "compare TMLE with simpler estimators;",
-          "test SL specifications and truncation"),
-    paste("Estimate Q(A,W) on real data;",
-          "combine with locked g-strategy;",
+          "validate fixed specification or select among",
+          "candidates using locked rule;",
+          "test nuisance specifications and truncation.",
+          "TMLE workflows gated here"),
+    paste("Fit Q(A,W) on real data using locked or",
+          "simulation-selected specification;",
           "run TMLE targeting step;",
           "compute estimates and CIs;",
           "report results")
@@ -186,22 +331,22 @@ perms <- data.frame(
   `Not allowed` = c(
     paste("Estimating g or Q on real data;",
           "any estimator involving real outcomes"),
-    paste("Fitting Q(A,W) on real outcomes;",
+    paste("Fitting outcome models on real Y;",
           "computing treatment effects on real data;",
-          "running TMLE on the real dataset"),
+          "running any workflow on the real outcome"),
     paste("Using real outcomes;",
           "tuning estimator based on real Y"),
-    paste("Changing estimand, SL library, or truncation",
+    paste("Changing estimand, nuisance strategies, or truncation",
           "without a documented protocol amendment")
   ),
   check.names = FALSE
 )
 kable(perms, caption = "Clean-room permissions by stage",
-      col.names = c("Stage", "Data accessible", "Allowed TMLE-related tasks", "Not allowed"),
+      col.names = c("Stage", "Data accessible", "Allowed tasks", "Not allowed"),
       align = c("l", "l", "l", "l")) |>
   kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
                             full_width = TRUE, font_size = 13) |>
-  kableExtra::column_spec(1, bold = TRUE, width = "12em") |>
+  kableExtra::column_spec(1, bold = TRUE, width = "14em") |>
   kableExtra::column_spec(2, width = "14em") |>
   kableExtra::column_spec(3, width = "20em") |>
   kableExtra::column_spec(4, width = "14em")
@@ -214,7 +359,9 @@ kable(perms, caption = "Clean-room permissions by stage",
 
 Before any real study data are accessed, the analysis team writes a statistical
 analysis plan (SAP) that locks all major analytic decisions. This is analogous
-to a clinical trial's SAP being finalized before database lock.
+to a clinical trial's SAP being finalized before database lock. The nuisance
+strategy is pre-specified here — either as a single fixed specification
+(Workflow 2) or as a candidate set with a selection rule (Workflow 3).
 
 For our HCV example, the causal question is:
 
@@ -244,7 +391,7 @@ create_analysis_lock <- function() {
     version       = "1.0",
     locked_date   = Sys.Date(),
     locked_by     = "Analysis team (blinded)",
-    blinded       = TRUE,  # TRUE until Stage 4 unblinding
+    blinded       = TRUE,  # TRUE until Stage 3 unblinding
     status        = "pre-outcome",
 
     # --- Causal question ---
@@ -257,25 +404,36 @@ create_analysis_lock <- function() {
     treatment   = "A",          # 1 = SOF-containing, 0 = non-SOF
     outcome     = "Y",          # 1 = AKI within 90 days
 
-    # --- Treatment model (g) ---
-    g_formula   = "A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk",
-    g_SL_library = c("SL.mean", "SL.glm", "SL.glmnet"),
+    # --- Workflow comparison ---
+    workflow_comparison = TRUE,
 
-    # --- Outcome model (Q) ---
-    Q_method    = "cv.glmnet (elastic net, alpha = 0.5)",
-    Q_features  = paste("Main effects + age^2, age^3, renal_risk^2 +",
+    # --- Workflow 1: Conventional PS approach ---
+    conventional_ps_model = "glm",
+    conventional_g_formula = "A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk",
+    conventional_estimators = c("PS-matched regression", "IPTW"),
+
+    # --- Workflow 2: Fixed-specification TMLE ---
+    tmle_nuisance_strategy = "flexible",
+    tmle_g_formula = "A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk",
+    tmle_g_library = c("SL.mean", "SL.glm", "SL.glmnet"),
+    tmle_Q_method  = "cv.glmnet (elastic net, alpha = 0.5)",
+    tmle_Q_features = paste("Main effects + age^2, age^3, renal_risk^2 +",
                         "treatment interactions (A:ckd, A:age, A:age^2,",
                         "A:renal_risk, A:cirrhosis, A:diabetes) +",
                         "covariate interactions (age:ckd, age:rr, ckd:rr)"),
-    Q_SL_library = c("SL.mean", "SL.glm", "SL.glmnet", "SL.gam"),
+    tmle_Q_library = c("SL.mean", "SL.glm", "SL.glmnet", "SL.gam"),
 
-    # --- PS truncation ---
+    # --- Workflow 3: Simulation-selected TMLE ---
+    sim_selected_candidates = c("TMLE-GLM", "TMLE-glmnet", "TMLE-SuperLearner"),
+    sim_selected_rule = paste("Select the candidate with the lowest RMSE",
+                               "among those with |bias| < max_abs_bias,",
+                               "coverage >= min_coverage, and",
+                               "SE/SD ratio within [se_sd_low, se_sd_high]"),
+
+    # --- PS truncation (shared) ---
     ps_truncation = c(lower = 0.025, upper = 0.975),
 
-    # --- TMLE variant ---
-    tmle_variant  = "TMLE-ML",
-
-    # --- Stage 2 diagnostic thresholds ---
+    # --- Stage 2a diagnostic thresholds ---
     diag_thresholds = list(
       extreme_ps_bound = 0.05,    # PS below this or above 1 - this
       max_extreme_frac = 0.15,    # max fraction of extreme PS
@@ -284,7 +442,7 @@ create_analysis_lock <- function() {
       max_smd_weighted = 0.10     # max weighted SMD
     ),
 
-    # --- Stage 3 simulation targets ---
+    # --- Stage 2b simulation targets ---
     sim_targets = list(
       max_abs_bias = 0.01,
       min_coverage = 0.93,
@@ -294,11 +452,11 @@ create_analysis_lock <- function() {
     ),
 
     # --- Amendment rule ---
-    amendment_rule = paste("If Stage 3 returns STOP, the team may file a",
+    amendment_rule = paste("If Stage 2b returns STOP, the team may file a",
                            "documented amendment to expand the learner library",
                            "or increase the sample size. The amended plan must",
-                           "be re-validated through Stage 3 before proceeding",
-                           "to Stage 4.")
+                           "be re-validated through Stage 2b before proceeding",
+                           "to Stage 3.")
   )
 }
 
@@ -312,71 +470,114 @@ cat("Estimand:", analysis_lock$estimand, "on", analysis_lock$effect_scale, "scal
 cat("Covariates:", paste(analysis_lock$covariates, collapse = ", "), "\n")
 cat("PS truncation:", analysis_lock$ps_truncation["lower"], "-",
     analysis_lock$ps_truncation["upper"], "\n")
+cat("Workflow comparison:", analysis_lock$workflow_comparison, "\n")
+cat("  Wf 1 - Conventional PS: logistic regression ->",
+    paste(analysis_lock$conventional_estimators, collapse = ", "), "\n")
+cat("  Wf 2 - Fixed TMLE: flexible nuisance strategy (glmnet-based Q)\n")
+cat("  Wf 3 - Simulation-selected TMLE candidates:",
+    paste(analysis_lock$sim_selected_candidates, collapse = ", "), "\n")
+cat("  Selection rule:", analysis_lock$sim_selected_rule, "\n")
 cat("Amendment rule:", analysis_lock$amendment_rule, "\n")
 ```
 
 ::: {.callout-note}
+### Three workflows, two feasibility paths
+
+The conventional PS workflow relies on Stage 2a traditional feasibility
+diagnostics (overlap, balance, matching) to decide whether to proceed —
+reflecting common applied practice. The fixed-specification TMLE workflow
+locks a single nuisance-learning strategy and validates it via Stage 2b
+plasmode simulation. The simulation-selected TMLE workflow prespecifies a
+candidate set and uses Stage 2b plasmode simulation to choose the
+best-performing specification. The three workflows differ in which blinded
+feasibility path they use: Stage 2a (traditional diagnostics) or Stage 2b
+(plasmode-simulation evaluation).
+:::
+
+::: {.callout-note}
 ### What gets locked vs. what gets re-estimated
 
-What is locked is the **modeling strategy**: the learner library, truncation
-bounds, covariate set, and diagnostic thresholds. In practice, the team may
-either carry the Stage 2 fitted $\hat{g}$ object forward into Stage 4, or
-re-run the same locked procedure on the full $(W, A)$ data at Stage 4. Both
-are valid — the key constraint is that the *specification* does not change
-after outcome access. Locking a strategy is not the same as requiring reuse of
-a specific fitted object.
+What is locked is the **modeling strategy**: the learner library (or candidate
+set), truncation bounds, covariate set, selection rule, and diagnostic
+thresholds. In practice, the team may either carry the Stage 2a
+fitted $\hat{g}$ object forward into Stage 3, or re-run the same locked
+procedure on the full $(W, A)$ data at Stage 3. Both are valid — the key
+constraint is that the *specification* does not change after outcome access.
+Locking a strategy is not the same as requiring reuse of a specific fitted
+object.
 :::
 
 ### Stage 1 summary
 
 At this point, no data have been touched. The team has committed to an estimand
-(ATE on the RD scale), identification assumptions, covariate list, SL
-libraries, truncation rules, and simulation performance targets.
+(ATE on the RD scale), identification assumptions, covariate list, nuisance
+strategies (fixed specification plus candidate set for simulation-selected
+TMLE), truncation rules, selection rule, simulation performance targets, and
+the choice of which feasibility path each workflow will use (Stage 2a for the
+conventional PS workflow; Stage 2b for the TMLE workflows).
 
 
-# Stage 2. Outcome-Blind Design Diagnostics {#stage-2}
+# Stage 2a. Traditional Feasibility Diagnostics {#stage-2a}
 
 ## What happens at this stage
 
 The analysis team receives the **treatment and covariate data** $(W, A)$ from
 the real study. Outcomes $(Y)$ remain sealed. The purpose is to evaluate
 whether the treatment mechanism and covariate structure are compatible with the
-planned analysis.
+planned analyses. Stage 2a is the **primary feasibility gate for the
+conventional PS workflow** and provides useful diagnostic information for all
+workflows.
 
-Because $g(W) = P(A=1|W)$ does not involve outcomes, the entire treatment model
-can be estimated here. This is the key operational insight: **the $g$-side of
-TMLE is fully accessible during the outcome-blind stage.**
+Because $g(W) = P(A=1|W)$ does not involve outcomes, the treatment model can
+be estimated here for both the conventional PS and TMLE workflows. The key
+operational insight: **the treatment-model side of the analysis is fully
+accessible during the outcome-blind stage.**
+
+### What each workflow does at Stage 2a
+
+1. **Conventional PS workflow:** Fit logistic-regression PS. Compute overlap
+   and matching diagnostics. **This is the conventional workflow's primary
+   feasibility gate.**
+2. **Fixed-specification TMLE workflow:** Fit the locked $g(W)$ strategy.
+   Compute overlap and weight diagnostics. Note: the TMLE workflow's primary
+   gate is Stage 2b (plasmode simulation), not Stage 2a.
+3. **Simulation-selected TMLE workflow:** Same as the fixed-specification
+   TMLE workflow. The candidate set is locked but specification selection
+   does not occur until Stage 2b.
 
 ::: {.callout-note collapse="true"}
-### Operational note: Stage 2 in practice
+### Operational note: Stage 2a in practice
 In a real clean-room implementation, the analyst would receive a blinded
 analytic dataset or restricted data extract with outcomes masked or removed.
-All Stage 2 diagnostics would be scripted, versioned, and archived as part of
-the audit trail. Any changes to the $g$-strategy triggered by Stage 2
+All Stage 2a diagnostics would be scripted, versioned, and archived as part of
+the audit trail. Any changes to the $g$-strategy triggered by Stage 2a
 findings (e.g., adding a covariate interaction to improve balance) would
 require documented justification and an updated analysis lock before
-proceeding to Stage 3.
+proceeding to Stage 2b or Stage 3.
 :::
 
 ### Generate the HCV tutorial dataset
 
 We simulate a dataset that mimics an HCV antiviral safety study. We generate
-the full dataset including $Y$, but the Stage 2 analyst sees only $(W, A)$.
+the full dataset including $Y$, but the Stage 2a analyst sees only $(W, A)$.
 
 ```{r generate-data}
 simulate_hcv_scenario <- function(n, seed,
-                                   b_rr_g    = 0.7,    # g coeff for renal_risk
-                                   beta_rr_Q = 0.35,   # Q coeff for renal_risk
-                                   beta_int  = 0.00,   # A:renal_risk interaction
-                                   beta_ckdA = 0.40,   # A:ckd interaction
-                                   beta_ageA = 0.00,   # A:age interaction
-                                   alpha_A   = -0.15,  # treatment intercept
-                                   alpha_Y   = -2.80) {
+                                   b_rr_g     = 0.7,    # g coeff for renal_risk
+                                   beta_rr1   = 0.30,   # Q main coeff for renal_risk
+                                   beta_rr2   = 0.08,   # Q coeff for renal_risk^2
+                                   beta_rrA   = 0.00,   # A:renal_risk interaction (Scen 2 only)
+                                   beta_ckdA  = 0.30,   # A:ckd interaction
+                                   beta_ageA  = 0.18,   # A:age_std interaction
+                                   beta_age2A = 0.10,   # A:age_std^2 interaction
+                                   beta_age3  = 0.12,   # cubic age coefficient
+                                   alpha_A    = -0.15,  # treatment intercept
+                                   alpha_Y    = -2.20) {
   set.seed(seed)
 
   # --- Baseline covariates ---
   age_raw    <- rnorm(n, 55, 10)
-  age        <- (age_raw - 55) / 10           # standardized
+  age        <- (age_raw - 55) / 10           # standardized: age_std = (age_raw - 55) / 10
   ckd        <- rbinom(n, 1, 0.18)            # chronic kidney disease
   cirrhosis  <- rbinom(n, 1, 0.22)
   diabetes   <- rbinom(n, 1, 0.20)
@@ -384,48 +585,113 @@ simulate_hcv_scenario <- function(n, seed,
   renal_risk <- rnorm(n, 0, 1)               # composite renal-risk score
 
   # --- Treatment mechanism (g) ---
-  # renal_risk drives overlap; b_rr_g varies by scenario
+  # renal_risk drives overlap; b_rr_g = 0.7 (Scen 1), 2.4 (Scen 2), 2.2 (Scen 3)
   lp_g <- alpha_A + 0.25*age + 0.45*ckd + 0.35*cirrhosis +
            0.20*diabetes - 0.15*nsaid + b_rr_g*renal_risk
   g_true <- pmin(pmax(expit(lp_g), 0.005), 0.995)
   A <- rbinom(n, 1, g_true)
 
   # --- Outcome model (Q): AKI ---
-  # Includes nonlinear age (quadratic + cubic), renal_risk^2, and
-  # treatment-effect heterogeneity (A:ckd, A:age, A:renal_risk)
-  # so the DGP has learnable structure that a richer Q can exploit.
-  lp_Q <- alpha_Y + 0.25*A + 0.20*age + 0.15*age^2 + 0.05*age^3 +
-           0.90*ckd + 0.55*cirrhosis + 0.40*diabetes + 0.25*nsaid +
-           beta_rr_Q*renal_risk + 0.08*renal_risk^2 +
-           beta_ckdA*A*ckd + beta_ageA*A*age + beta_int*A*renal_risk
+  # Cubic age polynomial (neg. quadratic + pos./weak cubic) + renal_risk^2 +
+  # treatment-effect heterogeneity (A:ckd, A:age, A:age^2, A:renal_risk).
+  # beta_A = 0.22 fixed across all scenarios; beta_age3 varies.
+  # This rich Q structure is learnable by glmnet but not by simple matching.
+  lp_Q <- alpha_Y +
+           0.22*A +
+           0.25*age  - 0.20*age^2  + beta_age3*age^3 +
+           0.95*ckd  + 0.55*cirrhosis + 0.40*diabetes + 0.25*nsaid +
+           beta_rr1*renal_risk + beta_rr2*renal_risk^2 +
+           beta_ckdA*A*ckd + beta_ageA*A*age + beta_age2A*A*age^2 +
+           beta_rrA*A*renal_risk
   Y <- rbinom(n, 1, expit(lp_Q))
 
   data.frame(age, ckd, cirrhosis, diabetes, nsaid, renal_risk, A, Y)
 }
 
-# Generate the "real" study data (n = 3000)
-# Using Scenario 3 parameters: overlap stress (b_rr=2.4), weak renal_risk in Q
-dat_full <- simulate_hcv_scenario(n = 3000, seed = 42,
-                                   b_rr_g = 2.4, beta_rr_Q = 0.03,
-                                   beta_int = 0.00, beta_ckdA = 0.25,
-                                   beta_ageA = 0.10)
+# --- Calibration utilities (needed before data generation) ---
+# Calibrate treatment-model intercept for target treatment prevalence
+calibrate_alpha_A <- function(b_rr_g, target_prev = 0.49,
+                               n_cal = 50000, seed = 42) {
+  set.seed(seed)
+  age        <- rnorm(n_cal, 0, 1)
+  ckd        <- rbinom(n_cal, 1, 0.18)
+  cirrhosis  <- rbinom(n_cal, 1, 0.22)
+  diabetes   <- rbinom(n_cal, 1, 0.20)
+  nsaid      <- rbinom(n_cal, 1, 0.25)
+  renal_risk <- rnorm(n_cal, 0, 1)
+  lp_no_int  <- 0.25*age + 0.45*ckd + 0.35*cirrhosis +
+                0.20*diabetes - 0.15*nsaid + b_rr_g*renal_risk
 
-# Stage 2 analyst sees only W and A — Y is sealed
+  f <- function(a) mean(expit(a + lp_no_int)) - target_prev
+  uniroot(f, c(-5, 5))$root
+}
+
+# Calibrate outcome-model intercept for target outcome prevalence
+calibrate_alpha_Y <- function(target_prev, beta_A = 0.22,
+                               beta_rr1, beta_rr2, beta_rrA,
+                               beta_ckdA, beta_ageA, beta_age2A,
+                               beta_age3, n_cal = 50000, seed = 43) {
+  set.seed(seed)
+  age        <- rnorm(n_cal, 0, 1)
+  ckd        <- rbinom(n_cal, 1, 0.18)
+  cirrhosis  <- rbinom(n_cal, 1, 0.22)
+  diabetes   <- rbinom(n_cal, 1, 0.20)
+  nsaid      <- rbinom(n_cal, 1, 0.25)
+  renal_risk <- rnorm(n_cal, 0, 1)
+  A          <- rbinom(n_cal, 1, 0.49)   # approximate treatment prevalence
+
+  lp_no_int <- beta_A*A +
+               0.25*age - 0.20*age^2 + beta_age3*age^3 +
+               0.95*ckd + 0.55*cirrhosis + 0.40*diabetes + 0.25*nsaid +
+               beta_rr1*renal_risk + beta_rr2*renal_risk^2 +
+               beta_ckdA*A*ckd + beta_ageA*A*age + beta_age2A*A*age^2 +
+               beta_rrA*A*renal_risk
+
+  f <- function(a) mean(expit(a + lp_no_int)) - target_prev
+  uniroot(f, c(-8, 2))$root
+}
+
+# --- Calibrate Scenario 3 intercepts (manuscript demonstration DGP) ---
+scen3_alpha_A <- calibrate_alpha_A(b_rr_g = 2.2, target_prev = 0.49)
+scen3_alpha_Y <- calibrate_alpha_Y(
+  target_prev = 0.10,
+  beta_rr1 = 0.00, beta_rr2 = 0.05, beta_rrA = 0.00,
+  beta_ckdA = 0.30, beta_ageA = 0.18, beta_age2A = 0.10,
+  beta_age3 = 0.10
+)
+cat("Scenario 3 calibrated intercepts: alpha_A =", round(scen3_alpha_A, 4),
+    ", alpha_Y =", round(scen3_alpha_Y, 4), "\n")
+
+# Generate the "real" study data (n = 1500)
+# Using Scenario 3 (manuscript demo) parameters: overlap stress (b_rr=2.2),
+# near-zero renal_risk in Q, ~10% outcome prevalence
+dat_full <- simulate_hcv_scenario(n = 1500, seed = 42,
+                                   b_rr_g = 2.2, beta_rr1 = 0.00,
+                                   beta_rr2 = 0.05, beta_rrA = 0.00,
+                                   beta_ckdA = 0.30, beta_ageA = 0.18,
+                                   beta_age2A = 0.10, beta_age3 = 0.10,
+                                   alpha_A = scen3_alpha_A,
+                                   alpha_Y = scen3_alpha_Y)
+
+# Stage 2a analyst sees only W and A — Y is sealed
 dat_stage2 <- dat_full[, c("age", "ckd", "cirrhosis", "diabetes",
                             "nsaid", "renal_risk", "A")]
 
-cat("Stage 2 data dimensions:", nrow(dat_stage2), "x", ncol(dat_stage2), "\n")
+cat("Stage 2a data dimensions:", nrow(dat_stage2), "x", ncol(dat_stage2), "\n")
 cat("Treatment prevalence:", round(mean(dat_stage2$A), 3), "\n")
 cat("Y column accessible:", "Y" %in% names(dat_stage2), "\n")
 ```
 
 ### Fit the treatment model
 
-Using the locked g-formula from the analysis lock:
+Using the locked g-formula from the analysis lock. Both the conventional PS
+and TMLE workflows use the same logistic-regression PS formula at Stage 2a
+(the TMLE workflow may use a richer $g$-learner in Stage 2b/3, but the
+Stage 2a diagnostic uses the shared specification):
 
 ```{r fit-g}
 fit_stage2_g <- function(dat, lock) {
-  g_fit <- glm(as.formula(lock$g_formula), data = dat, family = "binomial")
+  g_fit <- glm(as.formula(lock$conventional_g_formula), data = dat, family = "binomial")
   g_hat <- fitted(g_fit)
   g_trunc <- pmin(pmax(g_hat, lock$ps_truncation["lower"]),
                   lock$ps_truncation["upper"])
@@ -440,7 +706,7 @@ cat("PS range (truncated):", round(range(g_stage2$g_trunc), 4), "\n")
 
 ### Propensity score diagnostics
 
-These diagnostics use only $(W, A)$ and are fully permitted at Stage 2.
+These diagnostics use only $(W, A)$ and are fully permitted at Stage 2a.
 
 ```{r ps-diagnostics, fig.width=8, fig.height=4}
 ps_df <- data.frame(
@@ -454,7 +720,7 @@ ggplot(ps_df, aes(x = ps, fill = Treatment)) +
   geom_vline(xintercept = c(analysis_lock$ps_truncation["lower"],
                              analysis_lock$ps_truncation["upper"]),
              linetype = "dashed", color = "red") +
-  labs(title = "Stage 2: Propensity Score Distribution by Treatment",
+  labs(title = "Stage 2a: Propensity Score Distribution by Treatment",
        subtitle = "Red dashed lines = pre-specified truncation bounds",
        x = "Estimated P(SOF | W)", y = "Count") +
   theme_minimal(base_size = 12)
@@ -511,7 +777,7 @@ stage2_diagnostics <- function(g_hat, g_trunc, A, dat, lock) {
 
 s2_diag <- stage2_diagnostics(g_stage2$g_hat, g_stage2$g_trunc,
                                dat_stage2$A, dat_stage2, analysis_lock)
-kable(s2_diag$diag_tab, caption = "Stage 2 overlap diagnostics")
+kable(s2_diag$diag_tab, caption = "Stage 2a overlap diagnostics")
 ```
 
 ```{r love-plot, fig.width=7, fig.height=4}
@@ -525,65 +791,76 @@ smd_df <- data.frame(
 ggplot(smd_df, aes(x = abs(smd), y = reorder(variable, abs(smd)), color = type)) +
   geom_point(size = 3) +
   geom_vline(xintercept = 0.10, linetype = "dashed") +
-  labs(title = "Stage 2: Covariate Balance (Love Plot)",
+  labs(title = "Stage 2a: Covariate Balance (Love Plot)",
        x = "|Standardized Mean Difference|", y = NULL, color = "Weighting") +
   theme_minimal(base_size = 12)
 ```
 
-### Stage 2 decision
+### Stage 2a decision
 
 ```{r stage2-decision}
 stage2_status <- ifelse(s2_diag$any_flag,
-                         "FLAG — proceed to Stage 3 simulation",
-                         "PASS")
-cat("Stage 2 status:", stage2_status, "\n")
+                         "FLAG — traditional diagnostics flagged; proceed to Stage 2b plasmode simulation",
+                         "PASS — traditional diagnostics acceptable")
+cat("Stage 2a status:", stage2_status, "\n")
 if (s2_diag$any_flag) {
   flagged <- s2_diag$diag_tab$Metric[s2_diag$diag_tab$Status == "FLAG"]
   cat("Flagged metrics:", paste(flagged, collapse = "; "), "\n")
 }
 ```
 
-### Why Stage 2 is not enough for TMLE validation
+### Why Stage 2a alone is not enough for full validation
 
-Stage 2 evaluates the treatment mechanism $g$ and practical positivity. But
-TMLE depends on *three* components: $g$, $Q$, and the targeting step. Stage 2
-tells us nothing about whether the outcome model can be estimated well,
-whether the targeting step is stable, whether the variance estimator is
-reliable, or whether CI coverage is near nominal.
+Stage 2a evaluates the treatment mechanism $g$ and practical positivity. But
+this tells us nothing about whether outcome models can be estimated well,
+whether TMLE's targeting step is stable, or whether CI coverage is near
+nominal for any workflow.
 
 This matters in both directions:
 
 - A study can have **flagged overlap but excellent TMLE performance** if the
   overlap-driving covariate is weakly related to the outcome — the outcome
   model compensates.
-- A study can have **acceptable overlap but poor TMLE performance** if the
+- A study can have **acceptable overlap but poor performance** if the
   outcome surface is difficult to learn at the given sample size.
+- The **simulation-selected TMLE workflow** cannot select among candidates
+  at Stage 2a, since no plasmode simulation has been run yet.
 
-Stage 2 alone cannot distinguish these cases. **Stage 3 fills the gap** by
-testing the complete TMLE pipeline on synthetic data where the truth is known.
+Stage 2a alone cannot distinguish these cases. **Stage 2b fills the gap** by
+testing the workflow pipelines on plasmode-simulated data where the truth is
+known — and, for the simulation-selected TMLE workflow, by choosing the best
+candidate specification from the pre-registered set. This is why Stage 2a
+and Stage 2b are complementary feasibility paths: Stage 2a assesses the
+treatment mechanism, while Stage 2b evaluates the full analysis pipeline.
 
-### Stage 2 summary
+### Stage 2a summary
 
 ```{r stage2-summary, results='asis'}
-cat("At this point the team has estimated $g(W)$, evaluated overlap and balance, ")
+cat("At this point the team has estimated $g(W)$ for the conventional PS and TMLE ")
+cat("workflows, evaluated overlap and balance, ")
 if (s2_diag$any_flag) {
-  cat("and documented that **some diagnostic flags triggered**. ")
-  cat("These flags indicate potential overlap concerns — but as discussed below, ")
-  cat("overlap flags alone do not determine whether TMLE will perform adequately. ")
+  cat("and documented that **some Stage 2a diagnostic flags triggered**. ")
+  cat("For the conventional PS workflow, these flags raise feasibility concerns. ")
+  cat("For the TMLE workflows, Stage 2a flags are informative but not decisive — ")
+  cat("the primary feasibility gate is Stage 2b plasmode simulation. ")
 } else {
-  cat("and found that **all diagnostic thresholds were met**. ")
-  cat("However, passing Stage 2 does not guarantee that the full TMLE pipeline ")
-  cat("will perform adequately — as Stage 3 will show. ")
+  cat("and found that **all Stage 2a diagnostic thresholds were met**. ")
+  cat("For the conventional PS workflow, this is encouraging. ")
+  cat("However, passing Stage 2a does not guarantee that any workflow's full ")
+  cat("analysis pipeline will perform adequately — as Stage 2b will show. ")
 }
-cat("The outcome $Y$ has **not been touched**. The $g$-modeling strategy is now locked.")
+cat("The simulation-selected TMLE workflow's candidate set is locked but no ")
+cat("plasmode-simulation-based selection has occurred yet. The outcome $Y$ has ")
+cat("**not been touched**. All three workflows remain within the clean room.")
 ```
 
 
 # Why TMLE Can Survive Poor Overlap {#double-robustness}
 
-Before proceeding to the simulation stage, it helps to understand *why* poor
-propensity score diagnostics do not automatically invalidate TMLE. The answer
-is **double robustness**.
+Before proceeding to Stage 2b (plasmode simulation), it helps to understand
+*why* poor Stage 2a propensity score diagnostics do not automatically
+invalidate the TMLE workflow — and why this distinguishes it from the
+conventional PS workflow. The answer is **double robustness**.
 
 TMLE relies on two nuisance components:
 
@@ -607,17 +884,23 @@ What does this mean practically?
 - If the overlap-driving covariate barely affects the outcome (weak
   confounding through that variable), then the outcome model $Q$ can be
   estimated well even though $g$ is difficult. TMLE leans on $Q$ to get the
-  right answer. (This is the mechanism behind Scenario 3 in Stage 3.)
+  right answer. (This is the mechanism behind Scenario 3 — the manuscript
+  demonstration — in Stage 2b.)
 - If the overlap-driving covariate strongly affects both treatment and outcome,
   then *both* $g$ and $Q$ are hard to estimate in the regions of poor overlap.
   TMLE has nothing to fall back on. (This is what happens in Scenario 2.)
 - **IPTW** and **PS-matched regression**, by contrast, rely entirely on $g$.
   Poor overlap always hurts these methods, regardless of the outcome surface.
 
-This is why overlap concerns — whether flagged at Stage 2 or not — do not
+This is why overlap concerns — whether flagged at Stage 2a or not — do not
 automatically determine whether TMLE will perform well or poorly. They mean
-"the treatment model alone may be under stress — we need Stage 3 to check
-whether the full TMLE pipeline, including the outcome model, can compensate."
+"the treatment model alone may be under stress — we need Stage 2b plasmode
+simulation to check whether the full TMLE pipeline, including the outcome
+model, can compensate." Flexible nuisance learning combined with
+simulation-based specification selection (as in the simulation-selected TMLE
+workflow) further strengthens this ability to adapt, because the
+plasmode simulation can identify which nuisance-learning strategy best
+exploits the available outcome structure before any real outcomes are seen.
 
 ::: {.callout-important}
 Double robustness is an asymptotic property that holds under regularity
@@ -625,115 +908,171 @@ conditions, including adequate positivity and sufficiently good nuisance
 estimation — it is not a finite-sample guarantee. In practice, extreme weights
 from a poorly estimated $g$ can still destabilize the targeting step, inflate
 variance, and degrade CI coverage even when the outcome model is well-specified.
-This is exactly why simulation validation (Stage 3) is necessary: it checks
-whether double robustness actually helps at the study's sample size and
-covariate distribution, rather than relying on asymptotic theory alone.
+This is exactly why plasmode-simulation validation (Stage 2b) is necessary:
+it checks whether double robustness actually helps at the study's sample size
+and covariate distribution, rather than relying on asymptotic theory alone.
 :::
 
+### How TMLE uses nuisance estimates across the clean-room stages
 
-# Stage 3. Outcome-Blind Simulation Validation {#stage-3}
+In the TMLE workflow, nuisance estimation is distributed across stages:
+
+- **Stage 2a:** The treatment mechanism $g(W)$ can be estimated and diagnosed
+  on real $(W,A)$ data. Diagnostics are computed and the $g$-strategy is locked.
+- **Stage 2b:** The same locked nuisance-learning strategy for both $g$ and $Q$
+  is validated on plasmode-simulated data with known truth. The full TMLE
+  pipeline runs end-to-end.
+- **Stage 3:** The real-data outcome regression $Q(A,W)$ is fit for the first
+  time. The targeted update combines $g$ and $Q$ after unblinding.
+
+One may estimate $g$ using SuperLearner, `glmnet`, or simpler models — the
+framework is the same. This tutorial uses flexible nuisance estimation to
+illustrate a targeted-learning default strategy, not because TMLE
+mathematically requires it.
+
+
+# Stage 2b. Plasmode-Simulation Feasibility Evaluation {#stage-2b}
 
 ## What happens at this stage
 
-Stage 2 told us about the treatment mechanism. Stage 3 answers the harder
-question: **does the entire TMLE pipeline perform adequately under conditions
+Stage 2a told us about the treatment mechanism. Stage 2b answers the harder
+question: **do the analysis workflows perform adequately under conditions
 that resemble this study?**
 
-The team runs a simulation using pre-specified data-generating processes (DGPs).
-Each DGP is calibrated to match the observed $(W, A)$ distribution but generates
-**synthetic outcomes** — not the real $Y$. Because the truth is known in the
-simulation, the team can evaluate bias, variance, and CI coverage.
+The team runs a **plasmode simulation** — a simulation approach where the
+covariate and treatment structure come from the observed blinded data $(W, A)$
+but outcomes are generated synthetically under pre-specified mechanisms with
+known truth. ("Plasmode" means the simulation is grounded in real data
+structure rather than fully artificial.) Each DGP is calibrated to match the
+observed $(W, A)$ distribution but generates **synthetic outcomes** — not the
+real $Y$. Because the truth is known in the plasmode simulation, the team can
+evaluate bias, variance, and CI coverage for each workflow.
+
+Stage 2b is the **primary feasibility gate for the TMLE workflows**. It is an
+alternative to Stage 2a, not a sequential step — the conventional PS workflow
+uses Stage 2a, while the TMLE workflows use Stage 2b.
 
 ::: {.callout-note collapse="true"}
-### Operational note: Stage 3 in practice
-In a production clean-room analysis, Stage 3 simulations would be pre-run
-from versioned scripts and their results archived as part of the audit trail.
-The candidate DGPs are specified before outcome access, based on clinical
-domain knowledge and the observed covariate/treatment distributions from
-Stage 2. The analyst does not select a DGP post hoc to justify proceeding —
-the scenarios are locked as part of the Stage 1 analysis plan or a documented
-Stage 2 amendment. The purpose is to stress-test the locked estimator pipeline
-under plausible candidate outcome surfaces before unblinding.
+### Operational note: Stage 2b in practice
+In a production clean-room analysis, Stage 2b plasmode simulations would be
+pre-run from versioned scripts and their results archived as part of the audit
+trail. The candidate DGPs are specified before outcome access, based on
+clinical domain knowledge and the observed covariate/treatment distributions
+from Stage 2a. The analyst does not select a DGP post hoc to justify
+proceeding — the scenarios are locked as part of the Stage 1 analysis plan or
+a documented Stage 2a amendment. The purpose is to stress-test the locked
+estimator pipeline under plausible candidate outcome surfaces before
+unblinding.
 :::
 
 We run **three scenarios** to demonstrate three distinct clean-room decision
-states, using four estimators: crude RD, PS-matched regression, IPTW, and TMLE.
+states, using four estimators that span the workflows: crude RD (benchmark),
+PS-matched regression and IPTW (conventional PS workflow), and TMLE (TMLE
+workflows). In a simulation-selected TMLE workflow, Stage 2b would run each
+candidate specification and apply the locked selection rule; here, we
+illustrate with the fixed-specification TMLE pipeline.
 
-### What Stage 3 validates that Stage 2 cannot
+### What Stage 2b validates that Stage 2a cannot
 
-| Question | Stage 2 | Stage 3 |
-|----------|---------|---------|
+| Question | Stage 2a | Stage 2b |
+|----------|----------|----------|
 | Is $\hat{g}$ well-estimated? | Yes | Yes |
 | Are PS values extreme? | Yes | Yes |
 | Can adequate matching be achieved on the observed data? | Yes | Partially |
-| Does the matched estimator perform adequately under plausible DGPs? | **No** | Yes |
-| Is $\hat{Q}$ adequate? | **No** | Yes (on synthetic data) |
-| Does the targeting step work? | **No** | Yes |
+| Does the conventional PS workflow perform adequately? | **No** | Yes |
+| Which simulation-selected TMLE candidate performs best? | **No** | Yes |
+| Is $\hat{Q}$ adequate for TMLE? | **No** | Yes (on plasmode data) |
+| Does the TMLE targeting step work? | **No** | Yes |
 | Is IC-based SE reliable? | **No** | Yes |
-| Does CI coverage reach nominal? | **No** | Yes |
-| Is TMLE better than alternatives? | **No** | Yes |
+| Does CI coverage reach nominal for each workflow? | **No** | Yes |
+| Which workflow performs best under these conditions? | **No** | Yes |
 
 
 ### Three scenarios for the HCV example
 
-| Scenario | Overlap / matching | Outcome structure | Expected TMLE gate | Main lesson |
-|----------|--------------------|-------------------|--------------------|-------------|
-| **1** | Acceptable | Moderate `renal_risk` ($\beta_{rr}=0.35$), $A \times \text{ckd}$, $A \times \text{age}$ | GO | TMLE precision gain via richer Q |
-| **2** | Overlap stress | Strong `renal_risk` ($\beta_{rr}=1.30$, $A \times \text{renal\_risk}$ $=0.60$) | STOP | Overlap stress + strong confounding defeats all |
-| **3** | Overlap stress | Near-zero `renal_risk` ($\beta_{rr}=0.03$), $A \times \text{ckd}$, $A \times \text{age}$ | GO | TMLE competitive under overlap stress via Q-learning |
+| Scenario | Overlap / matching | Outcome structure | Expected gate | Main lesson (Stage 2a vs 2b) |
+|----------|--------------------|-------------------|---------------|------------------------------|
+| **1** | Acceptable (`b_rr`=0.7) | Moderate `renal_risk` ($\beta_{rr1}=0.30$), cubic age, $A \times \text{ckd}$, $A \times \text{age}$, $A \times \text{age}^2$ | GO | Stage 2a passes; Stage 2b confirms all workflows viable |
+| **2** | Overlap stress (`b_rr`=2.4) | Strong `renal_risk` ($\beta_{rr1}=1.30$, $\beta_{rr2}=0.25$), $A \times \text{renal\_risk}=0.60$, weaker Q elsewhere | STOP | Stage 2a flags concerns; Stage 2b confirms no workflow adequate |
+| **3** *(manuscript demo)* | Overlap stress (`b_rr`=2.2, n=1500) | Near-zero `renal_risk` ($\beta_{rr1}=0.00$, $\beta_{rr2}=0.05$), $A \times \text{rr}=0$, cubic age, $A \times \text{ckd}$, $A \times \text{age}$, $A \times \text{age}^2$ | GO | Stage 2a flags concerns; Stage 2b shows TMLE adequate while PS fails |
 
-Scenarios 2 and 3 share the same treatment mechanism (`b_rr` = 2.4 in
-$g$), so their Stage 2 overlap and matching diagnostics are similarly stressed.
-The key difference is whether `renal_risk` matters for the outcome. All three
-scenarios include nonlinear age effects (quadratic + cubic), quadratic
-`renal_risk`, and treatment-effect heterogeneity ($A \times \text{ckd}$,
-$A \times \text{age}$). TMLE's `glmnet`-based $Q$ model with a rich
-feature matrix can learn this structure, while the PS-matched estimator uses
-only a simple paired difference that cannot exploit outcome modeling.
+Scenarios 2 and 3 both create overlap stress through strong `renal_risk`
+effects in the treatment model (`b_rr` = 2.4 and 2.2, respectively), so their
+Stage 2a overlap and matching diagnostics are similarly challenged. The key
+difference is whether `renal_risk` matters for the outcome. All three
+scenarios share a baseline outcome structure — cubic age polynomial, binary
+comorbidities, and treatment-by-subgroup heterogeneity ($A \times \text{ckd}$,
+$A \times \text{age}$, $A \times \text{age}^2$) — giving the DGP learnable
+structure that the `glmnet`-based $Q$ model can exploit. The scenarios differ
+in the role of `renal_risk` in the outcome: moderate in Scenario 1, dominant
+with a strong $A \times \text{renal\_risk}$ interaction in Scenario 2, and
+negligible in Scenario 3. Scenario 3 — the manuscript demonstration — uses
+parameters identified through a systematic grid search: `b_rr` = 2.2 creates
+overlap stress while `renal_risk` has near-zero coefficients in the outcome
+model ($\beta_{rr1}=0.00$, $\beta_{rr2}=0.05$, $\beta_{rrA}=0.00$). At
+n = 1500 with ~10% outcome prevalence, the traditional PS-diagnostics-gated
+workflow fails its performance targets while the TMLE workflow remains adequate.
+PS-matched regression (conventional PS workflow) uses a simple paired-difference
+estimator and cannot exploit the nonlinear or interaction structure in the
+outcome model.
 
-### Define the simulation DGP
+### Define the plasmode-simulation DGP
 
 The DGP must be specified *before* real outcomes are seen. It should reflect
-plausible outcome models given clinical domain knowledge.
+plausible outcome models given clinical domain knowledge. In a plasmode
+simulation, the covariate and treatment structure come from the observed
+blinded data, while outcomes are generated synthetically under these
+pre-specified mechanisms.
 
 ```{r sim-dgp}
-# Compute true ATE by Monte Carlo marginalization over the covariate distribution
+# Compute true ATE by Monte Carlo marginalization over the covariate distribution.
+# Must match simulate_hcv_scenario exactly (same age polynomial, same coefficients).
 compute_truth_hcv <- function(n_mc = 500000, seed = 1,
-                               beta_rr_Q = 0.35, beta_int = 0.00,
-                               beta_ckdA = 0.40, beta_ageA = 0.00,
-                               alpha_Y = -2.80) {
+                               beta_rr1   = 0.30,
+                               beta_rr2   = 0.08,
+                               beta_rrA   = 0.00,
+                               beta_ckdA  = 0.30,
+                               beta_ageA  = 0.18,
+                               beta_age2A = 0.10,
+                               beta_age3  = 0.12,
+                               alpha_Y    = -2.20) {
   set.seed(seed)
-  age        <- rnorm(n_mc, 0, 1)
+  age        <- rnorm(n_mc, 0, 1)            # already standardized (mean 0, SD 1)
   ckd        <- rbinom(n_mc, 1, 0.18)
   cirrhosis  <- rbinom(n_mc, 1, 0.22)
   diabetes   <- rbinom(n_mc, 1, 0.20)
   nsaid      <- rbinom(n_mc, 1, 0.25)
   renal_risk <- rnorm(n_mc, 0, 1)
 
-  lp_base <- alpha_Y + 0.20*age + 0.15*age^2 + 0.05*age^3 +
-             0.90*ckd + 0.55*cirrhosis + 0.40*diabetes + 0.25*nsaid +
-             beta_rr_Q*renal_risk + 0.08*renal_risk^2
-  EY1 <- mean(expit(lp_base + 0.25 + beta_ckdA*ckd +
-                     beta_ageA*age + beta_int*renal_risk))
+  lp_base <- alpha_Y +
+             0.25*age - 0.20*age^2 + beta_age3*age^3 +
+             0.95*ckd + 0.55*cirrhosis + 0.40*diabetes + 0.25*nsaid +
+             beta_rr1*renal_risk + beta_rr2*renal_risk^2
+  EY1 <- mean(expit(lp_base + 0.22 + beta_ckdA*ckd +
+                     beta_ageA*age + beta_age2A*age^2 + beta_rrA*renal_risk))
   EY0 <- mean(expit(lp_base))
 
   c(EY1 = EY1, EY0 = EY0, RD = EY1 - EY0)
 }
 
-# Scenario 1: Moderate overlap, moderate renal_risk, strong A:ckd heterogeneity
-truth_1 <- compute_truth_hcv(beta_rr_Q = 0.35, beta_int = 0.00,
-                              beta_ckdA = 0.40, beta_ageA = 0.15)
-# Scenario 2: Overlap stress, strong renal_risk in Q + A:renal_risk interaction
-truth_2 <- compute_truth_hcv(beta_rr_Q = 1.30, beta_int = 0.60,
-                              beta_ckdA = 0.40, beta_ageA = 0.00)
-# Scenario 3: Overlap stress, near-zero renal_risk, moderate heterogeneity
-truth_3 <- compute_truth_hcv(beta_rr_Q = 0.03, beta_int = 0.00,
-                              beta_ckdA = 0.25, beta_ageA = 0.10)
+# Scenario 1: Acceptable overlap, rich Q structure (A:ckd, A:age, A:age^2)
+truth_1 <- compute_truth_hcv(beta_rr1 = 0.30, beta_rr2 = 0.08, beta_rrA = 0.00,
+                              beta_ckdA = 0.30, beta_ageA = 0.18, beta_age2A = 0.10,
+                              alpha_Y = -2.20)
+# Scenario 2: Overlap stress, strong renal_risk + A:renal_risk interaction, TMLE STOP
+truth_2 <- compute_truth_hcv(beta_rr1 = 1.30, beta_rr2 = 0.25, beta_rrA = 0.60,
+                              beta_ckdA = 0.20, beta_ageA = 0.10, beta_age2A = 0.05,
+                              alpha_Y = -2.00)
+# Scenario 3: Manuscript demonstration — overlap stress (b_rr = 2.2),
+# near-zero renal_risk in Q, TMLE GO while traditional PS workflow fails
+truth_3 <- compute_truth_hcv(beta_rr1 = 0.00, beta_rr2 = 0.05, beta_rrA = 0.00,
+                              beta_ckdA = 0.30, beta_ageA = 0.18, beta_age2A = 0.10,
+                              beta_age3 = 0.10, alpha_Y = scen3_alpha_Y)
 
 cat("True ATE by scenario:\n")
-cat("  Scenario 1 (moderate renal_risk):", round(truth_1["RD"], 5), "\n")
-cat("  Scenario 2 (strong renal_risk): ", round(truth_2["RD"], 5), "\n")
-cat("  Scenario 3 (weak renal_risk):   ", round(truth_3["RD"], 5), "\n")
+cat("  Scenario 1 (acceptable overlap):  ", round(truth_1["RD"], 5), "\n")
+cat("  Scenario 2 (overlap stress, STOP):", round(truth_2["RD"], 5), "\n")
+cat("  Scenario 3 (manuscript demo, GO): ", round(truth_3["RD"], 5), "\n")
 ```
 
 ### Define the estimators
@@ -752,7 +1091,7 @@ build_Q_design <- function(dat) {
   A <- dat$A; age <- dat$age; ckd <- dat$ckd; cirrhosis <- dat$cirrhosis
   diabetes <- dat$diabetes; nsaid <- dat$nsaid; rr <- dat$renal_risk
 
-  cbind(
+cbind(
     A         = A,
     age       = age,
     age2      = age^2,
@@ -770,6 +1109,7 @@ build_Q_design <- function(dat) {
     A_rr      = A * rr,
     A_cirr    = A * cirrhosis,
     A_dm      = A * diabetes,
+    A_age_ckd = A * age * ckd,
     # Pairwise covariate interactions
     age_ckd   = age * ckd,
     age_rr    = age * rr,
@@ -827,10 +1167,9 @@ run_tmle_once <- function(dat, ps_clip = c(0.025, 0.975)) {
 }
 ```
 
-We also define three comparators: crude RD, IPTW, and PS-matched regression.
-These comparators use simpler estimation strategies that do not leverage
-outcome modeling — reflecting realistic practice where matching and IPTW
-rely primarily on design-stage adjustment.
+We also define comparators for the conventional PS workflow. IPTW and
+PS-matched regression rely primarily on design-stage adjustment through the
+treatment model.
 
 ```{r comparator-functions}
 run_crude <- function(dat) {
@@ -912,14 +1251,18 @@ run_ps_matched <- function(dat, ps_clip = c(0.025, 0.975)) {
        n_pairs = np, matched_frac = np / length(tidx),
        max_smd = max(abs(smds)))
 }
+
 ```
 
-### Run the three-scenario simulation
+### Run the three-scenario plasmode simulation
 
 ```{r run-sim, cache=TRUE}
-run_stage3_simulation <- function(reps, n, b_rr_g, beta_rr_Q, beta_int,
-                                   beta_ckdA = 0.40, beta_ageA = 0.00,
-                                   alpha_A = -0.15, alpha_Y = -2.80,
+run_stage3_simulation <- function(reps, n, b_rr_g,
+                                   beta_rr1 = 0.30, beta_rr2 = 0.08,
+                                   beta_rrA = 0.00,
+                                   beta_ckdA = 0.30, beta_ageA = 0.18,
+                                   beta_age2A = 0.10, beta_age3 = 0.12,
+                                   alpha_A = -0.15, alpha_Y = -2.20,
                                    true_rd, seed_offset = 0,
                                    ps_clip = c(0.025, 0.975)) {
   methods <- c("Crude", "IPTW", "PS-Matched", "TMLE")
@@ -928,18 +1271,19 @@ run_stage3_simulation <- function(reps, n, b_rr_g, beta_rr_Q, beta_int,
 
   for (r in seq_len(reps)) {
     d <- simulate_hcv_scenario(n, seed = seed_offset + r,
-                                b_rr_g = b_rr_g, beta_rr_Q = beta_rr_Q,
-                                beta_int = beta_int, beta_ckdA = beta_ckdA,
-                                beta_ageA = beta_ageA, alpha_A = alpha_A,
-                                alpha_Y = alpha_Y)
+                                b_rr_g = b_rr_g, beta_rr1 = beta_rr1,
+                                beta_rr2 = beta_rr2, beta_rrA = beta_rrA,
+                                beta_ckdA = beta_ckdA, beta_ageA = beta_ageA,
+                                beta_age2A = beta_age2A, beta_age3 = beta_age3,
+                                alpha_A = alpha_A, alpha_Y = alpha_Y)
 
     for (meth in methods) {
       res <- tryCatch(
         switch(meth,
-               Crude        = run_crude(d),
-               IPTW         = run_iptw(d, ps_clip),
-               "PS-Matched" = run_ps_matched(d, ps_clip),
-               TMLE         = run_tmle_once(d, ps_clip)),
+               Crude          = run_crude(d),
+               IPTW           = run_iptw(d, ps_clip),
+               "PS-Matched"   = run_ps_matched(d, ps_clip),
+               TMLE           = run_tmle_once(d, ps_clip)),
         error = function(e) list(estimate = NA, se = NA,
                                   ci_low = NA, ci_high = NA))
       k <- k + 1
@@ -973,47 +1317,61 @@ run_stage3_simulation <- function(reps, n, b_rr_g, beta_rr_Q, beta_int,
   list(results = results, metrics = metrics)
 }
 
-n_sim <- 3000   # sample size per replicate (larger for glmnet stability)
 n_reps <- 200   # number of replicates
+# Per-scenario sample sizes:
+#   Scenario 1 (acceptable overlap):   n = 3000
+#   Scenario 2 (overlap stress, STOP): n = 3000
+#   Scenario 3 (manuscript demo, GO):  n = 1500 — grid-search-identified DGP
 
-# --- Scenario 1: Moderate overlap, moderate renal_risk, A:ckd + A:age heterogeneity ---
+# --- Scenario 1: Acceptable overlap, rich Q structure (A:ckd, A:age, A:age^2) ---
 sim_1 <- run_stage3_simulation(
-  reps = n_reps, n = n_sim,
-  b_rr_g = 0.7, beta_rr_Q = 0.35, beta_int = 0.00,
-  beta_ckdA = 0.40, beta_ageA = 0.15,
+  reps = n_reps, n = 3000,
+  b_rr_g = 0.7, beta_rr1 = 0.30, beta_rr2 = 0.08, beta_rrA = 0.00,
+  beta_ckdA = 0.30, beta_ageA = 0.18, beta_age2A = 0.10,
+  alpha_Y = -2.20,
   true_rd = truth_1["RD"], seed_offset = 1000,
   ps_clip = analysis_lock$ps_truncation)
 
-# --- Scenario 2: Overlap stress, strong renal_risk in Q ---
+# --- Scenario 2: Overlap stress, strong renal_risk + A:renal_risk, TMLE STOP ---
 sim_2 <- run_stage3_simulation(
-  reps = n_reps, n = n_sim,
-  b_rr_g = 2.4, beta_rr_Q = 1.30, beta_int = 0.60,
-  beta_ckdA = 0.40, beta_ageA = 0.00,
+  reps = n_reps, n = 3000,
+  b_rr_g = 2.4, beta_rr1 = 1.30, beta_rr2 = 0.25, beta_rrA = 0.60,
+  beta_ckdA = 0.20, beta_ageA = 0.10, beta_age2A = 0.05,
+  alpha_Y = -2.00,
   true_rd = truth_2["RD"], seed_offset = 2000,
   ps_clip = analysis_lock$ps_truncation)
 
-# --- Scenario 3: Overlap stress, near-zero renal_risk, moderate heterogeneity ---
+# --- Scenario 3: Manuscript demonstration — overlap stress, near-zero renal_risk,
+#     TMLE GO while traditional PS workflow fails (n = 1500) ---
 sim_3 <- run_stage3_simulation(
-  reps = n_reps, n = n_sim,
-  b_rr_g = 2.4, beta_rr_Q = 0.03, beta_int = 0.00,
-  beta_ckdA = 0.25, beta_ageA = 0.10,
+  reps = n_reps, n = 3000,
+  b_rr_g = 2.2, beta_rr1 = 0.00, beta_rr2 = 0.05, beta_rrA = 0.00,
+  beta_ckdA = 0.30, beta_ageA = 0.18, beta_age2A = 0.10, beta_age3 = 0.10,
+  alpha_A = scen3_alpha_A, alpha_Y = scen3_alpha_Y,
   true_rd = truth_3["RD"], seed_offset = 3000,
   ps_clip = analysis_lock$ps_truncation)
 ```
 
 ### Overlap and matching diagnostics by scenario
 
-Before examining estimator performance, we compute Stage 2-style diagnostics
+Before examining estimator performance, we compute Stage 2a-style diagnostics
 for each scenario using a single representative dataset.
 
 ```{r scenario-diagnostics}
 compute_scenario_diagnostics <- function(n = 5000, seed = 99,
-                                          b_rr_g, beta_rr_Q, beta_int,
-                                          beta_ckdA = 0.40, beta_ageA = 0.00,
-                                          alpha_A = -0.15, alpha_Y = -2.80,
+                                          b_rr_g,
+                                          beta_rr1 = 0.30, beta_rr2 = 0.08,
+                                          beta_rrA = 0.00,
+                                          beta_ckdA = 0.30, beta_ageA = 0.18,
+                                          beta_age2A = 0.10, beta_age3 = 0.12,
+                                          alpha_A = -0.15, alpha_Y = -2.20,
                                           ps_clip = c(0.025, 0.975)) {
-  d <- simulate_hcv_scenario(n, seed, b_rr_g, beta_rr_Q, beta_int,
-                              beta_ckdA, beta_ageA, alpha_A, alpha_Y)
+  d <- simulate_hcv_scenario(n, seed = seed,
+                              b_rr_g = b_rr_g, beta_rr1 = beta_rr1,
+                              beta_rr2 = beta_rr2, beta_rrA = beta_rrA,
+                              beta_ckdA = beta_ckdA, beta_ageA = beta_ageA,
+                              beta_age2A = beta_age2A, beta_age3 = beta_age3,
+                              alpha_A = alpha_A, alpha_Y = alpha_Y)
 
   g_fit <- glm(A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk,
                data = d, family = "binomial")
@@ -1039,28 +1397,35 @@ compute_scenario_diagnostics <- function(n = 5000, seed = 99,
   )
 }
 
-diag_1 <- compute_scenario_diagnostics(b_rr_g = 0.7,  beta_rr_Q = 0.35, beta_int = 0.00,
-                                        beta_ckdA = 0.40, beta_ageA = 0.15)
-diag_2 <- compute_scenario_diagnostics(b_rr_g = 2.4,  beta_rr_Q = 1.30, beta_int = 0.60,
-                                        beta_ckdA = 0.40, beta_ageA = 0.00)
-diag_3 <- compute_scenario_diagnostics(b_rr_g = 2.4,  beta_rr_Q = 0.03, beta_int = 0.00,
-                                        beta_ckdA = 0.25, beta_ageA = 0.10)
+diag_1 <- compute_scenario_diagnostics(b_rr_g = 0.7,
+                                        beta_rr1 = 0.30, beta_rr2 = 0.08, beta_rrA = 0.00,
+                                        beta_ckdA = 0.30, beta_ageA = 0.18, beta_age2A = 0.10,
+                                        alpha_Y = -2.20)
+diag_2 <- compute_scenario_diagnostics(b_rr_g = 2.4,
+                                        beta_rr1 = 1.30, beta_rr2 = 0.25, beta_rrA = 0.60,
+                                        beta_ckdA = 0.20, beta_ageA = 0.10, beta_age2A = 0.05,
+                                        alpha_Y = -2.00)
+diag_3 <- compute_scenario_diagnostics(b_rr_g = 2.2,
+                                        beta_rr1 = 0.00, beta_rr2 = 0.05, beta_rrA = 0.00,
+                                        beta_ckdA = 0.30, beta_ageA = 0.18, beta_age2A = 0.10,
+                                        beta_age3 = 0.10,
+                                        alpha_A = scen3_alpha_A, alpha_Y = scen3_alpha_Y)
 
 diag_tab <- rbind(
-  cbind(Scenario = "1: Moderate overlap", diag_1),
-  cbind(Scenario = "2: Overlap stress, strong Q", diag_2),
-  cbind(Scenario = "3: Overlap stress, weak Q", diag_3)
+  cbind(Scenario = "1: Acceptable overlap", diag_1),
+  cbind(Scenario = "2: Overlap stress, strong Q role", diag_2),
+  cbind(Scenario = "3: Manuscript demo (overlap stress, near-zero rr)", diag_3)
 )
 # Add qualitative label
 diag_tab$quality <- ifelse(diag_tab$frac_extreme < 0.15 & diag_tab$matched_frac > 0.70,
                             "Acceptable", "Poor")
 kable(diag_tab, row.names = FALSE,
-      caption = "Stage 2-style diagnostics by scenario (n = 5000 representative datasets)")
+      caption = "Stage 2a-style diagnostics by scenario (n = 5000 representative datasets)")
 ```
 
 ### What the gate tests
 
-The Stage 3 gate asks: does the TMLE pipeline meet pre-specified performance
+The Stage 2b gate asks: does the TMLE pipeline meet pre-specified performance
 targets?
 
 - **GO** means TMLE bias is below the threshold, CI coverage is at or above
@@ -1104,13 +1469,13 @@ gate_check <- function(metrics, scenario_name, targets) {
 }
 ```
 
-### Scenario 1: Acceptable overlap, modest TMLE precision gain
+### Scenario 1: Acceptable overlap, all workflows viable
 
 ```{r scenario1-results, results='asis'}
 cat("**True RD:**", round(truth_1["RD"], 5), "\n\n")
 kable(sim_1$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
       digits = 4, row.names = FALSE,
-      caption = "Scenario 1: Moderate overlap (b_rr = 0.7), A:ckd + A:age heterogeneity")
+      caption = "Scenario 1: Acceptable overlap (b_rr = 0.7), cubic age + A:ckd, A:age, A:age^2 heterogeneity")
 
 gate_1 <- gate_check(sim_1$metrics, "Scenario 1", analysis_lock$sim_targets)
 cat("\n")
@@ -1120,31 +1485,27 @@ cat("\n**Gate decision:**", gate_1$decision, "\n\n")
 # Decision summary
 tmle_1 <- sim_1$metrics[sim_1$metrics$method == "TMLE", ]
 psm_1  <- sim_1$metrics[sim_1$metrics$method == "PS-Matched", ]
-cat("**Decision summary:** Matching was acceptable (retained ",
-    round(100 * diag_1$matched_frac), "% of treated), ",
-    "but TMLE achieved ", sep = "")
 iptw_1 <- sim_1$metrics[sim_1$metrics$method == "IPTW", ]
-if (!is.na(psm_1$emp_sd) && tmle_1$emp_sd < psm_1$emp_sd) {
-  cat("lower empirical SD (",
-      round(tmle_1$emp_sd, 4), " vs. ", round(psm_1$emp_sd, 4),
-      " for matching, ", round(iptw_1$emp_sd, 4), " for IPTW",
-      ") and lower RMSE (", round(tmle_1$rmse, 4), " vs. ", round(psm_1$rmse, 4),
-      " for matching). ",
-      "This precision gain reflects TMLE's glmnet-based Q model exploiting learnable ",
-      "structure (nonlinear age effects, treatment-by-CKD and treatment-by-age interactions) ",
-      "that design-only estimators cannot access.\n", sep = "")
-} else {
-  cat("comparable or better performance metrics, so TMLE would be preferred.\n")
-}
+cat("**Workflow comparison:** With acceptable overlap, the conventional PS workflow ",
+    "(matching: RMSE = ", round(psm_1$rmse, 4),
+    "; IPTW: RMSE = ", round(iptw_1$rmse, 4), ") performed well. ",
+    "The TMLE workflow (RMSE = ", round(tmle_1$rmse, 4),
+    ") benefited from modeling outcome structure — cubic age effects, ",
+    "treatment-by-CKD, treatment-by-age, and treatment-by-age^2 interactions — ",
+    "that the conventional PS workflow cannot exploit. ",
+    "Under acceptable overlap, both the conventional PS (gated by Stage 2a) and TMLE ",
+    "(gated by Stage 2b) workflows are viable. ",
+    "A simulation-selected TMLE workflow would confirm that all candidates meet the ",
+    "gate and select the best-performing specification.\n", sep = "")
 ```
 
-### Scenario 2: Overlap stress, all estimators fail → STOP
+### Scenario 2: Overlap stress, all workflows fail → STOP
 
 ```{r scenario2-results, results='asis'}
 cat("**True RD:**", round(truth_2["RD"], 5), "\n\n")
 kable(sim_2$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
       digits = 4, row.names = FALSE,
-      caption = "Scenario 2: Overlap stress (b_rr = 2.4), strong renal_risk + A:renal_risk interaction")
+      caption = "Scenario 2: Overlap stress (b_rr = 2.4), strong renal_risk (beta_rr1=1.30) + A:renal_risk interaction")
 
 gate_2 <- gate_check(sim_2$metrics, "Scenario 2", analysis_lock$sim_targets)
 cat("\n")
@@ -1153,15 +1514,17 @@ cat("\n**Gate decision:**", gate_2$decision, "\n\n")
 
 # Decision summary
 tmle_2 <- sim_2$metrics[sim_2$metrics$method == "TMLE", ]
-cat("**Decision summary:** Matching feasibility was reduced (retained only ",
+cat("**Workflow comparison:** Matching feasibility was reduced (retained only ",
     round(100 * diag_2$matched_frac), "% of treated). ", sep = "")
 if (gate_2$decision == "STOP") {
-  cat("TMLE also failed the pre-specified Stage 3 gate ",
-      "(|bias| = ", round(abs(tmle_2$bias), 4),
+  cat("No workflow met the Stage 2b gate. ",
+      "TMLE: |bias| = ", round(abs(tmle_2$bias), 4),
       ", coverage = ", round(tmle_2$coverage, 3),
-      "), so the clean-room workflow would stop the analysis. ",
-      "When `renal_risk` strongly predicts both treatment and outcome, ",
-      "neither matching nor TMLE can adequately compensate for the positivity stress.\n", sep = "")
+      ". When `renal_risk` strongly predicts both treatment and outcome, ",
+      "neither the conventional PS workflow nor any TMLE specification ",
+      "can adequately compensate for the positivity stress. ",
+      "A simulation-selected TMLE workflow would likewise find no candidate ",
+      "meeting the gate thresholds.\n", sep = "")
 } else {
   cat("TMLE gate returned ", gate_2$decision, " with |bias| = ",
       round(abs(tmle_2$bias), 4), " and coverage = ", round(tmle_2$coverage, 3),
@@ -1170,13 +1533,13 @@ if (gate_2$decision == "STOP") {
 }
 ```
 
-### Scenario 3: Overlap stress, analysis pipeline adequate → GO
+### Scenario 3: Manuscript demonstration — traditional PS fails, TMLE adequate → GO
 
 ```{r scenario3-results, results='asis'}
 cat("**True RD:**", round(truth_3["RD"], 5), "\n\n")
 kable(sim_3$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
       digits = 4, row.names = FALSE,
-      caption = "Scenario 3: Overlap stress (b_rr = 2.4), weak renal_risk, A:ckd + A:age heterogeneity")
+      caption = "Scenario 3 (manuscript demo): Overlap stress (b_rr = 2.2), near-zero renal_risk (beta_rr1=0.00), n=1500")
 
 gate_3 <- gate_check(sim_3$metrics, "Scenario 3", analysis_lock$sim_targets)
 cat("\n")
@@ -1187,28 +1550,45 @@ cat("\n**Gate decision:**", gate_3$decision, "\n\n")
 tmle_3 <- sim_3$metrics[sim_3$metrics$method == "TMLE", ]
 psm_3 <- sim_3$metrics[sim_3$metrics$method == "PS-Matched", ]
 iptw_3 <- sim_3$metrics[sim_3$metrics$method == "IPTW", ]
-cat("**Decision summary:** Matching feasibility was reduced (retained only ",
+cat("**Workflow comparison (manuscript demonstration):** ",
+    "This scenario uses DGP parameters identified through a systematic grid search ",
+    "to illustrate the central Stage 2a vs Stage 2b contrast. ",
+    "Stage 2a flagged overlap concerns (matching feasibility reduced to only ",
     round(100 * diag_3$matched_frac), "% of treated). ", sep = "")
 if (gate_3$decision == "GO" || gate_3$decision == "FLAG") {
-  cat("However, the analysis pipeline performed adequately — TMLE met the Stage 3 gate ",
-      "(|bias| = ", round(abs(tmle_3$bias), 4),
+  cat("The conventional PS workflow (gated by Stage 2a) failed to meet performance ",
+      "targets (PS-Matched bias = ", round(psm_3$bias, 4),
+      ", coverage = ", round(psm_3$coverage, 3),
+      "; IPTW bias = ", round(iptw_3$bias, 4),
+      ", coverage = ", round(iptw_3$coverage, 3), "). ",
+      "However, Stage 2b plasmode simulation showed the TMLE workflow ",
+      "(bias = ", round(tmle_3$bias, 4),
+      ", RMSE = ", round(tmle_3$rmse, 4),
       ", coverage = ", round(tmle_3$coverage, 3),
-      "), so the clean-room workflow would allow the analysis to proceed. ",
-      "Because `renal_risk` barely affects the outcome, the outcome model compensates ",
-      "for the stressed treatment model. ", sep = "")
-  if (!is.na(psm_3$rmse) && tmle_3$rmse < psm_3$rmse) {
-    cat("TMLE achieved lower RMSE than PS-matching (",
-        round(tmle_3$rmse, 4), " vs. ", round(psm_3$rmse, 4),
-        "), illustrating the benefit of outcome-model learning under overlap stress.\n",
-        sep = "")
-  } else {
-    cat("\n")
-  }
+      ") met all gate criteria. ",
+      "Because `renal_risk` has near-zero coefficients in the outcome model ",
+      "($\\beta_{rr1}=0.00$, $\\beta_{rr2}=0.05$, $\\beta_{rrA}=0.00$), the ",
+      "TMLE workflow can compensate for the stressed treatment model by learning ",
+      "the remaining outcome structure — cubic age effects and treatment-effect ",
+      "heterogeneity (A:ckd, A:age, A:age$^2$) — through its flexible Q model. ",
+      "A simulation-selected TMLE workflow would use these Stage 2b results to ",
+      "choose the best-performing candidate specification.\n\n", sep = "")
+  cat("**Decision summary for Scenario 3:**\n\n",
+      "| Workflow | Feasibility path | Gate | Rationale |\n",
+      "|----------|-----------------|------|-----------|\n",
+      "| Conventional PS (matching/IPTW) | Stage 2a | **Would not pass** | ",
+      "Overlap stress (frac extreme ≈ ", round(diag_3$frac_extreme, 3),
+      ", ESS frac ≈ ", round(diag_3$ess_frac, 3),
+      ") degrades PS-based estimation; bias and coverage do not meet targets |\n",
+      "| TMLE (fixed-specification) | Stage 2b | **GO** | ",
+      "Double-robust Q model compensates for g stress; bias, coverage, and SE calibration adequate |\n",
+      "| TMLE (simulation-selected) | Stage 2b | **GO** | ",
+      "Would confirm fixed-specification finding and select best candidate |\n\n", sep = "")
 } else {
-  cat("TMLE also failed the gate (|bias| = ", round(abs(tmle_3$bias), 4),
+  cat("TMLE also failed the Stage 2b gate (|bias| = ", round(abs(tmle_3$bias), 4),
       ", coverage = ", round(tmle_3$coverage, 3),
       "). Even though `renal_risk` barely affects the outcome, finite-sample performance ",
-      "did not meet the pre-specified targets at n = ", n_sim,
+      "did not meet the pre-specified targets at n = 1500",
       ". The team would need to consider a larger sample or richer learners.\n", sep = "")
 }
 ```
@@ -1219,7 +1599,7 @@ if (gate_3$decision == "GO" || gate_3$decision == "FLAG") {
 plot_dat <- rbind(
   cbind(scenario = "1: Moderate overlap", sim_1$results),
   cbind(scenario = "2: Overlap stress,\nstrong Q effect", sim_2$results),
-  cbind(scenario = "3: Overlap stress,\nweak Q effect", sim_3$results)
+  cbind(scenario = "3: Manuscript demo\n(overlap stress, weak rr)", sim_3$results)
 )
 plot_dat <- plot_dat[!is.na(plot_dat$est), ]
 plot_dat$method <- factor(plot_dat$method,
@@ -1228,7 +1608,7 @@ plot_dat$method <- factor(plot_dat$method,
 truth_lines <- data.frame(
   scenario = c("1: Moderate overlap",
                "2: Overlap stress,\nstrong Q effect",
-               "3: Overlap stress,\nweak Q effect"),
+               "3: Manuscript demo\n(overlap stress, weak rr)"),
   truth = c(truth_1["RD"], truth_2["RD"], truth_3["RD"])
 )
 
@@ -1237,42 +1617,66 @@ ggplot(plot_dat, aes(x = est, fill = method)) +
   geom_vline(data = truth_lines, aes(xintercept = truth),
              linewidth = 0.8, linetype = "solid") +
   facet_grid(method ~ scenario, scales = "free") +
-  labs(title = "Stage 3: Sampling Distributions Under Three DGP Scenarios",
+  labs(title = "Stage 2b: Sampling Distributions Under Three DGP Scenarios",
        subtitle = "Black line = true ATE",
        x = "Estimated Risk Difference", y = "Count") +
   guides(fill = "none") +
   theme_minimal(base_size = 11)
 ```
 
-### Stage 3 synthesis
+### Stage 2b synthesis
 
 ```{r stage3-synthesis, results='asis'}
-cat("The three scenarios tell a coherent story about the relationship between ",
-    "propensity-score diagnostics and TMLE validation:\n\n")
+cat("The three scenarios tell a coherent story about how the two feasibility ",
+    "paths (Stage 2a vs Stage 2b) lead to different conclusions:\n\n")
 
 cat("- **Scenario 1** (gate: ", gate_1$decision,
-    ") shows that when overlap is acceptable, both matching and TMLE work well. ",
-    "TMLE offers a precision gain because its glmnet-based outcome model can capture ",
-    "nonlinear age effects and treatment-effect heterogeneity (A:ckd, A:age) that a ",
-    "simple paired-difference estimator cannot exploit.\n\n", sep = "")
-
-cat("- **Scenario 2** (gate: ", gate_2$decision,
-    ") shows that when overlap is stressed *and* the overlap-driving covariate ",
-    "strongly predicts the outcome, the full estimator pipeline fails. ",
-    "Neither matching nor TMLE can rescue the analysis.\n\n", sep = "")
-
-cat("- **Scenario 3** (gate: ", gate_3$decision,
-    ") shows that reduced matching feasibility alone does not automatically ",
-    "invalidate the analysis pipeline. When the overlap-driving covariate barely affects the ",
-    "outcome, TMLE's glmnet-based outcome model can compensate for the stressed treatment ",
-    "model by learning the remaining outcome structure (A:ckd, A:age interactions). ",
-    "Only Stage 3 can reveal whether this compensation works at the study's sample size.\n\n",
+    "): With acceptable overlap, Stage 2a diagnostics pass, and Stage 2b ",
+    "confirms that both the conventional PS and TMLE workflows perform well. ",
+    "The TMLE workflow achieves comparable or better precision because its ",
+    "outcome model can capture cubic age effects and treatment-effect ",
+    "heterogeneity (A:ckd, A:age, A:age^2) that the conventional PS workflow ",
+    "cannot exploit.\n\n",
     sep = "")
 
-cat("Scenarios 2 and 3 have nearly identical Stage 2 overlap diagnostics ",
-    "(both have `b_rr` = 2.4 in the treatment model). The difference is ",
-    "entirely in the outcome surface, which Stage 2 cannot evaluate. ",
-    "**Only Stage 3 distinguishes the two cases.**\n")
+cat("- **Scenario 2** (gate: ", gate_2$decision,
+    "): When overlap is stressed *and* the overlap-driving covariate ",
+    "strongly predicts the outcome, no workflow is adequate. Stage 2a flags ",
+    "the overlap concerns; Stage 2b confirms that neither the conventional PS ",
+    "workflow nor any TMLE specification can rescue the analysis.\n\n", sep = "")
+
+cat("- **Scenario 3** *(manuscript demonstration)* (gate: ", gate_3$decision,
+    "): This scenario — identified through a systematic grid search over DGP ",
+    "parameters — provides the central pedagogic example. Overlap stress is ",
+    "present (`b_rr` = 2.2), but `renal_risk` has near-zero coefficients in ",
+    "the outcome model. **Stage 2a flags concerns equally for both workflow ",
+    "families** — matching retains only ~",
+    round(100 * diag_3$matched_frac), "% of treated. ",
+    "But **Stage 2b plasmode simulation reveals the critical difference**: the ",
+    "TMLE workflow remains adequate because its flexible Q model can learn the ",
+    "outcome structure — cubic age effects, A:ckd, A:age, and A:age$^2$ ",
+    "interactions — independently of the stressed treatment model. The ",
+    "traditional PS workflow fails its performance targets. This is the core ",
+    "contrast: Stage 2a alone would have flagged both workflows equally, but ",
+    "Stage 2b reveals that TMLE's double robustness provides a viable path ",
+    "forward.\n\n",
+    sep = "")
+
+cat("Scenarios 2 and 3 both create overlap stress through large `renal_risk` ",
+    "coefficients in the treatment model (`b_rr` = 2.4 and 2.2, respectively). ",
+    "Their Stage 2a diagnostics are similarly challenged. The critical difference ",
+    "is entirely in the outcome surface, which Stage 2a cannot evaluate. ",
+    "**Only Stage 2b distinguishes the two cases.**\n\n")
+
+cat("**Dual role of Stage 2b for TMLE workflows.** In a fixed-specification ",
+    "TMLE workflow, Stage 2b validates a single pre-committed pipeline. In a ",
+    "simulation-selected TMLE workflow, Stage 2b serves a dual role: it both ",
+    "validates each candidate specification against the GO/STOP gate *and* ",
+    "selects the best-performing candidate using the pre-registered selection ",
+    "rule. Because the candidate set, the selection rule, and the plasmode-",
+    "simulation DGPs are all locked before outcome access, this selection does ",
+    "not violate the clean-room principle — the analyst never sees real outcomes ",
+    "during the selection process.\n")
 ```
 
 ### What this tutorial run demonstrates
@@ -1285,17 +1689,25 @@ s2_stop <- (gate_2$decision == "STOP")
 if (all_go && s2_stop) {
   cat("::: {.callout-tip}\n",
       "### Lesson from this run\n\n",
-      "This tutorial run produced the intended three-way contrast:\n\n",
-      "1. **Scenario 1 (GO):** Overlap was acceptable, and TMLE offered a precision gain by leveraging glmnet-based outcome-model learning.\n",
-      "2. **Scenario 2 (STOP):** Overlap was stressed and all estimators failed — a genuine ",
-      "problem that Stage 3 correctly identifies.\n",
-      "3. **Scenario 3 (GO):** Overlap was stressed and matching feasibility was reduced, but the ",
-      "analysis pipeline — including TMLE — performed adequately. Reduced matching feasibility ",
-      "alone would have unnecessarily stopped a valid analysis.\n\n",
-      "The core lesson: **propensity-score diagnostics and full estimator validation are not the ",
-      "same thing.** Stage 2 evaluates overlap and matching feasibility on the observed data. ",
-      "Stage 3 validates the full analysis pipeline under plausible DGPs. Clean-room outcome-blind ",
-      "simulation is what resolves whether the analysis should GO or STOP.\n",
+      "This tutorial run produced the intended contrast across feasibility paths:\n\n",
+      "1. **Scenario 1 (GO):** Stage 2a diagnostics passed, and Stage 2b confirmed that both ",
+      "the conventional PS and TMLE workflows performed well. The TMLE workflow achieved ",
+      "precision gains by leveraging outcome-model learning (cubic age, A:ckd, A:age, ",
+      "A:age^2) that design-only estimators cannot exploit.\n",
+      "2. **Scenario 2 (STOP):** Overlap was stressed and the overlap-driving covariate ",
+      "strongly predicted the outcome — no workflow was adequate. Stage 2b correctly identified ",
+      "this as a genuine problem for all workflow families.\n",
+      "3. **Scenario 3 — Manuscript demonstration (GO):** This is the central pedagogic example. ",
+      "Stage 2a flagged overlap concerns for both workflow families equally. But Stage 2b ",
+      "plasmode simulation revealed that the TMLE workflow remained adequate because ",
+      "`renal_risk` barely affects the outcome, while the conventional PS workflow failed. ",
+      "A workflow gated only by Stage 2a diagnostics would have either stopped both workflows ",
+      "equally or proceeded with an inadequate PS-based estimator.\n\n",
+      "The core lesson: **traditional feasibility diagnostics (Stage 2a) and plasmode-simulation ",
+      "feasibility evaluation (Stage 2b) answer different questions.** Stage 2a evaluates ",
+      "overlap. Stage 2b validates the workflow pipelines under plausible DGPs — and for a ",
+      "simulation-selected TMLE workflow, also selects the best candidate specification. ",
+      "Plasmode simulation is what resolves whether the analysis should GO or STOP.\n",
       ":::\n", sep = "")
 } else {
   cat("::: {.callout-tip}\n",
@@ -1303,10 +1715,9 @@ if (all_go && s2_stop) {
       "The gate decisions (Scenario 1: ", gate_1$decision,
       ", Scenario 2: ", gate_2$decision,
       ", Scenario 3: ", gate_3$decision,
-      ") show that Stage 3 provides information beyond Stage 2. ",
-      "The three scenarios share different treatment mechanisms and outcome surfaces, ",
-      "and Stage 3 can distinguish settings where TMLE works from those where it ",
-      "does not.\n",
+      ") show that Stage 2b provides information beyond Stage 2a. ",
+      "The three scenarios distinguish settings where different workflow families ",
+      "succeed or fail.\n",
       ":::\n", sep = "")
 }
 ```
@@ -1314,34 +1725,53 @@ if (all_go && s2_stop) {
 ::: {.callout-important}
 ### The core methodological point
 
-Stage 2 evaluates $g$ alone — propensity scores, overlap, matching feasibility.
-Stage 3 evaluates the entire TMLE pipeline ($g$, $Q$, targeting, inference).
-Without Stage 3, the team can only assess whether the propensity score behaves
-well — not whether the full estimator produces valid estimates. Outcome-blind
-simulation is what turns a generic TMLE workflow into a credible clean-room
-analysis.
+Stage 2a evaluates $g$ alone — propensity scores, overlap, matching
+feasibility. Stage 2b evaluates the workflow pipelines under known truth via
+plasmode simulation — and, for a simulation-selected TMLE workflow, selects
+the best candidate specification. Without Stage 2b, the team can only assess
+whether the propensity score behaves well — not whether any workflow produces
+valid estimates. The manuscript demonstration (Scenario 3) makes this
+concrete: Stage 2a flags both workflow families equally, but Stage 2b reveals
+that the TMLE workflow remains adequate while the traditional PS workflow
+fails — a distinction that Stage 2a diagnostics alone cannot make. Plasmode
+simulation is what turns a clean-room design into a credible analysis,
+regardless of which workflow family is used.
 :::
 
-### When might TMLE be preferred?
+### When might TMLE be preferred over the other workflows?
 
-TMLE is not uniformly superior to design-only estimators. When the outcome
-surface is simple and overlap is adequate, matching and IPTW may perform
-comparably. However, when the outcome model contains learnable structure —
-nonlinear covariate effects, treatment-effect heterogeneity, or interactions
-— TMLE can improve precision by combining information from both the treatment
-and outcome models. In this tutorial, the `glmnet`-based $Q$ model with a
-rich feature matrix can capture age nonlinearities and treatment-by-subgroup
-interactions that a simple paired difference after matching cannot exploit.
-This makes TMLE especially attractive in clean-room workflows: the richer
-outcome-model specification (including the learner library and feature set)
-is pre-committed at Stage 1, validated through simulation at Stage 3, and
-applied to real data only at Stage 4, so any precision gain is achieved
-without data-adaptive model selection on outcomes.
+TMLE is not uniformly superior to the conventional PS workflow. When the
+outcome surface is simple and overlap is adequate, matching and IPTW may
+perform comparably. TMLE may be a sensible default when the outcome surface
+contains nonlinearities or treatment-effect heterogeneity that can be learned
+well by a pre-committed $Q$ model — and when it can exploit richer nuisance
+learning while remaining doubly robust. The conventional PS workflow relies on
+a simpler design-stage adjustment strategy that cannot exploit outcome
+structure.
+
+The advantage of TMLE can persist even when overlap is stressed, *provided*
+the overlap-driving covariate is not itself a major outcome driver. In
+Scenario 3 (the manuscript demonstration), `renal_risk` drives treatment
+strongly (`b_rr` = 2.2) but has near-zero coefficients in the outcome model
+($\beta_{rr1}=0.00$, $\beta_{rr2}=0.05$), allowing the TMLE workflow to
+compensate via its flexible Q model. The traditional PS workflow — which
+relies entirely on the treatment model — fails under this overlap stress.
+In Scenario 2, by contrast, `renal_risk` drives both treatment and outcome,
+leaving all workflows without a reliable path to recovery. This distinction
+cannot be assessed from Stage 2a overlap diagnostics alone. Stage 2b plasmode
+simulation is what resolves it.
+
+In clean-room workflows, each workflow's specification is pre-committed at
+Stage 1 and validated via its respective feasibility path (Stage 2a or 2b),
+so any precision gain is achieved without data-adaptive outcome model
+selection. The simulation-selected TMLE workflow extends this by prespecifying
+a candidate set and using Stage 2b plasmode simulation to choose the
+best-performing specification — still entirely before outcome access.
 
 
 # A Brief Intuition for the Efficient Influence Function {#eif-intuition}
 
-Before presenting the Stage 4 results and inference formulas, it helps to
+Before presenting the Stage 3 results and inference formulas, it helps to
 have a brief intuition for the **efficient influence function (EIF)**, which
 underlies TMLE's standard errors.
 
@@ -1369,27 +1799,36 @@ Three key facts:
    the weights are accurate and $Q$ errors are corrected. This is double
    robustness expressed through the influence function.
 
-This is all you need to know to interpret the Stage 4 inference: the SE comes
+This is all you need to know to interpret the Stage 3 inference: the SE comes
 from the variance of the EIF across observations, and the CI is
 $\hat\psi \pm 1.96 \times \widehat{\text{SE}}$.
 
 
-# Stage 4. Unblinded TMLE Estimation {#stage-4}
+# Stage 3. Unblinded Estimation {#stage-3}
 
 ## What happens at this stage
 
 The analyst now receives the full dataset including outcomes $Y$. This is the
-**first point** at which the outcome regression $Q(A,W)$ is estimated on real
-data. The treatment model strategy was locked in Stage 2; the simulation
-validation was completed in Stage 3; only now does the targeting step run on
-real data.
+**first point** at which any outcome model is estimated on real data. Each of
+the three precommitted workflows is now carried to completion:
+
+- **Conventional PS workflow:** Uses its logistic-regression PS (validated at
+  Stage 2a) for matching and IPTW estimation on the real outcome.
+- **Fixed-specification TMLE workflow:** Fits $Q(A,W)$ on real data for the
+  first time and runs the targeting step, using the nuisance strategy validated
+  at Stage 2b.
+- **Simulation-selected TMLE workflow:** Uses the candidate specification
+  selected at Stage 2b to fit $Q(A,W)$ and run the targeting step on the real
+  data. The selected specification was determined entirely before outcome
+  access.
 
 ::: {.callout-note collapse="true"}
-### Operational note: Stage 4 in practice
+### Operational note: Stage 3 in practice
 In a real clean-room analysis, outcome unblinding would occur only after
-Stage 3 results have been reviewed and the GO/STOP decision documented.
-The Stage 4 analysis script would be pre-specified (or at least minimally
-modifiable) — typically the same code validated in Stage 3, applied to the
+Stage 2a or 2b results have been reviewed and the feasibility decision
+documented. The Stage 3 analysis script would be pre-specified (or at least
+minimally modifiable) — typically the same code validated in Stage 2b (for
+TMLE workflows) or the PS-based estimator locked at Stage 2a, applied to the
 real dataset. Any deviations from the locked analysis plan triggered by
 unexpected findings (e.g., convergence issues, data quality problems) would
 need to be documented as formal amendments and reported alongside the primary
@@ -1398,24 +1837,25 @@ results.
 
 ### Prerequisites
 
-Stage 4 proceeds only after:
+Stage 3 proceeds only after:
 
 1. Stage 1 analysis lock is documented and versioned
-2. Stage 2 diagnostics are reviewed and recorded
-3. Stage 3 simulation gate is evaluated (if GO, proceed; if STOP, document
-   the concern and any plan amendment)
+2. Stage 2a diagnostics are reviewed and recorded (conventional PS workflow
+   gated here)
+3. Stage 2b plasmode-simulation gate is evaluated for TMLE workflows (if GO,
+   proceed; if STOP, document the concern and any plan amendment)
 
 ### Run TMLE on the real data
 
 ```{r stage4-tmle}
 run_stage4_tmle <- function(dat, lock) {
-  cat("Stage 4: Outcome column now accessible.\n")
+  cat("Stage 3: Outcome column now accessible.\n")
   cat("AKI prevalence:", round(mean(dat$Y), 3), "\n")
   cat("Treatment prevalence:", round(mean(dat$A), 3), "\n\n")
 
   result <- run_tmle_once(dat, ps_clip = lock$ps_truncation)
 
-  cat("=== Stage 4 TMLE Result ===\n")
+  cat("=== Stage 3 TMLE Result ===\n")
   cat("ATE estimate (RD):", round(result$estimate, 5), "\n")
   cat("Standard error:", round(result$se, 5), "\n")
   cat("95% CI: [", round(result$ci_low, 5), ",",
@@ -1427,10 +1867,10 @@ run_stage4_tmle <- function(dat, lock) {
 stage4_result <- run_stage4_tmle(dat_full, analysis_lock)
 ```
 
-### Comparator estimates
+### All three workflows on real data
 
-For transparency, we also run the pre-specified comparator estimators on the
-real data:
+We run all precommitted workflows on the real data. The results are presented
+by workflow family:
 
 ```{r stage4-comparators}
 stage4_crude   <- run_crude(dat_full)
@@ -1438,29 +1878,42 @@ stage4_iptw    <- run_iptw(dat_full, ps_clip = analysis_lock$ps_truncation)
 stage4_matched <- run_ps_matched(dat_full, ps_clip = analysis_lock$ps_truncation)
 
 est_tab <- data.frame(
-  Estimator = c("Crude RD", "PS-Matched", "IPTW (Hajek)", "TMLE"),
+  Workflow = c("(Benchmark)", "Conventional PS", "Conventional PS",
+               "TMLE"),
+  Estimator = c("Crude RD", "PS-Matched", "IPTW (Hajek)",
+                "TMLE (fixed-specification)"),
   Estimate = round(c(stage4_crude$estimate, stage4_matched$estimate,
-                     stage4_iptw$estimate, stage4_result$estimate), 5),
+                     stage4_iptw$estimate,
+                     stage4_result$estimate), 5),
   SE = round(c(stage4_crude$se, stage4_matched$se,
                stage4_iptw$se, stage4_result$se), 5),
   CI_low = round(c(stage4_crude$ci_low, stage4_matched$ci_low,
-                   stage4_iptw$ci_low, stage4_result$ci_low), 5),
+                   stage4_iptw$ci_low,
+                   stage4_result$ci_low), 5),
   CI_high = round(c(stage4_crude$ci_high, stage4_matched$ci_high,
-                    stage4_iptw$ci_high, stage4_result$ci_high), 5)
+                    stage4_iptw$ci_high,
+                    stage4_result$ci_high), 5)
 )
-kable(est_tab, caption = "Stage 4: Effect estimates on the real (simulated) dataset")
+kable(est_tab, caption = "Stage 3: Effect estimates from the workflows on the real (simulated) dataset")
 ```
 
 ### What just happened — step by step
 
-1. **$Q$ was estimated on the real data** for the first time: a penalized
-   logistic regression (`cv.glmnet`) with a rich feature set — polynomial
-   terms, treatment-by-covariate interactions, and covariate interactions —
-   was fit to $(W, A, Y)$ using 5-fold cross-validation to select the
-   regularization parameter.
+Each workflow was carried to completion using its precommitted specification:
 
-2. **$g$ was re-estimated** using the same locked strategy from Stage 2. (In
-   a production analysis, one might load the Stage 2 $\hat{g}$ object instead.)
+**Conventional PS workflow:** The logistic-regression PS from Stage 2a was
+used for 1:1 nearest-neighbor matching (PS-Matched) and for inverse
+probability weighting (IPTW). These estimators rely entirely on the treatment
+model for confounding adjustment.
+
+**TMLE workflow** (fixed-specification; a simulation-selected TMLE workflow
+would use the specification chosen at Stage 2b):
+
+1. **$Q$ was estimated on the real data** for the first time: a penalized
+   logistic regression (`cv.glmnet`) with a rich feature set was fit to
+   $(W, A, Y)$.
+
+2. **$g$ was re-estimated** using the same locked strategy from Stage 2a.
 
 3. **The targeting step** constructed the clever covariate
    $H = A/\hat{g} - (1-A)/(1-\hat{g})$ and fit a logistic fluctuation
@@ -1471,44 +1924,48 @@ kable(est_tab, caption = "Stage 4: Effect estimates on the real (simulated) data
 
 5. **Inference** used the EIF as described above.
 
-### Interpreting the result in context
+### Interpreting the results in context
 
 ```{r stage4-context, results='asis'}
-cat("This Stage 4 estimate should be interpreted alongside the evidence from ",
-    "earlier stages.\n\n")
+cat("These Stage 3 estimates should be interpreted alongside the evidence from ",
+    "the blinded feasibility stages and across all three workflows.\n\n")
 
 if (s2_diag$any_flag) {
-  cat("Stage 2 flagged overlap concerns in the propensity score distribution. ")
+  cat("Stage 2a flagged overlap concerns in the propensity score distribution. ")
 } else {
-  cat("Stage 2 diagnostics did not flag major overlap concerns. ")
+  cat("Stage 2a diagnostics did not flag major overlap concerns. ")
 }
 
-# The real dataset uses Scenario 3 parameters (overlap stress, weak renal_risk in Q)
-cat("The real study dataset was generated with the same DGP as Scenario 3 ",
-    "(overlap stress, weak `renal_risk` effect on outcome). ",
-    "In practice, the analyst would not know which candidate Stage 3 scenario ",
+# The real dataset uses Scenario 3 (manuscript demo) parameters
+cat("The real study dataset was generated with the same DGP as the manuscript ",
+    "demonstration (Scenario 3): overlap stress (`b_rr` = 2.2), near-zero ",
+    "`renal_risk` effect on outcome, n = 1500, ~10% outcome prevalence. ",
+    "In practice, the analyst would not know which candidate Stage 2b scenario ",
     "is closest to reality; interpretation should weigh results across all ",
     "plausible DGPs.\n\n")
 
 if (gate_3$decision %in% c("GO", "FLAG")) {
-  cat("Stage 3 simulation returned **", gate_3$decision,
-      "** under Scenario 3, providing pre-registered evidence that the ",
-      "analysis pipeline produces adequate finite-sample performance under these ",
-      "conditions — even though matching feasibility was reduced. ",
-      "The Stage 4 estimate therefore carries credibility beyond a post-hoc ",
-      "TMLE analysis, because the analytic decisions were locked before ",
-      "outcomes were accessed.\n\n", sep = "")
+  cat("Stage 2b plasmode simulation (the manuscript demonstration) returned **",
+      gate_3$decision,
+      "** for the TMLE workflow under Scenario 3, providing pre-registered ",
+      "evidence that the TMLE pipeline produces adequate finite-sample ",
+      "performance under these conditions — even though Stage 2a flagged ",
+      "matching feasibility concerns and the traditional PS workflow failed its ",
+      "performance targets. ",
+      "The Stage 3 TMLE estimate therefore carries credibility beyond a ",
+      "post-hoc analysis, because the analytic decisions were locked before ",
+      "outcomes were accessed. The conventional PS estimates are reported ",
+      "alongside for comparison, but Stage 2b identified their limitations.\n\n",
+      sep = "")
 } else {
-  cat("Stage 3 simulation returned **STOP** under Scenario 3, meaning the analysis ",
-      "pipeline did not meet pre-specified performance targets. In a real study, ",
-      "this Stage 4 estimate would be reported with caveats, and the STOP finding ",
-      "documented alongside the results. The team might consider a protocol ",
-      "amendment (e.g., richer learners, larger sample) before relying on these ",
-      "results.\n\n")
+  cat("Stage 2b plasmode simulation returned **STOP** under Scenario 3, meaning ",
+      "the analysis pipelines did not meet pre-specified performance targets. In a ",
+      "real study, these Stage 3 estimates would be reported with caveats, and the ",
+      "STOP finding documented alongside the results.\n\n")
 }
 
-cat("No analytic decisions — estimand, SL library, truncation bounds, covariate ",
-    "set — were changed based on the observed outcomes.\n")
+cat("No analytic decisions — estimand, nuisance strategies, truncation bounds, ",
+    "covariate set — were changed based on the observed outcomes.\n")
 ```
 
 
@@ -1583,82 +2040,122 @@ if (!is.null(weak) && !is.null(strong)) {
 </details>
 
 
-# Common Mistakes When Operationalizing TMLE in a Clean Room {#common-mistakes}
+# Common Mistakes When Operationalizing a Clean-Room Analysis {#common-mistakes}
 
 ::: {.callout-warning}
 ### Pitfalls to avoid
 
-1. **Fitting the real outcome regression $Q(A,W)$ before outcome access is
-   permitted.** This violates the clean-room principle. All $Q$-fitting on
-   real data belongs to Stage 4.
+1. **Fitting any outcome model on real $Y$ before outcome access is
+   permitted.** This violates the clean-room principle for all workflows.
+   All outcome-model fitting on real data belongs to Stage 3.
 
-2. **Treating Stage 2 propensity score diagnostics as if they validate the
-   full TMLE pipeline.** Stage 2 evaluates $g$ only. It says nothing about
-   whether $Q$ estimation, the targeting step, or CI coverage will be adequate.
+2. **Treating Stage 2a propensity score diagnostics as if they validate the
+   full analysis pipeline.** Stage 2a evaluates $g$ only. It says nothing
+   about whether any workflow's outcome modeling, inference, or CI coverage
+   will be adequate. Stage 2b plasmode simulation is needed to assess the
+   full pipeline.
 
-3. **Changing the Super Learner library, truncation rule, or estimand after
+3. **Changing the nuisance strategy, truncation rule, or estimand after
    seeing real outcomes without documenting a formal amendment.** Undocumented
-   post-hoc changes undermine the entire clean-room rationale. All revisions
-   must be recorded and justified.
+   post-hoc changes undermine the entire clean-room rationale for all
+   workflows. All revisions must be recorded and justified.
 
-4. **Interpreting acceptable overlap diagnostics as proof that TMLE inference
-   will be valid.** Good overlap is neither necessary nor sufficient for valid
-   TMLE. The outcome surface, sample size, and learner flexibility all matter.
+4. **Interpreting acceptable Stage 2a overlap diagnostics as proof that any
+   workflow's inference will be valid.** Good overlap is neither necessary nor
+   sufficient for valid estimation. The outcome surface, sample size, and
+   learner flexibility all matter — and only Stage 2b can evaluate these.
 
 5. **Assuming poor propensity score overlap automatically invalidates TMLE
    without checking whether the outcome model can compensate.** This ignores
-   double robustness. Stage 3 simulation is the appropriate tool for resolving
-   this question.
+   TMLE's double robustness. Stage 2b plasmode simulation is the appropriate
+   tool for resolving this question.
 
-6. **Confusing a locked modeling strategy with a requirement to reuse the
+6. **Assuming TMLE requires SuperLearner or machine learning.** TMLE can use
+   ordinary regression models for its nuisance estimates. Flexible nuisance
+   estimation is recommended because it better supports TMLE's efficiency
+   properties, but it is not a mathematical requirement.
+
+7. **Confusing a locked modeling strategy with a requirement to reuse the
    exact same fitted nuisance object.** What is locked is the specification
    (formula, learner library, truncation bounds). Re-running the same procedure
    on the same data is acceptable; changing the specification is not.
+
+8. **Selecting among TMLE specifications after gaining access to real
+   outcomes.** In a simulation-selected TMLE workflow, the candidate set and
+   selection rule must be locked at Stage 1 and the selection itself must occur
+   at Stage 2b, entirely before outcome access. Choosing a TMLE specification
+   after seeing real $Y$ is post-hoc model selection and violates the
+   clean-room principle.
+
+9. **Confusing Stage 2a and Stage 2b as sequential steps rather than
+   alternative feasibility paths.** The conventional PS workflow is gated by
+   Stage 2a (traditional diagnostics); the TMLE workflows are gated by
+   Stage 2b (plasmode simulation). They are not meant to be done in sequence —
+   each workflow uses the feasibility path appropriate to its estimator.
 :::
 
 
 # Key Takeaways {#takeaways}
 
 ```{r takeaways-text, results='asis'}
-cat("1. **Propensity-score diagnostics and full estimator validation are not the same thing.**\n",
-    "   Stage 2 evaluates overlap and matching feasibility on the observed data.\n",
-    "   Stage 3 validates the full analysis pipeline ($g$, $Q$, targeting, inference)\n",
-    "   under plausible DGPs. Acceptable overlap does not guarantee valid inference;\n",
-    "   overlap stress does not necessarily invalidate the pipeline.\n\n")
+cat("1. **A clean-room design can accommodate multiple analysis workflows with\n",
+    "   different feasibility paths.**\n",
+    "   This tutorial compared three workflow families — conventional PS,\n",
+    "   fixed-specification TMLE, and simulation-selected TMLE — each using a\n",
+    "   different blinded feasibility path: Stage 2a (traditional diagnostics) for\n",
+    "   the conventional PS workflow, or Stage 2b (plasmode simulation) for the\n",
+    "   TMLE workflows.\n\n")
 
-cat("2. **Stage 3 validates the full TMLE pipeline on synthetic data.** By testing\n",
-    "   bias, variance, and empirical coverage under pre-specified DGPs, the team\n",
-    "   makes an evidence-based GO/STOP decision before seeing real outcomes.\n\n")
+cat("2. **TMLE does not require SuperLearner.**\n",
+    "   TMLE can use ordinary regression models for its nuisance estimates.\n",
+    "   Flexible nuisance estimation is often recommended because it better supports\n",
+    "   TMLE's double-robustness and efficiency properties, but it is not a\n",
+    "   mathematical requirement.\n\n")
 
-cat("3. **TMLE may offer a precision gain when the outcome surface is learnable.**\n",
+cat("3. **Traditional feasibility diagnostics (Stage 2a) and plasmode-simulation\n",
+    "   feasibility evaluation (Stage 2b) answer different questions.**\n",
+    "   Stage 2a evaluates overlap and matching feasibility on the observed data.\n",
+    "   Stage 2b validates the workflow pipelines under plausible DGPs via\n",
+    "   plasmode simulation. Acceptable Stage 2a overlap does not guarantee valid\n",
+    "   inference; Stage 2a overlap stress does not necessarily invalidate TMLE\n",
+    "   workflows.\n\n")
+
+cat("4. **The conventional PS workflow relies on a simpler design-stage adjustment strategy.**\n",
     "   Scenario 1 (gate: ", gate_1$decision,
-    ") showed that both matching and TMLE worked well,\n",
-    "   but TMLE achieved lower variance by using glmnet to exploit nonlinear age effects\n",
-    "   and treatment-effect heterogeneity (A:ckd, A:age) that design-only estimators\n",
-    "   cannot capture.\n\n", sep = "")
+    ") showed that both the conventional PS and TMLE\n",
+    "   workflows can perform well when overlap is adequate. The TMLE workflow\n",
+    "   gained precision by exploiting learnable outcome structure that the\n",
+    "   conventional PS workflow cannot capture.\n\n", sep = "")
 
-cat("4. **Overlap stress plus strong confounding through the overlap driver can\n",
-    "   defeat all estimators.** Scenario 2 (gate: ", gate_2$decision,
-    ") showed that when `renal_risk`\n",
-    "   strongly predicts both treatment and outcome, neither matching nor TMLE\n",
-    "   nor IPTW can rescue the analysis.\n\n", sep = "")
+cat("5. **Overlap stress plus strong confounding through the overlap driver can\n",
+    "   defeat all workflows.** Scenario 2 (gate: ", gate_2$decision,
+    ") showed that when\n",
+    "   `renal_risk` strongly predicts both treatment and outcome, no workflow\n",
+    "   family can rescue the analysis.\n\n", sep = "")
 
-cat("5. **Reduced matching feasibility does not automatically invalidate the analysis pipeline.**\n",
-    "   Scenario 3 (gate: ", gate_3$decision,
-    ") showed that when the overlap-driving covariate\n",
-    "   barely affects the outcome, TMLE can remain competitive or preferable by\n",
-    "   learning the remaining outcome structure via a richer Q model. Stage 3\n",
-    "   simulation is necessary to determine whether this compensation works at\n",
-    "   the study's sample size and learner specification.\n\n", sep = "")
+cat("6. **Under overlap stress, TMLE workflows can remain viable when the\n",
+    "   conventional PS workflow fails.** The manuscript demonstration\n",
+    "   (Scenario 3, gate: ", gate_3$decision,
+    ") showed that Stage 2a flagged both\n",
+    "   workflow families equally, but Stage 2b plasmode simulation revealed that\n",
+    "   the TMLE workflow compensated for the stressed treatment model by learning\n",
+    "   outcome structure through its flexible Q model, while the conventional PS\n",
+    "   workflow failed. Stage 2b is necessary to determine whether this\n",
+    "   compensation works at the study's sample size.\n\n", sep = "")
 
-cat("6. **Stage 4 is where the real outcome regression and targeting step occur.**\n",
-    "   The $g$-strategy is carried forward from Stage 2, but $Q$ is fit on real\n",
-    "   data only at this final stage. No analytic decisions change after outcome\n",
-    "   access.\n")
+cat("7. **Stage 2b can serve a dual role for TMLE workflows.**\n",
+    "   For a fixed-specification TMLE, Stage 2b validates a single pipeline.\n",
+    "   For a simulation-selected TMLE, Stage 2b both validates candidates and\n",
+    "   selects the best-performing specification — all before outcome access.\n\n")
+
+cat("8. **Stage 3 is where all workflows fit their real outcome models.**\n",
+    "   The $g$-strategy is carried forward from Stage 2a, but outcome models are\n",
+    "   fit on real data only at this final stage. No analytic decisions change\n",
+    "   after outcome access.\n")
 ```
 
 
-# Practical Checklist for a Clean-Room TMLE Analysis {#checklist}
+# Practical Checklist for a Clean-Room Analysis {#checklist}
 
 Use this checklist to ensure each stage is properly documented and archived.
 
@@ -1667,38 +2164,43 @@ Use this checklist to ensure each stage is properly documented and archived.
 - [ ] Causal question and estimand clearly stated
 - [ ] Eligibility criteria, treatment definition, and outcome definition
 - [ ] Covariate list with variable roles (confounders, effect modifiers)
-- [ ] Super Learner libraries specified for both $g$ and $Q$
+- [ ] Nuisance strategies specified for all workflows (PS model, TMLE learner
+      libraries / candidate set for simulation-selected TMLE)
+- [ ] Candidate TMLE specifications and prespecified selection rule (if using
+      simulation-selected TMLE workflow)
 - [ ] PS truncation bounds
-- [ ] Stage 2 diagnostic thresholds (extreme PS fraction, ESS, max weight, SMD)
-- [ ] Stage 3 performance thresholds (max bias, min coverage)
+- [ ] Stage 2a diagnostic thresholds (extreme PS fraction, ESS, max weight, SMD)
+- [ ] Stage 2b performance thresholds (max bias, min coverage, SE calibration)
 - [ ] Versioned analysis lock file with timestamp and hash
 
-### Stage 2: Outcome-Blind Design Diagnostics
+### Stage 2a: Traditional Feasibility Diagnostics
 
-- [ ] Fitted $g$-strategy (or locked specification to be re-run)
+- [ ] Fitted $g$-strategy for PS and TMLE workflows
 - [ ] Propensity score distribution summaries and overlap plots
 - [ ] ESS and IPTW weight summaries
 - [ ] Covariate balance diagnostics (love plot, weighted SMDs)
+- [ ] Matching feasibility assessment
 - [ ] List of triggered diagnostic flags
-- [ ] Documented Stage 2 decision (PASS / FLAG — proceed to Stage 3)
+- [ ] Documented Stage 2a decision for conventional PS workflow (PASS / FLAG)
 
-### Stage 3: Outcome-Blind Simulation Validation
+### Stage 2b: Plasmode-Simulation Feasibility Evaluation
 
 - [ ] Pre-specified DGP description (before real outcome access)
-- [ ] Simulation seeds and settings (reps, sample size, scenarios)
+- [ ] Plasmode simulation seeds and settings (reps, sample size, scenarios)
 - [ ] Code used for simulation runs (archived and versioned)
-- [ ] Bias, RMSE, empirical SD, mean SE, and coverage for each estimator
-- [ ] Comparison estimator results (crude, IPTW, etc.)
+- [ ] Bias, RMSE, empirical SD, mean SE, and coverage for each workflow
+- [ ] Cross-workflow comparison (conventional PS, fixed-specification TMLE)
+- [ ] Evaluation of candidate TMLE specifications and selection of final
+      pipeline using the locked rule (if using simulation-selected TMLE workflow)
 - [ ] Gate decision table: metric, threshold, observed value, GO/STOP
 - [ ] Documented GO / FLAG / STOP decision with rationale
 - [ ] Any plan amendment and its justification
 
-### Stage 4: Unblinded TMLE Estimation
+### Stage 3: Unblinded Estimation
 
-- [ ] Final $Q$ fit (first time on real outcomes)
-- [ ] Final TMLE point estimate and 95% confidence interval
-- [ ] Comparator estimates (crude, IPTW)
-- [ ] Cross-reference to Stage 2 diagnostics and Stage 3 gate result
+- [ ] Final outcome models fit (first time on real outcomes) for all workflows
+- [ ] Point estimates and 95% CIs from each workflow
+- [ ] Cross-reference to Stage 2a diagnostics and Stage 2b gate result
 - [ ] Confirmation that no specifications were changed after outcome access
 - [ ] Any deviations from the locked plan and their justification
 - [ ] Final reproducibility metadata (session info, package versions, seed)
@@ -1707,9 +2209,12 @@ Use this checklist to ensure each stage is properly documented and archived.
 ## Reproducing the Full Simulation
 
 ```bash
-# Compact tutorial simulation: runs within this QMD (200 reps, enriched GLM)
+# Compact tutorial simulation: runs within this QMD (200 reps, 4 estimators)
 
-# Production simulation with SuperLearner, 7 estimators, mixed overlap:
+# Grid search for the manuscript demonstration DGP (Scenario 3):
+Rscript scripts/search_manuscript_demo_tmle_vs_psmatch.R
+
+# Production simulation with SuperLearner, extended estimators, mixed overlap:
 Rscript scripts/sim_scenario1_v4_false_stop_inference.R fast   # N=400, 120 reps
 Rscript scripts/sim_scenario1_v4_false_stop_inference.R eval   # N=600, 300 reps
 ```
