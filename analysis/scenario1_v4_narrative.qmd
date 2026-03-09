@@ -1,0 +1,587 @@
+---
+title: "Scenario 1 v4: False-Stop Inference Under Near-Positivity Violations"
+subtitle: "Clean-Room TMLE Simulation — NP Bootstrap Primary Inference"
+author: "Clean-Room Analysis Team"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "Show code"
+    theme: cosmo
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(data.table)
+library(ggplot2)
+library(knitr)
+
+# Locate outputs
+out_dir <- file.path("..", "results", "scenario1_v4")
+if (!dir.exists(out_dir)) {
+  stop("Outputs not found at ", out_dir, "\n",
+       "Run: Rscript scripts/sim_scenario1_v4_false_stop_inference.R")
+}
+
+# Load both modes
+load_mode <- function(mode) {
+  d <- file.path(out_dir, mode)
+  list(
+    truth   = readRDS(file.path(d, "truth.rds")),
+    results = readRDS(file.path(d, "replicate_results.rds")),
+    metrics = read.csv(file.path(d, "summary_overall.csv")),
+    gate    = readRDS(file.path(d, "gate_results.rds")),
+    params  = readRDS(file.path(d, "params_used.rds"))
+  )
+}
+
+weak   <- load_mode("weak")
+strong <- load_mode("strong")
+
+gate_combined <- if (file.exists(file.path(out_dir, "gate_combined.rds")))
+  readRDS(file.path(out_dir, "gate_combined.rds")) else
+  rbind(cbind(mode = "weak", weak$gate), cbind(mode = "strong", strong$gate))
+```
+
+## 1. Motivation and Study Design
+
+### 1.1 The False-Stop Problem
+
+In observational pharmacoepidemiological studies, overlap diagnostics sometimes
+flag propensity score (PS) distributions as concerning even when the estimand
+remains identifiable and the chosen estimator performs well. A **false stop**
+occurs when a clean-room feasibility gate halts analysis in a setting where a
+doubly robust estimator like TMLE would have produced valid point estimates
+*and* valid inferential performance (confidence interval coverage near nominal).
+
+This simulation (v4) is designed to investigate whether the overlap flag
+represents a genuine barrier to valid inference or a conservative false alarm,
+and whether the answer depends on how strongly the overlap-driving covariate
+(W4) enters the outcome model.
+
+### 1.2 What Changed from v3
+
+Version 3 used the Rademacher multiplier bootstrap as the primary TMLE
+inferential check. The multiplier bootstrap perturbs the efficient influence
+function (EIF) without refitting nuisance models, which can produce
+under-coverage when nuisance estimation uncertainty is non-negligible — as is
+the case at the sample sizes used in these simulations. **V4 replaces this
+with a full nonparametric (NP) bootstrap** that resamples the data and refits
+the entire TMLE pipeline (both Q and g nuisance models, plus the targeting
+step) on each bootstrap resample. The NP bootstrap properly accounts for
+nuisance estimation variability and is the primary inferential check for the
+stop/go gate.
+
+Additional v4 changes:
+
+- **Mode-specific overlap severity:** The overlap strength multiplier $s_{bad}$
+  now differs by mode (weak: `r weak$params$s_bad`, strong:
+  `r strong$params$s_bad`), rather than using the same severity for both.
+  This allows the weak-W4 mode to have a milder overlap violation, making a
+  false-stop demonstration more realistic.
+- **Moderated nonlinearity:** The outcome model's nonlinear terms are slightly
+  reduced ($h_1 = 0.50 W_1 + 0.25 W_1^2$, $h_3 = 0.35 |W_3|$) to keep the
+  misspecification signal within a range where TMLE-ML can achieve good
+  performance.
+- **Reduced treatment-effect heterogeneity (weak mode):** Interaction terms
+  $\tau_{\text{int}1}$ and $\tau_{\text{int}2}$ are reduced in the weak mode,
+  making the average treatment effect more homogeneous and easier to estimate.
+- **Multiplier bootstrap retained** as a secondary diagnostic for comparison.
+
+### 1.3 Estimand
+
+The estimand is the average treatment effect on the risk-difference (RD) scale:
+
+$$
+\psi = E[Y^1] - E[Y^0]
+$$
+
+where $Y^a$ denotes the potential outcome under treatment $A = a$.
+
+## 2. Data-Generating Process
+
+### 2.1 Covariates
+
+- $W_1 \sim N(0,1)$ — continuous
+- $W_2 \sim \text{Bernoulli}(0.5)$ — binary
+- $W_3 \sim N(0,1)$ — continuous
+- $W_4 \sim N(0,1)$ — the "overlap driver"
+
+### 2.2 Treatment Model (g)
+
+The propensity score is generated with a treatment-strength multiplier $s_g$
+that differs between overlap regimes:
+
+$$
+\text{logit}(g_0(W)) = \alpha_0 + s_g \cdot (1.5 W_1 + 0.8 W_2 - 0.5 W_3 + 3.0 W_4)
+$$
+
+where $s_g = s_{ok}$ or $s_g = s_{bad}$ with equal probability per replicate.
+The intercept $\alpha_0$ is centered so that $P(A=1) \approx 0.35$, ensuring
+more controls than treated (important for PS matching).
+
+W4 has the largest coefficient in $g$ (3.0) and drives the overlap problem.
+
+### 2.3 Outcome Model (Q)
+
+$$
+\text{logit}(Q_0(A,W)) = \beta_0 + \beta_A \cdot A +
+  h_1(W_1) + h_2(W_2) + h_3(W_3) + h_4(W_4)
+  + \tau_1 \cdot A \cdot I(W_1 > 0) + \tau_2 \cdot A \cdot W_2 + \tau_3 \cdot A \cdot W_4
+$$
+
+where:
+
+- $h_1(W_1) = `r weak$params$h1_lin` \cdot W_1 + `r weak$params$h1_sq` \cdot W_1^2$ (nonlinear)
+- $h_2(W_2) = `r weak$params$h2_coef` \cdot W_2$
+- $h_3(W_3) = `r weak$params$h3_coef` \cdot |W_3|$ (nonlinear)
+- $h_4(W_4) = \beta_{4,Q} \cdot W_4$ (mode-specific)
+
+The key difference between modes:
+
+```{r params-table}
+params_tab <- data.frame(
+  Parameter = c("s_bad", "beta4_Q", "tau_int1", "tau_int2", "tau_int3"),
+  Description = c(
+    "Overlap severity (bad regime)",
+    "W4 coefficient in Q",
+    "A × I(W1>0) interaction",
+    "A × W2 interaction",
+    "A × W4 interaction"
+  ),
+  Weak = c(weak$params$s_bad, weak$params$beta4_Q,
+           weak$params$tau_int1, weak$params$tau_int2, weak$params$tau_int3),
+  Strong = c(strong$params$s_bad, strong$params$beta4_Q,
+             strong$params$tau_int1, strong$params$tau_int2, strong$params$tau_int3)
+)
+kable(params_tab, digits = 3, caption = "Mode-specific DGP parameters")
+```
+
+In the **weak mode**, W4 has a large coefficient in $g$ but barely affects
+$Y$ ($\beta_{4,Q} = `r weak$params$beta4_Q`$, $\tau_3 = 0$). Overlap
+diagnostics flag the PS distribution as bad, but since W4 is nearly irrelevant
+to outcomes, TMLE — which adapts through both Q and g models — may still
+produce valid inference. This is the candidate **false stop**.
+
+In the **strong mode**, W4 meaningfully affects $Y$ ($\beta_{4,Q} =
+`r strong$params$beta4_Q`$, $\tau_3 = `r strong$params$tau_int3`$). When
+overlap is bad, the near-positivity violation creates a genuine barrier to
+valid estimation and inference. This is the **true stop**.
+
+### 2.4 Truth
+
+```{r truth}
+truth_tab <- data.frame(
+  Mode = c("Weak W4", "Strong W4"),
+  `True RD` = c(weak$truth$RD_true, strong$truth$RD_true),
+  EY1 = c(weak$truth$EY1, strong$truth$EY1),
+  EY0 = c(weak$truth$EY0, strong$truth$EY0),
+  check.names = FALSE
+)
+kable(truth_tab, digits = 5, caption = "True ATE (RD) by mode")
+```
+
+Truth is computed via plug-in over `r format(weak$truth$truth_N, big.mark=",")`
+observations. It depends on $Q_0$ and the marginal distribution of $W$, not
+on $g_0$; the treatment mechanism affects only the overlap environment, not
+the estimand.
+
+## 3. Clean-Room Staged Analysis
+
+### Stage 1: Pre-specification
+
+The estimand ($\psi$), estimators, overlap diagnostic thresholds, and stop/go
+criteria were all pre-specified before examining any outcome data.
+
+### Stage 2: Outcome-Blind Diagnostics
+
+PS estimation and overlap diagnostics use only $(W, A)$; $Y$ is not examined.
+A replicate is flagged as "bad overlap" if any of:
+
+- Fraction of PS outside $(0.05, 0.95)$ exceeds
+  `r weak$params$overlap_flag_thresholds$extreme_prop`
+- IPTW effective sample size fraction below
+  `r weak$params$overlap_flag_thresholds$ess_frac`
+- Maximum IPTW weight exceeds `r weak$params$overlap_flag_thresholds$max_w`
+
+### Stage 2b: Simulation-Based Operating Characteristics
+
+The stop/go gate uses the simulation results to assess whether TMLE-ML retains
+acceptable performance in flagged replicates, specifically:
+
+- **|Bias| < 0.01** (point estimation)
+- **NP bootstrap 95% CI coverage ≥ 0.93** (inferential validity)
+
+Both criteria must hold for the flagged stratum to "pass." In v4, the gate
+criterion uses the **percentile NP bootstrap CI**, not the multiplier bootstrap.
+
+### Stage 3: Estimation
+
+All seven estimators are run. Inference for TMLE-ML uses both the IC-based CI
+and the full NP bootstrap CI; the NP bootstrap is considered primary.
+
+## 4. Estimators and Inference Methods
+
+| # | Estimator | Q model | g model | Inference |
+|---|-----------|---------|---------|-----------|
+| 1 | Crude RD | None | None | Wald (binomial proportions) |
+| 2 | Adj. Regression | Misspecified GLM | None | Analytic SE (SD of unit RDs / √n) |
+| 3 | IPTW (Hajek) | None | GLM | Analytic IF-based SE |
+| 4 | PS-Matched Reg. | Misspecified GLM | GLM (PS) | Pairs bootstrap |
+| 5 | TMLE-GLM | GLM (misspecified) | GLM | IC-based (influence curve) |
+| 6 | TMLE-ML | SuperLearner | SuperLearner | IC-based + NP bootstrap (primary) |
+| 7 | CV-TMLE-ML | Ranger/GLM (V-fold) | Ranger/GLM (V-fold) | IC-based |
+
+**Note on inference methods:**
+
+- The **IC-based** CI uses the efficient influence function (EIF) to estimate
+  variance: $\hat{\sigma}^2 = n^{-1}\sum \hat{D}_i^2$. This is
+  asymptotically valid when nuisance models are well-estimated but may have
+  finite-sample under-coverage.
+- The **NP bootstrap** resamples the full dataset with replacement and refits
+  the entire TMLE pipeline (Q, g, targeting) on each resample. It captures
+  nuisance estimation uncertainty that the IC-based approach ignores in finite
+  samples.
+- The **multiplier bootstrap** (Rademacher) perturbs the EIF without refitting
+  nuisance models: $\psi^*_b = \hat\psi + n^{-1}\sum\xi_i\hat{D}_i$. This
+  is fast but inherits the same finite-sample limitations as the IC-based
+  approach. It is retained here only as a secondary diagnostic.
+- The **analytic SE** for adjusted regression is $\text{SD}(\hat{p}_{1,i} - \hat{p}_{0,i}) / \sqrt{n}$,
+  i.e., the standard deviation of unit-level predicted risk differences.
+  This does not account for model estimation uncertainty and may be
+  anti-conservative.
+- The **analytic IF-based SE** for IPTW uses the Hajek influence function.
+
+## 5. Results
+
+### 5.1 Overlap Flag Distribution
+
+```{r overlap-flags}
+flag_tab <- data.frame(
+  Mode = c("Weak", "Weak", "Strong", "Strong"),
+  Flag = rep(c("ok", "bad"), 2),
+  N = c(sum(weak$results$overlap_flag == "ok"),
+        sum(weak$results$overlap_flag == "bad"),
+        sum(strong$results$overlap_flag == "ok"),
+        sum(strong$results$overlap_flag == "bad"))
+)
+flag_tab$Pct <- round(100 * flag_tab$N / c(
+  rep(nrow(weak$results), 2), rep(nrow(strong$results), 2)), 1)
+kable(flag_tab, caption = "Overlap flag counts by mode")
+```
+
+### 5.2 Point Estimation Performance
+
+```{r point-est-table}
+# Show point estimators (unique on estimate, not inference method)
+point_methods <- c("Crude", "Adj. Regression (analytic)",
+                   "IPTW (analytic)", "PS-Matched (pairs boot)",
+                   "TMLE-GLM (IC)", "TMLE-ML (IC)", "CV-TMLE-ML (IC)")
+
+show_point <- function(metrics, label) {
+  sub <- metrics[metrics$subset == "all" &
+                 metrics$method %in% point_methods, ]
+  sub$mode <- label
+  sub[, c("mode", "method", "n_success", "bias", "rmse", "emp_sd")]
+}
+
+point_tab <- rbind(show_point(weak$metrics, "Weak"),
+                   show_point(strong$metrics, "Strong"))
+kable(point_tab, digits = 4, row.names = FALSE,
+      caption = "Point estimation performance (all replicates)")
+```
+
+### 5.3 Inferential Performance (Coverage)
+
+This is the core table for v4. Coverage is computed as the fraction of
+replicates (with success AND non-NA CI) where the true RD falls within
+the 95% CI. The Monte Carlo standard error (MCSE) quantifies simulation
+uncertainty in coverage estimates.
+
+```{r coverage-table}
+show_cov <- function(metrics, label) {
+  sub <- metrics[metrics$subset == "all" &
+                 !is.na(metrics$coverage), ]
+  sub$mode <- label
+  sub[, c("mode", "method", "n_ci", "mean_se", "coverage", "mcse_coverage")]
+}
+
+cov_tab <- rbind(show_cov(weak$metrics, "Weak"),
+                 show_cov(strong$metrics, "Strong"))
+kable(cov_tab, digits = 4, row.names = FALSE,
+      caption = "Coverage by inference method (all replicates)")
+```
+
+### 5.4 Coverage by Overlap Stratum
+
+```{r coverage-by-overlap}
+show_cov_strat <- function(metrics, label) {
+  sub <- metrics[metrics$subset %in% c("overlap_ok", "overlap_bad") &
+                 !is.na(metrics$coverage), ]
+  sub$mode <- label
+  sub[, c("mode", "subset", "method", "n_ci", "coverage", "mcse_coverage")]
+}
+
+cov_strat <- rbind(show_cov_strat(weak$metrics, "Weak"),
+                   show_cov_strat(strong$metrics, "Strong"))
+
+# Focus on TMLE-ML methods
+tmle_cov <- cov_strat[grepl("TMLE-ML", cov_strat$method), ]
+if (nrow(tmle_cov) > 0) {
+  kable(tmle_cov, digits = 4, row.names = FALSE,
+        caption = "TMLE-ML coverage by overlap stratum and inference method")
+}
+```
+
+### 5.5 Stop/Go Gate Results
+
+```{r gate-results}
+kable(gate_combined, digits = 4, row.names = FALSE,
+      caption = "Stop/go gate results (NP bootstrap-based)")
+```
+
+**Interpretation:**
+
+The gate uses NP bootstrap CI coverage as the primary criterion. For the gate
+to pass ("acceptable = TRUE"), the flagged stratum must have |bias| < 0.01 and
+NP bootstrap coverage ≥ 0.93.
+
+- **Weak-W4, bad-overlap replicates:** If the gate passes here, this
+  demonstrates a false stop — the overlap flag was conservative, and TMLE-ML
+  inference remained valid despite the PS difficulties.
+- **Strong-W4, bad-overlap replicates:** If the gate fails here, this
+  demonstrates a true stop — the overlap violation genuinely degraded
+  inferential performance.
+
+::: {.callout-note}
+Whether these results constitute a convincing false-stop vs. true-stop
+demonstration depends on the observed coverage values and their MCSEs. Coverage
+estimates within $\pm 2 \times \text{MCSE}$ of 0.95 are consistent with nominal
+performance. Values substantially below 0.93 suggest genuine inferential
+degradation.
+:::
+
+## 6. Figures
+
+### 6.1 Sampling Distributions
+
+::: {.panel-tabset}
+
+#### Weak W4
+
+```{r fig-samp-weak, fig.width=9, fig.height=14}
+methods <- c("Crude", "Adj.Reg", "IPTW", "PS-Match",
+             "TMLE-GLM", "TMLE-ML", "CV-TMLE")
+ests_w <- list(weak$results$crude_est, weak$results$regadj_est,
+               weak$results$iptw_est, weak$results$psmatch_est,
+               weak$results$tmle_glm_est, weak$results$tmle_ml_est,
+               weak$results$cvtmle_est)
+est_long_w <- do.call(rbind, lapply(seq_along(methods), function(i) {
+  data.frame(method = methods[i], estimate = ests_w[[i]],
+             overlap_flag = weak$results$overlap_flag, stringsAsFactors = FALSE)
+}))
+est_long_w <- est_long_w[!is.na(est_long_w$estimate), ]
+est_long_w$method <- factor(est_long_w$method, levels = methods)
+
+ggplot(est_long_w, aes(x = estimate, fill = overlap_flag)) +
+  geom_histogram(bins = 35, alpha = 0.6, position = "identity") +
+  geom_vline(xintercept = weak$truth$RD_true, linewidth = 0.8) +
+  facet_wrap(~ method, scales = "free_y", ncol = 1) +
+  scale_fill_manual(values = c(ok = "steelblue", bad = "firebrick")) +
+  labs(title = "Sampling distributions (Weak W4)",
+       subtitle = paste0("True RD = ", round(weak$truth$RD_true, 4)),
+       x = "Estimated RD", y = "Count", fill = "Overlap") +
+  theme_minimal(base_size = 11)
+```
+
+#### Strong W4
+
+```{r fig-samp-strong, fig.width=9, fig.height=14}
+ests_s <- list(strong$results$crude_est, strong$results$regadj_est,
+               strong$results$iptw_est, strong$results$psmatch_est,
+               strong$results$tmle_glm_est, strong$results$tmle_ml_est,
+               strong$results$cvtmle_est)
+est_long_s <- do.call(rbind, lapply(seq_along(methods), function(i) {
+  data.frame(method = methods[i], estimate = ests_s[[i]],
+             overlap_flag = strong$results$overlap_flag, stringsAsFactors = FALSE)
+}))
+est_long_s <- est_long_s[!is.na(est_long_s$estimate), ]
+est_long_s$method <- factor(est_long_s$method, levels = methods)
+
+ggplot(est_long_s, aes(x = estimate, fill = overlap_flag)) +
+  geom_histogram(bins = 35, alpha = 0.6, position = "identity") +
+  geom_vline(xintercept = strong$truth$RD_true, linewidth = 0.8) +
+  facet_wrap(~ method, scales = "free_y", ncol = 1) +
+  scale_fill_manual(values = c(ok = "steelblue", bad = "firebrick")) +
+  labs(title = "Sampling distributions (Strong W4)",
+       subtitle = paste0("True RD = ", round(strong$truth$RD_true, 4)),
+       x = "Estimated RD", y = "Count", fill = "Overlap") +
+  theme_minimal(base_size = 11)
+```
+
+:::
+
+### 6.2 Coverage Comparison
+
+```{r fig-coverage, fig.width=10, fig.height=8}
+cov_all <- rbind(
+  cbind(mode = "Weak W4", weak$metrics[weak$metrics$subset == "all" &
+                                        !is.na(weak$metrics$coverage), ]),
+  cbind(mode = "Strong W4", strong$metrics[strong$metrics$subset == "all" &
+                                            !is.na(strong$metrics$coverage), ])
+)
+
+if (nrow(cov_all) > 0) {
+  cov_all$ci_lo <- pmax(cov_all$coverage - 1.96 * cov_all$mcse_coverage, 0)
+  cov_all$ci_hi <- pmin(cov_all$coverage + 1.96 * cov_all$mcse_coverage, 1)
+
+  ggplot(cov_all, aes(x = method, y = coverage, fill = mode)) +
+    geom_col(position = "dodge", alpha = 0.8, width = 0.7) +
+    geom_errorbar(aes(ymin = ci_lo, ymax = ci_hi),
+                  position = position_dodge(0.7), width = 0.2) +
+    geom_hline(yintercept = 0.95, linetype = "dashed", color = "grey40") +
+    coord_flip() + ylim(0, 1) +
+    scale_fill_manual(values = c("Weak W4" = "steelblue",
+                                  "Strong W4" = "firebrick")) +
+    labs(title = "95% CI Coverage by Inference Method and Mode",
+         x = NULL, y = "Coverage", fill = "Mode") +
+    theme_minimal(base_size = 11)
+}
+```
+
+### 6.3 NP Bootstrap vs IC Coverage (TMLE-ML)
+
+```{r fig-np-vs-ic, fig.width=8, fig.height=6}
+np_ic <- rbind(
+  cbind(mode = "Weak", weak$metrics[grepl("TMLE-ML \\(IC\\)|TMLE-ML \\(NP boot pctl\\)",
+                                          weak$metrics$method) &
+                                     weak$metrics$subset %in% c("overlap_ok", "overlap_bad") &
+                                     !is.na(weak$metrics$coverage), ]),
+  cbind(mode = "Strong", strong$metrics[grepl("TMLE-ML \\(IC\\)|TMLE-ML \\(NP boot pctl\\)",
+                                              strong$metrics$method) &
+                                         strong$metrics$subset %in% c("overlap_ok", "overlap_bad") &
+                                         !is.na(strong$metrics$coverage), ])
+)
+
+if (nrow(np_ic) > 0) {
+  np_ic$ci_lo <- pmax(np_ic$coverage - 1.96 * np_ic$mcse_coverage, 0)
+  np_ic$ci_hi <- pmin(np_ic$coverage + 1.96 * np_ic$mcse_coverage, 1)
+  np_ic$label <- paste(np_ic$mode, np_ic$subset, sep = " / ")
+
+  ggplot(np_ic, aes(x = label, y = coverage, fill = method)) +
+    geom_col(position = "dodge", alpha = 0.8, width = 0.6) +
+    geom_errorbar(aes(ymin = ci_lo, ymax = ci_hi),
+                  position = position_dodge(0.6), width = 0.2) +
+    geom_hline(yintercept = 0.95, linetype = "dashed", color = "grey40") +
+    ylim(0, 1) +
+    labs(title = "TMLE-ML: NP Bootstrap vs IC Coverage by Overlap Stratum",
+         x = NULL, y = "Coverage", fill = "Inference") +
+    theme_minimal(base_size = 11) +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+}
+```
+
+## 7. Discussion
+
+### 7.1 Point Estimation
+
+TMLE-ML and CV-TMLE-ML with flexible SuperLearner libraries are expected to
+show smaller bias than misspecified estimators (crude, adjusted regression,
+IPTW), particularly in the bad-overlap stratum of the strong-W4 mode. The
+degree of bias improvement depends on how well the SuperLearner library
+approximates the true nonlinear outcome surface.
+
+### 7.2 Inferential Validity
+
+The central question of v4 is whether TMLE-ML CIs maintain nominal coverage
+under the flagged overlap conditions:
+
+- **NP bootstrap CIs** should provide more reliable coverage than IC-based CIs
+  at these sample sizes, since they account for nuisance estimation uncertainty.
+- **IC-based CIs** may show under-coverage, especially in the bad-overlap
+  stratum, because the influence-function variance estimator does not capture
+  finite-sample variability in nuisance model estimation.
+- **Multiplier bootstrap CIs** inherit the same limitation as IC-based CIs and
+  are expected to show similar coverage patterns.
+
+### 7.3 False Stop vs True Stop
+
+If the simulation parameters are well-tuned:
+
+- **Weak-W4, bad overlap:** TMLE-ML NP bootstrap coverage should remain
+  near 0.95 (± MCSE), demonstrating that the overlap flag was a false alarm.
+  The gate should show "acceptable = TRUE."
+- **Strong-W4, bad overlap:** TMLE-ML coverage should drop noticeably below
+  nominal, demonstrating that the overlap violation genuinely undermines
+  inference. The gate should show "acceptable = FALSE."
+
+::: {.callout-warning}
+The false-stop result is not guaranteed by the DGP alone — it depends on the
+specific combination of overlap severity, sample size, outcome model complexity,
+and SuperLearner library richness. If the NP bootstrap coverage in the
+weak-W4 / bad-overlap stratum falls below 0.93, the DGP parameters may need
+further tuning (e.g., reducing $s_{bad,weak}$ or increasing $N$).
+:::
+
+### 7.4 Why the Multiplier Bootstrap Can Under-Perform
+
+The Rademacher multiplier bootstrap constructs pseudo-samples as:
+$$\psi^*_b = \hat\psi + \frac{1}{n}\sum_{i=1}^n \xi_i \hat{D}_i, \quad \xi_i \overset{iid}{\sim} \text{Rademacher}$$
+
+This approximates the distribution of $\hat\psi - \psi_0$ using the estimated
+EIF $\hat{D}_i$ but treats the nuisance estimates as fixed. When nuisance
+estimation contributes non-negligible variability to $\hat\psi$ — as happens
+at moderate $n$ with ML learners — the multiplier bootstrap underestimates
+the true sampling variability. The NP bootstrap avoids this by re-estimating
+nuisance models on each resample.
+
+## 8. Limitations
+
+1. **Finite-sample simulation:** Coverage estimates are subject to Monte Carlo
+   error (reported as MCSE). With `r weak$params$reps` replicates, a true
+   coverage of 0.95 has MCSE $\approx$
+   `r round(sqrt(0.95*0.05/weak$params$reps), 3)`.
+
+2. **SuperLearner library:** The library
+   (`r paste(weak$params$Q_SL_library_ml, collapse=", ")`) is deliberately
+   kept small for computational feasibility. Richer libraries (GAMs, deeper
+   forests, neural nets) might improve or worsen finite-sample performance.
+
+3. **Single scenario family:** Results are specific to this DGP. Generalization
+   to other covariate structures, treatment mechanisms, or outcome models
+   requires additional scenarios.
+
+4. **NP bootstrap resamples:** With `r weak$params$B_npboot_tmle` resamples,
+   the bootstrap CI itself has some Monte Carlo noise. Increasing
+   `B_npboot_tmle` would reduce this at the cost of runtime.
+
+5. **Analytic SEs for non-TMLE estimators:** The adjusted regression SE
+   (SD of unit RDs / √n) and the IPTW IF-based SE are known to be
+   potentially anti-conservative; their coverage should be interpreted
+   cautiously.
+
+## 9. Technical Details
+
+```{r technical}
+tech_tab <- data.frame(
+  Parameter = c("N (per replicate)", "Replicates", "Preset",
+                "NP bootstrap B", "Multiplier bootstrap B",
+                "Pairs bootstrap B", "CV-TMLE folds",
+                "PS clipping (estimation)", "g intercept shift",
+                "Q SL library", "g SL library"),
+  Value = c(weak$params$n_main, weak$params$reps, weak$params$preset,
+            weak$params$B_npboot_tmle, weak$params$B_multboot,
+            weak$params$B_matchboot, weak$params$V_cf,
+            paste(weak$params$ps_clip_hat, collapse = ", "),
+            weak$params$g_intercept_shift,
+            paste(weak$params$Q_SL_library_ml, collapse = ", "),
+            paste(weak$params$g_SL_library_ml, collapse = ", "))
+)
+kable(tech_tab, caption = "Simulation parameters")
+```

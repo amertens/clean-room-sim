@@ -2,6 +2,7 @@
 outputs/
 output/
 data/
+logs/
 
 # R artifacts
 .Rproj.user/
@@ -13,11 +14,9 @@ data/
 # Rendered documents
 *.html
 *.pdf
-<<<<<<< HEAD
-<<<<<<< HEAD
-.Rproj.user
-=======
 *_files/
+*.log
+*.tex
 
 # System
 .DS_Store
@@ -28,11 +27,3 @@ renv/library/
 renv/staging/
 renv/python/
 renv/sandbox/
->>>>>>> origin/claude/r-package-transformation-Ves1b
-=======
-.Rproj.user/
-.Rhistory
-*.log
-*.tex
-*_files/
->>>>>>> claude/add-analysis-documentation-f5zpt

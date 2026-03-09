@@ -1,0 +1,747 @@
+---
+title: "Simulation Scenario 1 v2: Bad Overlap, TMLE OK"
+subtitle: "Point estimation vs inference under near-positivity violations"
+author: "Andrew N. Mertens"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    self-contained: true
+    fig-width: 8
+    fig-height: 5
+  pdf:
+    toc: true
+    toc-depth: 3
+    fig-width: 7
+    fig-height: 4.5
+execute:
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| label: setup
+#| code-fold: false
+
+library(ggplot2)
+theme_set(theme_minimal(base_size = 13))
+
+# Load precomputed v2 simulation outputs
+out_dir <- "../results/scenario1_v2"
+rds_files <- c(
+  params  = file.path(out_dir, "params_used.rds"),
+  truth   = file.path(out_dir, "truth.rds"),
+  results = file.path(out_dir, "replicate_results.rds"),
+  gate    = file.path(out_dir, "gate_results.rds")
+)
+csv_file <- file.path(out_dir, "summary_metrics.csv")
+
+missing <- names(rds_files)[!file.exists(rds_files)]
+if (length(missing) > 0 || !file.exists(csv_file)) {
+  stop("Simulation outputs not found in ", out_dir,
+       "\n\nRun the simulation first:\n",
+       "  Rscript scripts/sim_scenario1_bad_overlap_tmle_ok_v2.R\n",
+       call. = FALSE)
+}
+
+params  <- readRDS(rds_files["params"])
+truth   <- readRDS(rds_files["truth"])
+res     <- readRDS(rds_files["results"])
+gate    <- readRDS(rds_files["gate"])
+summary <- read.csv(csv_file, stringsAsFactors = FALSE)
+
+# Convenience: extract "all" subset metrics
+sm <- summary[summary$subset == "all", ]
+```
+
+## Motivation
+
+Propensity score--based estimators require *positivity*: every subject must
+have a nonzero probability of receiving each treatment level. When this
+assumption is nearly violated --- many propensity scores crowd near 0 or 1 ---
+inverse probability of treatment weighted (IPTW) estimators become unstable
+because a few observations receive extreme weights that dominate the estimate.
+Unadjusted comparisons are biased by confounding regardless of overlap quality.
+
+Targeted minimum loss-based estimation (TMLE) is *doubly robust*:
+it is consistent if either the outcome model $Q(A,W)$ or the treatment model
+$g(W)$ is correctly specified. In this scenario, TMLE point estimates remain
+close to the truth despite severe practical overlap violations because the
+covariate driving near-positivity has minimal influence on the outcome model.
+However, standard influence-curve based Wald intervals may undercover in finite
+samples under near-positivity, motivating bootstrap-based inference checks.
+
+## Estimand
+
+The target estimand is the average treatment effect on the risk difference
+scale:
+
+$$\text{RD} = E[Y^1] - E[Y^0]$$
+
+where $Y^a$ is the counterfactual binary outcome under intervention $A = a$.
+
+## Data-Generating Process
+
+### Covariates
+
+Four baseline covariates are generated independently:
+
+| Variable | Distribution | Role |
+|----------|-------------|------|
+| $W_1$ | $N(0, 1)$ | Shared confounder (moderate in both $g$ and $Q$) |
+| $W_2$ | Bernoulli(0.5) | Binary confounder |
+| $W_3$ | $N(0, 1)$ | Continuous confounder |
+| $W_4$ | $N(0, 1)$ | **Overlap driver**: strong in $g$, weak in $Q$ |
+
+### Treatment mechanism (poor overlap by design)
+
+The propensity score is generated as:
+
+$$g(W) = \text{expit}\!\bigl(\alpha_g + s \cdot (
+  `r params$coef_W1_g` \cdot W_1 +
+  `r params$coef_W2_g` \cdot W_2 +
+  (`r params$coef_W3_g`) \cdot W_3 +
+  `r params$coef_W4_g` \cdot W_4
+)\bigr)$$
+
+where $s = `r params$strength_overlap`$ is the overlap strength multiplier and
+$\alpha_g$ is chosen so that $P(A=1) \approx 0.5$. True propensity scores are
+clipped to $[`r params$ps_clip_true[1]`,\; `r params$ps_clip_true[2]`]$.
+
+The key structural feature: **$W_4$ has coefficient `r params$coef_W4_g` in the
+treatment model but only `r params$coef_W4_Q` in the outcome model.** This means
+the PS is extreme primarily in regions of the covariate space where the outcome
+is not changing much, so $Q(A,W)$ remains smooth and learnable even where $g$ is
+near 0 or 1. The scenario is constructed such that overlap violations are driven
+by a covariate weakly related to the outcome.
+
+### Outcome model (learnable)
+
+$$Q(A,W) = \text{expit}\!\bigl(
+  `r params$alpha_Q` +
+  `r params$effect_A` \cdot A +
+  `r params$coef_W1_Q` \cdot W_1 +
+  `r params$coef_W2_Q` \cdot W_2 +
+  (`r params$coef_W3_Q`) \cdot W_3 +
+  `r params$coef_W4_Q` \cdot W_4
+  `r if (params$nonlinear_Q) paste0("+ 0.3 \\cdot W_1^2") else ""`
+\bigr)$$
+
+The outcome model includes all four covariates with a correctly specified
+GLM as one of the learners in the SuperLearner library, ensuring $Q$ is
+well-estimated.
+
+### Ground truth
+
+```{r truth-display}
+#| label: truth-display
+#| code-fold: false
+
+cat(sprintf("True RD:    %.6f\n", truth$RD_true))
+cat(sprintf("E[Y^1]:     %.4f\n", truth$EY1))
+cat(sprintf("E[Y^0]:     %.4f\n", truth$EY0))
+cat(sprintf("Truth N:    %s\n", format(truth$truth_N, big.mark = ",")))
+cat(sprintf("Method:     %s\n", truth$note))
+```
+
+## Simulation Design
+
+```{r sim-design}
+#| label: sim-design
+
+cat(sprintf("Replicates:          %d\n", params$reps))
+cat(sprintf("Sample size (N):     %d\n", params$n_main))
+cat(sprintf("Overlap strength:    %.1f\n", params$strength_overlap))
+cat(sprintf("PS clip (true):      [%.3f, %.3f]\n", params$ps_clip_true[1], params$ps_clip_true[2]))
+cat(sprintf("PS clip (estimated): [%.2f, %.2f]\n", params$ps_clip_hat[1], params$ps_clip_hat[2]))
+cat(sprintf("Targeted boot B:     %d\n", params$B_tboot))
+cat(sprintf("NP boot B:           %d (0 = off)\n", params$B_npboot))
+cat(sprintf("IPTW boot B:         %d\n", params$B_iptw))
+cat(sprintf("Master seed:         %d\n", params$master_seed))
+```
+
+### Estimators
+
+This simulation compares six estimators, spanning unadjusted, outcome-model
+only, propensity-score only, doubly robust, and matching approaches:
+
+| Estimator | Description | Inference |
+|-----------|-------------|-----------|
+| **Crude RD** | Unadjusted difference in sample proportions | Wald CI (binomial SE) |
+| **Adj. Regression** | G-computation via logistic regression of $Y$ on $A + W$ with correct specification; no targeting step | Approximate SE from unit-level predictions |
+| **IPTW RD** | Hajek estimator with truncated inverse probability weights | Percentile bootstrap CI (B=`r params$B_iptw`) |
+| **PS-Matched Reg.** | Nearest-neighbor matching on logit(PS) with caliper, followed by logistic regression on matched sample | Robust SE on matched data |
+| **TMLE (IC)** | Doubly robust TMLE with SuperLearner Q and g models | IC-based Wald CI |
+| **TMLE (tboot)** | Same TMLE point estimate; variance from EIF-based Bayesian bootstrap (B=`r params$B_tboot`) | Percentile CI from targeted bootstrap |
+
+**Crude adjusted regression** (outcome regression / g-computation) fits a
+correctly specified logistic model for $Q(A,W)$ and marginalizes over the
+covariate distribution to obtain the ATE. Unlike TMLE, it does not include a
+targeting step to solve the efficient influence function estimating equation,
+so it is not doubly robust and its variance estimate is approximate.
+
+**PS-matched regression** performs nearest-neighbor matching on the logit of
+the estimated propensity score with a caliper of $0.2 \times \text{sd}(\text{logit}(\hat{g}))$.
+Under poor overlap, matching may discard many observations or produce poor
+balance, limiting both precision and generalizability. Match diagnostics
+(standardized mean differences before and after matching, number of
+unmatched units) are recorded for each replicate.
+
+**Targeted bootstrap** resamples the efficient influence function
+contributions while holding nuisance fits fixed. Specifically, for each
+of $B$ draws, Bayesian bootstrap (Dirichlet) weights $w_i^{(b)}$ are
+generated and the bootstrap replicate is
+$\hat\psi^{(b)} = \hat\psi + \sum_i w_i^{(b)} D_i / \sum_i w_i^{(b)}$
+where $D_i$ are the TMLE EIF values. This is computationally light and
+provides a complementary check on variance estimation in near-positivity
+regimes.
+
+```{r npboot-note, results='asis'}
+if (params$B_npboot > 0) {
+  cat("As a sensitivity analysis, we also compute a full nonparametric bootstrap ",
+      "for TMLE (B = ", params$B_npboot, "), which refits nuisance models within each ",
+      "resample, to assess whether resampling the full estimation pipeline materially ",
+      "increases estimated uncertainty under extreme overlap.\n")
+}
+```
+
+## Stage 2: Outcome-Blind Overlap Diagnostics
+
+Before examining any treatment--outcome associations, we assess propensity
+score overlap using only treatment assignment and covariates. This mirrors the
+clean-room protocol where design adequacy is evaluated before unblinding
+outcomes.
+
+Under a propensity-score-only feasibility gate, these diagnostics would
+typically trigger redesign or analysis termination; the purpose of this
+scenario is to illustrate how outcome-blind operating characteristic simulations
+can justify proceeding with a doubly robust estimator when the outcome surface
+remains learnable in the regions with poor overlap.
+
+```{r overlap-diagnostics}
+#| label: overlap-diagnostics
+
+thr <- params$overlap_flag_thresholds
+cat(sprintf("Fraction of replicates flagged 'bad' overlap: %.1f%%\n",
+            mean(res$overlap_flag == "bad") * 100))
+cat(sprintf("\nAcross %d replicates:\n", nrow(res)))
+cat(sprintf("  Mean fraction g_hat < %.2f or > %.2f:  %.3f\n",
+            thr$extreme_ps, 1 - thr$extreme_ps, mean(res$fraction_extreme)))
+cat(sprintf("  Mean ESS / N:                           %.3f\n",
+            mean(res$ess_frac)))
+cat(sprintf("  Mean max IPTW weight:                   %.1f\n",
+            mean(res$max_w)))
+cat(sprintf("  Median max IPTW weight:                 %.1f\n",
+            median(res$max_w)))
+cat(sprintf("  Mean min g_hat (raw):                   %.4f\n",
+            mean(res$min_g_raw)))
+cat(sprintf("  Mean max g_hat (raw):                   %.4f\n",
+            mean(res$max_g_raw)))
+```
+
+### Distribution of Propensity Score Extremity
+
+```{r ps-extreme-hist}
+#| label: ps-extreme-hist
+#| fig-height: 4
+#| fig-cap: "Fraction of observations with estimated PS below 0.05 or above 0.95. Dashed line shows the pre-specified threshold for flagging 'bad' overlap. The scenario is designed so that W4 (weak in the outcome model) drives most of the PS extremity."
+
+ggplot(res, aes(x = fraction_extreme)) +
+  geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+  geom_vline(xintercept = thr$extreme_prop,
+             linetype = "dashed", color = "red", linewidth = 0.8) +
+  annotate("text", x = thr$extreme_prop + 0.02,
+           y = Inf, vjust = 2, hjust = 0, color = "red", size = 3.5,
+           label = paste0("threshold = ", thr$extreme_prop)) +
+  labs(title = "Fraction of observations with extreme PS per replicate",
+       x = paste0("Fraction with g_hat < ", thr$extreme_ps,
+                   " or g_hat > ", 1 - thr$extreme_ps),
+       y = "Count")
+```
+
+### Effective Sample Size Under IPTW
+
+```{r ess-hist}
+#| label: ess-hist
+#| fig-height: 4
+#| fig-cap: "Effective sample size fraction (ESS/N) under IPTW ATE weights. Low ESS indicates that a few extreme weights dominate the IPTW estimate."
+
+ggplot(res, aes(x = ess_frac)) +
+  geom_histogram(bins = 30, fill = "darkorange", alpha = 0.7) +
+  geom_vline(xintercept = thr$ess_frac,
+             linetype = "dashed", color = "red", linewidth = 0.8) +
+  annotate("text", x = thr$ess_frac + 0.01,
+           y = Inf, vjust = 2, hjust = 0, color = "red", size = 3.5,
+           label = paste0("threshold = ", thr$ess_frac)) +
+  labs(title = "Effective sample size fraction (ESS / N) per replicate",
+       x = "ESS / N", y = "Count")
+```
+
+### Maximum IPTW Weight
+
+```{r max-weight-hist}
+#| label: max-weight-hist
+#| fig-height: 4
+#| fig-cap: "Maximum IPTW weight per replicate, reflecting the most influential single observation under inverse probability weighting."
+
+ggplot(res, aes(x = max_w)) +
+  geom_histogram(bins = 30, fill = "firebrick", alpha = 0.7) +
+  labs(title = "Maximum IPTW weight per replicate",
+       x = "Max weight", y = "Count")
+```
+
+The diagnostics confirm that this DGP produces a *practical near-positivity
+violation* in most replicates: many estimated propensity scores fall near the
+boundaries, the effective sample size is substantially reduced by extreme
+weights, and maximum weights are large. In a real analysis, Stage 2 would flag
+these issues before any outcome data are examined.
+
+## Stage 2b: Outcome-Blind Operating Characteristics (Stop/Go Gate)
+
+The stop/go gate assesses whether TMLE has acceptable operating characteristics
+*despite* the overlap flag, using simulation-based evidence. This is an
+outcome-blind assessment: we examine only whether the estimator's bias and
+coverage meet pre-specified criteria across the overlap conditions observed.
+
+```{r stopgo-gate}
+#| label: stopgo-gate
+#| code-fold: false
+
+knitr::kable(gate, digits = 4,
+             caption = "Stop/go gate: TMLE operating characteristics by overlap flag status. 'Acceptable' requires |bias| < 0.01 and targeted bootstrap coverage >= 0.93.")
+```
+
+```{r gate-interpret}
+#| label: gate-interpret
+
+n_bad <- sum(res$overlap_flag == "bad")
+pct_bad <- round(100 * n_bad / nrow(res), 1)
+cat(sprintf("Replicates flagged 'bad' overlap: %d/%d (%.1f%%)\n\n",
+            n_bad, nrow(res), pct_bad))
+
+if (any(!is.na(gate$acceptable))) {
+  bad_row <- gate[gate$overlap_flag == "bad", ]
+  if (!is.na(bad_row$acceptable) && bad_row$acceptable) {
+    cat("Despite the overlap flag, TMLE demonstrates acceptable operating\n")
+    cat("characteristics (low bias and adequate targeted bootstrap coverage)\n")
+    cat("in the flagged replicates. Under a clean-room protocol, this\n")
+    cat("outcome-blind OC evidence would support proceeding with TMLE.\n")
+  } else if (!is.na(bad_row$acceptable) && !bad_row$acceptable) {
+    cat("TMLE operating characteristics under bad overlap do NOT meet\n")
+    cat("pre-specified criteria. A clean-room protocol might require\n")
+    cat("redesign, alternative estimand, or additional sensitivity analyses.\n")
+  }
+}
+```
+
+## Stage 3: Estimator Performance
+
+### Summary Table
+
+```{r summary-table}
+#| label: summary-table
+#| code-fold: false
+
+knitr::kable(summary, digits = 4,
+             caption = "Simulation performance metrics by estimator, CI type, and subset. Coverage is for nominal 95% CI. MCSE = Monte Carlo standard error of coverage estimate.")
+```
+
+### Point Estimation vs Inference
+
+```{r metrics-interpret}
+#| label: metrics-interpret
+
+tmle_ic   <- sm[sm$method == "TMLE (IC)", ]
+tmle_tb   <- sm[sm$method == "TMLE (tboot)", ]
+crude_row <- sm[sm$method == "Crude", ]
+regadj    <- sm[sm$method == "Adj. Regression", ]
+iptw_row  <- sm[sm$method == "IPTW", ]
+psmatch   <- sm[sm$method == "PS-Matched Reg.", ]
+
+cat("=== TMLE (IC-based inference) ===\n")
+if (nrow(tmle_ic) > 0) {
+  cat(sprintf("  Bias:      %+.4f\n", tmle_ic$bias))
+  cat(sprintf("  RMSE:      %.4f\n", tmle_ic$rmse))
+  cat(sprintf("  Emp SD:    %.4f\n", tmle_ic$emp_sd))
+  cat(sprintf("  Mean SE:   %.4f\n", tmle_ic$mean_se))
+  cat(sprintf("  Coverage:  %.1f%% (MCSE: %.1f%%)\n",
+              tmle_ic$coverage * 100, tmle_ic$mcse_coverage * 100))
+}
+
+cat("\n=== TMLE (targeted bootstrap) ===\n")
+if (nrow(tmle_tb) > 0) {
+  cat(sprintf("  Mean SE:   %.4f\n", tmle_tb$mean_se))
+  cat(sprintf("  Coverage:  %.1f%% (MCSE: %.1f%%)\n",
+              tmle_tb$coverage * 100, tmle_tb$mcse_coverage * 100))
+}
+
+cat("\n=== Adjusted Regression (g-computation) ===\n")
+if (nrow(regadj) > 0) {
+  cat(sprintf("  Bias:      %+.4f\n", regadj$bias))
+  cat(sprintf("  RMSE:      %.4f\n", regadj$rmse))
+  cat(sprintf("  Coverage:  %.1f%%\n", regadj$coverage * 100))
+}
+
+cat("\n=== IPTW ===\n")
+if (nrow(iptw_row) > 0) {
+  cat(sprintf("  Bias:      %+.4f\n", iptw_row$bias))
+  cat(sprintf("  RMSE:      %.4f\n", iptw_row$rmse))
+  cat(sprintf("  Coverage:  %.1f%%\n", iptw_row$coverage * 100))
+}
+
+cat("\n=== PS-Matched Regression ===\n")
+if (nrow(psmatch) > 0) {
+  cat(sprintf("  Bias:      %+.4f\n", psmatch$bias))
+  cat(sprintf("  RMSE:      %.4f\n", psmatch$rmse))
+  cat(sprintf("  Coverage:  %.1f%%\n", psmatch$coverage * 100))
+  cat(sprintf("  Median matched N: %d (of %d)\n",
+              median(res$psmatch_n_matched, na.rm = TRUE), params$n_main))
+}
+
+cat("\n=== Crude RD ===\n")
+if (nrow(crude_row) > 0) {
+  cat(sprintf("  Bias:      %+.4f\n", crude_row$bias))
+  cat(sprintf("  Coverage:  %.1f%%\n", crude_row$coverage * 100))
+}
+```
+
+We therefore report both the conventional influence-curve standard error and a
+targeted bootstrap variance estimate that resamples the efficient influence
+function contributions while holding nuisance fits fixed. This targeted
+bootstrap is computationally light and provides a complementary check on
+variance estimation in near-positivity regimes.
+
+### Sampling Distribution of Estimators
+
+```{r sampling-dist}
+#| label: sampling-dist
+#| fig-height: 10
+#| fig-cap: "Sampling distributions of all RD estimators across simulation replicates. Vertical black line marks the true RD. Distributions centered on truth indicate low bias; wide distributions indicate high variance. TMLE is tightly centered; adjusted regression is also well-centered but may have different variance properties; IPTW shows a heavy-tailed distribution; PS-matching loses observations; crude RD is biased."
+
+est_long <- data.frame(
+  method = rep(c("TMLE", "Adj. Regression", "IPTW", "PS-Matched", "Crude"),
+               each = nrow(res)),
+  estimate = c(res$tmle_est, res$regadj_est, res$iptw_est,
+               res$psmatch_est, res$crude_est),
+  stringsAsFactors = FALSE
+)
+est_long <- est_long[!is.na(est_long$estimate), ]
+est_long$method <- factor(est_long$method,
+  levels = c("TMLE", "Adj. Regression", "PS-Matched", "IPTW", "Crude"))
+
+ggplot(est_long, aes(x = estimate, fill = method)) +
+  geom_histogram(bins = 40, alpha = 0.7) +
+  geom_vline(xintercept = truth$RD_true, linewidth = 0.8) +
+  annotate("text", x = truth$RD_true, y = Inf, vjust = 2, hjust = -0.1,
+           label = paste0("True RD = ", round(truth$RD_true, 4)),
+           fontface = "bold", size = 3.5) +
+  facet_wrap(~ method, scales = "free_y", ncol = 1) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Sampling distributions of RD estimators",
+       x = "Estimated RD", y = "Count") +
+  guides(fill = "none")
+```
+
+### Bias Comparison
+
+```{r bias-plot}
+#| label: bias-plot
+#| fig-height: 4
+#| fig-cap: "Monte Carlo bias (mean estimate minus truth) by estimator. TMLE and adjusted regression show minimal bias; IPTW may show residual bias from truncation; PS-matching is affected by sample restriction; crude RD is dominated by confounding."
+
+methods_present <- sm$method[!is.na(sm$bias)]
+bias_df <- sm[sm$method %in% methods_present & !grepl("npboot", sm$method), ]
+bias_df <- bias_df[!is.na(bias_df$bias), ]
+bias_df$method <- factor(bias_df$method, levels = rev(bias_df$method))
+
+ggplot(bias_df, aes(x = method, y = bias, fill = method)) +
+  geom_col(alpha = 0.8, width = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  coord_flip() +
+  labs(title = "Bias by estimator",
+       x = NULL, y = "Bias (mean estimate - truth)") +
+  guides(fill = "none") +
+  scale_fill_brewer(palette = "Set2")
+```
+
+### Coverage Comparison: IC-based vs Targeted Bootstrap
+
+```{r coverage-plot}
+#| label: coverage-plot
+#| fig-height: 5
+#| fig-cap: "95% CI coverage by estimator and CI type. Error bars show Monte Carlo uncertainty. Dashed line = 95% nominal level. 'TMLE (IC)' uses the influence-curve Wald CI; 'TMLE (tboot)' uses the targeted bootstrap percentile CI."
+
+cov_df <- sm[!is.na(sm$coverage) & !grepl("npboot", sm$method), ]
+cov_df$ci_lo <- cov_df$coverage - 1.96 * cov_df$mcse_coverage
+cov_df$ci_hi <- cov_df$coverage + 1.96 * cov_df$mcse_coverage
+cov_df$method <- factor(cov_df$method, levels = rev(cov_df$method))
+
+ggplot(cov_df, aes(x = method, y = coverage, fill = method)) +
+  geom_col(alpha = 0.8, width = 0.6) +
+  geom_errorbar(aes(ymin = ci_lo, ymax = pmin(ci_hi, 1)), width = 0.2) +
+  geom_hline(yintercept = 0.95, linetype = "dashed", color = "grey40") +
+  annotate("text", x = 0.5, y = 0.95, label = "95% nominal",
+           hjust = -0.1, vjust = -0.5, color = "grey40", size = 3.5) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  labs(title = "95% CI coverage by estimator",
+       subtitle = "Error bars: Monte Carlo uncertainty in coverage estimate",
+       x = NULL, y = "Coverage") +
+  guides(fill = "none")
+```
+
+### SE Calibration: TMLE IC vs Targeted Bootstrap
+
+A well-calibrated SE estimator should produce $\text{mean}(\widehat{\text{SE}})
+\approx \text{empirical SD}$ of the point estimates. If the IC-based SE
+systematically underestimates variability under near-positivity, coverage will
+fall below nominal --- this is precisely the finite-sample inference limitation
+that the targeted bootstrap is designed to detect.
+
+```{r se-calibration}
+#| label: se-calibration
+
+if (nrow(tmle_ic) > 0 && !is.na(tmle_ic$mean_se) && !is.na(tmle_ic$emp_sd)) {
+  ratio_ic <- tmle_ic$mean_se / tmle_ic$emp_sd
+  cat(sprintf("TMLE SE calibration (IC-based):\n"))
+  cat(sprintf("  Empirical SD of estimates:  %.4f\n", tmle_ic$emp_sd))
+  cat(sprintf("  Mean IC-based SE:           %.4f\n", tmle_ic$mean_se))
+  cat(sprintf("  Ratio (mean SE / emp SD):   %.3f\n", ratio_ic))
+  if (ratio_ic < 0.90) {
+    cat("  => IC SE underestimates variability; undercoverage expected\n")
+  } else if (ratio_ic > 1.10) {
+    cat("  => IC SE overestimates variability; CIs are conservative\n")
+  } else {
+    cat("  => Well-calibrated (ratio near 1.0)\n")
+  }
+}
+
+if (nrow(tmle_tb) > 0 && !is.na(tmle_tb$mean_se) && !is.na(tmle_ic$emp_sd)) {
+  ratio_tb <- tmle_tb$mean_se / tmle_ic$emp_sd
+  cat(sprintf("\nTMLE SE calibration (targeted bootstrap):\n"))
+  cat(sprintf("  Mean targeted bootstrap SE: %.4f\n", tmle_tb$mean_se))
+  cat(sprintf("  Ratio (mean SE / emp SD):   %.3f\n", ratio_tb))
+  if (ratio_tb < 0.90) {
+    cat("  => Targeted bootstrap SE also underestimates\n")
+  } else if (ratio_tb > 1.10) {
+    cat("  => Targeted bootstrap SE is conservative\n")
+  } else {
+    cat("  => Well-calibrated (ratio near 1.0)\n")
+  }
+}
+```
+
+```{r se-scatter}
+#| label: se-scatter
+#| fig-height: 4
+#| fig-cap: "TMLE estimated SE (IC-based and targeted bootstrap) vs absolute estimation error. Points near the diagonal indicate well-calibrated SEs; points consistently below the diagonal indicate SE underestimates variability."
+
+tmle_ok <- res[!is.na(res$tmle_ok) & res$tmle_ok == TRUE, ]
+if (nrow(tmle_ok) > 0) {
+  se_df <- data.frame(
+    se = c(tmle_ok$tmle_se_ic, tmle_ok$tmle_se_tboot),
+    abs_error = rep(abs(tmle_ok$tmle_est - truth$RD_true), 2),
+    type = rep(c("IC-based SE", "Targeted bootstrap SE"), each = nrow(tmle_ok))
+  )
+  se_df <- se_df[!is.na(se_df$se), ]
+
+  ggplot(se_df, aes(x = se, y = abs_error, color = type)) +
+    geom_point(alpha = 0.3, size = 1.5) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey40") +
+    facet_wrap(~ type) +
+    labs(title = "TMLE: estimated SE vs absolute error",
+         subtitle = "Points near the diagonal indicate well-calibrated SEs",
+         x = "Estimated SE", y = "|Estimate - Truth|") +
+    guides(color = "none") +
+    scale_color_manual(values = c("IC-based SE" = "steelblue",
+                                   "Targeted bootstrap SE" = "darkorange"))
+}
+```
+
+### Overlap Severity and Estimator Error
+
+```{r overlap-vs-error}
+#| label: overlap-vs-error
+#| fig-height: 5
+#| fig-cap: "Absolute estimation error as a function of overlap severity (fraction of observations with extreme PS). Loess smooths highlight trends. Crude error is large regardless (confounding). IPTW error increases with overlap severity (weight instability). TMLE error stays low, demonstrating robustness through outcome model learning. The scenario is designed so overlap extremity is driven by W4, which is weak in Q."
+
+if (nrow(tmle_ok) > 10) {
+  err_df <- data.frame(
+    fraction_extreme = rep(tmle_ok$fraction_extreme, 5),
+    abs_error = c(
+      abs(tmle_ok$tmle_est - truth$RD_true),
+      abs(tmle_ok$regadj_est - truth$RD_true),
+      abs(tmle_ok$iptw_est - truth$RD_true),
+      abs(tmle_ok$psmatch_est - truth$RD_true),
+      abs(tmle_ok$crude_est - truth$RD_true)
+    ),
+    method = rep(c("TMLE", "Adj. Regression", "IPTW", "PS-Matched", "Crude"),
+                 each = nrow(tmle_ok)),
+    stringsAsFactors = FALSE
+  )
+  err_df <- err_df[!is.na(err_df$abs_error), ]
+  err_df$method <- factor(err_df$method,
+    levels = c("TMLE", "Adj. Regression", "PS-Matched", "IPTW", "Crude"))
+
+  ggplot(err_df, aes(x = fraction_extreme, y = abs_error, color = method)) +
+    geom_point(alpha = 0.2, size = 1) +
+    geom_smooth(method = "loess", se = FALSE, linewidth = 1) +
+    scale_color_brewer(palette = "Set1") +
+    labs(title = "Absolute error vs overlap severity",
+         x = "Fraction of observations with extreme PS",
+         y = "|Estimate - Truth|",
+         color = "Estimator")
+}
+```
+
+### PS Matching Diagnostics
+
+```{r match-diagnostics}
+#| label: match-diagnostics
+
+if (any(!is.na(res$psmatch_n_matched))) {
+  cat(sprintf("Matched sample size:\n"))
+  cat(sprintf("  Median:  %d / %d (%.0f%%)\n",
+              median(res$psmatch_n_matched, na.rm = TRUE),
+              params$n_main,
+              100 * median(res$psmatch_n_matched, na.rm = TRUE) / params$n_main))
+  cat(sprintf("  Min:     %d\n", min(res$psmatch_n_matched, na.rm = TRUE)))
+  cat(sprintf("  Max:     %d\n", max(res$psmatch_n_matched, na.rm = TRUE)))
+  cat(sprintf("  Failed:  %d replicates\n", sum(is.na(res$psmatch_est))))
+}
+```
+
+## Discussion
+
+### Why TMLE point estimation succeeds here
+
+TMLE's double robustness means it is consistent if *either* $Q$ or $g$ is
+correctly specified. In this DGP:
+
+1. The outcome model $Q(A,W)$ is a logistic regression with a mild
+   nonlinearity ($0.3 W_1^2$), which is well-captured by GLM learners
+   in the SuperLearner library.
+
+2. The variable driving poor overlap ($W_4$) has a strong coefficient in
+   the treatment model ($`r params$coef_W4_g`$) but a near-zero coefficient
+   in the outcome model ($`r params$coef_W4_Q`$). This means the outcome
+   surface is *flat* in the direction of PS extremity. The targeting step
+   in TMLE, which updates the initial $Q$ estimate using the clever
+   covariate $H = A/g - (1-A)/(1-g)$, can make small, well-behaved
+   corrections even when $g$ is near the boundary.
+
+### Inference under near-positivity
+
+While TMLE point estimation is stable in this scenario, standard
+influence-curve based Wald intervals may exhibit finite-sample undercoverage
+when propensity scores approach the truncation boundaries. The targeting step
+places nonzero weight on the clever covariate $H(A,W) = A/\hat{g}(W) -
+(1-A)/(1-\hat{g}(W))$, which can be large for observations with extreme PS.
+Even when the resulting bias correction is small (because $Q$ is already close
+to truth), the IC-based variance estimate may not fully capture the additional
+variability introduced by these observations.
+
+We therefore report both the conventional influence-curve standard error and a
+targeted bootstrap variance estimate that resamples the efficient influence
+function contributions while holding nuisance fits fixed. This targeted
+bootstrap is computationally light and provides a complementary check on
+variance estimation in near-positivity regimes.
+
+### Why adjusted regression also performs well (and its limitations)
+
+The correctly specified outcome regression (g-computation) estimates the ATE
+with low bias because the outcome model is simple and learnable. However,
+unlike TMLE, this estimator is *not* doubly robust: if the outcome model
+were misspecified (e.g., missing interactions or nonlinearities), the
+g-computation estimator would be inconsistent regardless of the PS model
+quality. Additionally, its variance estimation relies on asymptotic
+approximations that may be less reliable than TMLE's efficient influence
+function approach.
+
+### Why IPTW and PS-matching struggle
+
+**IPTW** relies entirely on the treatment model $g(W)$. When propensity scores
+are near 0 or 1, inverse probability weights become very large for a small
+number of observations, inflating variance. The effective sample size shrinks
+and bootstrap CIs may under-cover because the bootstrap distribution of the
+Hajek estimator can be irregular with extreme weights.
+
+**PS-matching** under poor overlap typically discards many observations that
+cannot be matched within the caliper, reducing effective sample size and
+potentially introducing selection bias. Even when matches are found, the
+quality may be poor (large within-pair PS differences), and the regression
+adjustment on matched data cannot fully compensate for residual imbalance.
+
+### Why crude RD fails
+
+The unadjusted estimator ignores confounding entirely. Covariates $W_1$
+through $W_4$ affect both treatment assignment and (to varying degrees) the
+outcome, inducing selection bias. The confounding bias dominates the sampling
+variability, producing CIs that never contain the truth.
+
+### Implications for practice
+
+This scenario illustrates a realistic situation in observational studies:
+
+1. **Stage 2 diagnostics flag a problem.** A clean-room analysis detects
+   poor overlap before any outcomes are examined, alerting analysts to
+   the positivity concern.
+
+2. **Stage 2b operating characteristics justify proceeding.** Outcome-blind
+   simulation evidence shows that TMLE point estimation remains near-unbiased
+   and inference (particularly with targeted bootstrap) remains adequate,
+   supporting a decision to proceed rather than terminate.
+
+3. **TMLE provides a path forward** when the outcome model is well-specified
+   and the positivity violation is *practical* (no structural zeros). The
+   analyst should invest in a rich, correctly-specified $Q$ library.
+
+4. **Inference requires scrutiny.** Even when TMLE point estimation is
+   reliable, standard IC-based inference should be supplemented with
+   targeted bootstrap variance estimation under near-positivity.
+
+5. **IPTW and matching alone are insufficient** under near-positivity
+   violations. Truncation and calipers help but do not fully address
+   instability.
+
+6. **Unadjusted analyses are not a fallback.** Confounding bias makes crude
+   comparisons unreliable regardless of overlap quality.
+
+### Limitations
+
+Because the DGP is constructed so that the primary positivity violations arise
+from a covariate weakly related to the outcome, these results do not imply that
+TMLE will yield reliable inference under all forms of limited overlap,
+particularly when outcome prediction also depends strongly on the covariates
+inducing near-deterministic treatment.
+
+## Appendix: Replicate-Level Data
+
+```{r replicate-table}
+#| label: replicate-table
+
+# Show first 10 replicates
+display_cols <- c("rep", "event_rate", "fraction_extreme", "ess_frac",
+                  "max_w", "overlap_flag",
+                  "tmle_est", "regadj_est", "iptw_est",
+                  "psmatch_est", "crude_est")
+display_cols <- intersect(display_cols, names(res))
+knitr::kable(head(res[, display_cols], 10), digits = 4,
+             caption = "First 10 replicates (sample)")
+```
+
+### Session Info
+
+```{r session-info}
+#| label: session-info
+
+si_file <- file.path(out_dir, "sessionInfo.txt")
+if (file.exists(si_file)) {
+  cat(readLines(si_file), sep = "\n")
+} else {
+  sessionInfo()
+}
+```

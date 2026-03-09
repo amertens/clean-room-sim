@@ -1,18 +1,18 @@
 {
-  "N_total": 4268,
-  "N_treated": 1600,
-  "N_control": 2668,
-  "frac_treated": 0.3749,
-  "frac_control": 0.6251,
-  "overall_event_rate": 0.0028,
-  "overall_N_events": 12,
+  "N_total": 7274,
+  "N_treated": 2984,
+  "N_control": 4290,
+  "frac_treated": 0.4102,
+  "frac_control": 0.5898,
+  "overall_event_rate": 0.3309,
+  "overall_N_events": 2407,
   "followup_summary": {
-    "Min.": 0.0855,
-    "1st Qu.": 28.7275,
-    "Median": 69.4688,
-    "Mean": 98.9535,
-    "3rd Qu.": 133.0635,
-    "Max.": 720
+    "Min.": 0.0218,
+    "1st Qu.": 101.2156,
+    "Median": 239.8646,
+    "Mean": 225.7263,
+    "3rd Qu.": 365,
+    "Max.": 365
   },
   "missingness": {
     "none": 0
