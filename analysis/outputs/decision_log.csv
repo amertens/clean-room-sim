@@ -11,3 +11,28 @@
 "MTG-20260303064958-7593","2026-03-03 06:49:58","stage3","Q","Outcome model fitted with SL library: SL.glm, SL.gam, SL.ranger, SL.glmnet, SL.mean","Pre-specified from config","pre-specified",TRUE,"analyst",1
 "MTG-20260303064958-7593","2026-03-03 06:49:58","stage3","Estimator","Primary estimand: Risk difference at t = 90, 180 days (PH-free)","Pre-specified in TL-SAP","pre-specified",TRUE,"analyst",1
 "MTG-20260303064958-7593","2026-03-03 06:49:58","stage3","Estimator","Secondary estimand: Cox PH hazard ratio (assumes PH)","Pre-specified in TL-SAP; PH test included as diagnostic","pre-specified",TRUE,"analyst",1
+"MTG-20260303222542-4877","2026-03-03 22:25:42","stage1","Cohort","Cohort built and feasibility assessed","N = 4268 ; events = 12","pre-specified protocol",TRUE,"analyst",1
+"MTG-20260304041252-4877","2026-03-04 04:12:52","stage1","Cohort","Cohort built and feasibility assessed","N = 4268 ; events = 12","pre-specified protocol",TRUE,"analyst",1
+"MTG-20260304041301-3776","2026-03-04 04:13:01","stage2","PS","PS model fitted with SL.glm, SL.gam, SL.ranger, SL.mean","Pre-specified SL library from config","pre-specified",TRUE,"analyst",1
+"MTG-20260304041301-3776","2026-03-04 04:13:01","stage2","PS","Truncation at [ 0.01 , 0.99 ] ; truncated: 0 lower, 0 upper","Pre-specified truncation bounds from config","pre-specified",TRUE,"analyst",1
+"MTG-20260304041301-3776","2026-03-04 04:13:01","stage2","Balance","Max weighted SMD = 0.0051","Threshold = 0.25","SMD diagnostic",TRUE,"analyst",1
+"MTG-20260304042332-8550","2026-03-04 04:23:32","stage3","Q","Outcome model fitted with SL library: SL.glm, SL.gam, SL.ranger, SL.glmnet, SL.mean","Pre-specified from config","pre-specified",TRUE,"analyst",1
+"MTG-20260304042332-8550","2026-03-04 04:23:32","stage3","Estimator","Primary estimand: Risk difference at t = 90, 180 days (PH-free)","Pre-specified in TL-SAP","pre-specified",TRUE,"analyst",1
+"MTG-20260304042332-8550","2026-03-04 04:23:32","stage3","Estimator","Secondary estimand: Cox PH hazard ratio (assumes PH)","Pre-specified in TL-SAP; PH test included as diagnostic","pre-specified",TRUE,"analyst",1
+"MTG-20260304094419-4877","2026-03-04 09:44:19","stage1","Cohort","Cohort built and feasibility assessed","N = 4268 ; events = 12","pre-specified protocol",TRUE,"analyst",1
+"MTG-20260304094904-4877","2026-03-04 09:49:04","stage1","Cohort","Cohort built and feasibility assessed","N = 4268 ; events = 12","pre-specified protocol",TRUE,"analyst",1
+"MTG-20260304094908-3776","2026-03-04 09:49:08","stage2","PS","PS model fitted with SL.glm, SL.gam, SL.ranger, SL.mean","Pre-specified SL library from config","pre-specified",TRUE,"analyst",1
+"MTG-20260304094908-3776","2026-03-04 09:49:08","stage2","PS","Truncation at [ 0.01 , 0.99 ] ; truncated: 0 lower, 0 upper","Pre-specified truncation bounds from config","pre-specified",TRUE,"analyst",1
+"MTG-20260304094908-3776","2026-03-04 09:49:08","stage2","Balance","Max weighted SMD = 0.0051","Threshold = 0.25","SMD diagnostic",TRUE,"analyst",1
+"MTG-20260304095606-8550","2026-03-04 09:56:06","stage3","Q","Outcome model fitted with SL library: SL.glm, SL.gam, SL.ranger, SL.glmnet, SL.mean","Pre-specified from config","pre-specified",TRUE,"analyst",1
+"MTG-20260304095606-8550","2026-03-04 09:56:06","stage3","Estimator","Primary estimand: Risk difference at t = 90, 180 days (PH-free)","Pre-specified in TL-SAP","pre-specified",TRUE,"analyst",1
+"MTG-20260304095606-8550","2026-03-04 09:56:06","stage3","Estimator","Secondary estimand: Cox PH hazard ratio (assumes PH)","Pre-specified in TL-SAP; PH test included as diagnostic","pre-specified",TRUE,"analyst",1
+"MTG-20260304100459-4877","2026-03-04 10:04:59","stage1","Cohort","Cohort built and feasibility assessed","N = 4268 ; events = 12","pre-specified protocol",TRUE,"analyst",1
+"MTG-20260304100503-3776","2026-03-04 10:05:03","stage2","PS","PS model fitted with SL.glm, SL.gam, SL.ranger, SL.mean","Pre-specified SL library from config","pre-specified",TRUE,"analyst",1
+"MTG-20260304100503-3776","2026-03-04 10:05:03","stage2","PS","Truncation at [ 0.01 , 0.99 ] ; truncated: 0 lower, 0 upper","Pre-specified truncation bounds from config","pre-specified",TRUE,"analyst",1
+"MTG-20260304100503-3776","2026-03-04 10:05:03","stage2","Balance","Max weighted SMD = 0.0051","Threshold = 0.25","SMD diagnostic",TRUE,"analyst",1
+"MTG-20260304101354-8550","2026-03-04 10:13:54","stage3","Q","Outcome model fitted with SL library: SL.glm, SL.gam, SL.ranger, SL.glmnet, SL.mean","Pre-specified from config","pre-specified",TRUE,"analyst",1
+"MTG-20260304101354-8550","2026-03-04 10:13:54","stage3","Estimator","Primary estimand: Risk difference at t = 90, 180 days (PH-free)","Pre-specified in TL-SAP","pre-specified",TRUE,"analyst",1
+"MTG-20260304101354-8550","2026-03-04 10:13:54","stage3","Estimator","Secondary estimand: Cox PH hazard ratio (assumes PH)","Pre-specified in TL-SAP; PH test included as diagnostic","pre-specified",TRUE,"analyst",1
+"MTG-20260304101355-4930","2026-03-04 10:13:55","stage4","Report","Final report compiled and locked","All stage checkpoints passed; artifacts compiled","stage completion",TRUE,"analyst",1
+"MTG-20260304101355-6892","2026-03-04 10:13:55","stage1","Cohort","Cohort built and feasibility assessed","N = 4289 ; events = 39","pre-specified protocol",TRUE,"analyst",1

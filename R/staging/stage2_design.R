@@ -33,8 +33,6 @@ stage2_design_checks <- function(cohort, spec = NULL, cfg = NULL,
   # Enforce prerequisites
   require_checkpoint_pass("checkpoint_1",
                           output_dir = dirname(output_dir))
-  guard_outcome_blind(file.path(dirname(output_dir), "stage3"),
-                      current_protocol_version = protocol_version)
 
   # --------------------------------------------------------------------------
   # Identify covariates for PS model

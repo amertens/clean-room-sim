@@ -1,0 +1,1729 @@
+---
+title: "Operationalizing TMLE in a Clean-Room Staged Design"
+subtitle: "A Pharmacoepidemiology Tutorial with Simulated HCV Safety Data"
+author: "Andrew N. Mertens"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "Show code"
+    theme: cosmo
+    embed-resources: true
+    fig-width: 8
+    fig-height: 5
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Abstract {.unnumbered}
+
+Targeted Maximum Likelihood Estimation (TMLE) is a doubly robust, semiparametric
+efficient estimator increasingly used in pharmacoepidemiology and comparative
+effectiveness research. However, TMLE's reliance on both a treatment model and
+an outcome model creates an operational challenge: in a credible analysis, key
+modeling decisions should be locked before outcome data are examined. This
+tutorial introduces a **four-stage clean-room workflow** that resolves this
+tension. In **Stage 1**, the analysis team pre-specifies and locks the estimand,
+covariate set, learner libraries, truncation rules, and performance thresholds.
+In **Stage 2**, the team accesses only treatment and covariate data to estimate
+the propensity score, evaluate overlap, assess matching feasibility, and lock the
+treatment-model strategy — without touching outcomes. In **Stage 3**, the team
+runs the full TMLE pipeline on synthetic data generated under pre-specified,
+outcome-blind data-generating processes with known truth, evaluating bias,
+variance, and empirical coverage to make a GO/STOP gate decision. Only in
+**Stage 4** are real outcomes accessed and the outcome regression fitted for the
+first time. Using a simulated hepatitis C antiviral safety example, we
+demonstrate the workflow with three simulation scenarios that illustrate distinct
+clean-room decision states: acceptable overlap where TMLE achieves a precision
+gain by using penalized regression (`glmnet`) to learn outcome-model structure
+that design-only estimators cannot exploit, overlap stress where all estimators
+— including TMLE — fail, and overlap stress where TMLE remains competitive
+despite reduced matching feasibility because the outcome model compensates for
+the stressed treatment model. The tutorial shows that propensity-score
+diagnostics and full estimator validation are not interchangeable, that TMLE
+can improve precision when the outcome surface contains learnable structure,
+and that outcome-blind simulation is necessary to determine whether a planned
+analysis should proceed.
+
+```{r setup}
+library(knitr)
+library(ggplot2)
+library(glmnet)
+set.seed(2024)
+
+# Utility functions
+expit <- function(x) 1 / (1 + exp(-x))
+logit <- function(p) log(p / (1 - p))
+```
+
+# What This Tutorial Is and Is Not
+
+This is **not** a generic TMLE tutorial. For standalone introductions to TMLE,
+see van der Laan and Rose (2011), the `tmle` R package vignette, or Schuler and
+Rose (2017). This tutorial teaches how TMLE is **operationalized within a
+clean-room staged workflow** — a governance structure that controls *when*
+different data elements may be accessed and *what* analytic tasks are permitted
+at each stage.
+
+**Elevator pitch.** This tutorial shows how TMLE can be embedded in a clean-room
+workflow where treatment-mechanism diagnostics occur before outcome access,
+simulation is used to validate the full estimator pipeline under known truth,
+and the real outcome regression and targeting step occur only after the earlier
+stages are completed. The result is an analysis whose credibility does not rest
+solely on post-hoc sensitivity checks, because the key analytic decisions were
+locked before outcomes were seen.
+
+::: {.callout-note}
+### Tutorial vs. production clean-room implementation
+
+In a real operational clean-room analysis, the workflow would also include
+role separation (e.g., a blinded analyst team and an unblinded data
+custodian), audit trails with timestamped artifacts, frozen data extracts,
+and versioned analysis scripts archived at each stage transition. This
+tutorial simplifies those operational components so the reader can focus on
+the statistical logic — the sequence of analysis lock → outcome-blind
+diagnostics → outcome-blind simulation validation → unblinded estimation.
+The core sequencing principle is the same in both settings: analytic
+decisions are locked before outcome data are accessed.
+:::
+
+### The running example
+
+We use a simulated pharmacoepidemiology study loosely modeled on HCV antiviral
+safety surveillance. The causal question: does a sofosbuvir (SOF)-containing
+regimen increase the risk of acute kidney injury (AKI) compared to a non-SOF
+regimen, among patients with chronic hepatitis C? The example is entirely
+simulated — no real patient data are used — but the covariate structure,
+treatment assignment mechanism, and outcome model reflect patterns seen in
+real-world safety studies.
+
+### The central tension
+
+TMLE requires both a treatment model $g(W) = P(A=1|W)$ and an outcome model
+$Q(A,W) = E[Y|A,W]$. In a clean-room workflow, these two components live in
+different stages:
+
+- **$g$ can be estimated early** (Stage 2), because it uses only treatment and
+  covariates — no outcomes required.
+- **$Q$ for the real data can only be estimated after outcome access**
+  (Stage 4), because fitting an outcome regression requires $Y$.
+- **The targeting step** combines $Q$ and $g$ and therefore also belongs to
+  Stage 4 for the real analysis.
+- **In simulation (Stage 3)**, the full pipeline ($g$, $Q$, targeting) runs on
+  synthetic data with known truth, validating the estimator before real
+  outcomes are unblinded.
+
+### Workflow overview
+
+```
+┌─────────────────────────────────────────────┐
+│  Stage 1. Pre-specification & Analysis Lock │
+│  Lock estimand, covariates, SL libraries,   │
+│  truncation rules, gate thresholds          │
+└────────────────────┬────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────┐
+│  Stage 2. Outcome-Blind Design Diagnostics  │
+│  Access (W, A) only. Fit g(W), evaluate     │
+│  overlap, balance, ESS. Lock g-strategy.    │
+└────────────────────┬────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────┐
+│  Stage 3. Outcome-Blind Simulation          │
+│  Run full TMLE pipeline on synthetic data   │
+│  with known truth. Evaluate bias, coverage. │
+│  Make GO / STOP gate decision.              │
+└────────────────────┬────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────┐
+│  Stage 4. Unblinded TMLE Estimation         │
+│  Access Y. Fit Q(A,W) for the first time.   │
+│  Run targeting step. Report results.        │
+└─────────────────────────────────────────────┘
+```
+
+
+## Quick Reference: Allowed vs Not Allowed Before Outcome Access
+
+```{r permissions-table}
+perms <- data.frame(
+  Stage = c(
+    "Stage 1: Pre-specification",
+    "Stage 2: Outcome-Blind Diagnostics",
+    "Stage 3: Simulation Validation",
+    "Stage 4: Unblinded Estimation"
+  ),
+  `Data accessible` = c(
+    "None (metadata, variable definitions only)",
+    "W and A from the real dataset (not Y)",
+    "Synthetic data with simulated Y",
+    "Full dataset: W, A, Y"
+  ),
+  `Allowed TMLE-related tasks` = c(
+    paste("Define causal question and estimand;",
+          "specify covariates and treatment;",
+          "select SL libraries for g and Q;",
+          "set truncation rules;",
+          "define diagnostic thresholds and gate criteria"),
+    paste("Estimate g(W) on real data;",
+          "PS overlap diagnostics;",
+          "IPTW weight distributions and ESS;",
+          "covariate balance (SMD)"),
+    paste("Run the full TMLE pipeline on simulated data;",
+          "evaluate bias, variance, and coverage;",
+          "compare TMLE with simpler estimators;",
+          "test SL specifications and truncation"),
+    paste("Estimate Q(A,W) on real data;",
+          "combine with locked g-strategy;",
+          "run TMLE targeting step;",
+          "compute estimates and CIs;",
+          "report results")
+  ),
+  `Not allowed` = c(
+    paste("Estimating g or Q on real data;",
+          "any estimator involving real outcomes"),
+    paste("Fitting Q(A,W) on real outcomes;",
+          "computing treatment effects on real data;",
+          "running TMLE on the real dataset"),
+    paste("Using real outcomes;",
+          "tuning estimator based on real Y"),
+    paste("Changing estimand, SL library, or truncation",
+          "without a documented protocol amendment")
+  ),
+  check.names = FALSE
+)
+kable(perms, caption = "Clean-room permissions by stage",
+      col.names = c("Stage", "Data accessible", "Allowed TMLE-related tasks", "Not allowed"),
+      align = c("l", "l", "l", "l")) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                            full_width = TRUE, font_size = 13) |>
+  kableExtra::column_spec(1, bold = TRUE, width = "12em") |>
+  kableExtra::column_spec(2, width = "14em") |>
+  kableExtra::column_spec(3, width = "20em") |>
+  kableExtra::column_spec(4, width = "14em")
+```
+
+
+# Stage 1. Pre-specification and Analysis Lock {#stage-1}
+
+## What happens at this stage
+
+Before any real study data are accessed, the analysis team writes a statistical
+analysis plan (SAP) that locks all major analytic decisions. This is analogous
+to a clinical trial's SAP being finalized before database lock.
+
+For our HCV example, the causal question is:
+
+> Among adults with chronic HCV initiating antiviral therapy, what is the
+> average causal effect of a SOF-containing regimen (vs. a non-SOF regimen)
+> on the 90-day risk of acute kidney injury?
+
+The estimand is the average treatment effect (ATE) on the risk difference scale:
+$$\psi = E[Y^1] - E[Y^0]$$
+
+where $Y^a$ denotes the potential AKI outcome under treatment $a$.
+
+Identification assumptions: consistency ($Y = Y^A$), no unmeasured confounding
+($Y^a \perp\!\!\!\perp A \mid W$), and positivity ($0 < P(A=1|W) < 1$).
+
+### The analysis lock object
+
+The pre-specified decisions are encoded as a versioned, timestamped artifact.
+This object travels through every subsequent stage unchanged unless a formal
+amendment is documented.
+
+```{r analysis-lock}
+create_analysis_lock <- function() {
+  list(
+    # --- Protocol metadata ---
+    protocol_id   = "HCV-AKI-2024-001",
+    version       = "1.0",
+    locked_date   = Sys.Date(),
+    locked_by     = "Analysis team (blinded)",
+    blinded       = TRUE,  # TRUE until Stage 4 unblinding
+    status        = "pre-outcome",
+
+    # --- Causal question ---
+    study       = "HCV antiviral safety: SOF vs non-SOF",
+    estimand    = "ATE",
+    effect_scale = "risk_difference",
+
+    # --- Variable roles ---
+    covariates  = c("age", "ckd", "cirrhosis", "diabetes", "nsaid", "renal_risk"),
+    treatment   = "A",          # 1 = SOF-containing, 0 = non-SOF
+    outcome     = "Y",          # 1 = AKI within 90 days
+
+    # --- Treatment model (g) ---
+    g_formula   = "A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk",
+    g_SL_library = c("SL.mean", "SL.glm", "SL.glmnet"),
+
+    # --- Outcome model (Q) ---
+    Q_method    = "cv.glmnet (elastic net, alpha = 0.5)",
+    Q_features  = paste("Main effects + age^2, age^3, renal_risk^2 +",
+                        "treatment interactions (A:ckd, A:age, A:age^2,",
+                        "A:renal_risk, A:cirrhosis, A:diabetes) +",
+                        "covariate interactions (age:ckd, age:rr, ckd:rr)"),
+    Q_SL_library = c("SL.mean", "SL.glm", "SL.glmnet", "SL.gam"),
+
+    # --- PS truncation ---
+    ps_truncation = c(lower = 0.025, upper = 0.975),
+
+    # --- TMLE variant ---
+    tmle_variant  = "TMLE-ML",
+
+    # --- Stage 2 diagnostic thresholds ---
+    diag_thresholds = list(
+      extreme_ps_bound = 0.05,    # PS below this or above 1 - this
+      max_extreme_frac = 0.15,    # max fraction of extreme PS
+      min_ess_frac     = 0.50,    # minimum ESS / n
+      max_iptw_weight  = 40,      # max single IPTW weight
+      max_smd_weighted = 0.10     # max weighted SMD
+    ),
+
+    # --- Stage 3 simulation targets ---
+    sim_targets = list(
+      max_abs_bias = 0.01,
+      min_coverage = 0.93,
+      se_sd_low    = 0.80,
+      se_sd_high   = 1.20,
+      n_reps       = 200
+    ),
+
+    # --- Amendment rule ---
+    amendment_rule = paste("If Stage 3 returns STOP, the team may file a",
+                           "documented amendment to expand the learner library",
+                           "or increase the sample size. The amended plan must",
+                           "be re-validated through Stage 3 before proceeding",
+                           "to Stage 4.")
+  )
+}
+
+analysis_lock <- create_analysis_lock()
+
+cat("Analysis lock (", analysis_lock$protocol_id, " v", analysis_lock$version, ")\n", sep = "")
+cat("Study:", analysis_lock$study, "\n")
+cat("Locked:", as.character(analysis_lock$locked_date), "\n")
+cat("Blinded:", analysis_lock$blinded, " | Status:", analysis_lock$status, "\n")
+cat("Estimand:", analysis_lock$estimand, "on", analysis_lock$effect_scale, "scale\n")
+cat("Covariates:", paste(analysis_lock$covariates, collapse = ", "), "\n")
+cat("PS truncation:", analysis_lock$ps_truncation["lower"], "-",
+    analysis_lock$ps_truncation["upper"], "\n")
+cat("Amendment rule:", analysis_lock$amendment_rule, "\n")
+```
+
+::: {.callout-note}
+### What gets locked vs. what gets re-estimated
+
+What is locked is the **modeling strategy**: the learner library, truncation
+bounds, covariate set, and diagnostic thresholds. In practice, the team may
+either carry the Stage 2 fitted $\hat{g}$ object forward into Stage 4, or
+re-run the same locked procedure on the full $(W, A)$ data at Stage 4. Both
+are valid — the key constraint is that the *specification* does not change
+after outcome access. Locking a strategy is not the same as requiring reuse of
+a specific fitted object.
+:::
+
+### Stage 1 summary
+
+At this point, no data have been touched. The team has committed to an estimand
+(ATE on the RD scale), identification assumptions, covariate list, SL
+libraries, truncation rules, and simulation performance targets.
+
+
+# Stage 2. Outcome-Blind Design Diagnostics {#stage-2}
+
+## What happens at this stage
+
+The analysis team receives the **treatment and covariate data** $(W, A)$ from
+the real study. Outcomes $(Y)$ remain sealed. The purpose is to evaluate
+whether the treatment mechanism and covariate structure are compatible with the
+planned analysis.
+
+Because $g(W) = P(A=1|W)$ does not involve outcomes, the entire treatment model
+can be estimated here. This is the key operational insight: **the $g$-side of
+TMLE is fully accessible during the outcome-blind stage.**
+
+::: {.callout-note collapse="true"}
+### Operational note: Stage 2 in practice
+In a real clean-room implementation, the analyst would receive a blinded
+analytic dataset or restricted data extract with outcomes masked or removed.
+All Stage 2 diagnostics would be scripted, versioned, and archived as part of
+the audit trail. Any changes to the $g$-strategy triggered by Stage 2
+findings (e.g., adding a covariate interaction to improve balance) would
+require documented justification and an updated analysis lock before
+proceeding to Stage 3.
+:::
+
+### Generate the HCV tutorial dataset
+
+We simulate a dataset that mimics an HCV antiviral safety study. We generate
+the full dataset including $Y$, but the Stage 2 analyst sees only $(W, A)$.
+
+```{r generate-data}
+simulate_hcv_scenario <- function(n, seed,
+                                   b_rr_g    = 0.7,    # g coeff for renal_risk
+                                   beta_rr_Q = 0.35,   # Q coeff for renal_risk
+                                   beta_int  = 0.00,   # A:renal_risk interaction
+                                   beta_ckdA = 0.40,   # A:ckd interaction
+                                   beta_ageA = 0.00,   # A:age interaction
+                                   alpha_A   = -0.15,  # treatment intercept
+                                   alpha_Y   = -2.80) {
+  set.seed(seed)
+
+  # --- Baseline covariates ---
+  age_raw    <- rnorm(n, 55, 10)
+  age        <- (age_raw - 55) / 10           # standardized
+  ckd        <- rbinom(n, 1, 0.18)            # chronic kidney disease
+  cirrhosis  <- rbinom(n, 1, 0.22)
+  diabetes   <- rbinom(n, 1, 0.20)
+  nsaid      <- rbinom(n, 1, 0.25)            # concurrent NSAID use
+  renal_risk <- rnorm(n, 0, 1)               # composite renal-risk score
+
+  # --- Treatment mechanism (g) ---
+  # renal_risk drives overlap; b_rr_g varies by scenario
+  lp_g <- alpha_A + 0.25*age + 0.45*ckd + 0.35*cirrhosis +
+           0.20*diabetes - 0.15*nsaid + b_rr_g*renal_risk
+  g_true <- pmin(pmax(expit(lp_g), 0.005), 0.995)
+  A <- rbinom(n, 1, g_true)
+
+  # --- Outcome model (Q): AKI ---
+  # Includes nonlinear age (quadratic + cubic), renal_risk^2, and
+  # treatment-effect heterogeneity (A:ckd, A:age, A:renal_risk)
+  # so the DGP has learnable structure that a richer Q can exploit.
+  lp_Q <- alpha_Y + 0.25*A + 0.20*age + 0.15*age^2 + 0.05*age^3 +
+           0.90*ckd + 0.55*cirrhosis + 0.40*diabetes + 0.25*nsaid +
+           beta_rr_Q*renal_risk + 0.08*renal_risk^2 +
+           beta_ckdA*A*ckd + beta_ageA*A*age + beta_int*A*renal_risk
+  Y <- rbinom(n, 1, expit(lp_Q))
+
+  data.frame(age, ckd, cirrhosis, diabetes, nsaid, renal_risk, A, Y)
+}
+
+# Generate the "real" study data (n = 3000)
+# Using Scenario 3 parameters: overlap stress (b_rr=2.4), weak renal_risk in Q
+dat_full <- simulate_hcv_scenario(n = 3000, seed = 42,
+                                   b_rr_g = 2.4, beta_rr_Q = 0.03,
+                                   beta_int = 0.00, beta_ckdA = 0.25,
+                                   beta_ageA = 0.10)
+
+# Stage 2 analyst sees only W and A — Y is sealed
+dat_stage2 <- dat_full[, c("age", "ckd", "cirrhosis", "diabetes",
+                            "nsaid", "renal_risk", "A")]
+
+cat("Stage 2 data dimensions:", nrow(dat_stage2), "x", ncol(dat_stage2), "\n")
+cat("Treatment prevalence:", round(mean(dat_stage2$A), 3), "\n")
+cat("Y column accessible:", "Y" %in% names(dat_stage2), "\n")
+```
+
+### Fit the treatment model
+
+Using the locked g-formula from the analysis lock:
+
+```{r fit-g}
+fit_stage2_g <- function(dat, lock) {
+  g_fit <- glm(as.formula(lock$g_formula), data = dat, family = "binomial")
+  g_hat <- fitted(g_fit)
+  g_trunc <- pmin(pmax(g_hat, lock$ps_truncation["lower"]),
+                  lock$ps_truncation["upper"])
+  list(fit = g_fit, g_hat = g_hat, g_trunc = g_trunc)
+}
+
+g_stage2 <- fit_stage2_g(dat_stage2, analysis_lock)
+
+cat("PS range (raw):", round(range(g_stage2$g_hat), 4), "\n")
+cat("PS range (truncated):", round(range(g_stage2$g_trunc), 4), "\n")
+```
+
+### Propensity score diagnostics
+
+These diagnostics use only $(W, A)$ and are fully permitted at Stage 2.
+
+```{r ps-diagnostics, fig.width=8, fig.height=4}
+ps_df <- data.frame(
+  ps = g_stage2$g_hat,
+  Treatment = factor(dat_stage2$A,
+                     labels = c("Non-SOF", "SOF-containing"))
+)
+
+ggplot(ps_df, aes(x = ps, fill = Treatment)) +
+  geom_histogram(bins = 40, alpha = 0.6, position = "identity") +
+  geom_vline(xintercept = c(analysis_lock$ps_truncation["lower"],
+                             analysis_lock$ps_truncation["upper"]),
+             linetype = "dashed", color = "red") +
+  labs(title = "Stage 2: Propensity Score Distribution by Treatment",
+       subtitle = "Red dashed lines = pre-specified truncation bounds",
+       x = "Estimated P(SOF | W)", y = "Count") +
+  theme_minimal(base_size = 12)
+```
+
+```{r overlap-metrics}
+stage2_diagnostics <- function(g_hat, g_trunc, A, dat, lock) {
+  thr <- lock$diag_thresholds
+  n <- length(A)
+
+  # Fraction with extreme PS
+  frac_extreme <- mean(g_hat < thr$extreme_ps_bound |
+                       g_hat > (1 - thr$extreme_ps_bound))
+
+  # IPTW weights and ESS
+  w_iptw <- A / g_trunc + (1 - A) / (1 - g_trunc)
+  ess <- sum(w_iptw)^2 / sum(w_iptw^2)
+  ess_frac <- ess / n
+  max_w <- max(w_iptw)
+
+  # Weighted SMDs
+  compute_smd <- function(x, trt, weights = NULL) {
+    if (is.null(weights)) weights <- rep(1, length(x))
+    m1 <- weighted.mean(x[trt == 1], weights[trt == 1])
+    m0 <- weighted.mean(x[trt == 0], weights[trt == 0])
+    s <- sqrt((var(x[trt == 1]) + var(x[trt == 0])) / 2)
+    if (s < 1e-10) return(0)
+    (m1 - m0) / s
+  }
+
+  covars <- lock$covariates
+  smd_unw <- sapply(covars, function(v) compute_smd(dat[[v]], A))
+  smd_wtd <- sapply(covars, function(v) compute_smd(dat[[v]], A, w_iptw))
+
+  diag_tab <- data.frame(
+    Metric = c("Fraction extreme PS",
+               "ESS fraction",
+               "Max IPTW weight",
+               "Max |SMD| (IPTW-weighted)"),
+    Value = round(c(frac_extreme, ess_frac, max_w, max(abs(smd_wtd))), 3),
+    Threshold = c(paste("<", thr$max_extreme_frac),
+                  paste(">", thr$min_ess_frac),
+                  paste("<", thr$max_iptw_weight),
+                  paste("<", thr$max_smd_weighted)),
+    Status = c(ifelse(frac_extreme < thr$max_extreme_frac, "PASS", "FLAG"),
+               ifelse(ess_frac > thr$min_ess_frac, "PASS", "FLAG"),
+               ifelse(max_w < thr$max_iptw_weight, "PASS", "FLAG"),
+               ifelse(max(abs(smd_wtd)) < thr$max_smd_weighted, "PASS", "FLAG"))
+  )
+
+  list(diag_tab = diag_tab, smd_unw = smd_unw, smd_wtd = smd_wtd,
+       w_iptw = w_iptw, any_flag = any(diag_tab$Status == "FLAG"))
+}
+
+s2_diag <- stage2_diagnostics(g_stage2$g_hat, g_stage2$g_trunc,
+                               dat_stage2$A, dat_stage2, analysis_lock)
+kable(s2_diag$diag_tab, caption = "Stage 2 overlap diagnostics")
+```
+
+```{r love-plot, fig.width=7, fig.height=4}
+covars <- analysis_lock$covariates
+smd_df <- data.frame(
+  variable = rep(covars, 2),
+  smd = c(s2_diag$smd_unw, s2_diag$smd_wtd),
+  type = rep(c("Unweighted", "IPTW-Weighted"), each = length(covars))
+)
+
+ggplot(smd_df, aes(x = abs(smd), y = reorder(variable, abs(smd)), color = type)) +
+  geom_point(size = 3) +
+  geom_vline(xintercept = 0.10, linetype = "dashed") +
+  labs(title = "Stage 2: Covariate Balance (Love Plot)",
+       x = "|Standardized Mean Difference|", y = NULL, color = "Weighting") +
+  theme_minimal(base_size = 12)
+```
+
+### Stage 2 decision
+
+```{r stage2-decision}
+stage2_status <- ifelse(s2_diag$any_flag,
+                         "FLAG — proceed to Stage 3 simulation",
+                         "PASS")
+cat("Stage 2 status:", stage2_status, "\n")
+if (s2_diag$any_flag) {
+  flagged <- s2_diag$diag_tab$Metric[s2_diag$diag_tab$Status == "FLAG"]
+  cat("Flagged metrics:", paste(flagged, collapse = "; "), "\n")
+}
+```
+
+### Why Stage 2 is not enough for TMLE validation
+
+Stage 2 evaluates the treatment mechanism $g$ and practical positivity. But
+TMLE depends on *three* components: $g$, $Q$, and the targeting step. Stage 2
+tells us nothing about whether the outcome model can be estimated well,
+whether the targeting step is stable, whether the variance estimator is
+reliable, or whether CI coverage is near nominal.
+
+This matters in both directions:
+
+- A study can have **flagged overlap but excellent TMLE performance** if the
+  overlap-driving covariate is weakly related to the outcome — the outcome
+  model compensates.
+- A study can have **acceptable overlap but poor TMLE performance** if the
+  outcome surface is difficult to learn at the given sample size.
+
+Stage 2 alone cannot distinguish these cases. **Stage 3 fills the gap** by
+testing the complete TMLE pipeline on synthetic data where the truth is known.
+
+### Stage 2 summary
+
+```{r stage2-summary, results='asis'}
+cat("At this point the team has estimated $g(W)$, evaluated overlap and balance, ")
+if (s2_diag$any_flag) {
+  cat("and documented that **some diagnostic flags triggered**. ")
+  cat("These flags indicate potential overlap concerns — but as discussed below, ")
+  cat("overlap flags alone do not determine whether TMLE will perform adequately. ")
+} else {
+  cat("and found that **all diagnostic thresholds were met**. ")
+  cat("However, passing Stage 2 does not guarantee that the full TMLE pipeline ")
+  cat("will perform adequately — as Stage 3 will show. ")
+}
+cat("The outcome $Y$ has **not been touched**. The $g$-modeling strategy is now locked.")
+```
+
+
+# Why TMLE Can Survive Poor Overlap {#double-robustness}
+
+Before proceeding to the simulation stage, it helps to understand *why* poor
+propensity score diagnostics do not automatically invalidate TMLE. The answer
+is **double robustness**.
+
+TMLE relies on two nuisance components:
+
+1. The **outcome regression** $Q(A,W) = E[Y|A,W]$: a model for the expected
+   outcome given treatment and covariates.
+2. The **treatment mechanism** $g(W) = P(A=1|W)$: a model for the probability
+   of receiving treatment given covariates.
+
+The key property is this: **TMLE is consistent if *either* the outcome model
+or the treatment model is consistently estimated.** Both do not need to be
+correct simultaneously for TMLE to converge to the right answer. If one model
+is wrong but the other is right, TMLE uses the correct model to compensate for
+the incorrect one.
+
+When *both* models are consistently estimated, TMLE achieves an additional
+benefit: it is **efficient**, meaning it reaches the smallest possible variance
+among all regular estimators.
+
+What does this mean practically?
+
+- If the overlap-driving covariate barely affects the outcome (weak
+  confounding through that variable), then the outcome model $Q$ can be
+  estimated well even though $g$ is difficult. TMLE leans on $Q$ to get the
+  right answer. (This is the mechanism behind Scenario 3 in Stage 3.)
+- If the overlap-driving covariate strongly affects both treatment and outcome,
+  then *both* $g$ and $Q$ are hard to estimate in the regions of poor overlap.
+  TMLE has nothing to fall back on. (This is what happens in Scenario 2.)
+- **IPTW** and **PS-matched regression**, by contrast, rely entirely on $g$.
+  Poor overlap always hurts these methods, regardless of the outcome surface.
+
+This is why overlap concerns — whether flagged at Stage 2 or not — do not
+automatically determine whether TMLE will perform well or poorly. They mean
+"the treatment model alone may be under stress — we need Stage 3 to check
+whether the full TMLE pipeline, including the outcome model, can compensate."
+
+::: {.callout-important}
+Double robustness is an asymptotic property that holds under regularity
+conditions, including adequate positivity and sufficiently good nuisance
+estimation — it is not a finite-sample guarantee. In practice, extreme weights
+from a poorly estimated $g$ can still destabilize the targeting step, inflate
+variance, and degrade CI coverage even when the outcome model is well-specified.
+This is exactly why simulation validation (Stage 3) is necessary: it checks
+whether double robustness actually helps at the study's sample size and
+covariate distribution, rather than relying on asymptotic theory alone.
+:::
+
+
+# Stage 3. Outcome-Blind Simulation Validation {#stage-3}
+
+## What happens at this stage
+
+Stage 2 told us about the treatment mechanism. Stage 3 answers the harder
+question: **does the entire TMLE pipeline perform adequately under conditions
+that resemble this study?**
+
+The team runs a simulation using pre-specified data-generating processes (DGPs).
+Each DGP is calibrated to match the observed $(W, A)$ distribution but generates
+**synthetic outcomes** — not the real $Y$. Because the truth is known in the
+simulation, the team can evaluate bias, variance, and CI coverage.
+
+::: {.callout-note collapse="true"}
+### Operational note: Stage 3 in practice
+In a production clean-room analysis, Stage 3 simulations would be pre-run
+from versioned scripts and their results archived as part of the audit trail.
+The candidate DGPs are specified before outcome access, based on clinical
+domain knowledge and the observed covariate/treatment distributions from
+Stage 2. The analyst does not select a DGP post hoc to justify proceeding —
+the scenarios are locked as part of the Stage 1 analysis plan or a documented
+Stage 2 amendment. The purpose is to stress-test the locked estimator pipeline
+under plausible candidate outcome surfaces before unblinding.
+:::
+
+We run **three scenarios** to demonstrate three distinct clean-room decision
+states, using four estimators: crude RD, PS-matched regression, IPTW, and TMLE.
+
+### What Stage 3 validates that Stage 2 cannot
+
+| Question | Stage 2 | Stage 3 |
+|----------|---------|---------|
+| Is $\hat{g}$ well-estimated? | Yes | Yes |
+| Are PS values extreme? | Yes | Yes |
+| Can adequate matching be achieved on the observed data? | Yes | Partially |
+| Does the matched estimator perform adequately under plausible DGPs? | **No** | Yes |
+| Is $\hat{Q}$ adequate? | **No** | Yes (on synthetic data) |
+| Does the targeting step work? | **No** | Yes |
+| Is IC-based SE reliable? | **No** | Yes |
+| Does CI coverage reach nominal? | **No** | Yes |
+| Is TMLE better than alternatives? | **No** | Yes |
+
+
+### Three scenarios for the HCV example
+
+| Scenario | Overlap / matching | Outcome structure | Expected TMLE gate | Main lesson |
+|----------|--------------------|-------------------|--------------------|-------------|
+| **1** | Acceptable | Moderate `renal_risk` ($\beta_{rr}=0.35$), $A \times \text{ckd}$, $A \times \text{age}$ | GO | TMLE precision gain via richer Q |
+| **2** | Overlap stress | Strong `renal_risk` ($\beta_{rr}=1.30$, $A \times \text{renal\_risk}$ $=0.60$) | STOP | Overlap stress + strong confounding defeats all |
+| **3** | Overlap stress | Near-zero `renal_risk` ($\beta_{rr}=0.03$), $A \times \text{ckd}$, $A \times \text{age}$ | GO | TMLE competitive under overlap stress via Q-learning |
+
+Scenarios 2 and 3 share the same treatment mechanism (`b_rr` = 2.4 in
+$g$), so their Stage 2 overlap and matching diagnostics are similarly stressed.
+The key difference is whether `renal_risk` matters for the outcome. All three
+scenarios include nonlinear age effects (quadratic + cubic), quadratic
+`renal_risk`, and treatment-effect heterogeneity ($A \times \text{ckd}$,
+$A \times \text{age}$). TMLE's `glmnet`-based $Q$ model with a rich
+feature matrix can learn this structure, while the PS-matched estimator uses
+only a simple paired difference that cannot exploit outcome modeling.
+
+### Define the simulation DGP
+
+The DGP must be specified *before* real outcomes are seen. It should reflect
+plausible outcome models given clinical domain knowledge.
+
+```{r sim-dgp}
+# Compute true ATE by Monte Carlo marginalization over the covariate distribution
+compute_truth_hcv <- function(n_mc = 500000, seed = 1,
+                               beta_rr_Q = 0.35, beta_int = 0.00,
+                               beta_ckdA = 0.40, beta_ageA = 0.00,
+                               alpha_Y = -2.80) {
+  set.seed(seed)
+  age        <- rnorm(n_mc, 0, 1)
+  ckd        <- rbinom(n_mc, 1, 0.18)
+  cirrhosis  <- rbinom(n_mc, 1, 0.22)
+  diabetes   <- rbinom(n_mc, 1, 0.20)
+  nsaid      <- rbinom(n_mc, 1, 0.25)
+  renal_risk <- rnorm(n_mc, 0, 1)
+
+  lp_base <- alpha_Y + 0.20*age + 0.15*age^2 + 0.05*age^3 +
+             0.90*ckd + 0.55*cirrhosis + 0.40*diabetes + 0.25*nsaid +
+             beta_rr_Q*renal_risk + 0.08*renal_risk^2
+  EY1 <- mean(expit(lp_base + 0.25 + beta_ckdA*ckd +
+                     beta_ageA*age + beta_int*renal_risk))
+  EY0 <- mean(expit(lp_base))
+
+  c(EY1 = EY1, EY0 = EY0, RD = EY1 - EY0)
+}
+
+# Scenario 1: Moderate overlap, moderate renal_risk, strong A:ckd heterogeneity
+truth_1 <- compute_truth_hcv(beta_rr_Q = 0.35, beta_int = 0.00,
+                              beta_ckdA = 0.40, beta_ageA = 0.15)
+# Scenario 2: Overlap stress, strong renal_risk in Q + A:renal_risk interaction
+truth_2 <- compute_truth_hcv(beta_rr_Q = 1.30, beta_int = 0.60,
+                              beta_ckdA = 0.40, beta_ageA = 0.00)
+# Scenario 3: Overlap stress, near-zero renal_risk, moderate heterogeneity
+truth_3 <- compute_truth_hcv(beta_rr_Q = 0.03, beta_int = 0.00,
+                              beta_ckdA = 0.25, beta_ageA = 0.10)
+
+cat("True ATE by scenario:\n")
+cat("  Scenario 1 (moderate renal_risk):", round(truth_1["RD"], 5), "\n")
+cat("  Scenario 2 (strong renal_risk): ", round(truth_2["RD"], 5), "\n")
+cat("  Scenario 3 (weak renal_risk):   ", round(truth_3["RD"], 5), "\n")
+```
+
+### Define the estimators
+
+This function runs one TMLE analysis using the pre-specified pipeline. The $Q$
+model uses `glmnet` (penalized logistic regression) with a rich design matrix
+including polynomial terms, pairwise interactions, and treatment-by-covariate
+interactions. This is a modest but meaningful upgrade over a plain GLM: `glmnet`
+automatically selects among the candidate features via cross-validated
+regularization, approximating what a small SuperLearner library would do but
+at tutorial speed. The $g$ model remains a simple logistic GLM.
+
+```{r tmle-function}
+# Build the rich design matrix for Q estimation
+build_Q_design <- function(dat) {
+  A <- dat$A; age <- dat$age; ckd <- dat$ckd; cirrhosis <- dat$cirrhosis
+  diabetes <- dat$diabetes; nsaid <- dat$nsaid; rr <- dat$renal_risk
+
+  cbind(
+    A         = A,
+    age       = age,
+    age2      = age^2,
+    age3      = age^3,
+    ckd       = ckd,
+    cirrhosis = cirrhosis,
+    diabetes  = diabetes,
+    nsaid     = nsaid,
+    rr        = rr,
+    rr2       = rr^2,
+    # Treatment-effect heterogeneity terms
+    A_ckd     = A * ckd,
+    A_age     = A * age,
+    A_age2    = A * age^2,
+    A_rr      = A * rr,
+    A_cirr    = A * cirrhosis,
+    A_dm      = A * diabetes,
+    # Pairwise covariate interactions
+    age_ckd   = age * ckd,
+    age_rr    = age * rr,
+    ckd_rr    = ckd * rr
+  )
+}
+
+run_tmle_once <- function(dat, ps_clip = c(0.025, 0.975)) {
+  n <- nrow(dat)
+
+  # --- Fit g (treatment model) — simple logistic GLM ---
+  g_fit <- glm(A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk,
+               data = dat, family = "binomial")
+  g_hat <- pmin(pmax(fitted(g_fit), ps_clip[1]), ps_clip[2])
+
+  # --- Fit Q (outcome model) — glmnet with rich design matrix ---
+  X_Q <- build_Q_design(dat)
+  Q_fit <- cv.glmnet(X_Q, dat$Y, family = "binomial", alpha = 0.5,
+                      nfolds = 5, type.measure = "deviance")
+  Q_A <- as.numeric(predict(Q_fit, X_Q, s = "lambda.min", type = "response"))
+
+  dat1 <- dat; dat1$A <- 1
+  dat0 <- dat; dat0$A <- 0
+  Q_1 <- as.numeric(predict(Q_fit, build_Q_design(dat1),
+                             s = "lambda.min", type = "response"))
+  Q_0 <- as.numeric(predict(Q_fit, build_Q_design(dat0),
+                             s = "lambda.min", type = "response"))
+
+  # Bound Q away from 0/1
+  Q_A <- pmin(pmax(Q_A, 1e-5), 1 - 1e-5)
+  Q_1 <- pmin(pmax(Q_1, 1e-5), 1 - 1e-5)
+  Q_0 <- pmin(pmax(Q_0, 1e-5), 1 - 1e-5)
+
+  # --- Targeting step ---
+  H  <- dat$A / g_hat - (1 - dat$A) / (1 - g_hat)
+  H1 <- 1 / g_hat
+  H0 <- -1 / (1 - g_hat)
+
+  eps_fit <- glm(dat$Y ~ -1 + H, offset = logit(Q_A), family = "binomial")
+  eps <- coef(eps_fit)
+
+  Q_1_star <- expit(logit(Q_1) + eps * H1)
+  Q_0_star <- expit(logit(Q_0) + eps * H0)
+  Q_A_star <- expit(logit(Q_A) + eps * H)
+
+  # --- Point estimate ---
+  psi <- mean(Q_1_star - Q_0_star)
+
+  # --- IC-based inference ---
+  eif <- H * (dat$Y - Q_A_star) + (Q_1_star - Q_0_star) - psi
+  se  <- sqrt(var(eif) / n)
+  ci  <- psi + c(-1.96, 1.96) * se
+
+  list(estimate = psi, se = se, ci_low = ci[1], ci_high = ci[2])
+}
+```
+
+We also define three comparators: crude RD, IPTW, and PS-matched regression.
+These comparators use simpler estimation strategies that do not leverage
+outcome modeling — reflecting realistic practice where matching and IPTW
+rely primarily on design-stage adjustment.
+
+```{r comparator-functions}
+run_crude <- function(dat) {
+  p1 <- mean(dat$Y[dat$A == 1]); p0 <- mean(dat$Y[dat$A == 0])
+  rd <- p1 - p0
+  n1 <- sum(dat$A == 1); n0 <- sum(dat$A == 0)
+  se <- sqrt(p1*(1 - p1)/n1 + p0*(1 - p0)/n0)
+  list(estimate = rd, se = se,
+       ci_low = rd - 1.96*se, ci_high = rd + 1.96*se)
+}
+
+run_iptw <- function(dat, ps_clip = c(0.025, 0.975)) {
+  g_fit <- glm(A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk,
+               data = dat, family = "binomial")
+  g_hat <- pmin(pmax(fitted(g_fit), ps_clip[1]), ps_clip[2])
+  A <- dat$A; Y <- dat$Y; n <- length(Y)
+  w  <- A / g_hat + (1 - A) / (1 - g_hat)
+  d1 <- sum(w * A); d0 <- sum(w * (1 - A))
+  mu1 <- sum(w * A * Y) / d1
+  mu0 <- sum(w * (1 - A) * Y) / d0
+  rd <- mu1 - mu0
+  # Sandwich SE
+  phi1 <- w * A * (Y - mu1) / d1 * n
+  phi0 <- w * (1 - A) * (Y - mu0) / d0 * n
+  se <- sqrt(sum((phi1 - phi0)^2) / n^2)
+  list(estimate = rd, se = se,
+       ci_low = rd - 1.96*se, ci_high = rd + 1.96*se)
+}
+
+run_ps_matched <- function(dat, ps_clip = c(0.025, 0.975)) {
+  # Fit propensity score
+  g_fit <- glm(A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk,
+               data = dat, family = "binomial")
+  ps <- pmin(pmax(fitted(g_fit), ps_clip[1]), ps_clip[2])
+  lps <- logit(ps)
+
+  # 1:1 nearest-neighbor matching without replacement, caliper = 0.2 * SD(logit PS)
+  caliper <- 0.2 * sd(lps)
+  tidx <- which(dat$A == 1)
+  cidx <- which(dat$A == 0)
+
+  # Greedy matching in original order
+  matched_t <- matched_c <- integer(0)
+  available <- rep(TRUE, length(cidx))
+
+  for (ii in seq_along(tidx)) {
+    i <- tidx[ii]
+    if (!any(available)) break
+    ac <- cidx[available]
+    d_lps <- abs(lps[i] - lps[ac])
+    j <- which.min(d_lps)
+    if (d_lps[j] <= caliper) {
+      matched_t <- c(matched_t, i)
+      matched_c <- c(matched_c, ac[j])
+      available[which(cidx == ac[j])] <- FALSE
+    }
+  }
+
+  np <- length(matched_t)
+  if (np < 20) {
+    return(list(estimate = NA, se = NA, ci_low = NA, ci_high = NA,
+                n_pairs = np, matched_frac = np / length(tidx), max_smd = NA))
+  }
+
+  # Paired difference estimator
+  rd <- mean(dat$Y[matched_t] - dat$Y[matched_c])
+  se <- sd(dat$Y[matched_t] - dat$Y[matched_c]) / sqrt(np)
+
+  # Post-match balance
+  covars <- c("age", "ckd", "cirrhosis", "diabetes", "nsaid", "renal_risk")
+  smds <- sapply(covars, function(v) {
+    xt <- dat[[v]][matched_t]; xc <- dat[[v]][matched_c]
+    s <- sqrt((var(xt) + var(xc)) / 2)
+    if (s < 1e-10) 0 else (mean(xt) - mean(xc)) / s
+  })
+
+  list(estimate = rd, se = se,
+       ci_low = rd - 1.96*se, ci_high = rd + 1.96*se,
+       n_pairs = np, matched_frac = np / length(tidx),
+       max_smd = max(abs(smds)))
+}
+```
+
+### Run the three-scenario simulation
+
+```{r run-sim, cache=TRUE}
+run_stage3_simulation <- function(reps, n, b_rr_g, beta_rr_Q, beta_int,
+                                   beta_ckdA = 0.40, beta_ageA = 0.00,
+                                   alpha_A = -0.15, alpha_Y = -2.80,
+                                   true_rd, seed_offset = 0,
+                                   ps_clip = c(0.025, 0.975)) {
+  methods <- c("Crude", "IPTW", "PS-Matched", "TMLE")
+  results <- vector("list", reps * length(methods))
+  k <- 0
+
+  for (r in seq_len(reps)) {
+    d <- simulate_hcv_scenario(n, seed = seed_offset + r,
+                                b_rr_g = b_rr_g, beta_rr_Q = beta_rr_Q,
+                                beta_int = beta_int, beta_ckdA = beta_ckdA,
+                                beta_ageA = beta_ageA, alpha_A = alpha_A,
+                                alpha_Y = alpha_Y)
+
+    for (meth in methods) {
+      res <- tryCatch(
+        switch(meth,
+               Crude        = run_crude(d),
+               IPTW         = run_iptw(d, ps_clip),
+               "PS-Matched" = run_ps_matched(d, ps_clip),
+               TMLE         = run_tmle_once(d, ps_clip)),
+        error = function(e) list(estimate = NA, se = NA,
+                                  ci_low = NA, ci_high = NA))
+      k <- k + 1
+      results[[k]] <- data.frame(
+        rep = r, method = meth,
+        est = res$estimate, se = res$se,
+        ci_lo = res$ci_low, ci_hi = res$ci_high)
+    }
+  }
+
+  results <- do.call(rbind, results)
+
+  # Compute performance metrics per method
+  metrics <- do.call(rbind, lapply(split(results, results$method), function(sub) {
+    ok     <- !is.na(sub$est)
+    has_ci <- ok & !is.na(sub$ci_lo)
+    e <- sub$est[ok]
+    data.frame(
+      method   = sub$method[1],
+      n_ok     = sum(ok),
+      bias     = mean(e) - true_rd,
+      rmse     = sqrt(mean((e - true_rd)^2)),
+      emp_sd   = sd(e),
+      mean_se  = mean(sub$se[ok], na.rm = TRUE),
+      coverage = mean(
+        (sub$ci_lo[has_ci] <= true_rd) & (true_rd <= sub$ci_hi[has_ci])),
+      n_ci     = sum(has_ci))
+  }))
+  row.names(metrics) <- NULL
+
+  list(results = results, metrics = metrics)
+}
+
+n_sim <- 3000   # sample size per replicate (larger for glmnet stability)
+n_reps <- 200   # number of replicates
+
+# --- Scenario 1: Moderate overlap, moderate renal_risk, A:ckd + A:age heterogeneity ---
+sim_1 <- run_stage3_simulation(
+  reps = n_reps, n = n_sim,
+  b_rr_g = 0.7, beta_rr_Q = 0.35, beta_int = 0.00,
+  beta_ckdA = 0.40, beta_ageA = 0.15,
+  true_rd = truth_1["RD"], seed_offset = 1000,
+  ps_clip = analysis_lock$ps_truncation)
+
+# --- Scenario 2: Overlap stress, strong renal_risk in Q ---
+sim_2 <- run_stage3_simulation(
+  reps = n_reps, n = n_sim,
+  b_rr_g = 2.4, beta_rr_Q = 1.30, beta_int = 0.60,
+  beta_ckdA = 0.40, beta_ageA = 0.00,
+  true_rd = truth_2["RD"], seed_offset = 2000,
+  ps_clip = analysis_lock$ps_truncation)
+
+# --- Scenario 3: Overlap stress, near-zero renal_risk, moderate heterogeneity ---
+sim_3 <- run_stage3_simulation(
+  reps = n_reps, n = n_sim,
+  b_rr_g = 2.4, beta_rr_Q = 0.03, beta_int = 0.00,
+  beta_ckdA = 0.25, beta_ageA = 0.10,
+  true_rd = truth_3["RD"], seed_offset = 3000,
+  ps_clip = analysis_lock$ps_truncation)
+```
+
+### Overlap and matching diagnostics by scenario
+
+Before examining estimator performance, we compute Stage 2-style diagnostics
+for each scenario using a single representative dataset.
+
+```{r scenario-diagnostics}
+compute_scenario_diagnostics <- function(n = 5000, seed = 99,
+                                          b_rr_g, beta_rr_Q, beta_int,
+                                          beta_ckdA = 0.40, beta_ageA = 0.00,
+                                          alpha_A = -0.15, alpha_Y = -2.80,
+                                          ps_clip = c(0.025, 0.975)) {
+  d <- simulate_hcv_scenario(n, seed, b_rr_g, beta_rr_Q, beta_int,
+                              beta_ckdA, beta_ageA, alpha_A, alpha_Y)
+
+  g_fit <- glm(A ~ age + ckd + cirrhosis + diabetes + nsaid + renal_risk,
+               data = d, family = "binomial")
+  ps <- fitted(g_fit)
+  ps_trunc <- pmin(pmax(ps, ps_clip[1]), ps_clip[2])
+
+  frac_extreme <- mean(ps < 0.05 | ps > 0.95)
+  w <- d$A / ps_trunc + (1 - d$A) / (1 - ps_trunc)
+  ess <- sum(w)^2 / sum(w^2)
+  ess_frac <- ess / n
+
+  # Run matching on this dataset
+  m <- run_ps_matched(d, ps_clip)
+
+  data.frame(
+    frac_extreme = round(frac_extreme, 3),
+    ess_frac     = round(ess_frac, 3),
+    max_weight   = round(max(w), 1),
+    matched_frac = round(ifelse(is.null(m$matched_frac), NA, m$matched_frac), 3),
+    max_smd_match = round(ifelse(is.null(m$max_smd), NA, m$max_smd), 3),
+    trt_prev     = round(mean(d$A), 3),
+    aki_prev     = round(mean(d$Y), 3)
+  )
+}
+
+diag_1 <- compute_scenario_diagnostics(b_rr_g = 0.7,  beta_rr_Q = 0.35, beta_int = 0.00,
+                                        beta_ckdA = 0.40, beta_ageA = 0.15)
+diag_2 <- compute_scenario_diagnostics(b_rr_g = 2.4,  beta_rr_Q = 1.30, beta_int = 0.60,
+                                        beta_ckdA = 0.40, beta_ageA = 0.00)
+diag_3 <- compute_scenario_diagnostics(b_rr_g = 2.4,  beta_rr_Q = 0.03, beta_int = 0.00,
+                                        beta_ckdA = 0.25, beta_ageA = 0.10)
+
+diag_tab <- rbind(
+  cbind(Scenario = "1: Moderate overlap", diag_1),
+  cbind(Scenario = "2: Overlap stress, strong Q", diag_2),
+  cbind(Scenario = "3: Overlap stress, weak Q", diag_3)
+)
+# Add qualitative label
+diag_tab$quality <- ifelse(diag_tab$frac_extreme < 0.15 & diag_tab$matched_frac > 0.70,
+                            "Acceptable", "Poor")
+kable(diag_tab, row.names = FALSE,
+      caption = "Stage 2-style diagnostics by scenario (n = 5000 representative datasets)")
+```
+
+### What the gate tests
+
+The Stage 3 gate asks: does the TMLE pipeline meet pre-specified performance
+targets?
+
+- **GO** means TMLE bias is below the threshold, CI coverage is at or above
+  the minimum, and SE calibration is acceptable — the pipeline is adequate.
+- **FLAG** means bias and coverage are acceptable but SE calibration is
+  borderline — proceed with caution.
+- **STOP** means TMLE does not meet the primary targets — the pipeline is
+  inadequate as specified.
+
+The interpretation below follows the actual results from this tutorial run.
+
+```{r gate-function}
+gate_check <- function(metrics, scenario_name, targets) {
+  tmle <- metrics[metrics$method == "TMLE", ]
+
+  bias_ok <- abs(tmle$bias) < targets$max_abs_bias
+  cov_ok  <- tmle$coverage >= targets$min_coverage
+  se_sd_ratio <- tmle$mean_se / tmle$emp_sd
+  se_cal  <- se_sd_ratio > targets$se_sd_low & se_sd_ratio < targets$se_sd_high
+
+  gate_tab <- data.frame(
+    Metric = c("TMLE |bias|", "TMLE coverage", "SE/SD ratio"),
+    Target = c(paste("<", targets$max_abs_bias),
+               paste(">=", targets$min_coverage),
+               paste(targets$se_sd_low, "-", targets$se_sd_high)),
+    Observed = round(c(abs(tmle$bias), tmle$coverage, se_sd_ratio), 4),
+    Status = c(ifelse(bias_ok, "GO", "STOP"),
+               ifelse(cov_ok, "GO", "STOP"),
+               ifelse(se_cal, "GO", "FLAG"))
+  )
+
+  if (bias_ok & cov_ok & se_cal) {
+    decision <- "GO"
+  } else if (bias_ok & cov_ok) {
+    decision <- "FLAG"
+  } else {
+    decision <- "STOP"
+  }
+
+  list(decision = decision, table = gate_tab, scenario = scenario_name)
+}
+```
+
+### Scenario 1: Acceptable overlap, modest TMLE precision gain
+
+```{r scenario1-results, results='asis'}
+cat("**True RD:**", round(truth_1["RD"], 5), "\n\n")
+kable(sim_1$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
+      digits = 4, row.names = FALSE,
+      caption = "Scenario 1: Moderate overlap (b_rr = 0.7), A:ckd + A:age heterogeneity")
+
+gate_1 <- gate_check(sim_1$metrics, "Scenario 1", analysis_lock$sim_targets)
+cat("\n")
+kable(gate_1$table, row.names = FALSE, caption = "Scenario 1 gate assessment")
+cat("\n**Gate decision:**", gate_1$decision, "\n\n")
+
+# Decision summary
+tmle_1 <- sim_1$metrics[sim_1$metrics$method == "TMLE", ]
+psm_1  <- sim_1$metrics[sim_1$metrics$method == "PS-Matched", ]
+cat("**Decision summary:** Matching was acceptable (retained ",
+    round(100 * diag_1$matched_frac), "% of treated), ",
+    "but TMLE achieved ", sep = "")
+iptw_1 <- sim_1$metrics[sim_1$metrics$method == "IPTW", ]
+if (!is.na(psm_1$emp_sd) && tmle_1$emp_sd < psm_1$emp_sd) {
+  cat("lower empirical SD (",
+      round(tmle_1$emp_sd, 4), " vs. ", round(psm_1$emp_sd, 4),
+      " for matching, ", round(iptw_1$emp_sd, 4), " for IPTW",
+      ") and lower RMSE (", round(tmle_1$rmse, 4), " vs. ", round(psm_1$rmse, 4),
+      " for matching). ",
+      "This precision gain reflects TMLE's glmnet-based Q model exploiting learnable ",
+      "structure (nonlinear age effects, treatment-by-CKD and treatment-by-age interactions) ",
+      "that design-only estimators cannot access.\n", sep = "")
+} else {
+  cat("comparable or better performance metrics, so TMLE would be preferred.\n")
+}
+```
+
+### Scenario 2: Overlap stress, all estimators fail → STOP
+
+```{r scenario2-results, results='asis'}
+cat("**True RD:**", round(truth_2["RD"], 5), "\n\n")
+kable(sim_2$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
+      digits = 4, row.names = FALSE,
+      caption = "Scenario 2: Overlap stress (b_rr = 2.4), strong renal_risk + A:renal_risk interaction")
+
+gate_2 <- gate_check(sim_2$metrics, "Scenario 2", analysis_lock$sim_targets)
+cat("\n")
+kable(gate_2$table, row.names = FALSE, caption = "Scenario 2 gate assessment")
+cat("\n**Gate decision:**", gate_2$decision, "\n\n")
+
+# Decision summary
+tmle_2 <- sim_2$metrics[sim_2$metrics$method == "TMLE", ]
+cat("**Decision summary:** Matching feasibility was reduced (retained only ",
+    round(100 * diag_2$matched_frac), "% of treated). ", sep = "")
+if (gate_2$decision == "STOP") {
+  cat("TMLE also failed the pre-specified Stage 3 gate ",
+      "(|bias| = ", round(abs(tmle_2$bias), 4),
+      ", coverage = ", round(tmle_2$coverage, 3),
+      "), so the clean-room workflow would stop the analysis. ",
+      "When `renal_risk` strongly predicts both treatment and outcome, ",
+      "neither matching nor TMLE can adequately compensate for the positivity stress.\n", sep = "")
+} else {
+  cat("TMLE gate returned ", gate_2$decision, " with |bias| = ",
+      round(abs(tmle_2$bias), 4), " and coverage = ", round(tmle_2$coverage, 3),
+      ". Consult the gate criteria to determine whether this meets the pre-specified ",
+      "performance targets.\n", sep = "")
+}
+```
+
+### Scenario 3: Overlap stress, analysis pipeline adequate → GO
+
+```{r scenario3-results, results='asis'}
+cat("**True RD:**", round(truth_3["RD"], 5), "\n\n")
+kable(sim_3$metrics[, c("method", "n_ok", "bias", "rmse", "emp_sd", "mean_se", "coverage")],
+      digits = 4, row.names = FALSE,
+      caption = "Scenario 3: Overlap stress (b_rr = 2.4), weak renal_risk, A:ckd + A:age heterogeneity")
+
+gate_3 <- gate_check(sim_3$metrics, "Scenario 3", analysis_lock$sim_targets)
+cat("\n")
+kable(gate_3$table, row.names = FALSE, caption = "Scenario 3 gate assessment")
+cat("\n**Gate decision:**", gate_3$decision, "\n\n")
+
+# Decision summary
+tmle_3 <- sim_3$metrics[sim_3$metrics$method == "TMLE", ]
+psm_3 <- sim_3$metrics[sim_3$metrics$method == "PS-Matched", ]
+iptw_3 <- sim_3$metrics[sim_3$metrics$method == "IPTW", ]
+cat("**Decision summary:** Matching feasibility was reduced (retained only ",
+    round(100 * diag_3$matched_frac), "% of treated). ", sep = "")
+if (gate_3$decision == "GO" || gate_3$decision == "FLAG") {
+  cat("However, the analysis pipeline performed adequately — TMLE met the Stage 3 gate ",
+      "(|bias| = ", round(abs(tmle_3$bias), 4),
+      ", coverage = ", round(tmle_3$coverage, 3),
+      "), so the clean-room workflow would allow the analysis to proceed. ",
+      "Because `renal_risk` barely affects the outcome, the outcome model compensates ",
+      "for the stressed treatment model. ", sep = "")
+  if (!is.na(psm_3$rmse) && tmle_3$rmse < psm_3$rmse) {
+    cat("TMLE achieved lower RMSE than PS-matching (",
+        round(tmle_3$rmse, 4), " vs. ", round(psm_3$rmse, 4),
+        "), illustrating the benefit of outcome-model learning under overlap stress.\n",
+        sep = "")
+  } else {
+    cat("\n")
+  }
+} else {
+  cat("TMLE also failed the gate (|bias| = ", round(abs(tmle_3$bias), 4),
+      ", coverage = ", round(tmle_3$coverage, 3),
+      "). Even though `renal_risk` barely affects the outcome, finite-sample performance ",
+      "did not meet the pre-specified targets at n = ", n_sim,
+      ". The team would need to consider a larger sample or richer learners.\n", sep = "")
+}
+```
+
+### Sampling distributions across scenarios
+
+```{r sim-sampling-dist, fig.width=10, fig.height=9}
+plot_dat <- rbind(
+  cbind(scenario = "1: Moderate overlap", sim_1$results),
+  cbind(scenario = "2: Overlap stress,\nstrong Q effect", sim_2$results),
+  cbind(scenario = "3: Overlap stress,\nweak Q effect", sim_3$results)
+)
+plot_dat <- plot_dat[!is.na(plot_dat$est), ]
+plot_dat$method <- factor(plot_dat$method,
+                          levels = c("Crude", "PS-Matched", "IPTW", "TMLE"))
+
+truth_lines <- data.frame(
+  scenario = c("1: Moderate overlap",
+               "2: Overlap stress,\nstrong Q effect",
+               "3: Overlap stress,\nweak Q effect"),
+  truth = c(truth_1["RD"], truth_2["RD"], truth_3["RD"])
+)
+
+ggplot(plot_dat, aes(x = est, fill = method)) +
+  geom_histogram(bins = 30, alpha = 0.6, position = "identity") +
+  geom_vline(data = truth_lines, aes(xintercept = truth),
+             linewidth = 0.8, linetype = "solid") +
+  facet_grid(method ~ scenario, scales = "free") +
+  labs(title = "Stage 3: Sampling Distributions Under Three DGP Scenarios",
+       subtitle = "Black line = true ATE",
+       x = "Estimated Risk Difference", y = "Count") +
+  guides(fill = "none") +
+  theme_minimal(base_size = 11)
+```
+
+### Stage 3 synthesis
+
+```{r stage3-synthesis, results='asis'}
+cat("The three scenarios tell a coherent story about the relationship between ",
+    "propensity-score diagnostics and TMLE validation:\n\n")
+
+cat("- **Scenario 1** (gate: ", gate_1$decision,
+    ") shows that when overlap is acceptable, both matching and TMLE work well. ",
+    "TMLE offers a precision gain because its glmnet-based outcome model can capture ",
+    "nonlinear age effects and treatment-effect heterogeneity (A:ckd, A:age) that a ",
+    "simple paired-difference estimator cannot exploit.\n\n", sep = "")
+
+cat("- **Scenario 2** (gate: ", gate_2$decision,
+    ") shows that when overlap is stressed *and* the overlap-driving covariate ",
+    "strongly predicts the outcome, the full estimator pipeline fails. ",
+    "Neither matching nor TMLE can rescue the analysis.\n\n", sep = "")
+
+cat("- **Scenario 3** (gate: ", gate_3$decision,
+    ") shows that reduced matching feasibility alone does not automatically ",
+    "invalidate the analysis pipeline. When the overlap-driving covariate barely affects the ",
+    "outcome, TMLE's glmnet-based outcome model can compensate for the stressed treatment ",
+    "model by learning the remaining outcome structure (A:ckd, A:age interactions). ",
+    "Only Stage 3 can reveal whether this compensation works at the study's sample size.\n\n",
+    sep = "")
+
+cat("Scenarios 2 and 3 have nearly identical Stage 2 overlap diagnostics ",
+    "(both have `b_rr` = 2.4 in the treatment model). The difference is ",
+    "entirely in the outcome surface, which Stage 2 cannot evaluate. ",
+    "**Only Stage 3 distinguishes the two cases.**\n")
+```
+
+### What this tutorial run demonstrates
+
+```{r tutorial-lesson, results='asis'}
+all_go  <- (gate_1$decision %in% c("GO", "FLAG")) &&
+           (gate_3$decision %in% c("GO", "FLAG"))
+s2_stop <- (gate_2$decision == "STOP")
+
+if (all_go && s2_stop) {
+  cat("::: {.callout-tip}\n",
+      "### Lesson from this run\n\n",
+      "This tutorial run produced the intended three-way contrast:\n\n",
+      "1. **Scenario 1 (GO):** Overlap was acceptable, and TMLE offered a precision gain by leveraging glmnet-based outcome-model learning.\n",
+      "2. **Scenario 2 (STOP):** Overlap was stressed and all estimators failed — a genuine ",
+      "problem that Stage 3 correctly identifies.\n",
+      "3. **Scenario 3 (GO):** Overlap was stressed and matching feasibility was reduced, but the ",
+      "analysis pipeline — including TMLE — performed adequately. Reduced matching feasibility ",
+      "alone would have unnecessarily stopped a valid analysis.\n\n",
+      "The core lesson: **propensity-score diagnostics and full estimator validation are not the ",
+      "same thing.** Stage 2 evaluates overlap and matching feasibility on the observed data. ",
+      "Stage 3 validates the full analysis pipeline under plausible DGPs. Clean-room outcome-blind ",
+      "simulation is what resolves whether the analysis should GO or STOP.\n",
+      ":::\n", sep = "")
+} else {
+  cat("::: {.callout-tip}\n",
+      "### Lesson from this run\n\n",
+      "The gate decisions (Scenario 1: ", gate_1$decision,
+      ", Scenario 2: ", gate_2$decision,
+      ", Scenario 3: ", gate_3$decision,
+      ") show that Stage 3 provides information beyond Stage 2. ",
+      "The three scenarios share different treatment mechanisms and outcome surfaces, ",
+      "and Stage 3 can distinguish settings where TMLE works from those where it ",
+      "does not.\n",
+      ":::\n", sep = "")
+}
+```
+
+::: {.callout-important}
+### The core methodological point
+
+Stage 2 evaluates $g$ alone — propensity scores, overlap, matching feasibility.
+Stage 3 evaluates the entire TMLE pipeline ($g$, $Q$, targeting, inference).
+Without Stage 3, the team can only assess whether the propensity score behaves
+well — not whether the full estimator produces valid estimates. Outcome-blind
+simulation is what turns a generic TMLE workflow into a credible clean-room
+analysis.
+:::
+
+### When might TMLE be preferred?
+
+TMLE is not uniformly superior to design-only estimators. When the outcome
+surface is simple and overlap is adequate, matching and IPTW may perform
+comparably. However, when the outcome model contains learnable structure —
+nonlinear covariate effects, treatment-effect heterogeneity, or interactions
+— TMLE can improve precision by combining information from both the treatment
+and outcome models. In this tutorial, the `glmnet`-based $Q$ model with a
+rich feature matrix can capture age nonlinearities and treatment-by-subgroup
+interactions that a simple paired difference after matching cannot exploit.
+This makes TMLE especially attractive in clean-room workflows: the richer
+outcome-model specification (including the learner library and feature set)
+is pre-committed at Stage 1, validated through simulation at Stage 3, and
+applied to real data only at Stage 4, so any precision gain is achieved
+without data-adaptive model selection on outcomes.
+
+
+# A Brief Intuition for the Efficient Influence Function {#eif-intuition}
+
+Before presenting the Stage 4 results and inference formulas, it helps to
+have a brief intuition for the **efficient influence function (EIF)**, which
+underlies TMLE's standard errors.
+
+The EIF summarizes **how each observation contributes to the estimator**. For
+the ATE, the EIF for observation $i$ is:
+
+$$D_i = \frac{A_i}{\hat{g}(W_i)}\bigl(Y_i - \bar{Q}^*(1, W_i)\bigr)
+      - \frac{1 - A_i}{1 - \hat{g}(W_i)}\bigl(Y_i - \bar{Q}^*(0, W_i)\bigr)
+      + \bar{Q}^*(1, W_i) - \bar{Q}^*(0, W_i) - \hat\psi$$
+
+Three key facts:
+
+1. **TMLE's targeting step ensures that the sample mean of the EIF is
+   approximately zero.** This is the "solved estimating equation" property —
+   it means the estimator is locally efficient.
+
+2. **The variance of the EIF gives the standard error.** Specifically,
+   $\widehat{\text{SE}} = \sqrt{n^{-1}\widehat{\text{Var}}(D)}$.
+   This is sometimes called the "IC-based" or "sandwich" variance estimator.
+
+3. **The EIF combines information from both models.** The first two terms
+   use $g$ through the weights $A/\hat{g}$ and $(1-A)/(1-\hat{g})$, and $Q$
+   through the residuals $Y - \bar{Q}^*$. The third term uses $Q$ alone. If
+   $Q$ is perfect, the residuals are zero and $g$ drops out. If $g$ is perfect,
+   the weights are accurate and $Q$ errors are corrected. This is double
+   robustness expressed through the influence function.
+
+This is all you need to know to interpret the Stage 4 inference: the SE comes
+from the variance of the EIF across observations, and the CI is
+$\hat\psi \pm 1.96 \times \widehat{\text{SE}}$.
+
+
+# Stage 4. Unblinded TMLE Estimation {#stage-4}
+
+## What happens at this stage
+
+The analyst now receives the full dataset including outcomes $Y$. This is the
+**first point** at which the outcome regression $Q(A,W)$ is estimated on real
+data. The treatment model strategy was locked in Stage 2; the simulation
+validation was completed in Stage 3; only now does the targeting step run on
+real data.
+
+::: {.callout-note collapse="true"}
+### Operational note: Stage 4 in practice
+In a real clean-room analysis, outcome unblinding would occur only after
+Stage 3 results have been reviewed and the GO/STOP decision documented.
+The Stage 4 analysis script would be pre-specified (or at least minimally
+modifiable) — typically the same code validated in Stage 3, applied to the
+real dataset. Any deviations from the locked analysis plan triggered by
+unexpected findings (e.g., convergence issues, data quality problems) would
+need to be documented as formal amendments and reported alongside the primary
+results.
+:::
+
+### Prerequisites
+
+Stage 4 proceeds only after:
+
+1. Stage 1 analysis lock is documented and versioned
+2. Stage 2 diagnostics are reviewed and recorded
+3. Stage 3 simulation gate is evaluated (if GO, proceed; if STOP, document
+   the concern and any plan amendment)
+
+### Run TMLE on the real data
+
+```{r stage4-tmle}
+run_stage4_tmle <- function(dat, lock) {
+  cat("Stage 4: Outcome column now accessible.\n")
+  cat("AKI prevalence:", round(mean(dat$Y), 3), "\n")
+  cat("Treatment prevalence:", round(mean(dat$A), 3), "\n\n")
+
+  result <- run_tmle_once(dat, ps_clip = lock$ps_truncation)
+
+  cat("=== Stage 4 TMLE Result ===\n")
+  cat("ATE estimate (RD):", round(result$estimate, 5), "\n")
+  cat("Standard error:", round(result$se, 5), "\n")
+  cat("95% CI: [", round(result$ci_low, 5), ",",
+      round(result$ci_high, 5), "]\n")
+
+  invisible(result)
+}
+
+stage4_result <- run_stage4_tmle(dat_full, analysis_lock)
+```
+
+### Comparator estimates
+
+For transparency, we also run the pre-specified comparator estimators on the
+real data:
+
+```{r stage4-comparators}
+stage4_crude   <- run_crude(dat_full)
+stage4_iptw    <- run_iptw(dat_full, ps_clip = analysis_lock$ps_truncation)
+stage4_matched <- run_ps_matched(dat_full, ps_clip = analysis_lock$ps_truncation)
+
+est_tab <- data.frame(
+  Estimator = c("Crude RD", "PS-Matched", "IPTW (Hajek)", "TMLE"),
+  Estimate = round(c(stage4_crude$estimate, stage4_matched$estimate,
+                     stage4_iptw$estimate, stage4_result$estimate), 5),
+  SE = round(c(stage4_crude$se, stage4_matched$se,
+               stage4_iptw$se, stage4_result$se), 5),
+  CI_low = round(c(stage4_crude$ci_low, stage4_matched$ci_low,
+                   stage4_iptw$ci_low, stage4_result$ci_low), 5),
+  CI_high = round(c(stage4_crude$ci_high, stage4_matched$ci_high,
+                    stage4_iptw$ci_high, stage4_result$ci_high), 5)
+)
+kable(est_tab, caption = "Stage 4: Effect estimates on the real (simulated) dataset")
+```
+
+### What just happened — step by step
+
+1. **$Q$ was estimated on the real data** for the first time: a penalized
+   logistic regression (`cv.glmnet`) with a rich feature set — polynomial
+   terms, treatment-by-covariate interactions, and covariate interactions —
+   was fit to $(W, A, Y)$ using 5-fold cross-validation to select the
+   regularization parameter.
+
+2. **$g$ was re-estimated** using the same locked strategy from Stage 2. (In
+   a production analysis, one might load the Stage 2 $\hat{g}$ object instead.)
+
+3. **The targeting step** constructed the clever covariate
+   $H = A/\hat{g} - (1-A)/(1-\hat{g})$ and fit a logistic fluctuation
+   $\text{logit}(\bar{Q}^*) = \text{logit}(\bar{Q}) + \epsilon H$.
+
+4. **The ATE** was computed as
+   $\hat\psi = n^{-1}\sum[\bar{Q}^*(1, W_i) - \bar{Q}^*(0, W_i)]$.
+
+5. **Inference** used the EIF as described above.
+
+### Interpreting the result in context
+
+```{r stage4-context, results='asis'}
+cat("This Stage 4 estimate should be interpreted alongside the evidence from ",
+    "earlier stages.\n\n")
+
+if (s2_diag$any_flag) {
+  cat("Stage 2 flagged overlap concerns in the propensity score distribution. ")
+} else {
+  cat("Stage 2 diagnostics did not flag major overlap concerns. ")
+}
+
+# The real dataset uses Scenario 3 parameters (overlap stress, weak renal_risk in Q)
+cat("The real study dataset was generated with the same DGP as Scenario 3 ",
+    "(overlap stress, weak `renal_risk` effect on outcome). ",
+    "In practice, the analyst would not know which candidate Stage 3 scenario ",
+    "is closest to reality; interpretation should weigh results across all ",
+    "plausible DGPs.\n\n")
+
+if (gate_3$decision %in% c("GO", "FLAG")) {
+  cat("Stage 3 simulation returned **", gate_3$decision,
+      "** under Scenario 3, providing pre-registered evidence that the ",
+      "analysis pipeline produces adequate finite-sample performance under these ",
+      "conditions — even though matching feasibility was reduced. ",
+      "The Stage 4 estimate therefore carries credibility beyond a post-hoc ",
+      "TMLE analysis, because the analytic decisions were locked before ",
+      "outcomes were accessed.\n\n", sep = "")
+} else {
+  cat("Stage 3 simulation returned **STOP** under Scenario 3, meaning the analysis ",
+      "pipeline did not meet pre-specified performance targets. In a real study, ",
+      "this Stage 4 estimate would be reported with caveats, and the STOP finding ",
+      "documented alongside the results. The team might consider a protocol ",
+      "amendment (e.g., richer learners, larger sample) before relying on these ",
+      "results.\n\n")
+}
+
+cat("No analytic decisions — estimand, SL library, truncation bounds, covariate ",
+    "set — were changed based on the observed outcomes.\n")
+```
+
+
+<details>
+<summary><strong>Full Simulation Results (production-scale)</strong></summary>
+
+# Full Simulation Results {#full-sim}
+
+```{r full-sim-load}
+out_dir <- file.path("..", "results", "scenario1_v4")
+has_full_sim <- dir.exists(out_dir)
+if (has_full_sim) {
+  load_mode <- function(mode) {
+    d <- file.path(out_dir, mode)
+    tryCatch(list(
+      truth   = readRDS(file.path(d, "truth.rds")),
+      results = readRDS(file.path(d, "replicate_results.rds")),
+      metrics = read.csv(file.path(d, "summary_overall.csv")),
+      gate    = readRDS(file.path(d, "gate_results.rds")),
+      params  = readRDS(file.path(d, "params_used.rds"))
+    ), error = function(e) NULL)
+  }
+  weak   <- load_mode("weak")
+  strong <- load_mode("strong")
+  gate_combined <- tryCatch(
+    readRDS(file.path(out_dir, "gate_combined.rds")),
+    error = function(e) NULL)
+} else {
+  weak <- strong <- gate_combined <- NULL
+}
+```
+
+The three-scenario simulation above demonstrates the staged workflow using
+enriched-GLM specifications for both $g$ and $Q$. The production-scale
+simulation uses richer estimators (TMLE-ML with SuperLearner, CV-TMLE,
+PS-matched regression), additional sample sizes, and a mixed-overlap regime.
+If those results are available, they are shown below as an extended reference.
+Note that the production simulation uses a different DGP parameterization
+than the tutorial scenarios, so results are not directly comparable.
+
+```{r full-sim-results, results='asis'}
+if (!is.null(weak) && !is.null(strong)) {
+  cat("### Full simulation results available\n\n")
+  cat("These results come from the v4 simulation with N =", weak$params$n_main,
+      "and", weak$params$reps, "replicates per mode.\n\n")
+
+  point_methods <- c("Crude", "Adj. Regression (analytic)",
+                     "IPTW (analytic)", "PS-Matched (pairs boot)",
+                     "TMLE-GLM (IC)", "TMLE-ML (IC)", "CV-TMLE-ML (IC)")
+  show_perf <- function(metrics, label) {
+    sub <- metrics[metrics$subset == "all" &
+                   metrics$method %in% point_methods, ]
+    sub$mode <- label
+    sub[, c("mode", "method", "bias", "rmse", "coverage", "mcse_coverage")]
+  }
+  combined <- rbind(show_perf(weak$metrics, "Weak W4"),
+                    show_perf(strong$metrics, "Strong W4"))
+  kable(combined, digits = 4, row.names = FALSE,
+        caption = "Full simulation: estimator performance (all replicates)")
+
+  if (!is.null(gate_combined)) {
+    cat("\n### Stop/go gate results\n\n")
+    kable(gate_combined, digits = 4, row.names = FALSE,
+          caption = "Gate results from full simulation")
+  }
+} else {
+  cat("Full simulation outputs not available. ",
+      "Run: `Rscript scripts/sim_scenario1_v4_false_stop_inference.R`\n")
+}
+```
+
+</details>
+
+
+# Common Mistakes When Operationalizing TMLE in a Clean Room {#common-mistakes}
+
+::: {.callout-warning}
+### Pitfalls to avoid
+
+1. **Fitting the real outcome regression $Q(A,W)$ before outcome access is
+   permitted.** This violates the clean-room principle. All $Q$-fitting on
+   real data belongs to Stage 4.
+
+2. **Treating Stage 2 propensity score diagnostics as if they validate the
+   full TMLE pipeline.** Stage 2 evaluates $g$ only. It says nothing about
+   whether $Q$ estimation, the targeting step, or CI coverage will be adequate.
+
+3. **Changing the Super Learner library, truncation rule, or estimand after
+   seeing real outcomes without documenting a formal amendment.** Undocumented
+   post-hoc changes undermine the entire clean-room rationale. All revisions
+   must be recorded and justified.
+
+4. **Interpreting acceptable overlap diagnostics as proof that TMLE inference
+   will be valid.** Good overlap is neither necessary nor sufficient for valid
+   TMLE. The outcome surface, sample size, and learner flexibility all matter.
+
+5. **Assuming poor propensity score overlap automatically invalidates TMLE
+   without checking whether the outcome model can compensate.** This ignores
+   double robustness. Stage 3 simulation is the appropriate tool for resolving
+   this question.
+
+6. **Confusing a locked modeling strategy with a requirement to reuse the
+   exact same fitted nuisance object.** What is locked is the specification
+   (formula, learner library, truncation bounds). Re-running the same procedure
+   on the same data is acceptable; changing the specification is not.
+:::
+
+
+# Key Takeaways {#takeaways}
+
+```{r takeaways-text, results='asis'}
+cat("1. **Propensity-score diagnostics and full estimator validation are not the same thing.**\n",
+    "   Stage 2 evaluates overlap and matching feasibility on the observed data.\n",
+    "   Stage 3 validates the full analysis pipeline ($g$, $Q$, targeting, inference)\n",
+    "   under plausible DGPs. Acceptable overlap does not guarantee valid inference;\n",
+    "   overlap stress does not necessarily invalidate the pipeline.\n\n")
+
+cat("2. **Stage 3 validates the full TMLE pipeline on synthetic data.** By testing\n",
+    "   bias, variance, and empirical coverage under pre-specified DGPs, the team\n",
+    "   makes an evidence-based GO/STOP decision before seeing real outcomes.\n\n")
+
+cat("3. **TMLE may offer a precision gain when the outcome surface is learnable.**\n",
+    "   Scenario 1 (gate: ", gate_1$decision,
+    ") showed that both matching and TMLE worked well,\n",
+    "   but TMLE achieved lower variance by using glmnet to exploit nonlinear age effects\n",
+    "   and treatment-effect heterogeneity (A:ckd, A:age) that design-only estimators\n",
+    "   cannot capture.\n\n", sep = "")
+
+cat("4. **Overlap stress plus strong confounding through the overlap driver can\n",
+    "   defeat all estimators.** Scenario 2 (gate: ", gate_2$decision,
+    ") showed that when `renal_risk`\n",
+    "   strongly predicts both treatment and outcome, neither matching nor TMLE\n",
+    "   nor IPTW can rescue the analysis.\n\n", sep = "")
+
+cat("5. **Reduced matching feasibility does not automatically invalidate the analysis pipeline.**\n",
+    "   Scenario 3 (gate: ", gate_3$decision,
+    ") showed that when the overlap-driving covariate\n",
+    "   barely affects the outcome, TMLE can remain competitive or preferable by\n",
+    "   learning the remaining outcome structure via a richer Q model. Stage 3\n",
+    "   simulation is necessary to determine whether this compensation works at\n",
+    "   the study's sample size and learner specification.\n\n", sep = "")
+
+cat("6. **Stage 4 is where the real outcome regression and targeting step occur.**\n",
+    "   The $g$-strategy is carried forward from Stage 2, but $Q$ is fit on real\n",
+    "   data only at this final stage. No analytic decisions change after outcome\n",
+    "   access.\n")
+```
+
+
+# Practical Checklist for a Clean-Room TMLE Analysis {#checklist}
+
+Use this checklist to ensure each stage is properly documented and archived.
+
+### Stage 1: Pre-specification and Analysis Lock
+
+- [ ] Causal question and estimand clearly stated
+- [ ] Eligibility criteria, treatment definition, and outcome definition
+- [ ] Covariate list with variable roles (confounders, effect modifiers)
+- [ ] Super Learner libraries specified for both $g$ and $Q$
+- [ ] PS truncation bounds
+- [ ] Stage 2 diagnostic thresholds (extreme PS fraction, ESS, max weight, SMD)
+- [ ] Stage 3 performance thresholds (max bias, min coverage)
+- [ ] Versioned analysis lock file with timestamp and hash
+
+### Stage 2: Outcome-Blind Design Diagnostics
+
+- [ ] Fitted $g$-strategy (or locked specification to be re-run)
+- [ ] Propensity score distribution summaries and overlap plots
+- [ ] ESS and IPTW weight summaries
+- [ ] Covariate balance diagnostics (love plot, weighted SMDs)
+- [ ] List of triggered diagnostic flags
+- [ ] Documented Stage 2 decision (PASS / FLAG — proceed to Stage 3)
+
+### Stage 3: Outcome-Blind Simulation Validation
+
+- [ ] Pre-specified DGP description (before real outcome access)
+- [ ] Simulation seeds and settings (reps, sample size, scenarios)
+- [ ] Code used for simulation runs (archived and versioned)
+- [ ] Bias, RMSE, empirical SD, mean SE, and coverage for each estimator
+- [ ] Comparison estimator results (crude, IPTW, etc.)
+- [ ] Gate decision table: metric, threshold, observed value, GO/STOP
+- [ ] Documented GO / FLAG / STOP decision with rationale
+- [ ] Any plan amendment and its justification
+
+### Stage 4: Unblinded TMLE Estimation
+
+- [ ] Final $Q$ fit (first time on real outcomes)
+- [ ] Final TMLE point estimate and 95% confidence interval
+- [ ] Comparator estimates (crude, IPTW)
+- [ ] Cross-reference to Stage 2 diagnostics and Stage 3 gate result
+- [ ] Confirmation that no specifications were changed after outcome access
+- [ ] Any deviations from the locked plan and their justification
+- [ ] Final reproducibility metadata (session info, package versions, seed)
+
+
+## Reproducing the Full Simulation
+
+```bash
+# Compact tutorial simulation: runs within this QMD (200 reps, enriched GLM)
+
+# Production simulation with SuperLearner, 7 estimators, mixed overlap:
+Rscript scripts/sim_scenario1_v4_false_stop_inference.R fast   # N=400, 120 reps
+Rscript scripts/sim_scenario1_v4_false_stop_inference.R eval   # N=600, 300 reps
+```
+
+
+## References
+
+- van der Laan MJ, Rose S. *Targeted Learning: Causal Inference for
+  Observational and Experimental Data*. Springer, 2011.
+- van der Laan MJ, Rose S. *Targeted Learning in Data Science*. Springer, 2018.
+- Schuler MS, Rose S. Targeted maximum likelihood estimation for causal
+  inference in observational studies. *American Journal of Epidemiology*, 2017.
+- Petersen ML, Porter KE, Gruber S, Wang Y, van der Laan MJ. Diagnosing and
+  responding to violations in the positivity assumption.
+  *Statistical Methods in Medical Research*, 2012.
+- Gruber S, van der Laan MJ. tmle: An R package for targeted maximum
+  likelihood estimation. *Journal of Statistical Software*, 2012.

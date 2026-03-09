@@ -1,9 +1,87 @@
 #' @title Stage 3: Outcome Modeling and Primary Estimator Execution
 #' @description Runs TMLE and comparator estimators after verifying
 #'   Stage 2 checkpoint passes. Produces effect estimates, IC-based SEs,
-#'   confidence intervals, and diagnostics.
+#'   bootstrap CIs, and diagnostics.
+#'
+#'   Estimand: Cumulative incidence (risk) at pre-specified time horizons
+#'   under hypothetical treatment vs control, operationalized as binary
+#'   endpoints Y_t = I(T <= t & event == 1). Censoring is handled via
+#'   IPCW in TMLE/IPTW.
 #' @name stage3
 NULL
+
+# Null-coalescing operator
+`%||%` <- function(x, y) if (is.null(x)) y else x
+
+#' Pre-flight Schema Check for Stage 3
+#'
+#' Validates that the cohort has the required structure for estimation.
+#' Fails with informative errors rather than producing NA tables.
+#'
+#' @param data Data frame to validate.
+#' @param time_points Numeric vector of evaluation time points.
+#' @return Invisibly returns TRUE on success; stops otherwise.
+#' @keywords internal
+stage3_preflight <- function(data, time_points) {
+  # Required columns
+  required <- c("treatment", "event", "follow_time")
+  missing <- setdiff(required, names(data))
+  if (length(missing) > 0) {
+    stop("Stage 3 pre-flight FAILED: missing columns: ",
+         paste(missing, collapse = ", "),
+         "\nAvailable columns: ", paste(names(data), collapse = ", "),
+         call. = FALSE)
+  }
+
+  # Treatment must be binary 0/1 with both levels present
+  A <- data$treatment
+  if (!all(A %in% c(0L, 1L))) {
+    stop("Stage 3 pre-flight FAILED: 'treatment' must be binary 0/1. ",
+         "Found values: ", paste(unique(A), collapse = ", "), call. = FALSE)
+  }
+  if (sum(A == 1) == 0 || sum(A == 0) == 0) {
+    stop("Stage 3 pre-flight FAILED: both treatment groups must be present. ",
+         "Treated: ", sum(A == 1), ", Control: ", sum(A == 0), call. = FALSE)
+  }
+
+  # Event must be binary 0/1 with events present
+  if (!all(data$event %in% c(0L, 1L))) {
+    stop("Stage 3 pre-flight FAILED: 'event' must be binary 0/1.", call. = FALSE)
+  }
+  if (sum(data$event) == 0) {
+    stop("Stage 3 pre-flight FAILED: no events observed in cohort.", call. = FALSE)
+  }
+
+  # Check events exist within each time window
+  for (t_val in time_points) {
+    n_events_t <- sum(data$follow_time <= t_val & data$event == 1)
+    if (n_events_t < 5) {
+      warning("Stage 3 pre-flight WARNING: only ", n_events_t,
+              " events by t=", t_val, " days. Estimation may be unstable.")
+    }
+  }
+
+  # Covariate check: at least one numeric covariate
+  exclude_cols <- c("id", "follow_time", "event", "treatment", "switch",
+                    "race", "region")
+  covar_cols <- setdiff(names(data), exclude_cols)
+  covar_cols <- covar_cols[vapply(data[, covar_cols, drop = FALSE],
+                                 is.numeric, logical(1))]
+  if (length(covar_cols) == 0) {
+    stop("Stage 3 pre-flight FAILED: no numeric covariates found.", call. = FALSE)
+  }
+
+  # Check for all-missing covariates
+  all_miss <- vapply(data[, covar_cols, drop = FALSE],
+                     function(x) all(is.na(x)), logical(1))
+  if (any(all_miss)) {
+    stop("Stage 3 pre-flight FAILED: all-missing covariates: ",
+         paste(covar_cols[all_miss], collapse = ", "), call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
 
 #' Run Stage 3 Estimation
 #'
@@ -13,7 +91,13 @@ NULL
 #'
 #' Primary estimand: Cumulative incidence (risk) at clinically meaningful
 #' time points (default: 90 and 180 days) under treatment vs control.
+#' Operationalized as binary endpoints Y_t = I(T <= t & event == 1).
 #' The risk difference and risk ratio are not reliant on PH assumptions.
+#'
+#' Inference uses both influence-curve-based SEs (for TMLE/IPTW) and
+#' nonparametric bootstrap CIs for all estimators. Bootstrap is the
+#' primary inference method for this vignette because with realistic
+#' event rates (1-5%) and finite samples, IC-based SEs can be unstable.
 #'
 #' Secondary estimand: Hazard ratio from Cox PH (labeled as such, with
 #' PH assumption stated and tested).
@@ -22,10 +106,12 @@ NULL
 #' @param stage2_result Output from \code{stage2_design_checks}.
 #' @param cfg Config list from \code{load_config}.
 #' @param output_dir Character path for Stage 3 outputs.
+#' @param B Integer number of bootstrap replicates.
 #' @return A list with estimates from all methods and time points.
 #' @export
 stage3_estimation <- function(cohort, stage2_result = NULL, cfg = NULL,
-                              output_dir = "outputs/stage3") {
+                              output_dir = "outputs/stage3",
+                              B = NULL) {
   if (is.null(cfg)) cfg <- load_config()
   ensure_dir(output_dir)
 
@@ -34,9 +120,18 @@ stage3_estimation <- function(cohort, stage2_result = NULL, cfg = NULL,
                           output_dir = dirname(output_dir))
 
   time_points <- cfg$simulation$time_points
-  sl_lib_Q    <- cfg$tmle$sl_library_Q
-  sl_lib_g    <- cfg$tmle$sl_library_g
+  sl_lib_Q    <- filter_sl_libraries(cfg$tmle$sl_library_Q)
+  sl_lib_g    <- filter_sl_libraries(cfg$tmle$sl_library_g)
   g_bounds    <- c(cfg$tmle$truncation_lower, cfg$tmle$truncation_upper)
+
+  # Bootstrap config
+  if (is.null(B)) {
+    B <- cfg$bootstrap$B %||% 500
+  }
+  boot_seed <- cfg$bootstrap$seed %||% 54321
+
+  # Pre-flight checks
+  stage3_preflight(cohort, time_points)
 
   results <- list()
 
@@ -79,7 +174,9 @@ stage3_estimation <- function(cohort, stage2_result = NULL, cfg = NULL,
       gcomp_risk(
         data   = cohort,
         t_eval = t_val,
-        sl_lib = sl_lib_Q
+        sl_lib = sl_lib_Q,
+        B      = B,
+        boot_seed = boot_seed
       )
     }, error = function(e) {
       message("G-comp failed at t=", t_val, ": ", e$message)
@@ -146,6 +243,15 @@ stage3_estimation <- function(cohort, stage2_result = NULL, cfg = NULL,
     ))
   }
   summary_table <- do.call(rbind, summary_rows)
+
+  # Validate: fail loudly if TMLE produced NA
+  tmle_na <- is.na(summary_table$RD[summary_table$method == "TMLE"])
+  if (any(tmle_na)) {
+    warning("Stage 3: TMLE returned NA for time points: ",
+            paste(time_points[tmle_na], collapse = ", "),
+            ". Check diagnostics.")
+  }
+
   utils::write.csv(summary_table,
                     file.path(output_dir, "stage3_estimates.csv"),
                     row.names = FALSE)
@@ -185,7 +291,7 @@ stage3_estimation <- function(cohort, stage2_result = NULL, cfg = NULL,
   mtg <- log_decision(
     mtg, "Q",
     paste("Outcome model fitted with SL library:",
-          paste(filter_sl_libraries(sl_lib_Q), collapse = ", ")),
+          paste(sl_lib_Q, collapse = ", ")),
     "Pre-specified from config",
     triggered_by = "pre-specified"
   )
@@ -202,10 +308,13 @@ stage3_estimation <- function(cohort, stage2_result = NULL, cfg = NULL,
     "Pre-specified in TL-SAP; PH test included as diagnostic",
     triggered_by = "pre-specified"
   )
+  mtg <- log_decision(
+    mtg, "Inference",
+    paste("Bootstrap B =", B, "; IC-based SEs also reported for TMLE/IPTW"),
+    "Bootstrap is primary inference for finite-sample stability with rare events",
+    triggered_by = "pre-specified"
+  )
   close_meeting(mtg)
 
   list(results = results, summary = summary_table)
 }
-
-# Null-coalescing operator
-`%||%` <- function(x, y) if (is.null(x)) y else x

@@ -5,13 +5,13 @@
 
 # --- Data-generating process ---
 dgp:
-  N: 5000                    # sample size per replicate (use 50000+ for production)
-  p_sof: 0.36                # treatment assignment probability
-  h0: 5e-5                   # baseline hazard
-  HR_early: 1.25             # early hazard ratio (treatment vs control)
-  HR_late: 0.70              # late hazard ratio (non-PH phase)
+  "N": 8000                  # sample size per replicate
+  p_sof: 0.40                # treatment assignment probability
+  h0: 8.0e-4                 # baseline hazard (calibrated for ~2% event rate at 180d)
+  HR_early: 1.30             # early hazard ratio (treatment vs control)
+  HR_late: 0.75              # late hazard ratio (non-PH phase)
   tau: 45                    # change-point for non-PH (days)
-  max_follow: 720            # administrative censoring cutoff (days)
+  max_follow: 365            # administrative censoring cutoff (days)
   risk_window: 30            # at-risk window after switch (days)
   seed: 12345                # master seed
 
@@ -46,7 +46,7 @@ scenarios:
 # --- Simulation settings ---
 simulation:
   n_replicates: 200          # number of simulation replicates
-  N: 5000                    # sample size per replicate
+  "N": 8000                  # sample size per replicate
   time_points: [90, 180]     # risk assessment time points (days)
   parallel: false            # use parallel processing
   n_cores: 4                 # number of cores if parallel
@@ -57,16 +57,17 @@ tmle:
   truncation_upper: 0.99     # upper bound for g truncation
   sl_library_Q:
     - SL.glm
-    - SL.gam
-    - SL.ranger
-    - SL.glmnet
     - SL.mean
   sl_library_g:
     - SL.glm
-    - SL.gam
-    - SL.ranger
     - SL.mean
   max_discrete_time: 180     # max time points for discrete-time survival
+
+# --- Bootstrap settings ---
+bootstrap:
+  B: 500                     # bootstrap replicates (default)
+  B_quick: 200               # bootstrap replicates (quick runs)
+  seed: 54321                # bootstrap seed
 
 # --- Stage gate thresholds ---
 stage1:
@@ -74,6 +75,7 @@ stage1:
   min_treated_frac: 0.05     # minimum treated fraction
   min_control_frac: 0.05     # minimum control fraction
   max_missingness: 0.30      # maximum missingness per variable
+  min_events: 50             # minimum total events to proceed
 
 stage2:
   max_smd: 0.25              # maximum SMD after weighting
@@ -89,3 +91,4 @@ output:
   stage3_dir: "outputs/stage3"
   report_dir: "outputs/report"
   simulation_dir: "outputs/simulation"
+  logs_dir: "logs"

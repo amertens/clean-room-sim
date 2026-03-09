@@ -1,0 +1,571 @@
+---
+title: "Simulation Scenario 1 v3: Mixed Overlap, Nonlinear Q, CV-TMLE"
+subtitle: "False stops and true stops under a clean-room feasibility gate"
+author: "Andrew N. Mertens"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    self-contained: true
+    fig-width: 8
+    fig-height: 5
+  pdf:
+    toc: true
+    toc-depth: 3
+    fig-width: 7
+    fig-height: 4.5
+execute:
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| label: setup
+#| code-fold: false
+
+library(ggplot2)
+theme_set(theme_minimal(base_size = 13))
+
+base_dir <- "../results/scenario1_v3"
+
+load_mode <- function(mode) {
+  d <- file.path(base_dir, mode)
+  rds <- c(params  = file.path(d, "params_used.rds"),
+           truth   = file.path(d, "truth.rds"),
+           results = file.path(d, "replicate_results.rds"),
+           gate    = file.path(d, "gate_results.rds"))
+  csv <- file.path(d, "summary_overall.csv")
+  missing <- names(rds)[!file.exists(rds)]
+  if (length(missing) > 0 || !file.exists(csv))
+    stop("Outputs not found for mode '", mode, "' in ", d,
+         "\nRun: Rscript scripts/sim_scenario1_v3_mixed_overlap_nonlinear_cvTMLE.R",
+         call. = FALSE)
+  list(params  = readRDS(rds["params"]),
+       truth   = readRDS(rds["truth"]),
+       res     = readRDS(rds["results"]),
+       gate    = readRDS(rds["gate"]),
+       summary = read.csv(csv, stringsAsFactors = FALSE))
+}
+
+weak   <- load_mode("weak")
+strong <- load_mode("strong")
+
+gate_file <- file.path(base_dir, "gate_combined.csv")
+gate_combined <- if (file.exists(gate_file))
+  read.csv(gate_file, stringsAsFactors = FALSE) else NULL
+```
+
+## Overview
+
+This simulation extends Scenario 1 to a richer design that demonstrates both
+**false stops** and **true stops** under a clean-room overlap feasibility gate.
+The key innovations are:
+
+1. **Mixed overlap regimes**: each replicate is randomly assigned OK or BAD
+   overlap by varying the treatment-model strength multiplier, producing a
+   non-degenerate stop/go table.
+2. **Nonlinear outcome model**: $Q_0(A,W)$ includes quadratic and absolute-
+   value main effects and treatment-covariate interactions, so that
+   intentionally misspecified GLM estimators (crude, adjusted regression,
+   TMLE-GLM) exhibit nontrivial bias.
+3. **Two W4 outcome-dependence modes**: "weak" ($\beta_4 \approx 0$, no
+   $A \times W_4$) and "strong" ($\beta_4 = 0.35$, $A \times W_4$ present),
+   creating the false-stop vs true-stop contrast.
+4. **Seven estimators**: crude, misspecified adjusted regression, IPTW,
+   PS-matched regression, TMLE-GLM, TMLE-ML, and cross-fitted TMLE-ML.
+5. **Inference**: IC-based Wald CIs for TMLE variants plus Rademacher
+   multiplier bootstrap CIs; nonparametric bootstrap for regression and
+   IPTW; pairs bootstrap for PS-matching.
+
+### Point estimation vs inference
+
+This report explicitly separates two properties:
+
+- **Point estimation stability**: whether an estimator's sampling distribution
+  is centered near the truth (low bias, low RMSE).
+- **Inferential validity**: whether 95% confidence intervals achieve nominal
+  coverage, as measured by the proportion of replicates where the CI contains
+  the true RD. Coverage is computed only over replicates where both the
+  estimate and CI were successfully produced (`n_ci` is reported alongside
+  `n_success`).
+
+## Estimand
+
+$$\text{RD} = E[Y^1] - E[Y^0]$$
+
+The estimand depends only on the outcome model $Q_0$ and the marginal
+covariate distribution, not on the treatment mechanism $g_0$. Therefore
+the truth is the same regardless of overlap regime.
+
+## Data-Generating Process
+
+### Scenario grid
+
+| Dimension | Levels | Purpose |
+|-----------|--------|---------|
+| Overlap regime $Z_r$ | OK ($s_g = `r weak$params$s_ok`$) vs BAD ($s_g = `r weak$params$s_bad`$) | Controls PS extremity per replicate |
+| W4 outcome dependence | Weak ($\beta_4 = `r weak$params$beta4_Q`$) vs Strong ($\beta_4 = `r strong$params$beta4_Q`$) | Controls whether overlap driver matters for Y |
+
+### Covariates
+
+| Variable | Distribution | Role |
+|----------|-------------|------|
+| $W_1$ | $N(0, 1)$ | Confounder with nonlinear effect on Y ($0.6 W_1 + 0.4 W_1^2$) |
+| $W_2$ | Bernoulli(0.5) | Binary confounder |
+| $W_3$ | $N(0, 1)$ | Confounder with non-smooth effect on Y ($0.5 |W_3|$) |
+| $W_4$ | $N(0, 1)$ | Overlap driver: $\alpha_4 = `r weak$params$alpha4_g`$ in g; $\beta_4$ mode-dependent in Q |
+
+### Treatment mechanism
+
+$$g_0(W) = \text{expit}\!\bigl(\alpha_0 + s_g \cdot (
+  `r weak$params$alpha1_g` W_1 + `r weak$params$alpha2_g` W_2
+  `r weak$params$alpha3_g` W_3 + `r weak$params$alpha4_g` W_4)\bigr)$$
+
+where $s_g \in \{`r weak$params$s_ok`, `r weak$params$s_bad`\}$ and
+$\alpha_0$ centers $P(A=1) \approx 0.5$.
+
+### Outcome model (nonlinear + interactions)
+
+$$Q_0(A,W) = \text{expit}\!\bigl(
+  \beta_0 + \beta_A A +
+  \underbrace{0.6 W_1 + 0.4 W_1^2}_{h_1} +
+  \underbrace{0.7 W_2}_{h_2} +
+  \underbrace{0.5 |W_3|}_{h_3} +
+  \beta_4 W_4 +
+  `r weak$params$tau_int1` \cdot A \cdot \mathbb{1}(W_1 > 0) +
+  `r weak$params$tau_int2` \cdot A \cdot W_2 +
+  \tau_3 \cdot A \cdot W_4
+\bigr)$$
+
+The misspecified GLM (Y ~ A + W1 + W2 + W3 + W4) cannot represent the
+$W_1^2$, $|W_3|$, or interaction terms.
+
+### Ground truth
+
+```{r truth}
+#| label: truth
+#| code-fold: false
+
+cat(sprintf("Weak W4 mode:   RD_true = %.6f  (EY1=%.4f, EY0=%.4f)\n",
+            weak$truth$RD_true, weak$truth$EY1, weak$truth$EY0))
+cat(sprintf("Strong W4 mode: RD_true = %.6f  (EY1=%.4f, EY0=%.4f)\n",
+            strong$truth$RD_true, strong$truth$EY1, strong$truth$EY0))
+```
+
+## Simulation Design
+
+```{r design}
+#| label: design
+
+p <- weak$params
+cat(sprintf("Replicates per mode:   %d\n", p$reps))
+cat(sprintf("Sample size (N):       %d\n", p$n_main))
+cat(sprintf("P(bad overlap):        %.2f\n", p$p_bad))
+cat(sprintf("PS clip (true):        [%.3f, %.3f]\n", p$ps_clip_true[1], p$ps_clip_true[2]))
+cat(sprintf("PS clip (estimated):   [%.2f, %.2f]\n", p$ps_clip_hat[1], p$ps_clip_hat[2]))
+cat(sprintf("V-fold CV-TMLE:        %d folds\n", p$V_cf))
+cat(sprintf("Multiplier boot B:     %d\n", p$B_multboot))
+cat(sprintf("Regression boot B:     %d\n", p$B_regboot))
+cat(sprintf("IPTW boot B:           %d\n", p$B_iptw))
+cat(sprintf("Pairs boot B:          %d\n", p$B_matchboot))
+```
+
+### Estimators
+
+| Estimator | Q model | g model | Inference |
+|-----------|---------|---------|-----------|
+| **Crude RD** | — | — | Wald CI (binomial SE) |
+| **Adj. Regression** | Misspecified GLM | — | Nonparametric bootstrap (B=`r p$B_regboot`) |
+| **IPTW** | — | GLM, bounded | Nonparametric bootstrap (B=`r p$B_iptw`) |
+| **PS-Matched** | Misspecified GLM on matched data | GLM (logit PS + caliper) | Pairs bootstrap (B=`r p$B_matchboot`) |
+| **TMLE-GLM** | Misspecified GLM via SL | GLM via SL | IC Wald + Rademacher multiplier boot |
+| **TMLE-ML** | Rich SL library | Rich SL library | IC Wald + Rademacher multiplier boot |
+| **CV-TMLE-ML** | V-fold cross-fitted ML | V-fold cross-fitted ML | IC Wald + Rademacher multiplier boot |
+
+**Adjusted regression** fits Y ~ A + W1 + W2 + W3 + W4 (no quadratic terms,
+no $|W_3|$, no interactions) and computes the ATE by g-computation. This
+intentional misspecification ensures nontrivial bias for comparison. The CI
+is computed via nonparametric bootstrap to avoid misleadingly precise
+delta-method SEs.
+
+**PS-matched regression** performs nearest-neighbor matching on logit($\hat{g}$)
+with caliper $0.2 \times \text{sd}(\text{logit}(\hat{g}))$. Under bad overlap,
+matching often discards many observations. Match diagnostics (SMD before/after,
+number matched) are recorded. Inference uses a pairs bootstrap that resamples
+matched pairs with replacement.
+
+**Cross-fitted TMLE-ML** implements V-fold cross-fitting: Q and g models are
+fit on training folds and predicted on validation folds; cross-fitted
+predictions are combined for a single targeting step. This avoids
+Donsker-class conditions required by standard TMLE and is appropriate
+when using highly adaptive learners.
+
+**Multiplier bootstrap** (Rademacher): for each TMLE variant, draws
+$\xi_i \stackrel{iid}{\sim} \text{Rademacher}(\pm 1)$ and computes
+$\hat\psi^{(b)} = \hat\psi + n^{-1} \sum_i \xi_i \hat{D}_i$
+where $\hat{D}_i$ are the estimated EIF values. The resulting SE and
+percentile CIs provide a complementary check on variance estimation.
+Nuisance fits are held fixed across bootstrap draws.
+
+## Stage 2: Outcome-Blind Overlap Diagnostics
+
+```{r overlap-summary}
+#| label: overlap-summary
+
+for (mode_name in c("weak", "strong")) {
+  m <- get(mode_name)
+  cat(sprintf("\n=== %s W4 mode ===\n", toupper(mode_name)))
+  cat(sprintf("  Replicates flagged 'bad': %d/%d (%.0f%%)\n",
+              sum(m$res$overlap_flag == "bad"), nrow(m$res),
+              100 * mean(m$res$overlap_flag == "bad")))
+  cat(sprintf("  Mean fraction extreme PS: %.3f\n",
+              mean(m$res$fraction_extreme)))
+  cat(sprintf("  Mean ESS/N:              %.3f\n",
+              mean(m$res$ess_frac)))
+  cat(sprintf("  Mean max weight:         %.1f\n",
+              mean(m$res$max_w)))
+}
+```
+
+```{r ps-hist}
+#| label: ps-hist
+#| fig-height: 5
+#| fig-cap: "Distribution of overlap severity (fraction extreme PS) across replicates, stratified by overlap regime actually drawn. Dashed line shows the flagging threshold."
+
+thr <- weak$params$overlap_flag_thresholds
+comb <- rbind(
+  data.frame(mode = "Weak W4", fraction_extreme = weak$res$fraction_extreme,
+             overlap_flag = weak$res$overlap_flag, stringsAsFactors = FALSE),
+  data.frame(mode = "Strong W4", fraction_extreme = strong$res$fraction_extreme,
+             overlap_flag = strong$res$overlap_flag, stringsAsFactors = FALSE)
+)
+ggplot(comb, aes(x = fraction_extreme, fill = overlap_flag)) +
+  geom_histogram(bins = 30, alpha = 0.6, position = "identity") +
+  geom_vline(xintercept = thr$extreme_prop, linetype = "dashed", color = "red") +
+  facet_wrap(~ mode) +
+  scale_fill_manual(values = c(ok = "steelblue", bad = "firebrick")) +
+  labs(title = "Overlap severity across replicates",
+       x = "Fraction with extreme PS", y = "Count", fill = "Flag")
+```
+
+## Stage 2b: Stop/Go Gate
+
+The gate criterion for TMLE-ML with multiplier bootstrap CI is:
+$|\text{bias}| < 0.01$ AND coverage $\geq 0.93$ AND RMSE acceptable.
+
+```{r gate-table}
+#| label: gate-table
+#| code-fold: false
+
+if (!is.null(gate_combined)) {
+  knitr::kable(gate_combined, digits = 4,
+               caption = "Stop/go gate by W4 mode and overlap flag. 'Acceptable' = |bias| < 0.01 and multiplier bootstrap coverage >= 0.93.")
+} else {
+  cat("Gate combined file not found.\n")
+}
+```
+
+```{r gate-interpret}
+#| label: gate-interpret
+
+cat("Interpretation:\n\n")
+
+# Weak mode, bad overlap
+wb <- weak$gate[weak$gate$overlap_flag == "bad", ]
+if (!is.na(wb$acceptable) && wb$acceptable) {
+  cat("WEAK W4, BAD overlap: TMLE-ML meets OC criteria despite overlap flag.\n")
+  cat("This is a FALSE STOP scenario — the PS-only gate would unnecessarily\n")
+  cat("terminate the analysis when TMLE can succeed because the overlap driver\n")
+  cat("(W4) barely affects the outcome.\n\n")
+} else if (!is.na(wb$acceptable)) {
+  cat("WEAK W4, BAD overlap: TMLE-ML does NOT meet OC criteria.\n\n")
+}
+
+# Strong mode, bad overlap
+sb <- strong$gate[strong$gate$overlap_flag == "bad", ]
+if (!is.na(sb$acceptable) && !sb$acceptable) {
+  cat("STRONG W4, BAD overlap: TMLE-ML fails OC criteria under bad overlap.\n")
+  cat("This is a TRUE STOP scenario — the overlap driver matters for the outcome,\n")
+  cat("so near-positivity genuinely degrades both point estimation and inference.\n")
+} else if (!is.na(sb$acceptable)) {
+  cat("STRONG W4, BAD overlap: TMLE-ML meets OC criteria (possibly with larger N\n")
+  cat("or richer learners). The true-stop effect may require more severe parameters.\n")
+}
+```
+
+## Stage 3: Estimator Performance
+
+### Weak W4 Mode (False-Stop Demonstration)
+
+```{r weak-table}
+#| label: weak-table
+#| code-fold: false
+
+knitr::kable(weak$summary, digits = 4,
+             caption = "Weak W4: estimator performance by subset (all / overlap ok / overlap bad). Coverage computed over n_ci replicates with non-NA CIs.")
+```
+
+### Strong W4 Mode (True-Stop Demonstration)
+
+```{r strong-table}
+#| label: strong-table
+#| code-fold: false
+
+knitr::kable(strong$summary, digits = 4,
+             caption = "Strong W4: estimator performance by subset. Under bad overlap, estimators relying on the overlap-driver W4 show degraded performance.")
+```
+
+### Sampling Distributions
+
+```{r sampling-dist-weak}
+#| label: sampling-dist-weak
+#| fig-height: 10
+#| fig-cap: "Weak W4 mode: sampling distributions of RD estimators. Colored by overlap flag. Misspecified estimators (crude, adj. regression, TMLE-GLM) show bias from model misspecification. TMLE-ML and CV-TMLE are better centered."
+
+plot_sampling <- function(res, truth_rd, mode_label) {
+  methods <- c("Crude", "Adj.Reg", "IPTW", "PS-Match",
+               "TMLE-GLM", "TMLE-ML", "CV-TMLE")
+  ests <- list(res$crude_est, res$regadj_est, res$iptw_est,
+               res$psmatch_est, res$tmle_glm_est, res$tmle_ml_est,
+               res$cvtmle_est)
+  el <- do.call(rbind, lapply(seq_along(methods), function(i) {
+    data.frame(method = methods[i], estimate = ests[[i]],
+               overlap_flag = res$overlap_flag, stringsAsFactors = FALSE)
+  }))
+  el <- el[!is.na(el$estimate), ]
+  el$method <- factor(el$method, levels = methods)
+
+  ggplot(el, aes(x = estimate, fill = overlap_flag)) +
+    geom_histogram(bins = 35, alpha = 0.6, position = "identity") +
+    geom_vline(xintercept = truth_rd, linewidth = 0.8) +
+    facet_wrap(~ method, scales = "free_y", ncol = 1) +
+    scale_fill_manual(values = c(ok = "steelblue", bad = "firebrick")) +
+    labs(title = paste0("Sampling distributions (", mode_label, ")"),
+         subtitle = paste0("True RD = ", round(truth_rd, 4)),
+         x = "Estimated RD", y = "Count", fill = "Overlap") +
+    theme_minimal(base_size = 11)
+}
+
+plot_sampling(weak$res, weak$truth$RD_true, "weak W4")
+```
+
+```{r sampling-dist-strong}
+#| label: sampling-dist-strong
+#| fig-height: 10
+#| fig-cap: "Strong W4 mode: when W4 drives both treatment and outcome, bad overlap degrades all estimators. TMLE-ML may still improve over GLM-based methods but with wider spread."
+
+plot_sampling(strong$res, strong$truth$RD_true, "strong W4")
+```
+
+### Bias Comparison Across Modes
+
+```{r bias-comparison}
+#| label: bias-comparison
+#| fig-height: 6
+#| fig-cap: "Bias by estimator, overlap flag, and W4 mode. Under weak W4, TMLE-ML and CV-TMLE maintain low bias even under bad overlap (false stop). Under strong W4, bad overlap degrades all estimators (true stop)."
+
+make_bias_df <- function(summ, mode_label) {
+  d <- summ[summ$subset %in% c("overlap_ok", "overlap_bad") &
+            !grepl("mult\\.boot", summ$method), ]
+  d$mode <- mode_label
+  d
+}
+bd <- rbind(make_bias_df(weak$summary, "Weak W4"),
+            make_bias_df(strong$summary, "Strong W4"))
+if (nrow(bd) > 0) {
+  bd$method <- factor(bd$method)
+  ggplot(bd, aes(x = method, y = bias, fill = subset)) +
+    geom_col(position = "dodge", alpha = 0.8) +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    coord_flip() +
+    facet_wrap(~ mode) +
+    scale_fill_manual(values = c(overlap_ok = "steelblue",
+                                 overlap_bad = "firebrick")) +
+    labs(title = "Bias by estimator and overlap regime",
+         x = NULL, y = "Bias", fill = "Overlap") +
+    theme_minimal(base_size = 11)
+}
+```
+
+### Coverage: IC-Based vs Multiplier Bootstrap
+
+```{r coverage-comparison}
+#| label: coverage-comparison
+#| fig-height: 6
+#| fig-cap: "Coverage of 95% CIs (all replicates). IC-based Wald CIs and Rademacher multiplier bootstrap CIs shown side by side for each TMLE variant. Coverage computed only over replicates where CI was successfully produced (n_ci)."
+
+make_cov_df <- function(summ, mode_label) {
+  d <- summ[summ$subset == "all" & !is.na(summ$coverage), ]
+  d$mode <- mode_label
+  d
+}
+cd <- rbind(make_cov_df(weak$summary, "Weak W4"),
+            make_cov_df(strong$summary, "Strong W4"))
+if (nrow(cd) > 0) {
+  cd$method <- factor(cd$method, levels = rev(unique(cd$method)))
+  cd$ci_lo <- pmax(cd$coverage - 1.96 * cd$mcse_coverage, 0)
+  cd$ci_hi <- pmin(cd$coverage + 1.96 * cd$mcse_coverage, 1)
+  ggplot(cd, aes(x = method, y = coverage)) +
+    geom_col(aes(fill = mode), position = "dodge", alpha = 0.8) +
+    geom_hline(yintercept = 0.95, linetype = "dashed", color = "grey40") +
+    coord_flip() + ylim(0, 1) +
+    scale_fill_manual(values = c("Weak W4" = "steelblue",
+                                 "Strong W4" = "firebrick")) +
+    labs(title = "95% CI coverage by estimator and W4 mode",
+         x = NULL, y = "Coverage", fill = "Mode") +
+    theme_minimal(base_size = 11)
+}
+```
+
+### SE Calibration: TMLE-ML
+
+```{r se-calibration}
+#| label: se-calibration
+
+for (mode_name in c("weak", "strong")) {
+  m <- get(mode_name)
+  sm <- m$summary[m$summary$subset == "all", ]
+  ic_row <- sm[sm$method == "TMLE-ML (IC)", ]
+  mb_row <- sm[sm$method == "TMLE-ML (mult.boot)", ]
+
+  cat(sprintf("\n=== %s W4 mode: TMLE-ML SE calibration ===\n", toupper(mode_name)))
+  if (nrow(ic_row) > 0 && !is.na(ic_row$emp_sd) && !is.na(ic_row$mean_se)) {
+    cat(sprintf("  Empirical SD:     %.4f\n", ic_row$emp_sd))
+    cat(sprintf("  Mean IC SE:       %.4f  (ratio: %.3f)\n",
+                ic_row$mean_se, ic_row$mean_se / ic_row$emp_sd))
+  }
+  if (nrow(mb_row) > 0 && !is.na(mb_row$mean_se) && !is.na(ic_row$emp_sd)) {
+    cat(sprintf("  Mean mult.boot SE: %.4f  (ratio: %.3f)\n",
+                mb_row$mean_se, mb_row$mean_se / ic_row$emp_sd))
+  }
+  if (nrow(ic_row) > 0 && !is.na(ic_row$coverage)) {
+    cat(sprintf("  Coverage (IC):     %.1f%%\n", ic_row$coverage * 100))
+  }
+  if (nrow(mb_row) > 0 && !is.na(mb_row$coverage)) {
+    cat(sprintf("  Coverage (m.boot): %.1f%%\n", mb_row$coverage * 100))
+  }
+}
+```
+
+### PS Matching Diagnostics
+
+```{r match-diag}
+#| label: match-diag
+
+for (mode_name in c("weak", "strong")) {
+  m <- get(mode_name)
+  r <- m$res
+  matched <- r[!is.na(r$psmatch_n_matched), ]
+  cat(sprintf("\n=== %s W4: PS matching ===\n", toupper(mode_name)))
+  cat(sprintf("  Successful matches: %d/%d\n", nrow(matched), nrow(r)))
+  if (nrow(matched) > 0) {
+    cat(sprintf("  Median matched N:  %d / %d (%.0f%%)\n",
+                median(matched$psmatch_n_matched),
+                m$params$n_main,
+                100 * median(matched$psmatch_n_matched) / m$params$n_main))
+    # By overlap flag
+    for (fl in c("ok", "bad")) {
+      sub <- matched[matched$overlap_flag == fl, ]
+      if (nrow(sub) > 0)
+        cat(sprintf("    [%s] median matched N: %d\n", fl,
+                    median(sub$psmatch_n_matched)))
+    }
+  }
+}
+```
+
+## Discussion
+
+### False stop (weak W4 mode)
+
+When $W_4$ has negligible influence on the outcome ($\beta_4 = `r weak$params$beta4_Q`$,
+no $A \times W_4$ interaction), the overlap flag triggered by extreme propensity
+scores is a **false alarm** for doubly robust estimators. TMLE-ML and CV-TMLE-ML
+maintain low bias and adequate coverage even in bad-overlap replicates because
+the outcome surface is smooth in the direction of PS extremity. The multiplier
+bootstrap provides a more reliable variance estimate than IC-based SEs when the
+clever covariate is occasionally large.
+
+Under a propensity-score-only feasibility gate, these replicates would have
+triggered redesign or termination. The outcome-blind simulation-based OC check
+(Stage 2b) demonstrates that proceeding is defensible: TMLE's operating
+characteristics remain acceptable because the $Q$ model is learnable.
+
+### True stop (strong W4 mode)
+
+When $W_4$ meaningfully affects the outcome ($\beta_4 = `r strong$params$beta4_Q`$)
+and interacts with treatment ($\tau_3 = `r strong$params$tau_int3`$), the overlap
+flag is a **genuine warning**. Now the outcome surface is no longer flat in the
+direction of PS extremity: subjects with extreme propensity scores also have
+different treatment effects, and the $Q$ model must extrapolate into a region
+where data is sparse. Even TMLE-ML and CV-TMLE show increased bias and
+degraded coverage under bad overlap.
+
+### Misspecification contrast
+
+The nonlinear DGP produces a clear ordering:
+
+- **Crude RD**: heavily biased (confounding).
+- **Adjusted regression** and **TMLE-GLM**: biased due to model misspecification
+  ($W_1^2$, $|W_3|$, and interactions absent from the linear predictor).
+- **TMLE-ML** and **CV-TMLE-ML**: reduced bias because flexible learners
+  (ranger or enriched GLM) can capture the nonlinearities.
+- **IPTW** and **PS-matching**: performance depends on overlap quality, not
+  outcome model quality. Under bad overlap, both degrade regardless of mode.
+
+### Inference methods
+
+For TMLE variants, we report both IC-based Wald CIs and Rademacher multiplier
+bootstrap CIs. The multiplier bootstrap uses
+$\hat\psi^{(b)} = \hat\psi + n^{-1} \sum_i \xi_i \hat{D}_i$
+with $\xi_i \in \{-1, +1\}$ and nuisance fits held fixed. This is
+computationally light and avoids the Donsker-class conditions needed for
+IC-based inference to be valid with data-adaptive learners.
+
+For regression-only and PS-matching estimators, nonparametric and pairs
+bootstraps provide CIs that account for the full estimation uncertainty
+including model fitting.
+
+### Limitations
+
+Because the DGP is stylized and the scenario grid is constructed to
+demonstrate specific principles (false stop vs true stop), these results
+illustrate mechanisms rather than provide universal guarantees. In
+particular:
+
+- The 2×2 grid (overlap regime × W4 dependence) captures two extremes;
+  real data may fall on a continuum.
+- With $N = `r weak$params$n_main`$ and $`r weak$params$reps`$ replicates,
+  Monte Carlo standard errors for coverage are nontrivial; scale-up is
+  needed for precise coverage estimation.
+- The cross-fitted TMLE implementation uses ranger (if available) or enriched
+  GLM as fallback; with richer learner libraries, performance may improve
+  further.
+
+## Appendix: Replicate-Level Sample
+
+```{r replicate-table}
+#| label: replicate-table
+
+cols <- c("rep", "overlap_regime_true", "overlap_flag", "event_rate",
+          "fraction_extreme", "ess_frac",
+          "tmle_ml_est", "cvtmle_est", "regadj_est", "crude_est")
+cols <- intersect(cols, names(weak$res))
+knitr::kable(head(weak$res[, cols], 10), digits = 4,
+             caption = "Weak W4 mode: first 10 replicates")
+```
+
+### Session Info
+
+```{r session-info}
+#| label: session-info
+
+si_file <- file.path(base_dir, "weak", "sessionInfo.txt")
+if (file.exists(si_file)) {
+  cat(readLines(si_file), sep = "\n")
+} else {
+  sessionInfo()
+}
+```
