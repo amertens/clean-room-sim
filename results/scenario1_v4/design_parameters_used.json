@@ -1,0 +1,41 @@
+{
+  "version": "v4",
+  "preset": "fast",
+  "date": "2026-03-07 04:12:14.193917",
+  "base_params": {
+    "n_main": 400,
+    "n_truth": 100000,
+    "reps": 120,
+    "B_npboot_tmle": 0,
+    "B_multboot": 200,
+    "B_matchboot": 100,
+    "V_cf": 3,
+    "h1_lin": 0.5,
+    "h1_sq": 0.25,
+    "h3_coef": 0.35,
+    "g_intercept_shift": -0.5,
+    "alpha4_g": 3,
+    "s_ok": 0.5,
+    "ps_clip_hat": [0.025, 0.975]
+  },
+  "mode_weak": {
+    "s_bad": 1.5,
+    "beta4_Q": 0.04,
+    "tau_int1": 0.15,
+    "tau_int2": 0.05,
+    "tau_int3": 0
+  },
+  "mode_strong": {
+    "s_bad": 2,
+    "beta4_Q": 0.35,
+    "tau_int1": 0.25,
+    "tau_int2": 0.1,
+    "tau_int3": 0.2
+  },
+  "overlap_thresholds": {
+    "extreme_ps": 0.05,
+    "extreme_prop": 0.4,
+    "ess_frac": 0.2,
+    "max_w": 60
+  }
+}

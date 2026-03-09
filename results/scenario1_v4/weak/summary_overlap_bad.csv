@@ -1,0 +1,12 @@
+"subset","method","n_total","n_success","n_ci","bias","rmse","emp_sd","mean_se","coverage","mcse_coverage"
+"overlap_bad","Crude",56,56,56,0.086266,0.098165,0.047269,0.047095,0.625,0.0647
+"overlap_bad","Adj. Regression (analytic)",56,56,56,0.001821,0.075818,0.076482,0.071214,0.9107,0.0381
+"overlap_bad","IPTW (analytic)",56,56,56,0.023278,0.1026,0.100829,0.091455,0.9107,0.0381
+"overlap_bad","PS-Matched (pairs boot)",56,56,56,-0.001634,0.093313,0.094143,0.088382,0.9643,0.0248
+"overlap_bad","TMLE-GLM (IC)",56,56,56,-0.010508,0.109887,0.110373,0.074416,0.8214,0.0512
+"overlap_bad","TMLE-ML (IC)",56,56,56,-0.007409,0.101103,0.101744,0.065138,0.8036,0.0531
+"overlap_bad","TMLE-ML (NP boot pctl)",56,56,0,-0.007409,0.101103,0.101744,NA,NA,NA
+"overlap_bad","TMLE-ML (NP boot norm)",56,56,0,-0.007409,0.101103,0.101744,NA,NA,NA
+"overlap_bad","TMLE-ML (mult.boot)",56,56,56,-0.007409,0.101103,0.101744,0.064294,0.7857,0.0548
+"overlap_bad","CV-TMLE-ML (IC)",56,56,56,0.004737,0.111421,0.112328,0.068859,0.7321,0.0592
+"overlap_bad","CV-TMLE-ML (mult.boot)",56,56,56,0.004737,0.111421,0.112328,0.06831,0.7321,0.0592
