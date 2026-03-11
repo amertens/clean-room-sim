@@ -22,10 +22,13 @@ execute:
 ## Abstract {.unnumbered}
 
 A clean-room staged workflow — where analytic decisions are locked before
-outcome data are examined — can accommodate multiple analysis strategies. This
-tutorial introduces a clean-room design with **two alternative blinded
-feasibility paths** and explicitly compares three analysis workflows that differ
-in how the analysis pipeline is validated before outcome access: **(1) a
+outcome data are examined — can accommodate multiple analysis strategies.
+Adapting the staging and clean-room constructs described by Muntner et al.
+(2024), who propose sequential preliminary analyses with checkpoint decisions
+before the final comparative analysis, this tutorial introduces a clean-room
+design with **two alternative blinded feasibility paths** and explicitly
+compares three analysis workflows that differ in how the analysis pipeline is
+validated before outcome access: **(1) a
 conventional PS-diagnostics-gated workflow** using logistic-regression PS for
 matching or IPTW, gated primarily by traditional design diagnostics; **(2) a
 fixed-specification TMLE workflow** where a single TMLE nuisance-learning
@@ -92,6 +95,45 @@ pre-specified mechanisms with known truth). The conventional PS workflow is
 gated by Stage 2a; the TMLE workflows are gated by Stage 2b. Real outcome
 regressions and estimation occur only in Stage 3, after the chosen feasibility
 path is completed.
+
+## Relationship to the Staging and Clean-Room Framework of Muntner et al.
+
+Muntner et al. (2024) describe a **staging framework** for observational
+comparative effectiveness and safety studies in which sequential preliminary
+analyses — each with checkpoint decisions to continue, revise, or stop — are
+completed before the final comparative analysis. Their framework includes
+study development and cohort construction, a precision or sample-size check,
+a covariate-balance stage based on propensity scores, a residual-confounding
+assessment using tools such as negative control outcomes, and finally the
+comparative analysis itself. Clean-room protections restrict which data
+elements and analytic results are accessible at each stage, and a review team
+documents checkpoint decisions in an audit trail.
+
+This tutorial follows the same basic logic of **staged, masked,
+pre-outcome decision-making**. Stage 1 corresponds to Muntner's study
+development and protocol-lock stages. Stage 2a — evaluating propensity score
+overlap, covariate balance, and matching feasibility — corresponds closely to
+their covariate-balance checkpoint. Stage 3 corresponds to the final
+comparative analysis.
+
+The main methodological extension in this tutorial is **Stage 2b**: where
+Muntner et al. emphasize negative control outcomes as a tool for assessing
+residual confounding before the final analysis, this tutorial introduces
+**plasmode simulation** as an alternative or additional blinded feasibility
+path for validating the full estimator pipeline — especially for TMLE
+workflows whose performance depends on both the treatment and outcome models.
+Plasmode simulation shifts the focus from residual-bias diagnostics alone to
+end-to-end estimator validation under plausible data-generating processes
+with known truth, all before real outcomes are accessed. This is an extension
+of the staging framework rather than a departure from it.
+
+**Stage mapping (this tutorial ↔ Muntner et al.):**
+
+- **Stage 1** ↔ study development / cohort build / protocol lock
+- **Stage 2a** ↔ covariate-balance checkpoint (PS overlap, balance, ESS)
+- **Stage 2b** ↔ pre-outcome bias / validity checkpoint (extended here via
+  plasmode simulation rather than primarily negative control outcomes)
+- **Stage 3** ↔ final comparative analysis
 
 ::: {.callout-note}
 ### Tutorial vs. production clean-room implementation
@@ -247,6 +289,11 @@ stages enforce this by controlling data access:
 
 ### Workflow overview
 
+The following diagram adapts the staged checkpoint logic of Muntner et al.
+(2024) to a targeted-learning setting with two alternative feasibility paths.
+Stage 2a is analogous to Muntner's covariate-balance checkpoint; Stage 2b
+extends the pre-outcome validity assessment through plasmode simulation.
+
 ```
 ┌──────────────────────────────────────────────────────┐
 │  Stage 1. Pre-specification & Analysis Lock          │
@@ -285,6 +332,10 @@ stages enforce this by controlling data access:
 │  Run TMLE targeting step. Report results.            │
 └──────────────────────────────────────────────────────┘
 ```
+
+*Muntner-style mapping: Stage 1 ↔ study development / protocol lock;
+Stage 2a ↔ covariate-balance checkpoint; Stage 2b ↔ pre-outcome validity
+checkpoint (via plasmode simulation); Stage 3 ↔ final comparative analysis.*
 
 
 ## Quick Reference: Allowed vs Not Allowed Before Outcome Access
@@ -341,7 +392,7 @@ perms <- data.frame(
   ),
   check.names = FALSE
 )
-kable(perms, caption = "Clean-room permissions by stage",
+kable(perms, caption = "Clean-room permissions by stage (adapted from Muntner et al. staging framework)",
       col.names = c("Stage", "Data accessible", "Allowed tasks", "Not allowed"),
       align = c("l", "l", "l", "l")) |>
   kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
@@ -359,9 +410,18 @@ kable(perms, caption = "Clean-room permissions by stage",
 
 Before any real study data are accessed, the analysis team writes a statistical
 analysis plan (SAP) that locks all major analytic decisions. This is analogous
-to a clinical trial's SAP being finalized before database lock. The nuisance
-strategy is pre-specified here — either as a single fixed specification
-(Workflow 2) or as a candidate set with a selection rule (Workflow 3).
+to a clinical trial's SAP being finalized before database lock, and corresponds
+to the study development and protocol-lock stages in the Muntner et al. (2024)
+framework. Muntner et al. emphasize that protocol development, cohort
+construction criteria, prespecified roles and responsibilities, and checkpoint
+criteria should all be established before any comparative analysis proceeds.
+The analysis lock in this tutorial serves the same function in a
+targeted-learning setting: it documents the estimand, nuisance strategies,
+truncation rules, and gate thresholds that govern all subsequent checkpoint
+decisions. The nuisance strategy is pre-specified here — either as a single
+fixed specification (Workflow 2) or as a candidate set with a selection rule
+(Workflow 3). The versioned, timestamped analysis lock artifact also serves as
+the decision log that Muntner et al. recommend for audit-trail purposes.
 
 For our HCV example, the causal question is:
 
@@ -527,6 +587,14 @@ whether the treatment mechanism and covariate structure are compatible with the
 planned analyses. Stage 2a is the **primary feasibility gate for the
 conventional PS workflow** and provides useful diagnostic information for all
 workflows.
+
+Stage 2a is the closest analog to the **covariate-balance stage** in the
+Muntner et al. (2024) staging framework. It evaluates propensity score
+overlap, covariate balance (weighted SMDs), effective sample size, and
+matching feasibility — all before any outcome analysis. The decision to
+proceed, revise, or stop at this checkpoint is exactly the kind of
+checkpointed review that Muntner et al. recommend as part of a staged
+preliminary analysis.
 
 Because $g(W) = P(A=1|W)$ does not involve outcomes, the treatment model can
 be estimated here for both the conventional PS and TMLE workflows. The key
@@ -951,6 +1019,21 @@ evaluate bias, variance, and CI coverage for each workflow.
 Stage 2b is the **primary feasibility gate for the TMLE workflows**. It is an
 alternative to Stage 2a, not a sequential step — the conventional PS workflow
 uses Stage 2a, while the TMLE workflows use Stage 2b.
+
+In the Muntner et al. (2024) staging framework, a later checkpoint assesses
+the plausibility of remaining bias — for example, using negative control
+outcomes and review-team evaluation — before the final comparative analysis.
+Stage 2b serves a related checkpoint function, but uses plasmode simulation to
+evaluate the full estimator pipeline under known truth before real outcome
+access. Where Muntner et al. emphasize negative control outcomes as a way to
+assess residual confounding before the final comparative analysis, this
+tutorial instead emphasizes plasmode simulation as a pre-outcome method for
+validating estimator performance under plausible data-generating processes.
+This is an extension of the staging framework's checkpoint logic rather than a
+departure from it: both approaches aim to provide evidence about analysis
+validity before unblinding, but plasmode simulation additionally evaluates
+bias, variance, and CI coverage of the full estimation pipeline — information
+that negative control outcomes alone do not directly provide.
 
 ::: {.callout-note collapse="true"}
 ### Operational note: Stage 2b in practice
@@ -1628,10 +1711,13 @@ ggplot(plot_dat, aes(x = est, fill = method)) +
 
 ```{r stage3-synthesis, results='asis'}
 cat("The three scenarios tell a coherent story about how the two feasibility ",
-    "paths (Stage 2a vs Stage 2b) lead to different conclusions:\n\n")
+    "paths (Stage 2a vs Stage 2b) — corresponding to the covariate-balance and ",
+    "pre-outcome validity checkpoints in the Muntner et al. staging framework — ",
+    "lead to different conclusions:\n\n")
 
 cat("- **Scenario 1** (gate: ", gate_1$decision,
-    "): With acceptable overlap, Stage 2a diagnostics pass, and Stage 2b ",
+    "): With acceptable overlap, the Muntner-style covariate-balance checkpoint ",
+    "(Stage 2a) passes, and the plasmode-simulation checkpoint (Stage 2b) ",
     "confirms that both the conventional PS and TMLE workflows perform well. ",
     "The TMLE workflow achieves comparable or better precision because its ",
     "outcome model can capture cubic age effects and treatment-effect ",
@@ -1641,9 +1727,10 @@ cat("- **Scenario 1** (gate: ", gate_1$decision,
 
 cat("- **Scenario 2** (gate: ", gate_2$decision,
     "): When overlap is stressed *and* the overlap-driving covariate ",
-    "strongly predicts the outcome, no workflow is adequate. Stage 2a flags ",
-    "the overlap concerns; Stage 2b confirms that neither the conventional PS ",
-    "workflow nor any TMLE specification can rescue the analysis.\n\n", sep = "")
+    "strongly predicts the outcome, no workflow is adequate. The staged review ",
+    "would stop regardless of approach: Stage 2a flags the overlap concerns, ",
+    "and Stage 2b confirms that neither the conventional PS workflow nor any ",
+    "TMLE specification can rescue the analysis.\n\n", sep = "")
 
 cat("- **Scenario 3** *(manuscript demonstration)* (gate: ", gate_3$decision,
     "): This scenario — identified through a systematic grid search over DGP ",
@@ -1657,9 +1744,11 @@ cat("- **Scenario 3** *(manuscript demonstration)* (gate: ", gate_3$decision,
     "outcome structure — cubic age effects, A:ckd, A:age, and A:age$^2$ ",
     "interactions — independently of the stressed treatment model. The ",
     "traditional PS workflow fails its performance targets. This is the core ",
-    "contrast: Stage 2a alone would have flagged both workflows equally, but ",
-    "Stage 2b reveals that TMLE's double robustness provides a viable path ",
-    "forward.\n\n",
+    "contrast: the Muntner-style covariate-balance checkpoint (Stage 2a) alone ",
+    "would have flagged both workflows equally, but the plasmode-simulation ",
+    "checkpoint (Stage 2b) supplies additional information before the final ",
+    "comparative analysis, revealing that TMLE's double robustness provides a ",
+    "viable path forward.\n\n",
     sep = "")
 
 cat("Scenarios 2 and 3 both create overlap stress through large `renal_risk` ",
@@ -2092,6 +2181,13 @@ if (!is.null(weak) && !is.null(strong)) {
    Stage 2a (traditional diagnostics); the TMLE workflows are gated by
    Stage 2b (plasmode simulation). They are not meant to be done in sequence —
    each workflow uses the feasibility path appropriate to its estimator.
+
+10. **Treating plasmode simulation as a replacement for all existing
+    checkpoint tools.** This tutorial extends the Muntner et al. (2024) staging
+    framework by adding plasmode simulation as a pre-outcome feasibility path,
+    but it does not replace traditional diagnostics, negative control outcomes,
+    or other residual-confounding assessments. These tools answer related but
+    distinct questions and may be used in combination in a production analysis.
 :::
 
 
@@ -2151,7 +2247,16 @@ cat("7. **Stage 2b can serve a dual role for TMLE workflows.**\n",
 cat("8. **Stage 3 is where all workflows fit their real outcome models.**\n",
     "   The $g$-strategy is carried forward from Stage 2a, but outcome models are\n",
     "   fit on real data only at this final stage. No analytic decisions change\n",
-    "   after outcome access.\n")
+    "   after outcome access.\n\n")
+
+cat("9. **This tutorial extends the Muntner et al. (2024) staging framework to\n",
+    "   targeted learning.**\n",
+    "   The staging and clean-room constructs of Muntner et al. — staged\n",
+    "   preliminary analyses, checkpoint decisions, masked data access, and audit\n",
+    "   trails — provide the organizational backbone. This tutorial generalizes\n",
+    "   that logic by showing how targeted-learning workflows can be embedded in\n",
+    "   the same masked checkpoint structure, with plasmode simulation used to\n",
+    "   evaluate full estimator performance before unblinding.\n")
 ```
 
 
@@ -2222,6 +2327,9 @@ Rscript scripts/sim_scenario1_v4_false_stop_inference.R eval   # N=600, 300 reps
 
 ## References
 
+- Muntner P, Colantonio LD, Engel Brolin EB, et al. Staging and clean-room
+  analyses in observational comparative effectiveness and safety studies.
+  *Journal of Clinical Epidemiology*, 2024.
 - van der Laan MJ, Rose S. *Targeted Learning: Causal Inference for
   Observational and Experimental Data*. Springer, 2011.
 - van der Laan MJ, Rose S. *Targeted Learning in Data Science*. Springer, 2018.
