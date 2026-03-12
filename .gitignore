@@ -3,6 +3,7 @@ outputs/
 output/
 data/
 logs/
+results/
 
 # R artifacts
 .Rproj.user/
@@ -15,6 +16,7 @@ logs/
 *.html
 *.pdf
 *_files/
+*_cache/
 *.log
 *.tex
 

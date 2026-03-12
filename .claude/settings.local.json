@@ -62,7 +62,16 @@
       "Bash(echo $PATH)",
       "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"cat\\(Sys.which\\(''quarto''\\)\\)\")",
       "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla _test_vignette.R)",
-      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla _test_functions.R)"
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla _test_functions.R)",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"devtools::test\\(\\)\")",
+      "Bash(ls \"C:/Users/andre/OneDrive/Documents/clean-room-sim/cleanTMLE/vignettes/\"*.rmarkdown)",
+      "Bash(ls \"C:/Users/andre/OneDrive/Documents/clean-room-sim/cleanTMLE/\"*.rmarkdown)",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"devtools::install\\(''.'', upgrade=''never'', quiet=TRUE\\); devtools::test\\(\\)\")",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla -e \"devtools::install\\(''.'', quick = TRUE, quiet = TRUE\\)\")",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla -e \"devtools::test\\(''.''\\)\")",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla -e \"devtools::install\\(''.'', quick = TRUE, quiet = TRUE\\); devtools::test\\(''.''\\)\")",
+      "Bash(\"C:/Users/andre/OneDrive/Documents/clean-room-sim/cleanTMLE/test_vignette_stage2b.R\":*)",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla \"C:/Users/andre/OneDrive/Documents/clean-room-sim/cleanTMLE/test_vignette_stage2b.R\")"
     ]
   }
 }
