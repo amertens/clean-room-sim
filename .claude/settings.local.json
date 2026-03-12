@@ -71,7 +71,23 @@
       "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla -e \"devtools::test\\(''.''\\)\")",
       "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla -e \"devtools::install\\(''.'', quick = TRUE, quiet = TRUE\\); devtools::test\\(''.''\\)\")",
       "Bash(\"C:/Users/andre/OneDrive/Documents/clean-room-sim/cleanTMLE/test_vignette_stage2b.R\":*)",
-      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla \"C:/Users/andre/OneDrive/Documents/clean-room-sim/cleanTMLE/test_vignette_stage2b.R\")"
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla \"C:/Users/andre/OneDrive/Documents/clean-room-sim/cleanTMLE/test_vignette_stage2b.R\")",
+      "Bash(rm -f \"C:/Users/andre/OneDrive/Documents/clean-room-sim/.git/index.lock\")",
+      "Bash(mkdir -p old_sim)",
+      "Bash(mv R/sim_helpers_v3.R R/sim_helpers_v4.R old_sim/)",
+      "Bash(mv R/dgp R/estimators R/staging R/tmle R/utils old_sim/)",
+      "Bash(mv simulation:*)",
+      "Bash(mv run_stage1.R run_stage2.R run_stage3_report.R old_sim/)",
+      "Bash(mv config:*)",
+      "Bash(mv tests:*)",
+      "Bash(mv Makefile old_sim/)",
+      "Bash(mv scripts:*)",
+      "Bash(rmdir R)",
+      "Bash(Rscript --vanilla _quick_test.R)",
+      "Bash(ls \"/c/Program Files/R/\"*/bin/Rscript.exe)",
+      "Bash(ls \"/c/Program Files/R/\"*/bin/x64/Rscript.exe)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla _quick_test.R)",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla run_simulation.R)"
     ]
   }
 }
