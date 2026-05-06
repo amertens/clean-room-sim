@@ -47,25 +47,24 @@ workflow [@vanderLaan2006tmle; @vdL2011tlbook; @dang2023roadmap;
 @gruber2022sap].
 
 This paper introduces **cleanTMLE**, an R [@rcoreteam2024] package
-that implements such a workflow. The package contributes three new
-software primitives. First, `run_plasmode_dq_stress()` extends the
-standard outcome-blind plasmode loop with four data-quality (DQ)
-degradation mechanisms (covariate missingness, treatment
-misclassification, outcome misclassification, and unmeasured
-confounding), producing a degradation gradient: a curve of bias,
-RMSE, and confidence-interval coverage at increasing levels of each
-threat, computed separately for each prespecified TMLE candidate.
-Second, `gate_check()` and `gate_all()` consume the same plasmode
-metrics together with stage-specific checkpoints
+that implements such a workflow. The marquee function,
+`run_plasmode_dq_stress()`, extends the outcome-blind plasmode loop
+with four data-quality degradation mechanisms (covariate
+missingness, treatment misclassification, outcome
+misclassification, and unmeasured confounding) and returns a
+degradation gradient — a curve of bias, RMSE, and coverage at
+increasing levels of each threat, separately for each prespecified
+TMLE candidate. The `gate_check()` and `gate_all()` functions feed
+those metrics, together with stage-specific checkpoints
 (`checkpoint_cohort_adequacy()`, `checkpoint_balance()`,
-`checkpoint_residual_bias()`) to produce a single GO/FLAG/STOP
-decision per stage. Third, the `cleanroom_lock` object, the audit
-log, and the decision log are persisted as hashed RDS artifacts and
-guard the outcome column at run time: every Stage 4 estimator
-refuses to run unless `authorize_outcome_analysis()` has signed off.
-Together these primitives turn the paper-only prespecification
-checklists of the TL-RWE literature [@gruber2022sap] into machine-
-readable, hash-verified artifacts.
+`checkpoint_residual_bias()`), into a single GO/FLAG/STOP decision
+per stage. Underneath, the `cleanroom_lock` object, the audit log,
+and the decision log are persisted as hashed RDS artifacts and act
+as access guards: every Stage 4 estimator refuses to run unless
+`authorize_outcome_analysis()` has signed off. The combination
+turns the paper-only prespecification checklists of the TL-RWE
+literature [@gruber2022sap] into machine-readable, hash-verified
+artifacts.
 
 We illustrate the framework in a Monte Carlo simulation study
 comparing six estimators (crude, IPTW, propensity-score matching,
@@ -74,14 +73,14 @@ overlap, marginal overlap, and unmeasured confounding. The DQ
 stress test correctly identifies scenarios in which estimator
 performance degrades and the pipeline should be flagged. We then
 replicate the workflow on the Rescue.Co Kenya Trauma Registry
-(n = 1,693 ambulance patients with 22.8 % outcome missingness),
+(n = 1,693 ambulance patients with 24.6 % outcome missingness),
 where the lock, gate, and plasmode DQ stress test executed cleanly
 on real covariate structure (plasmode coverage 0.92--0.96, |bias|
 < 0.01) and where the four estimators agreed on the direction of
 effect (risk difference 0.02--0.03 in favour of Rescue.Co transport,
 all 95 % confidence intervals crossing zero); we use the case study
-to motivate fifteen real-data robustness fixes that became cleanTMLE
-v0.1.1. cleanTMLE reuses the cohort-specification and reporting
+to motivate the real-data robustness fixes catalogued in
+`NEWS.md` for cleanTMLE v0.1.1. cleanTMLE reuses the cohort-specification and reporting
 functions of the **causalRisk** package [@brookhart2024causalrisk] —
 an MIT-licensed R package that implements IPW, g-computation, and
 AIPW estimators with a clean-room-friendly setup — and adds the
@@ -161,16 +160,15 @@ Sentinel Innovation Center [@desai2024sentinel], and Amgen's
 Center for Observational Research [@kent2026fiord]. cleanTMLE
 operationalises that construct in software. The published TL-RWE
 literature [@dang2023roadmap; @gruber2022sap; @gruber2023future]
-uses the term "outcome-blind." We use both terms but prefer "clean
-room" when talking about software, because the package literally
-refuses to let Stage 4 estimators run on a lock whose outcome
-column has not been authorised. The same way a manufacturing
-clean room blocks access to a sterile area until protocols are
-followed, cleanTMLE blocks the outcome column until the gate has
-signed off. The mechanism is a `mask_outcome()` /
-`assert_outcome_authorized()` guard that every estimator function
-calls before fitting. This is an implementation pattern, not a
-methodological novelty.
+calls the same idea "outcome-blind"; we use the two terms
+interchangeably, but lean on "clean room" when discussing the
+software because the package literally refuses to let Stage 4
+estimators run on a lock whose outcome column has not been
+authorised, in the same way a manufacturing clean room blocks
+access to a sterile area until protocols have been followed. The
+mechanism — a `mask_outcome()` / `assert_outcome_authorized()`
+guard that every estimator function calls before fitting — is an
+implementation pattern rather than a methodological novelty.
 
 ## What the paper contributes
 
@@ -217,7 +215,7 @@ and what it does and does not replace. §\ref{sec-implementation}
 shows the user-facing functions and the implementation of
 `run_plasmode_dq_stress()`. §\ref{sec-simulation} reports the
 Monte Carlo simulation. §\ref{sec-casestudy} replicates the
-workflow on the Rescue.Co Kenya Trauma Registry (n = 1,693, 22.8 %
+workflow on the Rescue.Co Kenya Trauma Registry (n = 1,693, 24.6 %
 outcome missingness) and reports the issues that real-data use
 surfaced. §\ref{sec-discussion} discusses limitations
 and connections to E-values [@vanderWeele2017evalue], quantitative
@@ -555,15 +553,15 @@ can be augmented to require a maximum allowed degradation, in
 which case the gate effectively rules out fragile candidates
 before the outcome is accessed.
 
-It is worth saying explicitly that the truncation level inside a
-TMLE candidate is not just a tuning knob: trimming or truncating
-the propensity score changes the support of the population to
-which the estimand applies, and therefore the estimand itself
-[@brookhart2024causalrisk; @lash2014qba]. cleanTMLE treats the
-truncation level as part of the prespecified candidate, so any
-estimand drift induced by truncation is locked into the audit log
-and scored on the same RMSE and coverage metrics as everything
-else, rather than being chosen post-hoc on the realised data.
+The truncation level inside a TMLE candidate is more than a tuning
+knob. Trimming or truncating the propensity score changes the
+support of the population to which the estimand applies, and
+therefore the estimand itself [@brookhart2024causalrisk;
+@lash2014qba]. cleanTMLE treats the truncation level as part of
+the prespecified candidate, so any estimand drift induced by
+truncation is locked into the audit log and scored on the same
+RMSE and coverage metrics as everything else rather than chosen
+post-hoc on the realised data.
 
 # A quantitative bridge from SPIFD2 to GO/FLAG/STOP {#sec-bridge}
 
@@ -598,59 +596,50 @@ adjudicated by reviewers rather than scored by the gate.
 The DQ stress test reports, for each candidate, the same triple
 (bias, RMSE, coverage) at each severity of each threat that the
 baseline plasmode reports. Because the units match, the gate can
-apply the same thresholds it already uses for the baseline plasmode
-— maximum allowed bias, minimum allowed coverage, and an allowed
-SE-calibration window — to the degraded runs. The candidate then
-has to pass the gate at the ideal data-generating process *and*
-stay inside the gate thresholds across the plausible range of each
-threat documented in SPIFD2.
+apply the same thresholds it already uses for the baseline
+plasmode (maximum allowed bias, minimum allowed coverage, and an
+allowed SE-calibration window) to the degraded runs. The candidate
+then has to pass the gate at the ideal data-generating process
+*and* stay inside the gate thresholds across the plausible range
+of each threat documented in SPIFD2.
 
-Three things change when the gate works this way.
-
-1. **The data-fitness argument becomes numeric, candidate-
-   specific, and machine-readable.** Instead of "the outcome
-   ascertainment algorithm has reported sensitivity 0.90", the
-   gate sees "at sens = 0.90, spec = 0.95 the bias of candidate
-   `tmle_glmnet_t05` rises from 0.001 to 0.014, which exceeds the
-   prespecified threshold of 0.010". The reviewer no longer has to
-   translate between literatures.
-
-2. **Candidate selection picks robust, not just optimal,
-   specifications.** The default `select_tmle_candidate()` rule
-   minimises RMSE on the baseline plasmode. We augment this with
-   `select_tmle_candidate(rule = "min_max_rmse")`, which minimises
-   the worst-case RMSE across the prespecified DQ scenarios. A
-   candidate that wins on the baseline but collapses under a 5%
-   missingness rate loses to a slightly less efficient candidate
-   that stays inside the gate thresholds across the entire
-   plausible range.
-
-3. **The data-fitness argument is recorded in the same audit log
-   as the rest of the prespecification.** A reviewer or a
-   regulator can read the audit trail, see the SPIFD2 ranges that
-   went in, see the gate thresholds that came out, and reproduce
-   the gate decision exactly.
+This shifts the gate in three ways. The data-fitness argument
+becomes numeric, candidate-specific, and machine-readable: instead
+of a prose claim that "the outcome ascertainment algorithm has
+reported sensitivity 0.90," the gate sees that at sens = 0.90 and
+spec = 0.95 the bias of candidate `tmle_glmnet_t05` rises from
+0.001 to 0.014, which exceeds the prespecified threshold of 0.010.
+The default `select_tmle_candidate()` rule, which picks the
+RMSE-minimiser on the baseline plasmode, gains the option
+`rule = "min_max_rmse"`, which selects the candidate with the
+lowest worst-case RMSE across the DQ scenarios; a candidate that
+wins on the baseline but collapses under a 5 % missingness rate
+loses to a slightly less efficient one that stays inside the gate
+thresholds across the entire plausible range. And because the
+gate consumes the DQ output through the same audit-log machinery
+as the baseline plasmode, a reviewer can read the audit trail, see
+the SPIFD2 ranges that went in, see the gate thresholds that came
+out, and reproduce the decision exactly.
 
 ## What the bridge does not replace
 
 The DQ stress test is not a quantitative bias analysis (QBA) of
 the kind described by @lash2014qba. QBA adjusts the *final* effect
 estimate for a postulated bias and is therefore an unblinding-
-stage tool. The plasmode DQ stress test does not adjust the
-estimate; it asks whether the candidate estimator can still pass
-the gate when the data are degraded. Both belong in a
-comprehensive analysis. The DQ stress test goes in the
-prespecification; QBA goes in the sensitivity-analysis section
-after the outcome is unblinded.
+stage tool; the plasmode DQ stress test does not adjust the
+estimate, but asks whether the candidate estimator can still pass
+the gate when the data are degraded. Both have a place in a full
+analysis: DQ stress in the prespecification, QBA in the
+sensitivity section after unblinding.
 
-The DQ stress test is also not a substitute for the targeted-
-learning causal-gap sensitivity analysis of @diaz2013sensitivity,
-which characterises how the estimate changes as a function of an
-unmeasured-confounder bound. Causal-gap is an unblinding-stage
-tool that complements the E-value [@vanderWeele2017evalue].
-Conversely, the DQ stress test reaches threats that neither the
-E-value nor causal-gap covers, including covariate missingness and
-exposure misclassification.
+Nor does the DQ stress test substitute for the targeted-learning
+causal-gap sensitivity analysis of @diaz2013sensitivity, which
+characterises how the estimate changes as a function of an
+unmeasured-confounder bound. Causal-gap is also an unblinding-stage
+tool and complements the E-value [@vanderWeele2017evalue]. The DQ
+stress test, conversely, reaches threats that neither the E-value
+nor causal-gap covers — covariate missingness and exposure
+misclassification in particular.
 
 We therefore position the DQ stress test as the *first* of three
 sequential bias analyses: pre-outcome (DQ stress test), at-
@@ -777,11 +766,11 @@ make_table2(list(`TMLE (primary)` = upd), risk_time = 24)
 ```
 
 The DQ stress test is the only fundamentally new piece in the
-above. The rest is conventional TL-RWE plumbing. The point of the
-example is to show that the new piece slots into a single existing
-function call (`run_plasmode_dq_stress()`) that returns the same
-class of metrics object as the standard plasmode and feeds the
-same gate.
+above; the rest is conventional TL-RWE plumbing.
+`run_plasmode_dq_stress()` returns a metrics object of the same
+class as the standard plasmode and feeds the same gate, so adding
+the data-quality argument to the workflow does not require new
+infrastructure on the analyst's side.
 
 ## Inside `run_plasmode_dq_stress()`
 
@@ -831,14 +820,14 @@ outcome ascertainment.
 `causalRisk` [@brookhart2024causalrisk] is an MIT-licensed R
 package that implements IPW, g-computation, and AIPW cumulative-
 risk estimators with a cohort-specification grammar that maps
-neatly onto the clean-room idea. cleanTMLE reuses that
-cohort-specification grammar and the associated reporting helpers,
-acknowledging Brookhart, Breskin, and Eledath as copyright holders
-for the reused code in the package's DESCRIPTION file. The lock,
-gate, audit log, modular TMLE functions, and plasmode DQ stress
-test are unique to cleanTMLE. An analyst who has been using
-`causalRisk` for IPW analyses can move into cleanTMLE for staged
-TMLE analyses without relearning the cohort-specification grammar.
+neatly onto the clean-room idea. cleanTMLE reuses that grammar
+and the associated reporting helpers — Brookhart, Breskin, and
+Eledath are credited as copyright holders for the reused code in
+the package's `DESCRIPTION` file — and adds the lock, gate, audit
+log, modular TMLE functions, and plasmode DQ stress test as
+cleanTMLE-original components. An analyst already using
+`causalRisk` for IPW analyses can move into cleanTMLE without
+relearning the cohort-specification surface.
 
 # Simulation Study {#sec-simulation}
 
@@ -935,8 +924,9 @@ thresholds for Scenario C, demonstrating that the staged workflow
 declines to run the primary analysis when the available data
 cannot identify the estimand.
 
-A fourth observation worth flagging is the standard-error
-calibration of the IPW estimator. The mean-SE-to-empirical-SD
+A fourth pattern concerns standard-error calibration for the IPW
+estimator and is worth surfacing because it routinely surprises
+applied users. The mean-SE-to-empirical-SD
 ratio for IPTW is often above one in our scenarios, because the
 default IF-based variance estimator treats the propensity score
 as known and is therefore conservative when the propensity score
@@ -1181,7 +1171,7 @@ fully reproducible from the companion repository
 
 The case is interesting for four reasons that the simulation does
 not exercise: (a) the primary outcome (Glasgow Outcome Scale
-Extended, GOSE 1--8) has 22.8 % missing values from loss to
+Extended, GOSE 1--8) has 24.6 % missing values from loss to
 6-month follow-up; (b) 6.4 % of the analytic cohort transferred out
 of the index hospital, complicating in-hospital outcome
 ascertainment; (c) an 8-week healthcare-worker strike (15 March
@@ -1300,7 +1290,7 @@ efficient (n = 931 versus 1,277) but its CI is also widest. None of
 the four estimators reaches conventional significance at $\alpha =
 0.05$. We report the IPCW-TMLE as the primary because it is the
 only estimator that targets the marginal estimand on the full
-cohort *and* corrects for the 22.8 % outcome missingness; the
+cohort *and* corrects for the 24.6 % outcome missingness; the
 matched results serve as the prespecified sensitivity exhibit.
 
 Following @gruber2022sap (Step 5) and @diaz2013sensitivity, we
@@ -1318,8 +1308,6 @@ healthcare-worker strike or by the differential transfer-out
 attrition would erase or invert the effect.
 
 ## What the case study tells us about the workflow
-
-Three findings are worth surfacing for the methods discussion.
 
 **The audit and gate layer was the part of the package that
 delivered.** The decision log records every analytic choice
@@ -1341,35 +1329,36 @@ the differential transfer-out attrition. We discuss this gap in
 MNAR extensions planned for cleanTMLE 0.2.
 
 **The estimator primitives needed real-data robustness work.**
-Applying cleanTMLE 0.1.0 to the rescueCo lock surfaced fifteen
-issues, six of them blocking, which we addressed in the
-companion 0.1.1 release: `run_plasmode_dq_stress()` failed with
+Applying cleanTMLE 0.1.0 to the rescueCo lock surfaced more than a
+dozen distinct issues, six of them blocking, which the companion
+0.1.1 release addresses. The marquee problem was that
+`run_plasmode_dq_stress()` failed with
 `"mu must be a nonempty numeric vector"` on a lock with NA in the
-outcome (now guarded), the modular TMLE workflow refused to fit on
-NA outcomes (now subsets to complete cases with an MCAR warning),
-`fit_ps_superlearner()` crashed on stale parallel backends (now
-defaults to plain sequential evaluation), `make_table1()` did not
-accept a lock (now does), and `run_residual_confounding_stage()`
-silently dropped failed NC fits (now records each failure in the
-audit log). We document these candidly because the working theory
-of the framework is precisely that the audit / gate layer should
-make such issues visible — including issues with the package
-itself — rather than absorbing them into a hand-edited final table.
+outcome (now guarded). The modular TMLE workflow itself refused to
+fit on NA outcomes (now subsets to complete cases with an MCAR
+warning); `fit_ps_superlearner()` crashed on stale parallel
+backends (now defaults to plain sequential evaluation);
+`make_table1()` rejected a lock object (now accepts it); and
+`run_residual_confounding_stage()` silently dropped failed NC fits
+(now records each failure in the audit log). We document these
+candidly because the working theory of the framework is precisely
+that the audit and gate layer should make problems visible,
+including problems with the package itself, rather than absorb
+them into a hand-edited final table.
 
-The full release notes are in `cleanTMLE/NEWS.md`; the rescueCo
-case-study companion repository contains the manuscript artifacts
-(`clean_room/results/manuscript_artifacts/`) from which the tables
-above are reproduced.
+The full release notes are in `cleanTMLE/NEWS.md`, and the
+rescueCo companion repository's `clean_room/results/manuscript_artifacts/`
+directory contains the data behind the tables above.
 
 # Discussion {#sec-discussion}
 
-## What the DQ stress test adds, in one sentence
+## What the DQ stress test adds
 
-The standard plasmode answers the question "which candidate has
-the lowest RMSE under the locked data-generating process?" The DQ-
-augmented plasmode answers the larger question "which candidate
-has the lowest RMSE *and* stays inside the gate thresholds across
-the plausible range of every threat documented in SPIFD2?"
+The baseline plasmode asks which candidate has the lowest RMSE
+under the locked data-generating process. The DQ-augmented
+plasmode asks the larger question: which candidate has the lowest
+RMSE *and* stays inside the gate thresholds across the plausible
+range of every threat documented in SPIFD2.
 
 ## Comparison with adjacent tools
 
@@ -1423,61 +1412,61 @@ domains in practice.
 ## Limitations
 
 The current implementation has six limitations the analyst should
-keep in mind.
+keep in mind, grouped into model assumptions, computational cost,
+and estimand scope.
 
-First, covariate missingness is missing-completely-at-random
-(MCAR) only. Missing-at-random (MAR) and missing-not-at-random
-(MNAR) mechanisms require a missingness model and are not yet
-supported. A more principled alternative is inverse-probability-
-of-missingness weighting (`identify_missing()` in `causalRisk`,
-[@brookhart2024causalrisk]), which trades MCAR for the weaker
-stratified-MCAR assumption; we plan to expose the same option in
-a future cleanTMLE release.
+### Model assumptions
 
-Second, the plasmode data-generating process is parametric: the
-outcome is generated from a logistic regression of $Y$ on $W$,
-fitted to the lock data, and the synthetic effect is constant on
-the risk-difference scale ($p_1^{\text{sim}} = p_0^{\text{sim}} +
-\Delta$). Effect modification, time-varying treatment, and
-competing risks would require a richer DGP. The package architecture
-permits these extensions; the simulation in this paper does not
-exercise them.
+The covariate-missingness scenario assumes MCAR. MAR and MNAR
+mechanisms require an explicit missingness model and are not yet
+supported. The principled alternative is inverse-probability-of-
+missingness weighting (`identify_missing()` in `causalRisk`
+[@brookhart2024causalrisk]), which weakens the assumption to
+stratified MCAR; we plan to expose the same option in a future
+cleanTMLE release.
 
-Third, the plausible degradation ranges have to come from
-external evidence. The software cannot decide whether 5% or 20%
+The plasmode DGP itself is parametric. The outcome is generated
+from a logistic regression of $Y$ on $W$ fitted to the lock data,
+and the synthetic effect is constant on the risk-difference scale
+($p_1^{\text{sim}} = p_0^{\text{sim}} + \Delta$). Effect
+modification, time-varying treatment, and competing risks would
+need a richer DGP. The package architecture permits these
+extensions; the simulation reported here does not exercise them.
+
+The plausible degradation ranges have to come from external
+evidence. The software cannot decide whether 5 % or 20 %
 covariate missingness is realistic for a given data source; the
-analyst has to cite a profiling or validation study. This is
-consistent with the SPIFD2 stepwise template, which makes the
-same demand qualitatively, but it is worth saying explicitly.
+analyst has to cite a profiling or validation study. SPIFD2 makes
+the same demand qualitatively, and the DQ stress test inherits it.
 
-Fourth, the DQ stress test is computationally expensive. Each
-scenario × severity adds a full set of plasmode replicates. With
-the configuration of §\ref{sec-simulation} — 50 replicates per
-cell, fifteen scenario × severity cells (3 missingness fractions,
-$2 \times 2 = 4$ treatment-misclassification cells, 4 outcome-
-misclassification cells, and 4 unmeasured-confounding cells), and
-four candidates — the test fits 3,000 TMLE models per Monte Carlo
-scenario. We recommend running fewer replicates per severity than
-the baseline plasmode (50 versus 200, by default) and parallelising
-the outer loop over scenarios.
+### Computational cost
 
-Fifth, the running estimand in this paper is the marginal risk
-difference for a binary point exposure. Counterfactual hazard
-ratios — available in `causalRisk` via `estimate_ipwhr()` and in
-`survtmle` for survival TMLE [@survtmlepackage2018] — are not
-yet wrapped into the cleanTMLE staged workflow. Sites that need
-hazard-ratio estimation can call those packages directly and feed
-the output through the same lock and audit trail.
+Each scenario $\times$ severity adds a full set of plasmode
+replicates. With the configuration of §\ref{sec-simulation} (50
+replicates per cell, fifteen scenario $\times$ severity cells, and
+four candidates) the test fits 3,000 TMLE models per Monte Carlo
+scenario. The default settings already use fewer replicates than
+the baseline plasmode (50 versus 200); for larger candidate grids,
+parallelising the outer loop over scenarios is the right next step.
 
-Sixth, `causalRisk` supports several estimand families that
-cleanTMLE does not: counterfactual cumulative-incidence curves
-with competing risks, cumulative-count IPW
-(`estimate_ipwcount()`), multinomial treatments, and several
-weight types (SMR, overlap, normalised, stabilised). The
-cleanTMLE staged workflow narrows scope to binary-treatment
-risk-difference TMLE in this release; analysts who need the
-broader estimand surface can use `causalRisk` directly with the
-same cohort-specification grammar.
+### Estimand scope
+
+The running estimand in this paper is the marginal risk difference
+for a binary point exposure. Counterfactual hazard ratios are
+available in `causalRisk` via `estimate_ipwhr()` and in `survtmle`
+[@survtmlepackage2018] but are not yet wrapped into the cleanTMLE
+staged workflow. Sites that need hazard-ratio estimation can call
+those packages directly and feed the output through the same lock
+and audit trail.
+
+Several other estimand families sit outside cleanTMLE's current
+scope: counterfactual cumulative-incidence curves with competing
+risks, cumulative-count IPW (`estimate_ipwcount()`), multinomial
+treatments, and the SMR / overlap / normalised / stabilised weight
+families. cleanTMLE in this release narrows to binary-treatment
+risk-difference TMLE; analysts who need the broader estimand
+surface can use `causalRisk` directly with the same cohort-
+specification grammar.
 
 ## Recommendations for practice
 
