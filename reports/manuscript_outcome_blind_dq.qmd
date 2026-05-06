@@ -74,14 +74,14 @@ stress test correctly identifies scenarios in which estimator
 performance degrades and the pipeline should be flagged. We then
 replicate the workflow on the Rescue.Co Kenya Trauma Registry
 (n = 1,693 ambulance patients with 24.6 % outcome missingness),
-where the lock, gate, and outcome-blind plasmode executed cleanly
-on real covariate structure (plasmode coverage 0.94, |bias| <
-0.001) and where the four estimators agreed on the direction of
-effect (risk difference 0.030--0.033 in favour of Rescue.Co
-transport; three of four 95 % confidence intervals cross zero, the
-IPCW-TMLE just clears it); we use the case study to motivate the
-real-data robustness fixes catalogued in `NEWS.md` for cleanTMLE
-v0.1.1. cleanTMLE reuses the cohort-specification and reporting
+where the lock, gate, baseline plasmode, and DQ stress test
+executed cleanly on real covariate structure (Stage 2b feasibility
+coverage 0.94, |bias| < 0.001) and where the four Stage 4
+estimators agreed on the direction of effect (risk difference
+0.030--0.033 in favour of Rescue.Co transport; three of four 95 %
+confidence intervals cross zero, the IPCW-TMLE just clears it); we
+use the case study to motivate the real-data robustness fixes
+catalogued in `NEWS.md` for cleanTMLE v0.1.1. cleanTMLE reuses the cohort-specification and reporting
 functions of the **causalRisk** package [@brookhart2024causalrisk] —
 an MIT-licensed R package that implements IPW, g-computation, and
 AIPW estimators with a clean-room-friendly setup — and adds the
@@ -1222,36 +1222,41 @@ than concentrating in one. Three of the five NCs
 dropped before fitting by a near-zero-variance filter applied at
 covariate sanitisation (combined prevalence below the 1 % threshold
 in the analytic cohort), and the drops are recorded in the audit
-log; the remaining two NCs are fit at Stage 3. The estimand is
-attached via `attach_estimand()` and the lock is fingerprinted with
-SHA-256. Stage 2b runs `run_plasmode_feasibility()` on two
-candidates that share the GLM PS library and vary the truncation
-threshold (`glm_t01` with $t = 0.01$, `glm_t05` with $t = 0.05$),
-50 replicates each, with the locked candidate selected via
-`select_tmle_candidate(rule = "min_rmse")`. (When DQ stress
-results are available, the manuscript's preferred rule is
-`min_max_rmse`; we use `min_rmse` here because the Stage 2b script
-in the rescueCo bundle currently exercises the baseline plasmode
-only.)
+log; the remaining two NCs are fit at Stage 3. The estimand is attached via `attach_estimand()` and the lock is
+fingerprinted with SHA-256. Stage 2b runs the baseline
+`run_plasmode_feasibility()` on two GLM-PS truncation candidates
+(`glm_t01` with $t = 0.01$, `glm_t05` with $t = 0.05$) for 50
+replicates each, and Stage 3 runs the full
+`run_plasmode_dq_stress()` over the four threats on a wider
+candidate set (`glm_t01`, `glmnet_t01`, `ensemble_t01`,
+`ensemble_t05`). The locked candidate is selected via
+`select_tmle_candidate(rule = "min_max_rmse", dq_results = ...)`,
+the manuscript's recommended minimax rule.
 
 ## Pre-outcome gate and plasmode results
 
-The plasmode metrics on the locked DGP for the rescueCo cohort are:
+The Stage 2b feasibility plasmode metrics on the locked DGP are:
 
 | Candidate | Bias    | RMSE   | Coverage | SE/SD |
 |-----------|--------:|-------:|---------:|------:|
 | `glm_t01` | -0.0006 | 0.0120 |     0.94 | 1.00  |
 | `glm_t05` | -0.0006 | 0.0120 |     0.94 | 1.00  |
 
-: Stage 2b plasmode metrics (rescueCo lock, 50 replicates per
-candidate, additive risk-difference effect of 0.05).
+: Stage 2b feasibility plasmode metrics (rescueCo lock, 50
+replicates per candidate, additive risk-difference effect of 0.05).
 
-Both candidates pass the gate's prespecified targets
+Both candidates pass the prespecified gate targets
 (`max_abs_bias = 0.01`, `min_coverage = 0.90`,
 `se_sd_window = (0.8, 1.2)`); the two truncation thresholds
 produce indistinguishable performance because the propensity
-scores never approached either bound (range 0.21--0.81). Negative
-controls run at Stage 3 on the locked PS:
+scores stay well inside the [0.01, 0.99] bounds (range
+0.21--0.81). The Stage 3 DQ stress test sweeps the four threats
+over four candidates and 3 replicates per cell (the bundled
+`config/clean_room_config.yml` sets `simulation.n_sims = 3`, low
+enough that coverage estimates are noisy; we recommend re-running
+with at least 50 replicates for inference); the minimax rule
+locks `glm_t01` as the primary specification. Negative controls
+run at Stage 3 on the locked PS:
 
 | Negative control       | Estimate | SE      | p-value | Pass |
 |------------------------|---------:|--------:|--------:|:----:|
@@ -1324,21 +1329,21 @@ fired. The lock fingerprint matched on reload at every stage. This
 worked exactly as the manuscript's §\ref{sec-framework} promises.
 
 **The outcome-blind plasmode confirmed candidate stability on real
-covariate structure.** Plasmode coverage of 0.94 with bias below
-0.001 across 50 replicates is the validation a reviewer would want.
-The Stage 2b script in this case-study bundle exercises only the
-baseline `run_plasmode_feasibility()`; running the full DQ stress
-test (`run_plasmode_dq_stress()` with all four threats) was not
-needed to discriminate between the two truncation candidates here
-because the propensity scores stayed well inside the truncation
-bounds. The simulation in §\ref{sec-simulation} exercises the full
-DQ stress framework. The four threats `run_plasmode_dq_stress()`
-encodes (covariate MCAR, exposure misclassification, outcome
-misclassification, latent $U$) do not cover two design challenges
-that did matter in the rescueCo study — the strike-window
-confounder and the inter-facility transfer imbalance — which
-motivates the time-window and MAR / MNAR extensions planned for
-cleanTMLE 0.2.
+covariate structure.** Stage 2b feasibility coverage of 0.94 with
+bias below 0.001 across 50 replicates is the validation a reviewer
+would want. Stage 3 then runs the full DQ stress test
+(`run_plasmode_dq_stress()`) over the four threats; the bundled
+configuration uses 3 replicates per scenario × severity cell, which
+is low enough that the coverage estimates are noisy (the baseline
+coverage rounds to 1.00 because all 3 CIs happened to cover) and
+we treat the DQ run as a structural smoke test rather than a
+calibration measurement until it is rerun with more replicates. The
+four threats `run_plasmode_dq_stress()` encodes (covariate MCAR,
+exposure misclassification, outcome misclassification, latent $U$)
+do not cover two design challenges that did matter in the rescueCo
+study — the strike-window confounder and the inter-facility
+transfer imbalance — which motivates the time-window and MAR /
+MNAR extensions planned for cleanTMLE 0.2.
 
 **The estimator primitives needed real-data robustness work.**
 Applying cleanTMLE 0.1.0 to the rescueCo lock surfaced more than a
