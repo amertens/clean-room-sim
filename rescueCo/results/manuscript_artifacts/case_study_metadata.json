@@ -8,8 +8,8 @@
     "n_gose_avail": 1277
   },
   "primary_estimator": "Full-cohort TMLE (locked spec from Stage 2b)",
-  "primary_RD": 0.0302,
-  "primary_CI": "[-0.0017, 0.0621]",
+  "primary_RD": 0.0306,
+  "primary_CI": "[-0.0012, 0.0623]",
   "lock_hash": "8f222d7b4aecfa6e2514ba2f82f4f6125bac8dae434edc829cb1a70aa4360434",
-  "rendered_at": "2026-05-06T06:59:27-0700"
+  "rendered_at": "2026-05-06T11:01:15-0700"
 }

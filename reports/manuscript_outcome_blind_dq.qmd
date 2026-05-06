@@ -77,19 +77,20 @@ replicate the workflow on the Rescue.Co Kenya Trauma Registry
 where the lock, gate, and baseline plasmode executed cleanly on
 real covariate structure (Stage 2b feasibility coverage 0.94, |bias|
 < 0.001 over 50 replicates; a higher-rep DQ stress run is left as a
-companion exercise) and where the four Stage 4 estimators agreed on
-the direction of effect (risk difference 0.030--0.033 in favour of
-Rescue.Co transport; three of four 95 % confidence intervals cross
-zero, the IPCW-TMLE just clears it). An ordinal proportional-odds
-analysis of GOSE 1--8 on the same cohort gives a common odds ratio
-of 1.29 (95 % CI 1.04, 1.60, p = 0.020), the only Stage-4 estimator
-to clear the conventional significance threshold cleanly. We use
-the case study to motivate the real-data robustness fixes
-catalogued in `NEWS.md` for cleanTMLE v0.1.1. cleanTMLE reuses the cohort-specification and reporting
+companion exercise) and where six Stage 4 estimators (crude, PS
+matching, stabilised IPTW, full-cohort TMLE, matched-cohort TMLE,
+and IPCW-weighted TMLE — all produced by cleanTMLE following the
+staged-analysis vignette) agreed on the direction of effect (risk
+difference 0.026--0.037 in favour of Rescue.Co transport, with the
+crude and IPTW intervals excluding zero and the simulation-locked
+TMLE interval just crossing). We use the case study to motivate
+the real-data robustness fixes catalogued in `NEWS.md` for
+cleanTMLE v0.1.1, including the new `run_ipcw_tmle()` for outcome-
+missing-at-random sensitivity. cleanTMLE reuses the cohort-specification and reporting
 functions of the **causalRisk** package [@brookhart2024causalrisk] —
 an MIT-licensed R package that implements IPW, g-computation, and
 AIPW estimators with a clean-room-friendly setup — and adds the
-lock, gate, and DQ-stress primitives that `causalRisk` does not
+lock, gate, and DQ-stress functions that `causalRisk` does not
 provide.
 
 **Keywords:** targeted maximum likelihood estimation, plasmode
@@ -203,9 +204,9 @@ The paper makes three connected contributions:
    `causalRisk` [@brookhart2024causalrisk], an MIT-licensed package
    that implements IPW, g-computation, and AIPW estimators with a
    clean-room-friendly setup. cleanTMLE adds the lock, gating, and
-   plasmode DQ stress primitives that `causalRisk` does not
+   plasmode DQ stress functions that `causalRisk` does not
    provide; an analyst familiar with `causalRisk` can use cleanTMLE
-   without relearning the cohort-specification surface.
+   without relearning the cohort-specification grammar.
 
 ## Paper structure
 
@@ -829,7 +830,7 @@ neatly onto the clean-room idea. cleanTMLE reuses that grammar
 and the associated reporting helpers — Brookhart, Breskin, and
 Eledath are credited as copyright holders for the reused code in
 the package's `DESCRIPTION` file — and adds the lock, gate, audit
-log, modular TMLE functions, and plasmode DQ stress test as
+log, step-by-step TMLE functions, and plasmode DQ stress test as
 cleanTMLE-original components. An analyst already using
 `causalRisk` for IPW analyses can move into cleanTMLE without
 relearning the cohort-specification surface.
@@ -844,8 +845,8 @@ replicate. Six estimators are compared:
 1. **Crude** — unadjusted risk difference.
 2. **IPTW** — stabilised inverse-probability-of-treatment weighting.
 3. **PS Match** — 1:1 nearest-neighbour propensity-score matching.
-4. **TMLE** — modular TMLE with the plasmode-selected
-   specification, no cross-fitting.
+4. **TMLE** — TMLE with the plasmode-selected specification, no
+   cross-fitting.
 5. **TMLE_CF (CV-TMLE)** — cross-validated TMLE with two folds. We
    use the names "cross-validated TMLE" and "cross-fitted TMLE"
    interchangeably; both describe the sample-split estimator of
@@ -1285,62 +1286,55 @@ is then unmasked and Stage 4 estimators run.
 
 ```{r casestudy-table}
 case_eff <- data.frame(
-  Method = c("PS-matched logistic", "PS-matched TMLE",
-             "Full-cohort TMLE",   "IPCW-TMLE (full cohort)"),
-  N      = c(939L, 939L, 1277L, 1277L),
-  RD     = c(0.0303, 0.0318, 0.0302, 0.0332),
-  CI_lo  = c(-0.0057, -0.0039, -0.0017, 0.0005),
-  CI_hi  = c( 0.0615,  0.0676,  0.0621, 0.0620),
+  Method = c("Crude (unadjusted)",  "PS matching",
+             "IPTW (stabilised)",   "Full-cohort TMLE",
+             "Matched-cohort TMLE", "IPCW-weighted TMLE"),
+  N      = c(1277L, 615L, 1693L, 1693L, 1230L, 1277L),
+  RD     = c(0.0370, 0.0272, 0.0366, 0.0306, 0.0259, 0.0326),
+  CI_lo  = c( 0.0031, -0.0198,  0.0017, -0.0012, -0.0150, -0.0004),
+  CI_hi  = c( 0.0708,  0.0741,  0.0714,  0.0623,  0.0668,  0.0656),
   stringsAsFactors = FALSE
 )
 knitr::kable(case_eff, digits = 4,
-             caption = "rescueCo binary-outcome estimates (good functional outcome at 6 months, GOSE > 4).")
+             caption = "rescueCo binary-outcome estimates (good functional outcome at 6 months, GOSE > 4). All six estimates produced by cleanTMLE 0.1.1 following the staged-analysis vignette.")
 ```
 
-The four estimators agree on direction and magnitude: the
-adjustment for outcome missingness (IPCW-TMLE, RD = 0.033) gives
-the largest effect, the simulation-locked full-cohort TMLE returns
-RD = 0.030 with 95 % CI just crossing zero (−0.002, 0.062), and the
-two matched estimators sit between (RD = 0.030 and 0.032 on n = 939
-matched pairs). The IPCW-TMLE 95 % CI just *clears* zero (lower
-bound 0.0005), so among the four reported estimators it is the only
-one that reaches conventional significance at $\alpha = 0.05$,
-though the lower bound is small enough that any sensitivity
-analysis dragging the estimate by more than ~0.001 erases the
-result. We report the IPCW-TMLE as the primary because it is the
-only estimator that targets the marginal estimand on the full
-cohort *and* corrects for the 24.6 % outcome missingness; the
-matched results serve as the prespecified sensitivity exhibit.
-
-An unadjusted ordinal proportional-odds analysis of GOSE 1--8 on
-the same n = 1,277 (`MASS::polr`) gives a common odds ratio of
-**1.29 (95 % CI 1.04, 1.60), p = 0.020** in favour of Rescue.Co
-transport. The PO assumption is borderline (likelihood-ratio test
-of nominal vs PO effects, p = 0.064). The ordinal estimate uses the
-full GOSE distribution rather than the binary GOSE > 4 cutpoint and
-is the only result that *clearly* clears the conventional
-significance threshold; we keep the binary IPCW-TMLE as the
-prespecified primary but note that binarising the outcome erases
-roughly half the signal.
+The six estimators agree on direction. The crude unadjusted
+contrast (RD = 0.037) and the stabilised IPTW (RD = 0.037) sit at
+the upper end of the range, with 95 % confidence intervals that
+exclude zero. The simulation-locked full-cohort TMLE — the
+prespecified primary estimator — returns RD = 0.031 with a 95 % CI
+that just crosses zero (−0.001, 0.062). The IPCW-weighted TMLE,
+which uses inverse-probability-of-censoring weights to address the
+24.6 % outcome missingness, returns RD = 0.033 with a CI that just
+crosses zero (−0.0004, 0.066). The two matching-based estimators
+give the smallest point estimates (RD = 0.027 for matched RD
+without further adjustment; RD = 0.026 for matched-cohort TMLE) and
+the widest CIs, reflecting the smaller matched-pair samples
+(n = 615 and n = 1230). The full-cohort TMLE remains the
+prespecified primary because it is doubly robust and uses the
+locked propensity-score truncation chosen at Stage 2b on the full
+cohort; the IPCW-TMLE is the prespecified missing-outcome
+sensitivity row.
 
 Following @gruber2022sap (Step 5) and @diaz2013sensitivity, we
-report a tipping-point bound on the binary IPCW-TMLE primary
-estimate via `tipping_point_sensitivity()`. The lower CI bound for
-the IPCW-TMLE sits at 0.0005 above zero, so a residual bias of just
-0.0005 on the risk-difference scale (1.5 % of the point estimate of
-0.033) would shift the bound through zero and erase the borderline-
-significant result. The same exercise on the simulation-locked full-cohort TMLE
-returns 0.0017 (its lower bound is already negative, so the value
-records the distance from zero rather than a tipping point). The
-E-value [@vanderWeele2017evalue] is correspondingly small. Both
-diagnostics say the qualitative conclusion --- "Rescue.Co transport
-is consistent with a small favourable shift in functional outcome,
-statistically borderline" --- tolerates only a narrow band of
-residual bias. Outside that band an unmeasured confounder of the
-strength suggested by the healthcare-worker strike, or by the
-inter-facility transfer imbalance (40.7 % of non-Rescue.Co versus
-2.5 % of Rescue.Co ambulance arrivals were transfers, all excluded
-from the analytic cohort), could erase or invert the effect.
+report a tipping-point bound on the simulation-locked full-cohort
+TMLE estimate via `tipping_point_sensitivity()`. The lower CI bound
+sits 0.0012 below zero, so the qualitative conclusion is already
+that the data are consistent with no effect; the function returns
+0.0012 as the distance from zero. The IPTW estimate, whose lower
+bound is 0.0017 above zero, would be flipped through zero by a
+residual bias of 0.0017 (4.6 % of the IPTW point estimate). The
+E-value [@vanderWeele2017evalue] for the full-cohort TMLE is 1.22
+(CI bound 1.00), small in either case. The qualitative reading is
+"Rescue.Co transport is consistent with a small favourable shift
+in functional outcome that the prespecified primary estimator
+cannot distinguish from null at $\alpha = 0.05$." An unmeasured
+confounder of the strength suggested by the healthcare-worker
+strike, or by the inter-facility transfer imbalance (40.7 % of
+non-Rescue.Co versus 2.5 % of Rescue.Co ambulance arrivals were
+transfers, all excluded from the analytic cohort), would push any
+of the six estimates further toward null.
 
 ## What the case study tells us about the workflow
 
@@ -1373,13 +1367,13 @@ study — the strike-window confounder and the inter-facility
 transfer imbalance — which motivates the time-window and MAR /
 MNAR extensions planned for cleanTMLE 0.2.
 
-**The estimator primitives needed real-data robustness work.**
+**The estimator functions needed real-data robustness work.**
 Applying cleanTMLE 0.1.0 to the rescueCo lock surfaced more than a
 dozen distinct issues, six of them blocking, which the companion
 0.1.1 release addresses. The marquee problem was that
 `run_plasmode_dq_stress()` failed with
 `"mu must be a nonempty numeric vector"` on a lock with NA in the
-outcome (now guarded). The modular TMLE workflow itself refused to
+outcome (now guarded). The step-by-step TMLE functions themselves refused to
 fit on NA outcomes (now subsets to complete cases with an MCAR
 warning); `fit_ps_superlearner()` crashed on stale parallel
 backends (now defaults to plain sequential evaluation);
