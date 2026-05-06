@@ -146,9 +146,9 @@ STOP, an outcome-blind plasmode candidate selector, and the
 DQ stress test described above. Targeted Maximum Likelihood
 Estimation (TMLE) [@vanderLaan2006tmle; @vdL2011tlbook;
 @schuler2017tmle; @zheng2011crossvalidated; @chernozhukov2018dml] is
-the natural setting because every analytic decision — the
+the natural setting because every analytic decision (the
 SuperLearner library [@vdL2007superlearner; @phillips2023sl], the
-truncation rule, the candidate grid — can be listed in advance and
+truncation rule, the candidate grid) can be listed in advance and
 the algorithm remains data-adaptive while still admitting valid
 Wald-type confidence intervals.
 
@@ -321,7 +321,7 @@ reg_align <- data.frame(
     "FDA non-interventional studies; ICH E9(R1) sensitivity"
   ),
   `What cleanTMLE operationalises` = c(
-    "—",
+    "(none)",
     "Lock fingerprint of column names + data shape",
     "Records assumptions in attach_estimand and audit log",
     "attach_estimand, lock fingerprint",
@@ -554,9 +554,9 @@ manager's role. Reviewers see machine-readable, re-executable
 artifacts on top of the existing institutional documentation
 rather than as a substitute for it.
 
-The two approaches address the same underlying concern — that
+The two approaches address the same underlying concern, that
 analytic decisions made after seeing the treatment-outcome
-association are not credible — but they differ in residual risks.
+association are not credible, but they differ in residual risks.
 The traditional clean-room design requires a partition of personnel
 and an institutional commitment to the partition; the
 software-only arrangement reduces the personnel constraint but
@@ -789,9 +789,9 @@ evidence, not chosen for convenience:
 We recommend that the analyst record, in the decision log, a brief
 citation for each severity range alongside the lock fingerprint, so
 that a reviewer can check both the values and their provenance. The
-boundaries of what this screen does *not* establish — data-source
+boundaries of what this screen does *not* establish (data-source
 validation, causal identification, post-outcome sensitivity, and
-independent governance — are listed concisely in the regulatory
+independent governance) are listed concisely in the regulatory
 alignment table (§\ref{sec-roadmap}, Table \ref{tbl-reg-align}) and
 in the limitations paragraph in the Discussion (§\ref{sec-discussion}).
 
@@ -1050,9 +1050,9 @@ outcome ascertainment.
 package that implements IPW, g-computation, and AIPW cumulative-
 risk estimators with a cohort-specification grammar that maps
 neatly onto the clean-room idea. cleanTMLE reuses that grammar
-and the associated reporting helpers — Brookhart, Breskin, and
+and the associated reporting helpers (Brookhart, Breskin, and
 Eledath are credited as copyright holders for the reused code in
-the package's `DESCRIPTION` file — and adds the lock, gate, audit
+the package's `DESCRIPTION` file) and adds the lock, gate, audit
 log, step-by-step TMLE functions, and plasmode DQ stress test as
 cleanTMLE-original components. An analyst already using
 `causalRisk` for IPW analyses can move into cleanTMLE without
@@ -1065,17 +1065,17 @@ relearning the cohort-specification surface.
 We run a Monte Carlo simulation with $N = 2000$ observations per
 replicate. Six estimators are compared:
 
-1. **Crude** — unadjusted risk difference.
-2. **IPTW** — stabilised inverse-probability-of-treatment weighting.
-3. **PS Match** — 1:1 nearest-neighbour propensity-score matching.
-4. **TMLE** — TMLE with the plasmode-selected specification, no
+1. **Crude:** unadjusted risk difference.
+2. **IPTW:** stabilised inverse-probability-of-treatment weighting.
+3. **PS Match:** 1:1 nearest-neighbour propensity-score matching.
+4. **TMLE:** TMLE with the plasmode-selected specification, no
    cross-fitting.
-5. **TMLE_CF (CV-TMLE)** — cross-validated TMLE with two folds. We
+5. **TMLE_CF (CV-TMLE):** cross-validated TMLE with two folds. We
    use the names "cross-validated TMLE" and "cross-fitted TMLE"
    interchangeably; both describe the sample-split estimator of
    @zheng2011crossvalidated and @chernozhukov2018dml in which the
    nuisance fits are made on data held out from the targeting step.
-6. **Match_TMLE** — TMLE on the propensity-matched subset.
+6. **Match_TMLE:** TMLE on the propensity-matched subset.
 
 Three scenarios are run:
 
@@ -1405,7 +1405,7 @@ Extended, GOSE 1--8) has 24.6 % missing values from loss to
 6-month follow-up; (b) 492 ambulance arrivals were inter-facility
 transfers and were excluded from the primary cohort, leaving the
 direct-from-scene 1,693; (c) an 8-week healthcare-worker strike
-(15 March 2024 -- 8 May 2024) acts as a quasi-natural-experiment
+(15 March 2024 to 8 May 2024) acts as a quasi-natural-experiment
 confounder that is not part of either SPIFD2 or the four threats
 encoded by `run_plasmode_dq_stress()`; and (d) two prespecified
 socioeconomic negative controls (urban household, primary cooking
@@ -1525,8 +1525,8 @@ knitr::kable(case_eff, digits = 4,
 The six estimators agree on direction. The crude unadjusted
 contrast (RD = 0.037) and the stabilised IPTW (RD = 0.037) sit at
 the upper end of the range, with 95 % confidence intervals that
-exclude zero. The simulation-locked full-cohort TMLE — the
-prespecified primary estimator — returns RD = 0.031 with a 95 % CI
+exclude zero. The simulation-locked full-cohort TMLE (the
+prespecified primary estimator) returns RD = 0.031 with a 95 % CI
 that just crosses zero (−0.001, 0.062). The IPCW-weighted TMLE,
 which uses inverse-probability-of-censoring weights to address the
 24.6 % outcome missingness, returns RD = 0.033 with a CI that just
@@ -1711,8 +1711,8 @@ data, they are at-outcome rather than pre-outcome. The DQ stress
 test cannot detect residual confounding; the NCO check cannot
 detect covariate missingness or exposure misclassification. They
 target different threats. @muntner2024staging recommend selecting
-NCOs across four domains — confounding by indication, functional
-status, health-seeking behaviour, and access to healthcare — and
+NCOs across four domains (confounding by indication, functional
+status, health-seeking behaviour, and access to healthcare) and
 @levintow2023nco give pragmatic guidance for choosing them; the
 cleanTMLE workflow records each declared NCO in the lock so the
 chosen domains are part of the audit trail.
@@ -1799,23 +1799,23 @@ specification grammar.
 
 The most consequential extensions, in priority order, are:
 
-1. **Richer synthetic-outcome models** — effect modification, time-
+1. **Richer synthetic-outcome models:** effect modification, time-
    varying treatment, and competing risks (the current DGP is a
    logistic regression with a constant additive effect on the
    risk-difference scale).
-2. **MAR / MNAR missingness** — `identify_missing()` from `causalRisk`
+2. **MAR / MNAR missingness:** `identify_missing()` from `causalRisk`
    [@brookhart2024causalrisk] gives an inverse-probability-of-
    missingness weighting path that could be lifted into cleanTMLE
    without requiring a structural missingness model.
-3. **Survival and competing-risk estimands** — wrapping `survtmle`
+3. **Survival and competing-risk estimands:** wrapping `survtmle`
    [@survtmlepackage2018] and `lmtp` [@lmtppackage2021] inside the
    lock and audit machinery so that hazard-ratio and cumulative-
    incidence estimands inherit the same governance.
-4. **Transportability and decision-population shift** — the
+4. **Transportability and decision-population shift:** the
    plasmode framework can in principle simulate covariate-
    distribution shift between the analytic cohort and the target
    population, but the package does not yet expose this scenario.
-5. **Calibration helpers for severity ranges** — small helpers that
+5. **Calibration helpers for severity ranges:** small helpers that
    read validation-literature parameters (PPV, sensitivity, claims-
    accuracy ranges) from a YAML file and translate them into
    `data_quality_scenarios` lists, with the citations attached to
@@ -1827,7 +1827,7 @@ For routine pharmacoepidemiology and most academic RWE studies,
 cleanTMLE used in software-only mode is adequate: the analyst
 prespecifies, runs the workflow inside a single R session, and
 ships the lock, audit, and decision-log artifacts. For
-submission-oriented RWE — FDA, EMA, or HTA contexts — the
+submission-oriented RWE (FDA, EMA, or HTA contexts), the
 recommended deployment is cleanTMLE *inside* a broader governed
 process with separate study-level work items: source-data audit
 and provenance, exposure and outcome phenotype validation, role-
