@@ -74,14 +74,15 @@ stress test correctly identifies scenarios in which estimator
 performance degrades and the pipeline should be flagged. We then
 replicate the workflow on the Rescue.Co Kenya Trauma Registry
 (n = 1,693 ambulance patients with 24.6 % outcome missingness),
-where the lock, gate, baseline plasmode, and DQ stress test
-executed cleanly on real covariate structure (Stage 2b feasibility
-coverage 0.94, |bias| < 0.001) and where the four Stage 4
-estimators agreed on the direction of effect (risk difference
-0.030--0.033 in favour of Rescue.Co transport; three of four 95 %
-confidence intervals cross zero, the IPCW-TMLE just clears it); we
-use the case study to motivate the real-data robustness fixes
-catalogued in `NEWS.md` for cleanTMLE v0.1.1. cleanTMLE reuses the cohort-specification and reporting
+where the lock, gate, and baseline plasmode executed cleanly on
+real covariate structure (Stage 2b feasibility coverage 0.94, |bias|
+< 0.001 over 50 replicates; a higher-rep DQ stress run is left as a
+companion exercise) and where the four Stage 4 estimators agreed on
+the direction of effect (risk difference 0.030--0.033 in favour of
+Rescue.Co transport; three of four 95 % confidence intervals cross
+zero, the IPCW-TMLE just clears it). We use the case study to
+motivate the real-data robustness fixes catalogued in `NEWS.md` for
+cleanTMLE v0.1.1. cleanTMLE reuses the cohort-specification and reporting
 functions of the **causalRisk** package [@brookhart2024causalrisk] —
 an MIT-licensed R package that implements IPW, g-computation, and
 AIPW estimators with a clean-room-friendly setup — and adds the
@@ -1166,9 +1167,14 @@ Registry**, an applied comparative-effectiveness study at three
 Nairobi hospitals (KNH, Mama Lucy, Mbagathi) comparing prehospital
 transport by a specialised emergency-medical-services (EMS) provider
 (Rescue.Co) with traditional ambulance care, on functional outcome
-six months post-injury. The case study uses cleanTMLE 0.1.1 and is
-fully reproducible from the companion repository
-<https://github.com/amertens/rescueCo_analysis>.
+six months post-injury. Stages 1--3 (cohort build, design
+diagnostics, plasmode and DQ stress, negative controls) were rerun
+on cleanTMLE 0.1.1; the Stage 4 binary-outcome estimates reported
+below were computed on cleanTMLE 0.1.0 and have not yet been
+refreshed under 0.1.1. The released `manuscript_artifacts/case_study_metadata.json`
+records the per-stage version and lock hash. The case study is
+fully reproducible from the bundled `rescueCo/` directory in the
+companion repository.
 
 The case is interesting for four reasons that the simulation does
 not exercise: (a) the primary outcome (Glasgow Outcome Scale
@@ -1200,12 +1206,15 @@ The lock fixes the binary version of GOSE (`gose_good = 1` if GOSE
 > 4) as the primary outcome, treating ambulance arrival of any kind
 as in-scope and excluding inter-facility transfers. After
 exclusions the analytic cohort is **n = 1,693 (1,013 Rescue.Co; 680
-other ambulance)**; n = 1,277 have non-missing 6-month GOSE. Twenty
-covariates enter the propensity-score model: demographics (age,
-sex, marital, education), distance, mechanism of injury (5
-indicators), chronic-illness panel (5 indicators), SES proxies
-(urban household, occupation, cooking fuel), payment, GCS, ISS,
-arrival month, alcohol use at injury, and assault intent.
+other ambulance)**; n = 1,277 have non-missing 6-month GOSE.
+Twenty-one covariates enter the propensity-score model after a
+near-zero-variance filter drops nine of the originally selected
+thirty (combined prevalence below 1 % in the analytic cohort): the
+retained set covers demographics (age, sex, marital, education),
+distance, mechanism of injury (a subset of indicators), the
+chronic-illness panel (the higher-prevalence conditions), SES
+proxies (urban household, occupation), payment, GCS, ISS, arrival
+month, alcohol use at injury, and assault intent.
 
 The lock declares two prespecified sensitivity plans (a 4-point PS
 truncation grid and a transfer-inclusion rerun) and five negative
@@ -1218,11 +1227,13 @@ domain: `chronic_hypertension`, `chronic_diabetes_insulin`, and
 cleanTMLE 0.1.1 records the domain in the lock and the audit log so
 a reviewer can verify that the NC set spans the four domains rather
 than concentrating in one. Three of the five NCs
-(`chronic_diabetes_insulin`, `chronic_hiv_art`, `fuel_wood`) were
-dropped before fitting by a near-zero-variance filter applied at
-covariate sanitisation (combined prevalence below the 1 % threshold
-in the analytic cohort), and the drops are recorded in the audit
-log; the remaining two NCs are fit at Stage 3. The estimand is attached via `attach_estimand()` and the lock is
+(`chronic_diabetes_insulin`, `chronic_hiv_art`, `fuel_wood`) are
+dropped before fitting by the same near-zero-variance filter that
+trims the PS-covariate set, and the bundle's Stage 1 script logs the
+drops to the pipeline log (the cleanTMLE 0.1.1 audit-log capture for
+NC failures applies at fit time, not at sanitisation time, so these
+drops surface in the run log rather than in the structured audit).
+The remaining two NCs are fit at Stage 3. The estimand is attached via `attach_estimand()` and the lock is
 fingerprinted with SHA-256. Stage 2b runs the baseline
 `run_plasmode_feasibility()` on two GLM-PS truncation candidates
 (`glm_t01` with $t = 0.01$, `glm_t05` with $t = 0.05$) for 50
@@ -1303,30 +1314,37 @@ cohort *and* corrects for the 24.6 % outcome missingness; the
 matched results serve as the prespecified sensitivity exhibit.
 
 Following @gruber2022sap (Step 5) and @diaz2013sensitivity, we
-report a tipping-point bound on the simulation-locked full-cohort
-TMLE estimate using `tipping_point_sensitivity()`: residual bias of
-magnitude 0.0017 on the risk-difference scale (about 6 % of the
-point estimate of 0.030) would shift the lower CI bound through
-zero. The E-value [@vanderWeele2017evalue] for the same estimate is
-correspondingly small. Both diagnostics indicate that the
-qualitative conclusion ("Rescue.Co transport is consistent with a
-small favourable shift in functional outcome, statistically
-borderline") tolerates only a narrow band of residual bias; outside
-that band an unmeasured confounder of the strength suggested by the
-healthcare-worker strike or by the inter-facility transfer
-imbalance (40.7 % of non-Rescue.Co versus 2.5 % of Rescue.Co
-ambulance arrivals were transfers, all excluded from the analytic
-cohort) could erase or invert the effect.
+report a tipping-point bound on the IPCW-TMLE primary estimate via
+`tipping_point_sensitivity()`. The lower CI bound for the IPCW-TMLE
+sits at 0.0005 above zero, so a residual bias of just 0.0005 on the
+risk-difference scale (1.5 % of the point estimate of 0.033) would
+shift the bound through zero and erase the borderline-significant
+result. The same exercise on the simulation-locked full-cohort TMLE
+returns 0.0017 (its lower bound is already negative, so the value
+records the distance from zero rather than a tipping point). The
+E-value [@vanderWeele2017evalue] is correspondingly small. Both
+diagnostics say the qualitative conclusion --- "Rescue.Co transport
+is consistent with a small favourable shift in functional outcome,
+statistically borderline" --- tolerates only a narrow band of
+residual bias. Outside that band an unmeasured confounder of the
+strength suggested by the healthcare-worker strike, or by the
+inter-facility transfer imbalance (40.7 % of non-Rescue.Co versus
+2.5 % of Rescue.Co ambulance arrivals were transfers, all excluded
+from the analytic cohort), could erase or invert the effect.
 
 ## What the case study tells us about the workflow
 
 **The audit and gate layer was the part of the package that
-delivered.** The decision log records every analytic choice
-(transfer exclusion, GOSE algorithm, candidate truncation grid,
-NC drops on 0.1.0) with timestamps; the gate refused to let any
-Stage 4 estimator run before `authorize_outcome_analysis()` had
-fired. The lock fingerprint matched on reload at every stage. This
-worked exactly as the manuscript's §\ref{sec-framework} promises.
+delivered.** The decision log records every prespecified analytic
+choice (transfer exclusion, GOSE algorithm, candidate truncation
+grid) with timestamps; the gate refused to let any Stage 4
+estimator run before `authorize_outcome_analysis()` had fired; and
+the lock fingerprint matched on reload at every stage. The audit
+trail did not capture the NZV-driven NC drops because those happen
+during covariate sanitisation in the pipeline script rather than at
+NC fit time --- a real gap that the cleanTMLE 0.1.1 audit fix only
+partially closes. With that one caveat, the audit and gate machinery
+worked exactly as §\ref{sec-framework} promises.
 
 **The outcome-blind plasmode confirmed candidate stability on real
 covariate structure.** Stage 2b feasibility coverage of 0.94 with
