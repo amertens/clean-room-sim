@@ -1,0 +1,494 @@
+---
+title: "Clean-Room TMLE Case Study: RescueCo Kenya Trauma Registry"
+author: "RescueCo Analysis Team"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(knitr)
+
+# --- Robust project root detection ---
+find_project_root <- function() {
+  candidates <- c(
+    getwd(),
+    normalizePath(file.path(getwd(), ".."), mustWork = FALSE),
+    normalizePath(file.path(getwd(), "..", ".."), mustWork = FALSE)
+  )
+  for (d in candidates) {
+    if (file.exists(file.path(d, "rescueCo", "results", "stage1_cohort.rds"))) {
+      return(normalizePath(d))
+    }
+  }
+  stop("Cannot locate project root (looked for rescueCo/results/stage1_cohort.rds)")
+}
+project_root <- find_project_root()
+
+# Absolute path to results — used for all R data loading.
+# NOTE: We do NOT set opts_knit$set(root.dir) because it interferes with
+# knitr path resolution. All R code uses absolute paths instead.
+abs_res <- normalizePath(file.path(project_root, "rescueCo", "results"))
+
+message("Project root: ", project_root)
+message("Results dir:  ", abs_res)
+
+source(file.path(project_root, "rescueCo", "R", "utils.R"))
+
+# Load all stage outputs (all use absolute path)
+cohort_summary   <- load_stage_output("stage1_cohort_summary.rds", results_dir = abs_res)
+design_summary   <- load_stage_output("stage2_design_summary.rds", results_dir = abs_res)
+love_data        <- load_stage_output("stage2_love_data.rds", results_dir = abs_res)
+nc_results       <- tryCatch(load_stage_output("stage2b_nc_results.rds", results_dir = abs_res), error = function(e) NULL)
+plasmode_results <- tryCatch(load_stage_output("stage2b_plasmode_results.rds", results_dir = abs_res), error = function(e) NULL)
+gating_decision  <- tryCatch(load_stage_output("stage2b_gating_decision.rds", results_dir = abs_res), error = function(e) NULL)
+sim_memo         <- load_stage_output("stage3_simulation_memo.rds", results_dir = abs_res)
+binary_comparison <- tryCatch(load_stage_output("stage4_binary_comparison.rds", results_dir = abs_res), error = function(e) NULL)
+surv_comparison  <- tryCatch(load_stage_output("stage5_survival_comparison.rds", results_dir = abs_res), error = function(e) NULL)
+decisions        <- tryCatch(load_stage_output("stage5_decisions.rds", results_dir = abs_res),
+                             error = function(e) tryCatch(
+                               load_stage_output("stage2b_decisions.rds", results_dir = abs_res),
+                               error = function(e2) load_stage_output("stage3_decisions.rds", results_dir = abs_res)
+                             ))
+```
+
+## Introduction
+
+This report presents a **clean-room TMLE analysis** of the RescueCo Kenya Trauma Registry, comparing the effect of Rescue.Co Emergency Medical Services (EMS) transport versus non-EMS transport on trauma patient outcomes.
+
+The analysis uses a **staged clean-room design** where:
+
+1. Cohort construction and covariate selection proceed without outcome data
+2. Propensity score estimation and matching are performed outcome-blind
+3. Simulation studies select TMLE specifications before outcomes are examined
+4. Only after design decisions are locked do we unlock outcome data
+
+## Study Design
+
+**Treatment:** Rescue.Co EMS transport (A = 1) vs. other ambulance services (A = 0)
+
+**Population:** Trauma patients transported to participating Kenyan hospitals **by ambulance**. Patients arriving by non-ambulance means (walk-in, private car, taxi, boda boda, matatu, motorcycle, police) are excluded from the primary causal analysis per the pre-specified analysis plan.
+
+**Outcomes:**
+
+- *Binary:* Good functional outcome (GOSE > 4 at 6 months)
+- *Time-to-event:* Survival through 30, 90, and 180 days
+
+**Estimators compared:**
+
+| # | Estimator | Outcome | Cohort |
+|---|-----------|---------|--------|
+| A | PS-matched logistic regression | Binary | Matched |
+| B | PS-matched TMLE | Binary | Matched |
+| C | Outcome-blind simulation | -- | -- |
+| D | Full-cohort TMLE | Binary | Full |
+| E | Cox PH regression | Survival | Full |
+| F | Cox PH regression | Survival | Matched |
+| G | Survival TMLE | Survival | Full |
+| H | Survival TMLE | Survival | Matched |
+
+## Outcome Variable Construction and Assumptions
+
+### Treatment Definition
+
+The treatment variable `A` is derived from the `ems_ambulance` (or `rcvamb`) field in the trauma registry, which records ambulance service at hospital arrival. **Only ambulance-transported patients are included** in the analytic cohort: Rescue.Co EMS (A = 1) vs. all other ambulance services (A = 0). Patients arriving by non-ambulance means (private car, taxi, boda boda, matatu, walk-in, motorcycle, police) are excluded, as the pre-specified analysis plan targets a well-defined ambulance-vs-ambulance causal contrast. This restriction reduces confounding from transport mode but limits generalizability to the ambulance-using population.
+
+**Inter-facility transfer exclusion (not pre-specified).** Exploratory analysis revealed that 40.7% of non-Rescue.Co ambulance patients were inter-facility transfers compared to only 2.5% of Rescue.Co patients. Transfer patients arrive at the study hospital from another health facility, not directly from the injury scene. Their "injury-to-arrival" times conflate ambulance transport time with time spent at the referring facility, creating a severe compositional confounder that inflated the apparent Rescue.Co time advantage by ~341 minutes. The **primary analysis excludes all inter-facility transfers**, restricting to direct-from-scene patients only. A **sensitivity analysis** retains all ambulance patients with a binary `is_transfer` covariate in the adjustment set. Additionally, patients with injury-to-arrival times exceeding 24 hours are excluded as likely data entry errors.
+
+### Binary Outcome: Good Functional Outcome (GOSE > 4)
+
+The trauma registry does not contain a GOSE score. Instead, the GOSE is **derived algorithmically** from individual adapted Glasgow Outcome Scale -- Extended (aGOSE) items collected in the separate 6-month follow-up survey, then merged onto the registry via patient ID.
+
+**Derivation algorithm** (simplified branching):
+
+| Score | Category | Rule |
+|-------|----------|------|
+| 1 | Dead | `patient_alive == 0` (follow-up) or `disposition %in% {5, 8}` (registry) |
+| 2 | Vegetative | Alive but `consciousness == 0` (cannot obey commands / say words) |
+| 3 | Lower Severe Disability | Conscious, needs daily help (`independence_home == 1`), needs someone nearby (`need_assistance == 1`) |
+| 4 | Upper Severe Disability | Conscious, needs daily help, but does not need someone nearby |
+| 5 | Lower Moderate Disability | Independent at home, but cannot shop, travel locally, or work |
+| 6 | Upper Moderate Disability | Can do basic tasks but with reduced work capacity or social restriction |
+| 7 | Lower Good Recovery | Functional, but new personality changes or daily-life problems since injury |
+| 8 | Upper Good Recovery | No significant new problems |
+
+The binary outcome `gose_good` = 1 if GOSE > 4 (upper severe disability or better), and 0 otherwise.
+
+**Key assumptions and limitations:**
+
+1. **Merge completeness.** Not all registry patients have a 6-month follow-up record. Patients without follow-up data receive `gose_score = NA` and are excluded from the binary outcome analysis. This is informative missingness --- patients lost to follow-up may systematically differ from those retained (e.g., sicker patients may die before follow-up, or healthier patients may not respond).
+
+2. **Algorithmic misclassification.** The branching logic maps 20+ survey items to 8 GOSE levels. Errors in any item propagate to the derived score. Some items (e.g., `shop`, `work`) have a `97 = N/A` response that is treated as "can do" in the algorithm, which may overestimate function for patients where the question was not applicable.
+
+3. **Respondent proxy.** Approximately 28% of follow-ups are completed by a relative or caretaker alone, not the patient. Proxy responses may be less accurate for subjective items (personality change, social restrictions).
+
+4. **Timing.** The 6-month follow-up is the target, but actual contact may occur earlier or later. The `post_discharge_timepoint` field shows some records with non-standard timing.
+
+### Survival Outcome: Time-to-Death
+
+The trauma registry does not record a true time-to-death variable. The survival outcome (`surv_time_days`, `surv_event`) is **constructed from multiple proxy sources**, each with different levels of precision:
+
+| Patient status | `surv_time_days` | `surv_event` | Source | Precision |
+|---------------|-----------------|-------------|--------|-----------|
+| Died in hospital | 1 day (fixed) | 1 (event) | `disposition == 5 or 8` | **Very low** --- actual LOS unknown; could be hours or weeks |
+| Died by 6 months (DOD available) | `DOD - injury_date`, capped at 180 | 1 (event) | `patient_alive == 0` + `dod` field | **Moderate** --- exact date if DOD is accurate |
+| Died by 6 months (no DOD) | 90 days (midpoint) | 1 (event) | `patient_alive == 0`, `dod` missing | **Low** --- midpoint imputation |
+| Alive at 6-month follow-up | 180 days (fixed) | 0 (censored) | `patient_alive == 1` | **High** --- known alive at ~6 months |
+| No follow-up data | 30 days (fixed) | 0 (censored) | Neither alive nor dead confirmed | **Very low** --- assumed alive but true status unknown |
+
+**Key assumptions and limitations:**
+
+1. **In-hospital deaths assigned to day 1.** This is a conservative assumption. Patients who die after days or weeks of hospitalization are treated as if they died on admission. This compresses early mortality and may bias hazard ratio estimates.
+
+2. **Midpoint imputation for deaths without a DOD.** When the 6-month follow-up confirms death but no date of death is recorded, we assign day 90 (the midpoint of the 0--180 day window). This is a standard epidemiologic assumption but is imprecise --- the actual death could have occurred anywhere in that range.
+
+3. **Patients lost to follow-up are censored at day 30.** This is a strong assumption: it treats patients without any follow-up as if they were observed alive for 30 days and then their status became unknown. If loss to follow-up is related to mortality (informative censoring), this biases survival estimates. The 30-day choice is arbitrary; sensitivity analyses with other values (7, 60, 90 days) are recommended.
+
+4. **No true continuous survival time exists.** The time grid is coarsened and partially imputed. The discrete-time survival TMLE is appropriate for this data structure, but the Cox proportional hazards model assumes a continuous time scale, which is violated by the imputed times.
+
+5. **Death ascertainment bias.** In-hospital deaths are identified by the `disposition` field (values 5 = "Died" and 8 = "Discharged home to die"). Deaths occurring after discharge but before the 6-month follow-up are only captured if the follow-up survey reaches a respondent who reports the death. Deaths among patients lost to follow-up are missed entirely.
+
+### Implications for Interpretation
+
+These outcome construction choices mean that:
+
+- **Binary outcome estimates** are conditional on having 6-month follow-up data and should be interpreted with caution regarding selection bias from differential follow-up.
+- **Survival estimates** are approximations. The Cox hazard ratios and survival TMLE risk differences reflect the *constructed* survival times, not directly observed ones. Consistency across multiple estimators (Cox, TMLE, matched, unmatched) provides some reassurance, but all share the same underlying data limitations.
+- **Sensitivity analyses** varying the imputed time points (e.g., hospital death at LOS midpoint instead of day 1, lost-to-follow-up censored at 7 vs. 60 vs. 90 days) would strengthen the robustness of conclusions.
+
+## Clean-Room Workflow
+
+```{r}
+kable(decisions[, c("stage", "type", "decision", "rationale")],
+      caption = "Decision Log")
+```
+
+## Stage 1: Cohort Summary
+
+```{r}
+summary_df <- data.frame(
+  Metric = c("Total patients", "Treated (Rescue.Co)", "Control",
+             "GOSE available", "GOSE good (>4)",
+             "Survival events", "Survival censored", "Covariates"),
+  Value = c(cohort_summary$n_total, cohort_summary$n_treated,
+            cohort_summary$n_control, cohort_summary$n_gose_available,
+            cohort_summary$n_gose_good, cohort_summary$n_surv_events,
+            cohort_summary$n_surv_censored, cohort_summary$n_covariates)
+)
+kable(summary_df, caption = "Analytic Cohort Summary")
+```
+
+## Stage 2: Design Diagnostics
+
+### Propensity Score Overlap
+
+![Propensity score distributions by treatment group](../results/ps_overlap_density.png)
+
+### Matching Results
+
+```{r}
+match_df <- data.frame(
+  Metric = c("Treated matched", "Control matched",
+             "Fraction treated matched", "Caliper",
+             "ESS treated (IPTW)", "ESS control (IPTW)"),
+  Value = c(design_summary$matching$n_treated_matched,
+            design_summary$matching$n_control_matched,
+            paste0(round(design_summary$matching$frac_matched * 100, 1), "%"),
+            round(design_summary$matching$caliper, 4),
+            round(design_summary$ess_treated, 1),
+            round(design_summary$ess_control, 1))
+)
+kable(match_df, caption = "Matching and Weighting Summary")
+```
+
+### Covariate Balance (Love Plot)
+
+![Standardized mean differences before and after matching](../results/love_plot.png)
+
+**Balance summary:** `r design_summary$balance$n_imbalanced_pre` covariates had |SMD| > 0.1 before matching, reduced to `r design_summary$balance$n_imbalanced_post` after matching. Maximum |SMD| reduced from `r round(design_summary$balance$max_smd_pre, 3)` to `r round(design_summary$balance$max_smd_post, 3)`.
+
+### Weight Distribution
+
+![IPTW weight distribution by treatment group](../results/weight_distribution.png)
+
+### IPTW Weight Diagnostics (Stage 2a)
+
+```{r}
+if (!is.null(design_summary$iptw)) {
+  kable(design_summary$iptw$weight_summary,
+        digits = 2,
+        caption = "IPTW Weight Summary by Treatment Group")
+} else {
+  cat("IPTW weight diagnostics not available.")
+}
+```
+
+```{r}
+if (!is.null(design_summary$iptw$extreme_weights)) {
+  ew <- design_summary$iptw$extreme_weights
+  cat(sprintf("**Extreme weight check:** %d observations (%.1f%%) above the %.0fth percentile threshold. Max/min ratio = %.1f. %s\n",
+              ew$n_extreme, ew$pct_extreme, 99, ew$max_min_ratio,
+              ifelse(ew$flag, "**FLAG: Extreme weights detected.**", "No extreme weight concerns.")))
+}
+```
+
+**IPTW-weighted balance:** `r if (!is.null(design_summary$balance$n_imbalanced_weighted)) paste(design_summary$balance$n_imbalanced_weighted, "covariates with |SMD| > 0.1 after IPTW weighting; max |SMD| =", round(design_summary$balance$max_smd_weighted, 3)) else "Not available"`
+
+```{r}
+#| output: asis
+img_file <- file.path(abs_res, "weighted_love_plot.png")
+if (file.exists(img_file)) {
+  cat("![Three-way balance comparison: unweighted vs. matched vs. IPTW-weighted](../results/weighted_love_plot.png)\n")
+}
+```
+
+## Stage 2b: Negative Control Analysis
+
+Negative-control outcomes are pre-treatment covariates (chronic conditions, SES indicators) that ambulance transport should not causally affect. Finding a non-zero TMLE effect on these outcomes would signal residual confounding or model misspecification.
+
+```{r}
+if (!is.null(nc_results)) {
+  # Normalize column names (cleanTMLE uses variable/p_value/flagged; custom uses nc_name/pvalue/pass)
+  if ("variable" %in% names(nc_results) && !"nc_name" %in% names(nc_results))
+    nc_results$nc_name <- nc_results$variable
+  if ("p_value" %in% names(nc_results) && !"pvalue" %in% names(nc_results))
+    nc_results$pvalue <- nc_results$p_value
+  if ("flagged" %in% names(nc_results) && !"pass" %in% names(nc_results))
+    nc_results$pass <- !nc_results$flagged
+  if (!"ci_lower" %in% names(nc_results))
+    nc_results$ci_lower <- nc_results$estimate - 1.96 * nc_results$se
+  if (!"ci_upper" %in% names(nc_results))
+    nc_results$ci_upper <- nc_results$estimate + 1.96 * nc_results$se
+
+  nc_display <- nc_results[, c("nc_name", "estimate", "ci_lower", "ci_upper", "pvalue", "pass")]
+  nc_display$estimate <- round(nc_display$estimate, 4)
+  nc_display$ci_lower <- round(nc_display$ci_lower, 4)
+  nc_display$ci_upper <- round(nc_display$ci_upper, 4)
+  nc_display$pvalue   <- round(nc_display$pvalue, 4)
+  nc_display$pass     <- ifelse(nc_display$pass, "PASS", "FAIL")
+  kable(nc_display, caption = "Negative Control TMLE Results",
+        col.names = c("NC Outcome", "ATE", "CI Lower", "CI Upper", "p-value", "Result"))
+} else {
+  cat("Negative control results not available (Stage 2b may not have been run).")
+}
+```
+
+### Plasmode Simulation
+
+```{r}
+if (!is.null(plasmode_results)) {
+  pm <- plasmode_results$metrics
+  pm$bias     <- round(pm$bias, 4)
+  pm$rmse     <- round(pm$rmse, 4)
+  pm$coverage <- round(pm$coverage, 3)
+  kable(pm[, c("estimator", "bias", "rmse", "coverage", "n_valid")],
+        caption = "Plasmode Simulation: Estimator Performance (true ATE = 0)")
+} else {
+  cat("Plasmode simulation results not available.")
+}
+```
+
+```{r}
+#| output: asis
+img_file <- file.path(abs_res, "plasmode_performance.png")
+if (file.exists(img_file)) {
+  cat("![Plasmode simulation performance across estimators](../results/plasmode_performance.png)\n")
+}
+```
+
+### Gating Decision
+
+```{r}
+if (!is.null(gating_decision)) {
+  decision_color <- switch(gating_decision$decision,
+    "GO"   = "green",
+    "FLAG" = "orange",
+    "STOP" = "red",
+    "gray"
+  )
+  cat(sprintf("**Decision: %s**\n\n", gating_decision$decision))
+  cat(sprintf("*Rationale:* %s\n\n", gating_decision$rationale))
+  cat(sprintf("NC failures: %d/%d | Plasmode coverage: %.3f | Plasmode bias: %.4f\n",
+              gating_decision$nc_failures, gating_decision$nc_total,
+              gating_decision$pm_coverage, gating_decision$pm_bias))
+} else {
+  cat("Gating decision not available.")
+}
+```
+
+## Stage 3: Simulation Results
+
+Simulation used **`r sim_memo$n_sims_binary`** replications for binary outcomes and **`r sim_memo$n_sims_survival`** for survival.
+
+```{r}
+kable(sim_memo$binary_metrics[, c("estimator", "bias", "variance", "rmse", "coverage", "n_valid")],
+      digits = 4,
+      caption = "Binary Outcome Simulation Performance")
+```
+
+![Simulation performance comparison across estimators](../results/simulation_performance.png)
+
+**Selected estimator:** `r sim_memo$selected_estimator`
+
+**SuperLearner libraries selected:**
+
+- Q-model: `r paste(sim_memo$selected_libraries$Q_model, collapse = ", ")`
+- g-model: `r paste(sim_memo$selected_libraries$g_model, collapse = ", ")`
+- Censoring model: `r paste(sim_memo$selected_libraries$censor_model, collapse = ", ")`
+
+## Binary Outcome Analysis
+
+```{r}
+if (!is.null(binary_comparison)) {
+  kable(binary_comparison, digits = 4,
+        caption = "Binary Outcome (GOSE > 4): Estimator Comparison")
+} else {
+  cat("Binary outcome results not available.")
+}
+```
+
+```{r}
+#| output: asis
+img_file <- file.path(abs_res, "binary_estimator_comparison.png")
+if (file.exists(img_file)) {
+  cat("![Treatment effect estimates across binary outcome estimators](../results/binary_estimator_comparison.png)\n")
+}
+```
+
+### TMLE Diagnostics
+
+```{r}
+#| output: asis
+img_file <- file.path(abs_res, "ic_plot.png")
+if (file.exists(img_file)) {
+  cat("![Influence curve distribution for full-cohort TMLE](../results/ic_plot.png)\n\n")
+}
+img_file <- file.path(abs_res, "clever_covariate_plot.png")
+if (file.exists(img_file)) {
+  cat("![Clever covariate (H_n) by treatment group](../results/clever_covariate_plot.png)\n\n")
+}
+if (!file.exists(file.path(abs_res, "ic_plot.png")) && !file.exists(file.path(abs_res, "clever_covariate_plot.png"))) {
+  cat("TMLE diagnostic plots not available (run Stage 4 first).\n")
+}
+```
+
+The **influence curve** (IC) distribution should be centered near zero with symmetric tails. Heavy tails or asymmetry indicate near-positivity violations or influential observations. The **clever covariate** (H_n) summarizes how strongly each observation is targeted by the TMLE update step.
+
+### Interpretation
+
+The table above shows how **matched vs. unmatched** and **regression vs. TMLE** estimators compare:
+
+- **Matched regression** provides a simple conditional estimate within the balanced matched sample
+- **Matched TMLE** adds doubly-robust estimation within the matched cohort
+- **Full-cohort TMLE** uses all observations with inverse probability weighting, providing the broadest inference
+
+## Survival Analysis
+
+```{r}
+if (!is.null(surv_comparison)) {
+  kable(surv_comparison, digits = 4,
+        caption = "Survival Outcome: Estimator Comparison")
+} else {
+  cat("Survival outcome results not available.")
+}
+```
+
+### Survival Curves
+
+```{r}
+#| output: asis
+img_file <- file.path(abs_res, "km_curves.png")
+if (file.exists(img_file)) {
+  cat("![Kaplan-Meier survival curves by treatment group](../results/km_curves.png)\n")
+}
+```
+
+```{r}
+#| output: asis
+img_file <- file.path(abs_res, "survival_curves_full.png")
+if (file.exists(img_file)) {
+  cat("![Counterfactual cumulative risk curves — full-cohort survival TMLE](../results/survival_curves_full.png)\n")
+}
+```
+
+```{r}
+#| output: asis
+img_file <- file.path(abs_res, "survival_curves_matched.png")
+if (file.exists(img_file)) {
+  cat("![Counterfactual cumulative risk curves — matched survival TMLE](../results/survival_curves_matched.png)\n")
+}
+```
+
+```{r}
+#| output: asis
+img_file <- file.path(abs_res, "risk_curves_full_ci.png")
+if (file.exists(img_file)) {
+  cat("![Risk curves with confidence bands — full-cohort survival TMLE](../results/risk_curves_full_ci.png)\n")
+}
+```
+
+### Cox HR vs. Survival-TMLE
+
+The Cox model provides **hazard ratios** (relative rate of events), while survival TMLE provides **risk differences** and **risk ratios** at specific time points. Key differences:
+
+- Cox HR assumes proportional hazards; survival TMLE does not
+- Cox HR is a single summary across the entire follow-up; TMLE gives time-specific estimates
+- TMLE uses flexible machine learning for nuisance parameters; Cox uses semiparametric modeling
+
+## Comparison of Estimators
+
+### Matched vs. Unmatched
+
+Matching restricts to a subset with good PS overlap, potentially reducing bias from positivity violations but losing sample size. Full-cohort TMLE uses all observations with appropriate weighting.
+
+### Regression vs. TMLE
+
+TMLE provides:
+
+- **Double robustness** (consistent if either the outcome or treatment model is correct)
+- **Semiparametric efficiency** via influence-function-based inference
+- **Flexible modeling** through SuperLearner ensemble
+
+Regression relies on correct parametric specification of the outcome model.
+
+## Discussion
+
+This analysis demonstrates how clean-room design principles can be applied to an observational trauma registry:
+
+1. **Design decisions were locked** before examining treatment-outcome associations
+2. **Simulation informed** the choice of TMLE specification and SuperLearner libraries
+3. **Multiple estimators** provide robustness and highlight sensitivity to analytic choices
+4. **Time-to-event and binary frameworks** offer complementary perspectives
+
+### Limitations
+
+- **Constructed survival times**: No true time-to-death exists in the registry. Survival times are assembled from disposition codes, 6-month follow-up status, and date-of-death fields, with imputed values for in-hospital deaths (day 1) and deaths without a recorded DOD (day 90). See *Outcome Variable Construction* above for details.
+- **Informative loss to follow-up**: ~23% of ambulance patients lack 6-month follow-up data. These patients are excluded from the binary GOSE analysis and censored at day 30 in the survival analysis. If loss to follow-up is correlated with outcomes, estimates are biased.
+- **Proxy-derived GOSE**: The functional outcome score is algorithmically derived from individual aGOSE survey items, with potential misclassification at each branching point and ~28% proxy respondents.
+- **Coarsened time grid**: The discrete-time survival TMLE uses a time grid shaped by the imputation strategy, not by truly observed event times.
+- **Unmeasured confounding**: This is an observational study. Despite 28 measured covariates and doubly-robust estimation, residual confounding from unmeasured factors (e.g., injury mechanism details, pre-hospital care quality, distance from crash scene to ambulance dispatch) cannot be excluded.
+- **Ambulance-only population**: Results apply to the ambulance-transported subpopulation and may not generalize to all trauma patients.
+
+### Decision Log
+
+All analytic decisions are classified as:
+
+- **Pre-specified:** Decided before any data examination
+- **Design-stage:** Made using covariate/treatment data only (no outcomes)
+- **Simulation-selected:** Chosen based on synthetic outcome simulations
+- **Final analysis:** Applied when real outcomes are unlocked
+
+```{r}
+type_counts <- table(decisions$type)
+kable(as.data.frame(type_counts), col.names = c("Decision Type", "Count"),
+      caption = "Decision Classification Summary")
+```

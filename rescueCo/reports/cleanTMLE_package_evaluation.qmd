@@ -1,0 +1,338 @@
+---
+title: "cleanTMLE Package Evaluation"
+subtitle: "Integration with the RescueCo Kenya Trauma Registry Clean-Room Pipeline"
+author: "RescueCo Analysis Team"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(knitr)
+
+find_project_root <- function() {
+  candidates <- c(
+    getwd(),
+    normalizePath(file.path(getwd(), ".."), mustWork = FALSE),
+    normalizePath(file.path(getwd(), "..", ".."), mustWork = FALSE)
+  )
+  for (d in candidates) {
+    if (file.exists(file.path(d, "rescueCo", "results", "stage1_cohort.rds"))) {
+      return(normalizePath(d))
+    }
+  }
+  stop("Cannot locate project root")
+}
+project_root <- find_project_root()
+abs_res <- normalizePath(file.path(project_root, "rescueCo", "results"))
+
+source(file.path(project_root, "rescueCo", "R", "utils.R"))
+
+# Load cleanTMLE outputs if available
+ct_audit_trail <- tryCatch(
+  read.csv(file.path(abs_res, "cleanTMLE_audit_trail.csv"), stringsAsFactors = FALSE),
+  error = function(e) NULL)
+ct_decision_log <- tryCatch(
+  read.csv(file.path(abs_res, "cleanTMLE_decision_log.csv"), stringsAsFactors = FALSE),
+  error = function(e) NULL)
+ct_comparison <- tryCatch(
+  read.csv(file.path(abs_res, "cleanTMLE_binary_comparison.csv"), stringsAsFactors = FALSE),
+  error = function(e) NULL)
+ct_sensitivity <- tryCatch(
+  read.csv(file.path(abs_res, "truncation_sensitivity.csv"), stringsAsFactors = FALSE),
+  error = function(e) NULL)
+```
+
+## Purpose
+
+This document evaluates the **cleanTMLE** R package (v0.1.0) by integrating it into the RescueCo Kenya Trauma Registry clean-room analysis pipeline. The evaluation covers:
+
+1. Which cleanTMLE functions successfully replaced custom code
+2. Which parts of the workflow required custom fallback code
+3. Missing features and integration friction
+4. Concrete improvement recommendations
+
+## Executive Summary
+
+cleanTMLE provides a coherent staged API (lock, checkpoints, audit, modular TMLE) that maps well onto the Muntner clean-room framework. Out of approximately 30 custom functions in the RescueCo pipeline, **14 had direct cleanTMLE replacements**, **6 required hacky workarounds**, and **10 had no cleanTMLE equivalent**.
+
+The largest gaps are: (1) no parallel SuperLearner support on Windows, (2) the lock object doesn't work naturally with file-based staged pipelines, (3) survival TMLE is under-developed relative to binary, and (4) negative control analysis uses IPTW rather than TMLE, which is a methodological limitation.
+
+---
+
+## 1. Functions Successfully Replaced
+
+The following custom functions were replaced with cleanTMLE equivalents:
+
+| Custom Function | cleanTMLE Replacement | Stage | Notes |
+|----------------|----------------------|-------|-------|
+| `init_decision_log()` / `log_decision()` | `create_audit_log()` / `record_stage()` / `record_decision_log_entry()` | All | cleanTMLE audit is richer (typed entries, hash validation) |
+| `compute_smd()` / `compute_all_smds()` | `compute_ps_diagnostics()` | 2 | Returns SMDs + ESS + overlap plot in one call |
+| `effective_sample_size()` | `compute_ps_diagnostics()$ess` | 2 | Embedded in diagnostics object |
+| `make_weight_summary_table()` | `make_wt_summary_table()` | 2 | Different column names but same purpose |
+| `detect_extreme_weights()` | `extreme_weights()` | 2 | Returns top-K observations vs. summary statistics |
+| `plot_love()` | `love_plot()` | 2 | Weighted + unweighted SMDs; cleaner API |
+| `plot_ps_overlap()` | `plot(ps_diagnostics)` | 2 | Built-in S3 method |
+| `run_binary_tmle()` | Modular TMLE pipeline | 4 | `fit_tmle_treatment_mechanism` -> `fit_tmle_outcome_mechanism` -> `run_tmle_targeting_step` -> `extract_tmle_estimate` |
+| `run_matched_regression()` | `run_match_workflow()` | 4 | 1:1 NN matching with RD estimate |
+| (none -- new) | `run_iptw_workflow()` | 4 | Stabilized IPTW not in original pipeline |
+| (none -- new) | `run_crude_workflow()` | 4 | Unadjusted benchmark not in original |
+| `plot_influence_curve()` | `ic_histogram()` | 4 | Cleaner, fewer arguments |
+| (none -- new) | `sensitivity_truncation()` | 4 | New capability |
+| (none -- new) | `compute_evalue()` | 4 | New capability |
+
+**Verdict:** The binary-outcome analysis workflow is well-served by cleanTMLE. The modular TMLE pipeline, structured checkpoints, and cross-estimator comparison table are genuine improvements over custom code.
+
+```{r ct-comparison}
+if (!is.null(ct_comparison)) {
+  kable(ct_comparison, digits = 4,
+        caption = "cleanTMLE cross-estimator comparison (binary outcome)")
+}
+```
+
+```{r ct-sensitivity}
+if (!is.null(ct_sensitivity)) {
+  kable(ct_sensitivity, digits = 4,
+        caption = "cleanTMLE truncation sensitivity analysis")
+}
+```
+
+---
+
+## 2. Integration Friction and Workarounds
+
+### 2a. Lock object vs. file-based pipeline (HIGH friction)
+
+**Problem:** cleanTMLE's `create_analysis_lock()` embeds the entire dataset inside the lock object. The RescueCo pipeline uses a file-based staged workflow where each stage loads prior outputs from RDS files. The lock must be serialized, deserialized, and passed through 6+ stages.
+
+**Workarounds required:**
+
+- Save the lock as a large RDS file at each stage boundary (`save_stage_output(lock, "stageN_lock.rds")`)
+- Cascading `tryCatch` fallbacks to load the lock from the latest available stage
+- Separate `lock_original` to preserve the unmasked copy for `unmask_outcome()`
+
+**Impact:** Every stage script gained 5-10 lines of boilerplate for lock loading/saving. The lock RDS file is large (contains full data copy) and duplicated across stages.
+
+**Recommendation:** Add a `create_analysis_lock_ref()` variant that stores a *reference* (file path or environment name) instead of embedding data. Alternatively, add `save_lock()` / `load_lock()` methods that handle serialization and hash re-validation cleanly.
+
+### 2b. Parallel SuperLearner not supported (HIGH friction)
+
+**Problem:** `fit_ps_superlearner()` calls `SuperLearner::SuperLearner()` directly with no support for parallel clusters. The RescueCo pipeline runs on Windows and uses PSOCK clusters via `snowSuperLearner()` for acceptable runtime.
+
+**Workaround:** We kept the custom `estimate_propensity_score()` with parallel cluster support and used `fit_ps_glm()` as the cleanTMLE PS estimator. This means the cleanTMLE diagnostics are based on a GLM PS, not the SuperLearner PS -- a methodological downgrade.
+
+**Impact:** The cleanTMLE PS diagnostics, checkpoints, and downstream TMLE all use a simpler PS model than the custom pipeline. Two parallel PS estimates are computed, wasting runtime and creating confusion about which to trust.
+
+**Recommendation:** Add a `cluster` parameter to `fit_ps_superlearner()`, or accept an external PS vector (`ps_scores` argument) to wrap in a `ps_fit` object. Something like:
+
+```r
+# Option A: cluster support
+fit_ps_superlearner(lock, cluster = cl)
+
+# Option B: bring-your-own PS (preferred)
+wrap_ps_fit(lock, ps_scores = my_custom_ps, method = "external_sl")
+```
+
+### 2c. Outcome masking / unmasking ceremony (MEDIUM friction)
+
+**Problem:** The mask/unmask pattern requires carrying both the masked lock AND the original lock through stages. `unmask_outcome()` needs the original lock as the second argument, which means the original must be separately preserved and loaded.
+
+**Workaround:** Save `stage1_lock.rds` as the unmasked original, then pass the masked version forward. At Stage 4, load both and unmask. This is error-prone.
+
+**Recommendation:** Store the masked outcome values internally (encrypted or hashed) so `unmask_outcome()` can work with just a password/key argument, without needing the original lock object.
+
+### 2d. Negative control uses IPTW, not TMLE (MEDIUM friction)
+
+**Problem:** `run_negative_control()` estimates the treatment-NC association using stabilized IPTW. The custom pipeline used `tmle::tmle()` for negative controls, which is doubly robust.
+
+**Workaround:** Used cleanTMLE NC as primary with custom `run_all_negative_controls()` (TMLE-based) as fallback. The two methods can give different results.
+
+**Impact:** If the outcome model is misspecified, IPTW-based NC analysis may miss residual confounding that TMLE-based NC analysis would catch. For a package named "cleanTMLE," the NC analysis should use TMLE.
+
+**Recommendation:** Use the modular TMLE pipeline for negative controls. Since the g-model is already fitted, just swap the outcome to the NC variable and run `fit_tmle_outcome_mechanism()` + `run_tmle_targeting_step()`.
+
+### 2e. `evaluate_go_flag_stop()` not directly compatible with cleanTMLE objects (LOW friction)
+
+**Problem:** The custom `evaluate_go_flag_stop()` function expects specific data.frame column names (`pass`, `nc_name`) from the custom NC results and specific metric fields from the custom plasmode results. cleanTMLE's `run_residual_confounding_stage()` returns a different structure (`summary_table` with different columns), and `run_plasmode_feasibility()` returns a `plasmode_results` object, not a list with `$metrics`.
+
+**Workaround:** Conditional logic checks whether cleanTMLE or custom results are available, and falls back accordingly. The `exists("plasmode_results")` check is fragile.
+
+**Recommendation:** Provide a unified `gate_all()` function that takes the checkpoint objects from Stages 1b, 2, 2b, and 3 and produces a single GO/FLAG/STOP decision with composite rationale. The current `gate_check()` only handles plasmode metrics.
+
+### 2f. `checkpoint_balance()` requires `ps_diagnostics` object (LOW friction)
+
+**Problem:** `checkpoint_balance()` only accepts a `ps_diagnostics` object from `compute_ps_diagnostics()`. You cannot pass your own SMD table or ESS values.
+
+**Workaround:** Had to run cleanTMLE's own `fit_ps_glm()` + `compute_ps_diagnostics()` even though the custom pipeline already computed PS and diagnostics.
+
+**Recommendation:** Accept raw diagnostics inputs: `checkpoint_balance(smds = data.frame(...), ess = data.frame(...))`.
+
+---
+
+## 3. Missing Features (Not in cleanTMLE)
+
+### 3a. Discrete-time survival TMLE
+
+The RescueCo pipeline implements a custom discrete-time survival TMLE that expands data to person-time format and fits three SuperLearner models (treatment, censoring, hazard). cleanTMLE's `estimate_surv_tmle()` attempts to use the `survtmle` package but falls back to a simpler discrete-time approach. The custom implementation is more flexible (configurable time grid, bootstrap SEs).
+
+**Gap:** cleanTMLE should provide a first-class `run_survival_tmle()` that matches the modular binary TMLE API: `fit_survival_treatment_mechanism()` -> `fit_survival_hazard_mechanism()` -> `fit_survival_censoring_mechanism()` -> `run_survival_targeting_step()` -> `extract_survival_estimate()`.
+
+### 3b. Data loading and imputation
+
+cleanTMLE assumes a clean data.frame is provided. The RescueCo pipeline involves:
+
+- Loading Stata `.dta` files via `haven`
+- Merging trauma registry with 6-month follow-up
+- Constructing treatment/outcome variables from raw survey items
+- Imputing missing values (median/category)
+- Dropping rare categories and high-missingness columns
+
+These are analysis-specific, but `impute_missing()` and `missingness_summary()` are generic enough to be package functions.
+
+### 3c. Configuration file support
+
+The RescueCo pipeline uses a YAML configuration file for all parameters (variable names, truncation thresholds, SL library, seed). cleanTMLE hardcodes these in the `create_analysis_lock()` call. A `create_analysis_lock_from_config(config_path)` would be valuable.
+
+### 3d. Covariate sanitization
+
+The custom `sanitize_W()` function (replace NA/NaN/Inf, drop zero-variance columns, fix formula-unsafe names) is essential for SuperLearner to work in practice. cleanTMLE does not sanitize covariates before fitting.
+
+### 3e. Matched-cohort TMLE
+
+The RescueCo pipeline runs TMLE on both the full cohort and the PS-matched cohort. cleanTMLE's modular TMLE always uses the full lock data. There is no way to run the modular TMLE on a subset (matched observations) without creating a separate lock.
+
+### 3f. Clever covariate diagnostic plot
+
+The RescueCo pipeline plots the clever covariate H_n = A/g - (1-A)/(1-g) as a diagnostic. cleanTMLE has `ic_histogram()` but not a clever covariate plot.
+
+### 3g. Three-way love plot (unweighted / matched / IPTW)
+
+cleanTMLE's `love_plot()` shows unweighted vs. weighted SMDs. The RescueCo pipeline adds a third column for PS-matched SMDs. The three-way comparison is more informative.
+
+### 3h. Progress bars for long-running operations
+
+The custom pipeline uses `cr_progress()` text-based progress bars during simulation loops. cleanTMLE's `run_plasmode_feasibility()` has a `verbose` flag but no progress indication.
+
+---
+
+## 4. Where cleanTMLE Adds Value Beyond Custom Code
+
+Despite the friction, cleanTMLE provides genuine improvements:
+
+1. **Structured checkpoints** (`checkpoint_cohort_adequacy`, `checkpoint_balance`, `checkpoint_residual_bias`) with GO/FLAG/STOP decisions are more rigorous than ad-hoc logging
+2. **Pre-outcome authorization gate** (`authorize_outcome_analysis`) formally enforces outcome blinding in a way the custom pipeline cannot
+3. **Audit trail** with typed entries, timestamps, and lock-hash validation provides better reproducibility documentation
+4. **Sensitivity analysis** (`sensitivity_truncation`, `compute_evalue`) was not in the original pipeline
+5. **Cross-estimator comparison** (`summarize_cleanroom_results`) with matching + IPTW + TMLE in one table
+6. **Modular TMLE** separating the g-step from Q-step reinforces the clean-room principle
+
+---
+
+## 5. Integration Architecture Assessment
+
+```{r architecture-table}
+architecture <- data.frame(
+  Component = c(
+    "Data loading & cleaning",
+    "Configuration management",
+    "Covariate sanitization",
+    "PS estimation (SuperLearner)",
+    "PS estimation (GLM)",
+    "PS diagnostics (ESS, SMD, overlap)",
+    "PS matching",
+    "IPTW weight diagnostics",
+    "Negative control analysis",
+    "Plasmode simulation",
+    "GO/FLAG/STOP gating",
+    "Binary TMLE (full cohort)",
+    "Binary TMLE (matched cohort)",
+    "Survival TMLE (discrete-time)",
+    "Cox regression",
+    "Cross-estimator comparison",
+    "Sensitivity analysis",
+    "IC / clever covariate plots",
+    "Love plot",
+    "Decision logging / audit"
+  ),
+  Custom = c("Yes","Yes","Yes","Yes","No","Yes","Yes","Yes","Yes","Yes","Yes","Yes","Yes","Yes","Yes","Yes","No","Yes","Yes","Yes"),
+  cleanTMLE = c("No","No","No","Partial","Yes","Yes","Yes","Yes","Yes*","Yes","Partial","Yes","No","Partial","No","Yes","Yes","Partial","Yes","Yes"),
+  Used_In_Pipeline = c("Custom","Custom","Custom","Custom","cleanTMLE","Both","Custom","Both","Both","Both","Both","Both","Custom","Both","Custom","Both","cleanTMLE","Both","Both","Both"),
+  stringsAsFactors = FALSE
+)
+kable(architecture, caption = "Integration architecture: Custom vs. cleanTMLE coverage")
+```
+
+\* cleanTMLE NC uses IPTW not TMLE
+
+---
+
+## 6. Prioritized Improvement Recommendations
+
+### P0 (Blockers for real-world adoption)
+
+1. **Accept external PS scores** -- Add `wrap_ps_fit(lock, ps_scores, method)` or a `ps` parameter to `fit_ps_superlearner()`. Without this, users with custom PS models (parallel SL, Bayesian, etc.) cannot use cleanTMLE diagnostics.
+
+2. **Parallel SuperLearner support** -- Add `cluster` parameter to `fit_ps_superlearner()`. On Windows, PSOCK clusters are essential for reasonable runtime with even modest data.
+
+### P1 (High-value improvements)
+
+3. **File-based lock serialization** -- Add `save_lock()` / `load_lock()` that handle the data, hash validation, and masking state across stage boundaries.
+
+4. **TMLE-based negative controls** -- `run_negative_control()` should use the modular TMLE pipeline, not IPTW. The package is called clean**TMLE**.
+
+5. **Matched-cohort TMLE** -- Allow the modular TMLE functions to accept a subset index or matched lock.
+
+### P2 (Nice to have)
+
+6. **Clever covariate plot** -- Add `clever_covariate_plot(tmle_update)` alongside `ic_histogram()`.
+
+7. **Three-way love plot** -- Extend `love_plot()` to accept matched SMDs as a third column.
+
+8. **Config file support** -- `create_analysis_lock_from_yaml(path)` for pipelines with YAML-driven specifications.
+
+9. **Covariate sanitization** -- Add `sanitize_covariates(lock)` that fixes NA/Inf, drops zero-variance, and makes names formula-safe.
+
+10. **Composite gating** -- `gate_all(audit)` that checks all preceding checkpoints and returns a single GO/FLAG/STOP.
+
+---
+
+## 7. cleanTMLE Audit Trail
+
+```{r audit-trail}
+if (!is.null(ct_audit_trail)) {
+  kable(ct_audit_trail, caption = "cleanTMLE audit trail entries")
+} else {
+  cat("Audit trail not available (pipeline may not have completed).")
+}
+```
+
+```{r decision-log-ct}
+if (!is.null(ct_decision_log)) {
+  kable(ct_decision_log, caption = "cleanTMLE decision log entries")
+} else {
+  cat("Decision log not available.")
+}
+```
+
+---
+
+## 8. Conclusion
+
+cleanTMLE v0.1.0 provides a solid foundation for staged clean-room causal inference. Its checkpoint, gate, and audit trail APIs are well-designed and genuinely useful. The binary outcome TMLE workflow (modular g/Q/targeting/extraction) is the standout feature.
+
+However, integrating cleanTMLE into a real-world analysis pipeline exposed several friction points. The most critical are: the lock object's data-embedding pattern (which fights file-based pipelines), the lack of parallel SuperLearner support (which forces a methodology downgrade), and IPTW-based negative controls (which undermines the "TMLE" brand).
+
+With the P0 and P1 improvements above, cleanTMLE would be a compelling package for observational comparative effectiveness studies. Without them, users will -- as we did -- maintain parallel custom code alongside cleanTMLE, which dilutes the package's value proposition.
+
+```{r session-info}
+sessionInfo()
+```

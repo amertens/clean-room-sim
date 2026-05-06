@@ -1,0 +1,631 @@
+---
+title: "Clean-Room Stage 1b: Exploratory Data Analysis"
+subtitle: "RescueCo Trauma Registry – Covariate Diagnostics Before Design Stage"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    self-contained: true
+    theme: cosmo
+execute:
+  echo: true
+  warning: true
+  message: true
+params:
+  results_dir: "rescueCo/results"
+---
+
+```{r setup}
+#| label: setup
+#| include: false
+library(ggplot2)
+library(knitr)
+
+# Quarto runs from the .qmd file's directory, so navigate to project root
+project_root <- normalizePath(file.path(getwd(), "..", ".."), mustWork = FALSE)
+# If already at root (e.g. called via quarto_render with execute-dir), detect that
+if (file.exists(file.path(getwd(), "rescueCo", "R", "utils.R"))) {
+  project_root <- getwd()
+} else if (file.exists(file.path(getwd(), "..", "..", "rescueCo", "R", "utils.R"))) {
+  project_root <- normalizePath(file.path(getwd(), "..", ".."))
+}
+knitr::opts_knit$set(root.dir = project_root)
+setwd(project_root)
+
+source("rescueCo/R/utils.R")
+cfg <- load_cr_config()
+```
+
+# Purpose
+
+This EDA runs **after Stage 1** (cohort build) and **before Stage 2** (propensity
+score design checks).
+It inspects the covariate matrix (`W_matrix`) and treatment vector to catch
+data-quality problems that would crash SuperLearner:
+
+- `NA` / `NaN` / `Inf` / `-Inf` in numeric columns
+- Constant or near-zero-variance columns
+- Dimension mismatches between `A` and `W_matrix`
+- Extreme values and distributional oddities
+
+**No outcomes are examined here.**  This is a design-phase diagnostic only.
+
+---
+
+# Load Stage 1 Outputs
+
+```{r load}
+dat      <- load_stage_output("stage1_cohort.rds")
+W_matrix <- load_stage_output("stage1_W_matrix.rds")
+A        <- dat$A
+
+cat("Cohort rows :", nrow(dat), "\n")
+cat("W_matrix dim:", nrow(W_matrix), "x", ncol(W_matrix), "\n")
+cat("Length of A :", length(A), "\n")
+cat("Row match?  :", nrow(W_matrix) == length(A), "\n")
+```
+
+---
+
+# Covariate Inventory: Analysis-Plan Variables {#sec-covariate-inventory}
+
+This section documents every covariate selected for the clean-room workflow,
+grouped by the domains pre-specified in the analysis plan.
+Each variable is described, summarised (mean/SD for continuous; n/% for binary),
+and compared across treatment arms (**without** examining outcomes).
+
+```{r covariate-inventory-setup}
+#| label: covariate-inventory-setup
+#| include: false
+
+# ---- Helper: summarise one column by treatment arm ----
+summarise_col <- function(x, arm, col_name) {
+  is_binary <- all(x[!is.na(x)] %in% c(0, 1))
+  overall_n <- length(x)
+  n_miss    <- sum(is.na(x))
+
+  if (is_binary) {
+    n1   <- sum(x == 1, na.rm = TRUE)
+    pct1 <- round(mean(x, na.rm = TRUE) * 100, 1)
+    trt_pct  <- round(mean(x[arm == 1], na.rm = TRUE) * 100, 1)
+    ctrl_pct <- round(mean(x[arm == 0], na.rm = TRUE) * 100, 1)
+    data.frame(
+      Variable  = col_name,
+      Type      = "Binary",
+      Overall   = paste0(n1, " (", pct1, "%)"),
+      Treated   = paste0(sum(x[arm == 1] == 1, na.rm = TRUE), " (",  trt_pct, "%)"),
+      Control   = paste0(sum(x[arm == 0] == 1, na.rm = TRUE), " (", ctrl_pct, "%)"),
+      Missing   = n_miss,
+      stringsAsFactors = FALSE
+    )
+  } else {
+    data.frame(
+      Variable  = col_name,
+      Type      = "Continuous",
+      Overall   = paste0(round(mean(x, na.rm = TRUE), 2), " (SD ",
+                          round(sd(x, na.rm = TRUE), 2), ")"),
+      Treated   = paste0(round(mean(x[arm == 1], na.rm = TRUE), 2), " (",
+                          round(sd(x[arm == 1], na.rm = TRUE), 2), ")"),
+      Control   = paste0(round(mean(x[arm == 0], na.rm = TRUE), 2), " (",
+                          round(sd(x[arm == 0], na.rm = TRUE), 2), ")"),
+      Missing   = n_miss,
+      stringsAsFactors = FALSE
+    )
+  }
+}
+
+# ---- Helper: summarise a group of columns ----
+summarise_group <- function(patterns, W, arm, description_map = NULL) {
+  all_cols <- colnames(W)
+  matched  <- character()
+  for (pat in patterns) {
+    matched <- union(matched, grep(pat, all_cols, ignore.case = TRUE, value = TRUE))
+  }
+  if (length(matched) == 0) return(NULL)
+
+  rows <- lapply(matched, function(cn) {
+    label <- if (!is.null(description_map) && cn %in% names(description_map)) {
+      description_map[[cn]]
+    } else {
+      cn
+    }
+    summarise_col(W[, cn], arm, label)
+  })
+  do.call(rbind, rows)
+}
+```
+
+## Domain Definitions
+
+The analysis plan pre-specifies the following covariate domains.
+Columns are listed in `rescueCo/config/clean_room_config.yml` → `covariates.selected_columns`.
+
+```{r domain-count}
+cat("Selected W_matrix columns:", ncol(W_matrix), "\n")
+cat("Column names:\n")
+cat(paste(" ", colnames(W_matrix)), sep = "\n")
+```
+
+## Demographics
+
+**Age, sex, hospital site.**
+
+```{r demo-table}
+demo <- summarise_group(
+  c("^age$", "^sex_male$", "^hosp_lkh$"),
+  W_matrix, A
+)
+kable(demo, row.names = FALSE, caption = "Demographics")
+```
+
+```{r age-hist}
+#| fig-height: 4
+if ("age" %in% colnames(W_matrix)) {
+  age_df <- data.frame(age = W_matrix[, "age"],
+                       Group = ifelse(A == 1, "Treated", "Control"))
+  ggplot(age_df, aes(x = age, fill = Group)) +
+    geom_histogram(bins = 40, alpha = 0.6, position = "identity") +
+    labs(title = "Age Distribution by Treatment Arm",
+         x = "Age (years)", y = "Count") +
+    theme_minimal()
+}
+```
+
+## Marital Status
+
+```{r marital-table}
+ms <- summarise_group("^marital_married$", W_matrix, A)
+kable(ms, row.names = FALSE, caption = "Marital Status Indicators")
+```
+
+## Education
+
+```{r edu-table}
+ed <- summarise_group("^educ_", W_matrix, A)
+kable(ed, row.names = FALSE, caption = "Education Level Indicators")
+```
+
+## Distance from Hospital
+
+```{r dist-table}
+dst <- summarise_group("^inj_distance$", W_matrix, A)
+kable(dst, row.names = FALSE, caption = "Distance from Injury to Hospital")
+```
+
+```{r dist-hist}
+#| fig-height: 4
+dist_col <- grep("^inj_distance$", colnames(W_matrix), value = TRUE)
+if (length(dist_col) == 1) {
+  dist_df <- data.frame(dist = W_matrix[, dist_col],
+                        Group = ifelse(A == 1, "Treated", "Control"))
+  ggplot(dist_df, aes(x = dist, fill = Group)) +
+    geom_histogram(bins = 50, alpha = 0.6, position = "identity") +
+    labs(title = "Distance to Hospital by Treatment Arm",
+         x = "Distance (km)", y = "Count") +
+    coord_cartesian(xlim = c(0, quantile(dist_df$dist, 0.99, na.rm = TRUE))) +
+    theme_minimal()
+}
+```
+
+## Mechanism of Injury
+
+```{r moi-table}
+moi <- summarise_group("^mech_", W_matrix, A)
+kable(moi, row.names = FALSE, caption = "Mechanism of Injury Indicators")
+```
+
+```{r moi-bar}
+#| fig-height: 5
+if (!is.null(moi) && nrow(moi) > 0) {
+  moi_cols <- grep("^mech_", colnames(W_matrix), value = TRUE)
+  prev <- data.frame(
+    Mechanism = sub("^mech_", "", moi_cols),
+    Treated   = sapply(moi_cols, function(cn) mean(W_matrix[A == 1, cn], na.rm = TRUE)),
+    Control   = sapply(moi_cols, function(cn) mean(W_matrix[A == 0, cn], na.rm = TRUE))
+  )
+  prev_long <- reshape(prev, direction = "long",
+                       varying = c("Treated", "Control"),
+                       v.names = "Prevalence", timevar = "Group",
+                       times = c("Treated", "Control"))
+  ggplot(prev_long, aes(x = reorder(Mechanism, Prevalence), y = Prevalence, fill = Group)) +
+    geom_col(position = "dodge", alpha = 0.8) +
+    coord_flip() +
+    labs(title = "Injury Mechanism Prevalence by Treatment Arm",
+         x = NULL, y = "Proportion") +
+    theme_minimal()
+}
+```
+
+## Pre-existing Health Conditions
+
+**Chronic illness indicators: hypertension, diabetes, HIV/AIDS,
+heart disease, asthma/COPD.**
+
+```{r comorbid-table}
+comorbid <- summarise_group(
+  c("^chronic_"),
+  W_matrix, A
+)
+kable(comorbid, row.names = FALSE,
+      caption = "Pre-existing Health Conditions (Unchecked = condition NOT reported)")
+```
+
+## Socioeconomic Status Proxies
+
+**Household type (urban/rural), occupation, cooking fuel.**
+
+Note: The analysis plan also specifies frequency of eating meat, floor type,
+and ownership of dish towels, but these variables are **not available** in the
+registry data. The closest available proxies are listed below.
+
+```{r ses-table}
+ses <- summarise_group(
+  c("^household_urban$", "^occup_", "^fuel_wood$"),
+  W_matrix, A
+)
+kable(ses, row.names = FALSE, caption = "Socioeconomic Status Proxy Indicators")
+```
+
+```{r ses-occupation-bar}
+#| fig-height: 5
+occ_cols <- grep("^occup_", colnames(W_matrix), value = TRUE)
+if (length(occ_cols) > 0) {
+  occ_prev <- data.frame(
+    Occupation = sub("^occup_", "", occ_cols),
+    Treated  = sapply(occ_cols, function(cn) mean(W_matrix[A == 1, cn], na.rm = TRUE)),
+    Control  = sapply(occ_cols, function(cn) mean(W_matrix[A == 0, cn], na.rm = TRUE))
+  )
+  occ_long <- reshape(occ_prev, direction = "long",
+                      varying = c("Treated", "Control"),
+                      v.names = "Prevalence", timevar = "Group",
+                      times = c("Treated", "Control"))
+  ggplot(occ_long, aes(x = reorder(Occupation, Prevalence), y = Prevalence, fill = Group)) +
+    geom_col(position = "dodge", alpha = 0.8) +
+    coord_flip() +
+    labs(title = "Occupation Distribution by Treatment Arm",
+         x = NULL, y = "Proportion") +
+    theme_minimal()
+}
+```
+
+## Method of Payment
+
+```{r payment-table}
+pay <- summarise_group("^pay_", W_matrix, A)
+kable(pay, row.names = FALSE, caption = "Payment Method Indicators")
+```
+
+## Clinical Severity at Arrival
+
+**Heart rate and GCS availability.**
+
+```{r clinical-table}
+clin <- summarise_group(
+  c("^gcs$", "^iss$"),
+  W_matrix, A
+)
+kable(clin, row.names = FALSE, caption = "Clinical Severity at Arrival")
+```
+
+```{r gcs-hist}
+#| fig-height: 4
+if ("gcs" %in% colnames(W_matrix)) {
+  gcs_df <- data.frame(gcs = W_matrix[, "gcs"],
+                       Group = ifelse(A == 1, "Treated", "Control"))
+  ggplot(gcs_df, aes(x = gcs, fill = Group)) +
+    geom_histogram(bins = 15, alpha = 0.6, position = "identity") +
+    labs(title = "Glasgow Coma Scale by Treatment Arm",
+         x = "GCS", y = "Count") +
+    theme_minimal()
+}
+```
+
+## Arrival Timing
+
+```{r arrival-table}
+arr <- summarise_group("^arrival_month$", W_matrix, A)
+kable(arr, row.names = FALSE, caption = "Arrival Month")
+```
+
+```{r arrival-bar}
+#| fig-height: 4
+if ("arrival_month" %in% colnames(W_matrix)) {
+  am_df <- data.frame(month = W_matrix[, "arrival_month"],
+                      Group = ifelse(A == 1, "Treated", "Control"))
+  ggplot(am_df, aes(x = factor(month), fill = Group)) +
+    geom_bar(position = "dodge", alpha = 0.8) +
+    labs(title = "Arrival Month by Treatment Arm",
+         x = "Month", y = "Count") +
+    theme_minimal()
+}
+```
+
+## Alcohol Use
+
+```{r alcohol-table}
+alc <- summarise_group("^inj_alcohol_yes$", W_matrix, A)
+kable(alc, row.names = FALSE, caption = "Alcohol Consumption Prior to Injury")
+```
+
+## Injury Intent
+
+```{r intent-table}
+intent <- summarise_group("^intent_assault$", W_matrix, A)
+kable(intent, row.names = FALSE, caption = "Injury Intent")
+```
+
+## Combined Summary Table (All Selected Covariates)
+
+```{r combined-table}
+all_summaries <- list(demo, ms, ed, dst, moi, comorbid, ses, pay, clin, arr, alc, intent)
+all_summaries <- all_summaries[!sapply(all_summaries, is.null)]
+combined <- do.call(rbind, all_summaries)
+combined$id <- NULL
+
+kable(combined, row.names = FALSE,
+      caption = paste0("All ", nrow(combined),
+                       " selected covariates: summary by treatment arm"))
+```
+
+## Analysis-Plan Variables NOT Available
+
+The following analysis-plan covariates could **not** be mapped to registry columns
+and are therefore excluded from the clean-room workflow:
+height/weight/BMI,
+anaemia,
+race/ethnicity,
+access to water,
+floor type at home,
+frequency of eating meat,
+ownership of dish towels,
+smoking/tobacco use (present in raw data but excluded due to >40 % missingness),
+region of residence (sub-county granularity exists but was not retained), and
+parental status.
+
+---
+
+# 1. Dimension & Alignment Check
+
+```{r dim-check}
+stopifnot(
+  "W_matrix rows must equal length(A)" = nrow(W_matrix) == length(A)
+)
+cat("✓ Dimensions aligned\n")
+```
+
+---
+
+# 2. Missing / Non-finite Values in W_matrix
+
+```{r nonfinite}
+na_per_col  <- colSums(is.na(W_matrix))
+nan_per_col <- colSums(apply(W_matrix, 2, is.nan))
+inf_per_col <- colSums(!is.finite(W_matrix) & !is.na(W_matrix))
+
+problem_cols <- data.frame(
+  column    = colnames(W_matrix),
+  n_NA      = na_per_col,
+  n_NaN     = nan_per_col,
+  n_Inf     = inf_per_col,
+  n_total_bad = na_per_col + nan_per_col + inf_per_col,
+  stringsAsFactors = FALSE
+)
+problem_cols <- problem_cols[problem_cols$n_total_bad > 0, ]
+
+if (nrow(problem_cols) == 0) {
+  cat("✓ No NA / NaN / Inf values found in W_matrix\n")
+} else {
+  cat("⚠ Found", nrow(problem_cols), "columns with non-finite values:\n")
+  kable(problem_cols[order(-problem_cols$n_total_bad), ], row.names = FALSE)
+}
+```
+
+---
+
+# 3. Constant / Near-Zero-Variance Columns
+
+```{r variance}
+col_var <- apply(W_matrix, 2, var, na.rm = TRUE)
+const_cols <- names(col_var[col_var == 0 | is.na(col_var)])
+near_zero  <- names(col_var[col_var > 0 & col_var < 1e-6])
+
+cat("Constant columns (var = 0)  :", length(const_cols), "\n")
+if (length(const_cols) > 0) cat("  ", paste(head(const_cols, 20), collapse = ", "), "\n")
+
+cat("Near-zero variance (< 1e-6):", length(near_zero), "\n")
+if (length(near_zero) > 0) cat("  ", paste(head(near_zero, 20), collapse = ", "), "\n")
+```
+
+---
+
+# 4. Treatment Variable Summary
+
+```{r treatment}
+cat("Treatment (A) distribution:\n")
+print(table(A, useNA = "always"))
+
+cat("\nMissing A:", sum(is.na(A)), "\n")
+```
+
+---
+
+# 5. Column-type Breakdown
+
+```{r col-types}
+n_binary <- sum(apply(W_matrix, 2, function(x) all(x[!is.na(x)] %in% c(0, 1))))
+n_continuous <- ncol(W_matrix) - n_binary
+
+cat("Binary / indicator columns:", n_binary, "\n")
+cat("Continuous columns        :", n_continuous, "\n")
+cat("Total                     :", ncol(W_matrix), "\n")
+```
+
+---
+
+# 6. Distributions of Continuous Covariates
+
+```{r continuous-summary}
+#| fig-height: 8
+cont_idx <- which(apply(W_matrix, 2, function(x) {
+  length(unique(x[!is.na(x)])) > 2
+}))
+
+if (length(cont_idx) > 0) {
+  cont_stats <- data.frame(
+    column = colnames(W_matrix)[cont_idx],
+    min    = apply(W_matrix[, cont_idx, drop = FALSE], 2, min, na.rm = TRUE),
+    q25    = apply(W_matrix[, cont_idx, drop = FALSE], 2, quantile, 0.25, na.rm = TRUE),
+    median = apply(W_matrix[, cont_idx, drop = FALSE], 2, median, na.rm = TRUE),
+    mean   = apply(W_matrix[, cont_idx, drop = FALSE], 2, mean, na.rm = TRUE),
+    q75    = apply(W_matrix[, cont_idx, drop = FALSE], 2, quantile, 0.75, na.rm = TRUE),
+    max    = apply(W_matrix[, cont_idx, drop = FALSE], 2, max, na.rm = TRUE),
+    sd     = apply(W_matrix[, cont_idx, drop = FALSE], 2, sd, na.rm = TRUE),
+    n_unique = apply(W_matrix[, cont_idx, drop = FALSE], 2, function(x) length(unique(x))),
+    stringsAsFactors = FALSE
+  )
+  kable(cont_stats, digits = 3, row.names = FALSE,
+        caption = "Continuous covariate summary statistics")
+} else {
+  cat("No continuous covariates found.\n")
+}
+```
+
+---
+
+# 7. Extreme-Value Flags
+
+Covariates with values > 5 SD from the mean:
+
+```{r extremes}
+extreme_report <- lapply(cont_idx, function(j) {
+  x <- W_matrix[, j]
+  mu <- mean(x, na.rm = TRUE)
+  s  <- sd(x, na.rm = TRUE)
+  if (s == 0) return(NULL)
+  n_extreme <- sum(abs(x - mu) > 5 * s, na.rm = TRUE)
+  if (n_extreme > 0) {
+    data.frame(column = colnames(W_matrix)[j],
+               n_extreme = n_extreme,
+               pct = round(n_extreme / length(x) * 100, 2),
+               stringsAsFactors = FALSE)
+  }
+})
+extreme_df <- do.call(rbind, extreme_report)
+
+if (is.null(extreme_df) || nrow(extreme_df) == 0) {
+  cat("✓ No extreme outliers detected (> 5 SD)\n")
+} else {
+  kable(extreme_df[order(-extreme_df$n_extreme), ], row.names = FALSE,
+        caption = "Covariates with extreme values")
+}
+```
+
+---
+
+# 8. Pairwise Complete Cases: A vs W_matrix
+
+This replicates what SuperLearner sees during CV:
+
+```{r complete-cases}
+W_df <- as.data.frame(W_matrix)
+cc <- complete.cases(W_df) & !is.na(A)
+
+cat("Complete cases (A + all W):", sum(cc), "of", length(A), "\n")
+cat("Rows lost                 :", sum(!cc), "\n")
+
+if (sum(!cc) > 0) {
+  # Which columns cause the most row loss?
+  col_na_rows <- sapply(seq_len(ncol(W_matrix)), function(j) {
+    sum(is.na(W_matrix[, j]) | is.nan(W_matrix[, j]) | !is.finite(W_matrix[, j]))
+  })
+  names(col_na_rows) <- colnames(W_matrix)
+  culprits <- sort(col_na_rows[col_na_rows > 0], decreasing = TRUE)
+  cat("\nColumns contributing to incomplete rows:\n")
+  print(head(culprits, 30))
+}
+```
+
+---
+
+# 9. Sample of `age` (key continuous covariate)
+
+```{r age-inspect}
+if ("age" %in% colnames(W_matrix)) {
+  age <- W_matrix[, "age"]
+  cat("age summary:\n")
+  print(summary(age))
+  cat("NA :", sum(is.na(age)), "\n")
+  cat("NaN:", sum(is.nan(age)), "\n")
+  cat("Inf:", sum(is.infinite(age)), "\n")
+  cat("Unique values:", length(unique(age)), "\n")
+} else {
+  cat("Column 'age' not found in W_matrix.\n")
+  age_cols <- grep("age", colnames(W_matrix), ignore.case = TRUE, value = TRUE)
+  cat("Age-related columns:", paste(age_cols, collapse = ", "), "\n")
+}
+```
+
+---
+
+# 10. SuperLearner Dry-Run (single fold, SL.glm only)
+
+A minimal test to confirm the data matrix is usable:
+```{r sl-dryrun}
+#| error: true
+library(SuperLearner)
+
+cc_idx <- which(complete.cases(W_df) & !is.na(A))
+A_test <- A[cc_idx]
+W_test <- W_df[cc_idx, , drop = FALSE]
+
+# Remove any remaining constant columns
+col_var_test <- apply(W_test, 2, var, na.rm = TRUE)
+W_test <- W_test[, col_var_test > 1e-6, drop = FALSE]
+
+cat("Dry-run dimensions: n =", nrow(W_test), ", p =", ncol(W_test), "\n")
+
+tryCatch({
+  sl_test <- SuperLearner(
+    Y = A_test, X = W_test, family = binomial(),
+    SL.library = "SL.glm",
+    cvControl = list(V = 2)
+  )
+  cat("✓ SuperLearner dry-run succeeded\n")
+  cat("CV Risk:", round(sl_test$cvRisk, 4), "\n")
+}, error = function(e) {
+  cat("✗ SuperLearner dry-run FAILED:", e$message, "\n")
+})
+```
+
+---
+
+# Summary & Recommendations
+
+```{r summary}
+issues <- 0L
+recs   <- character()
+
+if (nrow(problem_cols) > 0) {
+  issues <- issues + 1L
+  recs <- c(recs, paste("Remove or impute", nrow(problem_cols),
+                         "columns with NA/NaN/Inf values"))
+}
+if (length(const_cols) > 0) {
+  issues <- issues + 1L
+  recs <- c(recs, paste("Drop", length(const_cols), "constant columns"))
+}
+if (sum(!cc) > 0) {
+  issues <- issues + 1L
+  recs <- c(recs, paste("Resolve", sum(!cc),
+                         "incomplete rows before SuperLearner"))
+}
+
+if (issues == 0) {
+  cat("✓ No blocking issues detected. Stage 2 should run cleanly.\n")
+} else {
+  cat("⚠ Found", issues, "issue(s) to resolve before Stage 2:\n")
+  for (r in recs) cat("  •", r, "\n")
+}
+```

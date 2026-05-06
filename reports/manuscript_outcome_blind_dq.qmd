@@ -74,13 +74,14 @@ stress test correctly identifies scenarios in which estimator
 performance degrades and the pipeline should be flagged. We then
 replicate the workflow on the Rescue.Co Kenya Trauma Registry
 (n = 1,693 ambulance patients with 24.6 % outcome missingness),
-where the lock, gate, and plasmode DQ stress test executed cleanly
-on real covariate structure (plasmode coverage 0.92--0.96, |bias|
-< 0.01) and where the four estimators agreed on the direction of
-effect (risk difference 0.02--0.03 in favour of Rescue.Co transport,
-all 95 % confidence intervals crossing zero); we use the case study
-to motivate the real-data robustness fixes catalogued in
-`NEWS.md` for cleanTMLE v0.1.1. cleanTMLE reuses the cohort-specification and reporting
+where the lock, gate, and outcome-blind plasmode executed cleanly
+on real covariate structure (plasmode coverage 0.94, |bias| <
+0.001) and where the four estimators agreed on the direction of
+effect (risk difference 0.030--0.033 in favour of Rescue.Co
+transport; three of four 95 % confidence intervals cross zero, the
+IPCW-TMLE just clears it); we use the case study to motivate the
+real-data robustness fixes catalogued in `NEWS.md` for cleanTMLE
+v0.1.1. cleanTMLE reuses the cohort-specification and reporting
 functions of the **causalRisk** package [@brookhart2024causalrisk] —
 an MIT-licensed R package that implements IPW, g-computation, and
 AIPW estimators with a clean-room-friendly setup — and adds the
@@ -1172,14 +1173,14 @@ fully reproducible from the companion repository
 The case is interesting for four reasons that the simulation does
 not exercise: (a) the primary outcome (Glasgow Outcome Scale
 Extended, GOSE 1--8) has 24.6 % missing values from loss to
-6-month follow-up; (b) 6.4 % of the analytic cohort transferred out
-of the index hospital, complicating in-hospital outcome
-ascertainment; (c) an 8-week healthcare-worker strike (15 March
-2024 -- 8 May 2024) acts as a quasi-natural-experiment confounder
-that is not part of either SPIFD2 or the four threats encoded by
-`run_plasmode_dq_stress()`; and (d) two prespecified socioeconomic
-negative controls (urban household, primary cooking fuel) carry the
-risk of revealing residual SES confounding.
+6-month follow-up; (b) 492 ambulance arrivals were inter-facility
+transfers and were excluded from the primary cohort, leaving the
+direct-from-scene 1,693; (c) an 8-week healthcare-worker strike
+(15 March 2024 -- 8 May 2024) acts as a quasi-natural-experiment
+confounder that is not part of either SPIFD2 or the four threats
+encoded by `run_plasmode_dq_stress()`; and (d) two prespecified
+socioeconomic negative controls (urban household, primary cooking
+fuel) carry the risk of revealing residual SES confounding.
 
 ## SuperLearner library specification
 
@@ -1198,7 +1199,7 @@ is degenerate. The rescueCo lock uses the same recommended library.
 The lock fixes the binary version of GOSE (`gose_good = 1` if GOSE
 > 4) as the primary outcome, treating ambulance arrival of any kind
 as in-scope and excluding inter-facility transfers. After
-exclusions the analytic cohort is **n = 1,693 (1,003 Rescue.Co; 690
+exclusions the analytic cohort is **n = 1,693 (1,013 Rescue.Co; 680
 other ambulance)**; n = 1,277 have non-missing 6-month GOSE. Twenty
 covariates enter the propensity-score model: demographics (age,
 sex, marital, education), distance, mechanism of injury (5
@@ -1208,62 +1209,62 @@ arrival month, alcohol use at injury, and assault intent.
 
 The lock declares two prespecified sensitivity plans (a 4-point PS
 truncation grid and a transfer-inclusion rerun) and five negative
-controls. We follow @muntner2024staging in tagging each NC with its
-confounding domain: `chronic_hypertension`, `chronic_diabetes_insulin`,
-and `chronic_hiv_art` cover *confounding by indication* and
+controls, each tagged with its @muntner2024staging confounding
+domain: `chronic_hypertension`, `chronic_diabetes_insulin`, and
+`chronic_hiv_art` cover *confounding by indication* and
 *functional status*; `household_urban` and `fuel_wood` cover
 *health-seeking behaviour* and *access to healthcare*. The
 `define_negative_control(..., domain = ...)` argument added in
-cleanTMLE 0.1.1 records the domain in the lock and the audit log so a
-reviewer can verify that the NC set spans all four domains rather
-than concentrating in one. The estimand is attached
-via `attach_estimand()` and the lock is fingerprinted with
-SHA-256. Stage 2b runs `run_plasmode_dq_stress()` with the
-`"regulatory_standard"` preset (`default_dq_scenarios()`), 50
-replicates per cell, on four candidates varying SuperLearner
-library (`SL.glm`, `SL.glmnet`) and PS truncation
-($t \in \{0.01, 0.05\}$). The Stage 2b TMLE specification is locked
-via `select_tmle_candidate(rule = "min_max_rmse",
-dq_results = ...)`, the manuscript's recommended rule.
+cleanTMLE 0.1.1 records the domain in the lock and the audit log so
+a reviewer can verify that the NC set spans the four domains rather
+than concentrating in one. Three of the five NCs
+(`chronic_diabetes_insulin`, `chronic_hiv_art`, `fuel_wood`) were
+dropped before fitting by a near-zero-variance filter applied at
+covariate sanitisation (combined prevalence below the 1 % threshold
+in the analytic cohort), and the drops are recorded in the audit
+log; the remaining two NCs are fit at Stage 3. The estimand is
+attached via `attach_estimand()` and the lock is fingerprinted with
+SHA-256. Stage 2b runs `run_plasmode_feasibility()` on two
+candidates that share the GLM PS library and vary the truncation
+threshold (`glm_t01` with $t = 0.01$, `glm_t05` with $t = 0.05$),
+50 replicates each, with the locked candidate selected via
+`select_tmle_candidate(rule = "min_rmse")`. (When DQ stress
+results are available, the manuscript's preferred rule is
+`min_max_rmse`; we use `min_rmse` here because the Stage 2b script
+in the rescueCo bundle currently exercises the baseline plasmode
+only.)
 
-## Pre-outcome gate and DQ stress results
+## Pre-outcome gate and plasmode results
 
 The plasmode metrics on the locked DGP for the rescueCo cohort are:
 
-| Estimator              | Bias    | RMSE    | Coverage |
-|------------------------|--------:|--------:|---------:|
-| Full-cohort TMLE       |  0.0019 |  0.0229 |     0.96 |
-| PS-matched regression  |  0.0088 |  0.0303 |     0.92 |
-| G-computation          |  0.0016 |  0.0225 |     0.92 |
+| Candidate | Bias    | RMSE   | Coverage | SE/SD |
+|-----------|--------:|-------:|---------:|------:|
+| `glm_t01` | -0.0006 | 0.0120 |     0.94 | 1.00  |
+| `glm_t05` | -0.0006 | 0.0120 |     0.94 | 1.00  |
 
-: Stage 2b plasmode metrics (rescueCo lock, 50 replicates).
+: Stage 2b plasmode metrics (rescueCo lock, 50 replicates per
+candidate, additive risk-difference effect of 0.05).
 
-All three pass the gate's prespecified targets
+Both candidates pass the gate's prespecified targets
 (`max_abs_bias = 0.01`, `min_coverage = 0.90`,
-`se_sd_window = (0.8, 1.2)`); the DQ stress run sweeps the four
-threats and returns no FLAG-able candidate, so the gate decides
-**GO** on Stage 2b. Negative controls run at Stage 3 on the same
-locked PS:
+`se_sd_window = (0.8, 1.2)`); the two truncation thresholds
+produce indistinguishable performance because the propensity
+scores never approached either bound (range 0.21--0.81). Negative
+controls run at Stage 3 on the locked PS:
 
 | Negative control       | Estimate | SE      | p-value | Pass |
 |------------------------|---------:|--------:|--------:|:----:|
-| chronic hypertension   |  0.00126 | 0.0073  |   0.86  |  ✓   |
-| household urban        | −0.00075 | 0.0070  |   0.92  |  ✓   |
+| chronic hypertension   |  0.00248 | 0.0072  |   0.73  |  ✓   |
+| household urban        | −0.00077 | 0.0071  |   0.91  |  ✓   |
 
 : Stage 3 negative-control TMLE results.
 
-Three of the five registered negative controls (`chronic_diabetes_insulin`,
-`chronic_hiv_art`, `fuel_wood`) failed to fit on the rescueCo lock
-in the v0.1.0 release because of degenerate covariate distributions
-in the matched subset; they were dropped silently. The v0.1.1 fix
-to `run_residual_confounding_stage()` surfaces such failures
-explicitly in the audit log so the gate sees partial NC coverage.
-Re-running on 0.1.1 with the diabetes / HIV / fuel-wood controls
-explicitly logged is part of the case-study companion task.
-
 The pre-outcome gate (`authorize_outcome_analysis()`) returns GO
-under FLAG with the two passing NCs and the partial NC coverage,
-the lock is unmasked, and Stage 4 estimators run.
+on the two passing NCs and the plasmode metrics. The audit log
+records the three NC drops alongside the two GO checkpoints, so a
+reviewer can see at a glance that NC coverage is partial. The lock
+is then unmasked and Stage 4 estimators run.
 
 ## Effect estimates
 
@@ -1271,41 +1272,46 @@ the lock is unmasked, and Stage 4 estimators run.
 case_eff <- data.frame(
   Method = c("PS-matched logistic", "PS-matched TMLE",
              "Full-cohort TMLE",   "IPCW-TMLE (full cohort)"),
-  N      = c(931L, 931L, 1277L, 1277L),
-  RD     = c(0.0215, 0.0233, 0.0311, 0.0324),
-  CI_lo  = c(-0.0168, -0.0138, -0.0007, -0.0006),
-  CI_hi  = c( 0.0572,  0.0604,  0.0629,  0.0647),
+  N      = c(939L, 939L, 1277L, 1277L),
+  RD     = c(0.0303, 0.0318, 0.0302, 0.0332),
+  CI_lo  = c(-0.0057, -0.0039, -0.0017, 0.0005),
+  CI_hi  = c( 0.0615,  0.0676,  0.0621, 0.0620),
   stringsAsFactors = FALSE
 )
 knitr::kable(case_eff, digits = 4,
              caption = "rescueCo binary-outcome estimates (good functional outcome at 6 months, GOSE > 4).")
 ```
 
-The four estimators agree on direction and magnitude: the matched
-regression gives the smallest effect (RD = 0.022) and the full-
-cohort IPCW-TMLE the largest (RD = 0.032), with the simulation-
-locked TMLE on the full cohort returning RD = 0.031, 95 % CI just
-crossing zero (−0.001, 0.063). The matched estimator is least
-efficient (n = 931 versus 1,277) but its CI is also widest. None of
-the four estimators reaches conventional significance at $\alpha =
-0.05$. We report the IPCW-TMLE as the primary because it is the
+The four estimators agree on direction and magnitude: the
+adjustment for outcome missingness (IPCW-TMLE, RD = 0.033) gives
+the largest effect, the simulation-locked full-cohort TMLE returns
+RD = 0.030 with 95 % CI just crossing zero (−0.002, 0.062), and the
+two matched estimators sit between (RD = 0.030 and 0.032 on n = 939
+matched pairs). The IPCW-TMLE 95 % CI just *clears* zero (lower
+bound 0.0005), so among the four reported estimators it is the only
+one that reaches conventional significance at $\alpha = 0.05$,
+though the lower bound is small enough that any sensitivity
+analysis dragging the estimate by more than ~0.001 erases the
+result. We report the IPCW-TMLE as the primary because it is the
 only estimator that targets the marginal estimand on the full
 cohort *and* corrects for the 24.6 % outcome missingness; the
 matched results serve as the prespecified sensitivity exhibit.
 
 Following @gruber2022sap (Step 5) and @diaz2013sensitivity, we
-report a tipping-point bound on the primary estimate using
-`tipping_point_sensitivity()`: residual bias of magnitude 0.0007 on
-the risk-difference scale (about 2 % of the point estimate) would
-shift the lower CI bound through zero. The E-value
-[@vanderWeele2017evalue] for the same estimate is small for the
-same reason. Both diagnostics indicate that the qualitative
-conclusion ("Rescue.Co transport is consistent with a small
-favourable shift in functional outcome but not statistically
-distinguishable from null") is robust within a narrow band; outside
+report a tipping-point bound on the simulation-locked full-cohort
+TMLE estimate using `tipping_point_sensitivity()`: residual bias of
+magnitude 0.0017 on the risk-difference scale (about 6 % of the
+point estimate of 0.030) would shift the lower CI bound through
+zero. The E-value [@vanderWeele2017evalue] for the same estimate is
+correspondingly small. Both diagnostics indicate that the
+qualitative conclusion ("Rescue.Co transport is consistent with a
+small favourable shift in functional outcome, statistically
+borderline") tolerates only a narrow band of residual bias; outside
 that band an unmeasured confounder of the strength suggested by the
-healthcare-worker strike or by the differential transfer-out
-attrition would erase or invert the effect.
+healthcare-worker strike or by the inter-facility transfer
+imbalance (40.7 % of non-Rescue.Co versus 2.5 % of Rescue.Co
+ambulance arrivals were transfers, all excluded from the analytic
+cohort) could erase or invert the effect.
 
 ## What the case study tells us about the workflow
 
@@ -1317,16 +1323,22 @@ Stage 4 estimator run before `authorize_outcome_analysis()` had
 fired. The lock fingerprint matched on reload at every stage. This
 worked exactly as the manuscript's §\ref{sec-framework} promises.
 
-**The DQ stress test confirmed candidate stability on real
-covariate structure.** The plasmode coverages of 0.92--0.96 with
-biases under 0.01 are the validation that a reviewer would want.
-But the four threats encoded by `run_plasmode_dq_stress()`
-(covariate MCAR, exposure misclassification, outcome
-misclassification, latent U) did not cover two design challenges
-that did matter in this study: the strike-window confounder and
-the differential transfer-out attrition. We discuss this gap in
-§\ref{sec-discussion} as motivation for the time-window and MAR /
-MNAR extensions planned for cleanTMLE 0.2.
+**The outcome-blind plasmode confirmed candidate stability on real
+covariate structure.** Plasmode coverage of 0.94 with bias below
+0.001 across 50 replicates is the validation a reviewer would want.
+The Stage 2b script in this case-study bundle exercises only the
+baseline `run_plasmode_feasibility()`; running the full DQ stress
+test (`run_plasmode_dq_stress()` with all four threats) was not
+needed to discriminate between the two truncation candidates here
+because the propensity scores stayed well inside the truncation
+bounds. The simulation in §\ref{sec-simulation} exercises the full
+DQ stress framework. The four threats `run_plasmode_dq_stress()`
+encodes (covariate MCAR, exposure misclassification, outcome
+misclassification, latent $U$) do not cover two design challenges
+that did matter in the rescueCo study — the strike-window
+confounder and the inter-facility transfer imbalance — which
+motivates the time-window and MAR / MNAR extensions planned for
+cleanTMLE 0.2.
 
 **The estimator primitives needed real-data robustness work.**
 Applying cleanTMLE 0.1.0 to the rescueCo lock surfaced more than a

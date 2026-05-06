@@ -1,0 +1,189 @@
+# ============================================================
+# Clean-Room TMLE Workflow Configuration
+# RescueCo Kenya Trauma Registry Case Study
+# ============================================================
+
+# --- Data paths ---
+# rescueCo/ is now self-contained: input .dta files are vendored under
+# rescueCo/data/. Paths are resolved by rescueCo/R/utils.R relative to
+# the rescueCo/ folder itself, so the bundle can be lifted into any
+# project without rewiring.
+data:
+  trauma_registry_dta: "rescueCo/data/Final Data Cut 03.27.2026/Trauma Registry/Labeled_RescueCo_TraumaRegistry_03272026.dta"
+  sixmo_followup_dta:  "rescueCo/data/Final Data Cut 03.27.2026/6 Month Follow-up/Labeled_RescueCo_6moFollowup_03272026.dta"
+  # Legacy paths (kept for backward compatibility; ignored if vendored .dta
+  # files exist)
+  raw_rds:           "rescueCo/data/RescueCoKenyaTraumaR_DATA_clean.rds"
+  merged_rds:        "rescueCo/data/merged_clean.rds"
+  analysis_ready_rds: "rescueCo/data/analysis_ready.rds"
+
+# --- Output paths (relative to project root) ---
+paths:
+  results: "rescueCo/results"
+  logs: "rescueCo/logs"
+  reports: "rescueCo/reports"
+
+# --- Treatment variable ---
+treatment:
+  variable: "A"
+  label: "Rescue.Co EMS transport"
+  # Source column in the trauma registry .dta:
+  source_column: "ems_ambulance"    # 0 = Non-Rescue.Co EMS, 1 = Rescue.Co EMS
+  # Patients without ambulance transport (rcvamb == NA) are excluded.
+
+  # Inter-facility transfer handling:
+  # Primary analysis excludes inter-facility transfers (direct-from-scene only).
+  # Sensitivity analysis includes all ambulance patients with transfer as covariate.
+  transfer_column: "inter_facility_transfer"  # "No" = direct, "Yes*" = transfer
+  exclude_transfers: true                      # Primary: true; Sensitivity: false
+
+# --- Binary outcome (GOSE-based) ---
+binary_outcome:
+  gose_variable: "gose_score"      # Derived in Stage 1 from 6mo follow-up items
+  threshold: 4
+  outcome_name: "gose_good"
+  outcome_label: "Good functional outcome (GOSE > 4)"
+
+# --- Survival outcome ---
+survival_outcome:
+  time_variable: "surv_time_days"
+  event_variable: "surv_event"
+  event_label: "Death"
+  time_horizons: [30, 90, 180]
+  max_followup_days: 180
+  # Source columns in .dta files:
+  disposition_column: "disposition"       # 5 = Died, 8 = Discharged home to die
+  followup_alive_column: "patient_alive"  # 0 = No (dead), 1 = Yes (alive)
+  followup_dod_column: "dod"             # Date of death from 6mo follow-up
+
+# --- Merge key ---
+merge:
+  registry_id: "patient_id"       # in trauma registry .dta
+  followup_id: "patients_id_gose" # in 6mo follow-up .dta
+
+# --- Covariates ---
+# Built directly from the trauma registry .dta columns.
+# Stage 1 constructs indicator variables from labelled columns, then
+# the selected_columns list picks the ~30 pre-specified analysis plan covariates.
+covariates:
+  missingness_threshold: 0.40
+  numeric_imputation: "median"
+  categorical_imputation: "Missing"
+  rare_category_threshold: 10
+
+  # Pre-specified covariates from the analysis plan (~28 columns).
+  # These are the EXACT column names created in Stage 1 after indicator expansion.
+  selected_columns:
+    # Demographics (3)
+    - "age"
+    - "sex_male"
+    - "hosp_lkh"
+    # Marital status (1)
+    - "marital_married"
+    # Education (2)
+    - "educ_university"
+    - "educ_no_formal"
+    # Distance (1)
+    - "inj_distance"
+    # Mechanism of injury – checkboxes (5)
+    - "mech_blunt_trauma"
+    - "mech_head_injury_severe"
+    - "mech_penetrating_trauma"
+    - "mech_stab"
+    - "mech_burns"
+    # Pre-existing conditions – checkboxes (5)
+    - "chronic_hypertension"
+    - "chronic_diabetes_insulin"
+    - "chronic_hiv_art"
+    - "chronic_heart_disease"
+    - "chronic_asthma_copd"
+    # SES proxies (4)
+    - "household_urban"
+    - "occup_unemployed"
+    - "occup_student"
+    - "fuel_wood"
+    # Payment – checkboxes (2)
+    - "pay_self_cash"
+    - "pay_insurance"
+    # Clinical severity (2)
+    - "gcs"
+    - "iss"
+    # Arrival timing (1)
+    - "arrival_month"
+    # Alcohol (1)
+    - "inj_alcohol_yes"
+    # Injury intent (1)
+    - "intent_assault"
+    # Transfer status (1) — used in sensitivity analysis when transfers included
+    - "is_transfer"
+    # Strike-window indicator (Part 3 #4 of case-study prompt)
+    - "strike_period"
+
+# --- Propensity score ---
+propensity_score:
+  truncation_lower: 0.01
+  truncation_upper: 0.99
+  caliper_sd_multiplier: 0.2
+  matching_ratio: 1
+  matching_method: "nearest"
+
+# --- SuperLearner ---
+superlearner:
+  cv_folds: 10  # 10-fold (was 2; Part 3 #3 of case-study prompt)
+  parallel: true
+  n_cores: 2
+  candidate_learners:
+    - "SL.glm"
+    - "SL.glmnet"
+    - "SL.mean"
+  survival_learners:
+    - "SL.glm"
+    - "SL.glmnet"
+    - "SL.mean"
+
+# --- Simulation (Stage 3) ---
+simulation:
+  n_sims: 3
+  true_ate_binary: 0.05
+  true_ate_survival: 0.03
+  seed: 20260311
+
+# --- TMLE ---
+tmle:
+  family_binary: "binomial"
+  family_continuous: "gaussian"
+
+# --- Reporting ---
+reporting:
+  confidence_level: 0.95
+  decimal_places: 3
+
+# --- IPTW Weight Diagnostics ---
+iptw_diagnostics:
+  extreme_weight_percentile: 0.99
+  max_min_ratio_threshold: 50
+  ess_min_fraction: 0.10   # flag if ESS < 10% of actual N per group
+
+# --- Negative Controls (Stage 2b) ---
+# Pre-treatment covariates that ambulance choice should NOT causally affect.
+# If TMLE finds a non-zero effect, it signals residual confounding.
+negative_controls:
+  outcomes:
+    - "chronic_hypertension"
+    - "chronic_diabetes_insulin"
+    - "chronic_hiv_art"
+    - "household_urban"
+    - "fuel_wood"
+  plasmode_n_sims: 50
+  plasmode_true_ate: 0.0
+
+# --- GO/FLAG/STOP gating criteria (Stage 2b) ---
+go_flag_stop:
+  nc_max_failures_go: 0      # GO if zero NC outcomes reject null
+  nc_max_failures_flag: 2    # FLAG if 1-2 NC failures; STOP if 3+
+  plasmode_min_coverage_go: 0.90
+  plasmode_min_coverage_flag: 0.80
+  plasmode_max_bias: 0.01
+
+# --- Reproducibility ---
+seed: 42
