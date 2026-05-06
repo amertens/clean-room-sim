@@ -1191,6 +1191,18 @@ that is not part of either SPIFD2 or the four threats encoded by
 negative controls (urban household, primary cooking fuel) carry the
 risk of revealing residual SES confounding.
 
+## SuperLearner library specification
+
+We follow @phillips2023sl on SuperLearner library composition. With
+$n_{\text{eff}} \approx 1{,}277$ complete-outcome observations, the
+recommended cross-validation count is $V = 10$, and the recommended
+library is a screened mixture of a parametric base learner
+(`SL.glm`), a regularised learner (`SL.glmnet`), and a generalised-
+additive learner (`SL.gam`). The cleanTMLE helper
+`validate_superlearner_spec(n_eff, library = ...)` records this
+recommendation in the lock and warns when the user-supplied library
+is degenerate. The rescueCo lock uses the same recommended library.
+
 ## Cohort, estimand, and pre-specification
 
 The lock fixes the binary version of GOSE (`gose_good = 1` if GOSE
@@ -1206,8 +1218,15 @@ arrival month, alcohol use at injury, and assault intent.
 
 The lock declares two prespecified sensitivity plans (a 4-point PS
 truncation grid and a transfer-inclusion rerun) and five negative
-controls (chronic hypertension, chronic diabetes on insulin, HIV on
-ART, urban household, wood cooking fuel). The estimand is attached
+controls. We follow @muntner2024staging in tagging each NC with its
+confounding domain: `chronic_hypertension`, `chronic_diabetes_insulin`,
+and `chronic_hiv_art` cover *confounding by indication* and
+*functional status*; `household_urban` and `fuel_wood` cover
+*health-seeking behaviour* and *access to healthcare*. The
+`define_negative_control(..., domain = ...)` argument added in
+cleanTMLE 0.1.1 records the domain in the lock and the audit log so a
+reviewer can verify that the NC set spans all four domains rather
+than concentrating in one. The estimand is attached
 via `attach_estimand()` and the lock is fingerprinted with
 SHA-256. Stage 2b runs `run_plasmode_dq_stress()` with the
 `"regulatory_standard"` preset (`default_dq_scenarios()`), 50
@@ -1283,6 +1302,20 @@ the four estimators reaches conventional significance at $\alpha =
 only estimator that targets the marginal estimand on the full
 cohort *and* corrects for the 22.8 % outcome missingness; the
 matched results serve as the prespecified sensitivity exhibit.
+
+Following @gruber2022sap (Step 5) and @diaz2013sensitivity, we
+report a tipping-point bound on the primary estimate using
+`tipping_point_sensitivity()`: residual bias of magnitude 0.0007 on
+the risk-difference scale (about 2 % of the point estimate) would
+shift the lower CI bound through zero. The E-value
+[@vanderWeele2017evalue] for the same estimate is small for the
+same reason. Both diagnostics indicate that the qualitative
+conclusion ("Rescue.Co transport is consistent with a small
+favourable shift in functional outcome but not statistically
+distinguishable from null") is robust within a narrow band; outside
+that band an unmeasured confounder of the strength suggested by the
+healthcare-worker strike or by the differential transfer-out
+attrition would erase or invert the effect.
 
 ## What the case study tells us about the workflow
 
@@ -1447,6 +1480,17 @@ broader estimand surface can use `causalRisk` directly with the
 same cohort-specification grammar.
 
 ## Recommendations for practice
+
+A fillable SAP template aligned with the prespecification checklist
+of @gruber2022sap and the staging construct of @muntner2024staging
+is shipped with the package as
+`system.file("templates", "sap_template.qmd", package = "cleanTMLE")`.
+The template walks the analyst through the eight-section structure
+(estimand under ICH E9(R1), identifiability assumptions and DQ
+mappings, candidate grid, gate thresholds, NC domain coverage,
+sensitivity plan, decision log, reporting checklist) so that the
+prespecification is filed in the same form that the audit log will
+later reference.
 
 We recommend a four-step pre-outcome workflow when the analyst is
 preparing a TL-RWE study.
