@@ -1,0 +1,7 @@
+"stage","action","decision","details","timestamp"
+"Stage 1a","Cohort built and analysis lock created","","","2026-05-05 20:45:48"
+"Check Point 1: Cohort Adequacy","Checkpoint evaluated: Issues: total events below minimum; outcome prevalence too low or NA","STOP","","2026-05-05 20:45:48"
+"Check Point 2: Treatment Comparability","Checkpoint evaluated: All covariates balanced and ESS adequate.","GO","","2026-05-05 20:55:47"
+"Stage 2","PS estimation and balance checks complete","","","2026-05-05 20:55:47"
+"Stage 2b","Locked TMLE candidate: glm_t01","","","2026-05-05 22:57:43"
+"Pre-Outcome Gate","Checkpoint evaluated: Missing required stages: Check Point 3 | STOP decision in: Check Point 1","STOP","","2026-05-06 06:48:16"

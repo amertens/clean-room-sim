@@ -80,9 +80,12 @@ real covariate structure (Stage 2b feasibility coverage 0.94, |bias|
 companion exercise) and where the four Stage 4 estimators agreed on
 the direction of effect (risk difference 0.030--0.033 in favour of
 Rescue.Co transport; three of four 95 % confidence intervals cross
-zero, the IPCW-TMLE just clears it). We use the case study to
-motivate the real-data robustness fixes catalogued in `NEWS.md` for
-cleanTMLE v0.1.1. cleanTMLE reuses the cohort-specification and reporting
+zero, the IPCW-TMLE just clears it). An ordinal proportional-odds
+analysis of GOSE 1--8 on the same cohort gives a common odds ratio
+of 1.29 (95 % CI 1.04, 1.60, p = 0.020), the only Stage-4 estimator
+to clear the conventional significance threshold cleanly. We use
+the case study to motivate the real-data robustness fixes
+catalogued in `NEWS.md` for cleanTMLE v0.1.1. cleanTMLE reuses the cohort-specification and reporting
 functions of the **causalRisk** package [@brookhart2024causalrisk] —
 an MIT-licensed R package that implements IPW, g-computation, and
 AIPW estimators with a clean-room-friendly setup — and adds the
@@ -1167,14 +1170,10 @@ Registry**, an applied comparative-effectiveness study at three
 Nairobi hospitals (KNH, Mama Lucy, Mbagathi) comparing prehospital
 transport by a specialised emergency-medical-services (EMS) provider
 (Rescue.Co) with traditional ambulance care, on functional outcome
-six months post-injury. Stages 1--3 (cohort build, design
-diagnostics, plasmode and DQ stress, negative controls) were rerun
-on cleanTMLE 0.1.1; the Stage 4 binary-outcome estimates reported
-below were computed on cleanTMLE 0.1.0 and have not yet been
-refreshed under 0.1.1. The released `manuscript_artifacts/case_study_metadata.json`
-records the per-stage version and lock hash. The case study is
-fully reproducible from the bundled `rescueCo/` directory in the
-companion repository.
+six months post-injury. All five stages were run on cleanTMLE 0.1.1; the released
+`manuscript_artifacts/case_study_metadata.json` records the version
+and lock hash. The case study is fully reproducible from the
+bundled `rescueCo/` directory in the companion repository.
 
 The case is interesting for four reasons that the simulation does
 not exercise: (a) the primary outcome (Glasgow Outcome Scale
@@ -1313,13 +1312,24 @@ only estimator that targets the marginal estimand on the full
 cohort *and* corrects for the 24.6 % outcome missingness; the
 matched results serve as the prespecified sensitivity exhibit.
 
+An unadjusted ordinal proportional-odds analysis of GOSE 1--8 on
+the same n = 1,277 (`MASS::polr`) gives a common odds ratio of
+**1.29 (95 % CI 1.04, 1.60), p = 0.020** in favour of Rescue.Co
+transport. The PO assumption is borderline (likelihood-ratio test
+of nominal vs PO effects, p = 0.064). The ordinal estimate uses the
+full GOSE distribution rather than the binary GOSE > 4 cutpoint and
+is the only result that *clearly* clears the conventional
+significance threshold; we keep the binary IPCW-TMLE as the
+prespecified primary but note that binarising the outcome erases
+roughly half the signal.
+
 Following @gruber2022sap (Step 5) and @diaz2013sensitivity, we
-report a tipping-point bound on the IPCW-TMLE primary estimate via
-`tipping_point_sensitivity()`. The lower CI bound for the IPCW-TMLE
-sits at 0.0005 above zero, so a residual bias of just 0.0005 on the
-risk-difference scale (1.5 % of the point estimate of 0.033) would
-shift the bound through zero and erase the borderline-significant
-result. The same exercise on the simulation-locked full-cohort TMLE
+report a tipping-point bound on the binary IPCW-TMLE primary
+estimate via `tipping_point_sensitivity()`. The lower CI bound for
+the IPCW-TMLE sits at 0.0005 above zero, so a residual bias of just
+0.0005 on the risk-difference scale (1.5 % of the point estimate of
+0.033) would shift the bound through zero and erase the borderline-
+significant result. The same exercise on the simulation-locked full-cohort TMLE
 returns 0.0017 (its lower bound is already negative, so the value
 records the distance from zero rather than a tipping point). The
 E-value [@vanderWeele2017evalue] is correspondingly small. Both

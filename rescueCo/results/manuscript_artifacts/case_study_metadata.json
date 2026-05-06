@@ -1,0 +1,15 @@
+{
+  "cleanTMLE_version": "0.1.1",
+  "rescueCo_data_cut": "2026-03-27",
+  "cohort": {
+    "n_total": 1693,
+    "n_treated": 1013,
+    "n_control": 680,
+    "n_gose_avail": 1277
+  },
+  "primary_estimator": "Full-cohort TMLE (locked spec from Stage 2b)",
+  "primary_RD": 0.0302,
+  "primary_CI": "[-0.0017, 0.0621]",
+  "lock_hash": "8f222d7b4aecfa6e2514ba2f82f4f6125bac8dae434edc829cb1a70aa4360434",
+  "rendered_at": "2026-05-06T06:59:27-0700"
+}
