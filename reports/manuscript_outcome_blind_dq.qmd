@@ -181,9 +181,10 @@ Wald-type confidence intervals.
 The contribution is operational. The software-mediated outcome
 guard is, as @muntner2024staging put it, an implementation pattern
 rather than a methodological novelty. Its advantage is
-reproducibility: the analysis records, audit trail, and decision
-log turn paper-only prespecification checklists into reproducible
-analysis records that any reviewer can re-execute. cleanTMLE
+transparency: the analysis lock, audit trail, and decision log
+turn paper-only prespecification checklists into a structured
+record of analytic decisions, supporting reproducible
+reconstruction by an external reviewer. cleanTMLE
 provides a prespecified quantitative stress test of estimator
 performance under data-quality degradation scenarios derived from
 a prior fit-for-purpose assessment; it does not itself determine
@@ -587,95 +588,86 @@ software analogue of that arrangement: they produce programmatic
 summaries that can be exposed to a reviewer role without granting
 the reviewer raw-data access.
 
-## Outcome-blind simulation versus the traditional clean-room
+## Personnel-based and simulation-based outcome blinding
 
-A traditional clean-room design is an organisational arrangement
-[@muntner2024staging]. A blinded analyst writes the analysis
-plan, fixes the cohort, runs every Stage 1 and Stage 2 diagnostic,
-and reaches the pre-outcome decision point. Only after that point
-has been passed does a separate, unblinded analyst (or a different
-role on the same team) link the outcome and run the comparative
-analysis. The separation is enforced by data-access controls: the
-blinded analyst's view of the database does not include the
-outcome column, and a data manager polices the boundary.
-Reviewers and regulators see two artifacts at the end, a frozen
-analysis plan with a timestamp and a final estimate produced under
-that plan.
+Outcome blinding can be enforced in two complementary ways. The
+first is personnel-based [@muntner2024staging]. A blinded analyst
+writes the analysis plan, defines the cohort, performs the design
+diagnostics, and reaches the pre-outcome decision point; only then
+does a separate analyst, or another role on the same team, link
+the outcome and run the comparative analysis. Separation is
+maintained by an institutional partition of duties and a
+documented audit by a data manager who controls access to the
+outcome variable. Reviewers and regulators evaluate two artefacts
+at the end: a timestamped analysis plan and a final estimate
+produced under that plan.
 
-Outcome-blind simulation, the approach we use in this paper, is a
-software arrangement that runs alongside (rather than instead of)
-that institutional arrangement. A single analyst can iterate on
-the prespecified set of candidate estimators, the decision
-thresholds, and the data-quality stress scenarios because the
-iteration runs against synthetic outcomes generated from a
-covariate-only model rather than against the real
-treatment-outcome data. The software-level access controls
-(`mask_outcome()`, `assert_outcome_authorized()`) can complement,
-but do not replace, personnel-based access controls and
-independent governance; similarly the audit log complements, but
-does not replace, the timestamped paper plan and the data
-manager's role. Reviewers see reproducible analysis records on
-top of the existing institutional documentation rather than as a
-substitute for it.
+The second arrangement, used here, is simulation-based. A single
+analyst can iterate on the prespecified set of candidate
+estimators, the decision thresholds, and the data-quality stress
+scenarios because the iteration is conducted against synthetic
+outcomes generated from a covariate-only model rather than against
+the observed treatment–outcome association. The software-mediated
+workflow partially substitutes for personnel-based separation by
+restricting outcome access until prespecified diagnostics and
+decision criteria have been completed; it complements, but does
+not replace, an institutional partition of duties or independent
+review of the analysis plan. The audit and decision logs likewise
+complement, rather than replace, the timestamped paper plan and
+the data manager's role. Reviewers retain access to a transparent
+reconstruction of every analytic decision in addition to the
+existing institutional documentation.
 
-The two approaches address the same underlying concern, that
-analytic decisions made after seeing the treatment-outcome
-association are not credible, but they differ in residual risks.
-The traditional clean-room design requires a partition of personnel
-and an institutional commitment to the partition; the
-software-only arrangement reduces the personnel constraint but
-relies on the analyst trusting that the synthetic-outcome
+The two arrangements address the same underlying concern, that
+analytic decisions made after seeing the treatment–outcome
+association are not credible, but they differ in their residual
+risks. Personnel-based blinding requires an institutional
+commitment to the partition of duties and tolerates ad-hoc
+deviation by the blinded analyst, since the only ground truth is
+the timestamped plan. Simulation-based blinding reduces the
+personnel constraint but introduces a different residual risk: the
+investigator must defend the assumption that the synthetic-outcome
 mechanism is faithful enough to the real data-generating process
-that the simulation-driven candidate selection generalises. The two
-are complementary, not competing: a fully defensible RWE pipeline
-uses the traditional clean-room arrangement *and* runs cleanTMLE
-inside it, gaining quantitative gating on top of the
-personnel-based partition.
+that estimator selection on simulations generalises to the
+realised data. The arrangements are complementary, and a
+defensible RWE pipeline can use both, applying the simulation-based
+workflow inside an institutional partition of duties.
 
-The advantages of the outcome-blind simulation approach, on its
-own, are these:
+### Methodological tradeoffs
 
-- *Lower personnel overhead for routine work.* A single statistician
-  can use cleanTMLE to produce a documented prespecification without
-  a separate unblinded role; for submission-grade work the software
-  arrangement should still be combined with personnel-based access
-  controls and independent oversight.
-- *Iteration without unblinding.* The candidate grid, the
-  truncation thresholds, and the gate thresholds can all be
-  revised after seeing the plasmode results, because the plasmode
-  outcomes are synthetic. The traditional clean-room design has
-  to re-freeze the plan if the analyst sees something they want
-  to change.
-- *Reproducibility.* The lock hash, the audit log, and the
-  decision log together let any reviewer re-run the entire
-  pre-outcome workflow byte-for-byte.
-- *Stress testing.* Because the simulation is under the analyst's
-  control, the same loop that picks the candidate can also stress
-  the candidate against realistic data threats. The traditional
-  clean-room design has no equivalent step; data fitness is
-  argued in prose.
+Compared with personnel-mediated outcome blinding, the
+simulation-mediated approach has the following tradeoffs.
 
-The disadvantages are real and worth saying out loud:
+*In favour:* a single statistician can produce a documented
+prespecification without a separate unblinded role, with the
+caveat that submission-grade studies should retain a personnel
+partition; the prespecified set of candidate estimators, the
+truncation thresholds, and the decision thresholds can be revised
+after viewing simulation results because those results use
+synthetic outcomes, so the analytic plan need not be re-frozen
+each time a tuning choice is reconsidered; the design records
+support transparent reconstruction of every prespecified decision
+by an external reviewer; and the same simulation loop that
+selects the candidate can be used to evaluate its robustness to
+prespecified data-quality threats, an evaluation that has no
+direct counterpart in personnel-based blinding (data fitness is
+argued in prose).
 
-- *The plasmode uses the real Y to fit the covariate-only Q0
-  model.* The analyst learns the marginal distribution of $Y$
-  given $W$, but not the joint $(A, Y) \mid W$ relationship. The
-  Dang causal-roadmap reading of "outcome-blind" allows this; a
-  stricter clean-room reading would require even the marginal
-  $E[Y \mid W]$ to come from external pilot data
-  [@dang2023roadmap, p. 7]. cleanTMLE supports both modes: passing
-  an external Q0 fit to `run_plasmode_feasibility()` is a
-  documented option, and the lock records which mode was used.
-- *Parametric DGP for the synthetic outcome.* The plasmode adds a
-  fixed risk difference to a logistic Q0; effect modification is
-  not modelled. A richer DGP is possible but is not exercised in
-  the simulation reported here.
-- *Single analyst, single trust boundary.* If the analyst is also
-  the one writing the plasmode and stress-test code, there is no
-  independent check that the synthetic-outcome mechanism is
-  faithful. The traditional clean-room arrangement, with a
-  separate data manager, has an extra layer of cross-validation
-  that the software-only workflow does not.
+*Against:* the plasmode generator uses the realised outcome
+$Y$ to fit a covariate-only mean model, so the analyst learns the
+marginal distribution of $Y$ given $W$, although not the joint
+$(A, Y) \mid W$ relationship. The Dang causal-roadmap reading of
+*outcome-blind* permits this; a stricter clean-room reading would
+require $E[Y \mid W]$ to come from external pilot data
+[@dang2023roadmap, p. 7], and the package supports both modes,
+recording which mode was used. The synthetic outcome is generated
+from a parametric model with a fixed risk difference, so effect
+modification is not represented; a richer data-generating process
+is possible but is not exercised here. Finally, when the analyst
+also writes the plasmode and stress-test specifications, there is
+no independent check that the synthetic-outcome mechanism is
+faithful, whereas the personnel-based arrangement provides an
+additional layer of cross-validation through the data manager.
 
 We document these trade-offs explicitly in the package's
 documentation so that the analyst can choose the level of
@@ -947,11 +939,13 @@ The DQ stress test runs on synthetic outcomes generated from the
 real covariate distribution and the real treatment. The real
 outcome is never read. This is the property that makes the test
 admissible inside the prespecification: the analyst can iterate on
-the candidate grid, on the degradation parameters, and on the gate
-thresholds without learning anything about the treatment-outcome
-association in the actual study data [@dang2023roadmap, p. 7].
-The lock's hash records the final choices. Once the gate signs
-off, the outcome is unmasked and the primary analysis runs once.
+the prespecified set of candidate estimators, on the degradation
+parameters, and on the decision thresholds without learning
+anything about the treatment-outcome association in the actual
+study data [@dang2023roadmap, p. 7]. The analysis-lock fingerprint
+records the final choices. Once the prespecified workflow has been
+completed, the outcome is unmasked and the primary analysis is
+run.
 
 # Implementation and `run_plasmode_dq_stress()` {#sec-implementation}
 
@@ -1633,18 +1627,19 @@ of the six estimates further toward null.
 
 ## What the case study tells us about the workflow
 
-### Audit and gate layer
+### Prespecification, audit, and the pre-outcome decision
 
-The decision log records every prespecified analytic choice
-(transfer exclusion, GOSE algorithm, candidate truncation grid)
-with timestamps; the gate refused to let any Stage 4 estimator run
-before `authorize_outcome_analysis()` had fired; and the lock
-fingerprint matched on reload at every stage. The audit trail did
-not capture the NZV-driven NC drops because those happen during
-covariate sanitisation in the pipeline script rather than at NC
-fit time, a real gap that the cleanTMLE 0.1.1 audit fix only
-partially closes. With that one caveat, the audit and gate machinery
-worked as §\ref{sec-framework} describes.
+The decision log captured every prespecified analytic choice
+(transfer exclusion, GOSE construction, truncation thresholds)
+with timestamps. Outcome-analysis functions did not run until the
+prespecified workflow had been completed, and the analysis-lock
+fingerprint reconciled on every reload. One real gap surfaced: the
+audit trail did not capture covariates dropped for near-zero
+variance during data sanitisation, because those drops occurred
+upstream of the negative-control fits rather than at fit time.
+The cleanTMLE 0.1.1 fix only partially closes that gap. With that
+caveat, the prespecification and audit functions performed as
+described in §\ref{sec-framework}.
 
 ### Outcome-blind plasmode
 
@@ -1679,9 +1674,9 @@ backends (now defaults to plain sequential evaluation);
 `run_residual_confounding_stage()` silently dropped failed NC fits
 (now records each failure in the audit log). We document these
 candidly because the working theory of the framework is that the
-audit and gate layer should make problems visible, including
-problems with the package itself, rather than absorb them into a
-hand-edited final table.
+prespecification and audit functions should make problems visible,
+including problems with the package itself, rather than absorb
+them into a hand-edited final table.
 
 The full release notes are in `cleanTMLE/NEWS.md`, and the
 rescueCo companion repository's `clean_room/results/manuscript_artifacts/`
@@ -1702,10 +1697,10 @@ code: an analysis-lock object, an audit trail, a decision log, and
 a proceed / review / stop classification of the analysis before
 the outcome is examined. The DQ stress test then adds a
 candidate-specific pre-outcome robustness screen on top of the
-standard plasmode loop. The combined effect is that paper-only
-prespecification checklists [@gruber2022sap; @cashin2024target]
-become reproducible analysis records that any reviewer can
-re-execute.
+standard plasmode loop. Together, these features support
+transparent reconstruction of paper-only prespecification
+checklists [@gruber2022sap; @cashin2024target] by an external
+reviewer.
 
 ## Why the contribution is mainly operational
 
@@ -1793,13 +1788,13 @@ chosen domains are part of the audit trail.
 @kent2026fiord reports a worked applied use of the staging
 framework for a comparative-effectiveness study of evolocumab
 versus non-treatment for major adverse cardiovascular events in
-the Komodo Healthcare Map: NCOs flagged residual bias in the
-health-seeking-behaviour domain, the review team allowed the
-study to proceed under FLAG with a pre-specified E-value
-quantitative-bias-analysis plan, and the final risk difference at
-four years was reported as roughly $-4\%$. The example
-illustrates both the GO/FLAG/STOP gate and the role of NCO
-domains in practice.
+the Komodo Healthcare Map: negative-control outcomes flagged
+residual bias in the health-seeking-behaviour domain, the review
+team allowed the study to proceed conditional on a pre-specified
+E-value quantitative-bias-analysis plan, and the final risk
+difference at four years was reported as roughly $-4\%$. The
+example illustrates both the staged decision rule and the role of
+negative-control domains in practice.
 
 ## Limitations of plasmode data-quality stress testing
 
