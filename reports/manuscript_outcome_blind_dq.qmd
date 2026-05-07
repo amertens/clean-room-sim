@@ -601,21 +601,22 @@ outcome variable. Reviewers and regulators evaluate two artefacts
 at the end: a timestamped analysis plan and a final estimate
 produced under that plan.
 
-The second arrangement, used here, is simulation-based. A single
-analyst can iterate on the prespecified set of candidate
-estimators, the decision thresholds, and the data-quality stress
-scenarios because the iteration is conducted against synthetic
-outcomes generated from a covariate-only model rather than against
-the observed treatment–outcome association. The software-mediated
-workflow partially substitutes for personnel-based separation by
-restricting outcome access until prespecified diagnostics and
-decision criteria have been completed; it complements, but does
-not replace, an institutional partition of duties or independent
-review of the analysis plan. The audit and decision logs likewise
+Outcome-blind simulation addresses the same concern through a
+different mechanism. Candidate estimators, truncation rules, and
+data-quality scenarios may be evaluated using synthetic outcomes
+generated without using the observed treatment–outcome
+association. This allows investigators to compare estimators and
+revise prespecified simulation settings before unblinding while
+preserving separation from the observed comparative effect. The
+software-mediated workflow partially substitutes for
+personnel-based outcome separation by restricting outcome analysis
+until prespecified review steps have been completed. It should be
+viewed as complementary to, not a replacement for, traditional
+clean-room governance. The audit and decision logs likewise
 complement, rather than replace, the timestamped paper plan and
-the data manager's role. Reviewers retain access to a transparent
-reconstruction of every analytic decision in addition to the
-existing institutional documentation.
+the data manager's role; reviewers see transparent documentation
+of every analytic decision alongside the institutional
+documentation that already exists.
 
 The two arrangements address the same underlying concern, that
 analytic decisions made after seeing the treatment–outcome
@@ -649,8 +650,8 @@ support transparent reconstruction of every prespecified decision
 by an external reviewer; and the same simulation loop that
 selects the candidate can be used to evaluate its robustness to
 prespecified data-quality threats, an evaluation that has no
-direct counterpart in personnel-based blinding (data fitness is
-argued in prose).
+direct counterpart in personnel-based blinding, where data
+fitness is documented qualitatively.
 
 *Against:* the plasmode generator uses the realised outcome
 $Y$ to fit a covariate-only mean model, so the analyst learns the
