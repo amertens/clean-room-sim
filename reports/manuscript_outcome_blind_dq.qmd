@@ -8,10 +8,15 @@ format:
   html:
     toc: true
     toc-depth: 3
-    code-fold: show
+    code-fold: true
+    code-summary: "Show R code"
     self-contained: true
     fig-width: 8
     fig-height: 5
+    number-sections: true
+  docx:
+    toc: true
+    toc-depth: 3
     number-sections: true
 bibliography: references.bib
 csl-hanging-indent: true
@@ -23,6 +28,7 @@ knitr::opts_chunk$set(
   comment   = "R> ",
   warning   = FALSE,
   message   = FALSE,
+  echo      = FALSE,
   fig.width = 8,
   fig.height = 5
 )
@@ -297,16 +303,16 @@ knitr::kable(layers,
 ```{mermaid}
 %%| fig-cap: "cleanTMLE inside the causal roadmap. Boxes shaded grey indicate work that the package can operationalise; the remaining boxes are external study-level activities."
 flowchart TD
-    A[1. Causal question and target trial] --> B[2. Observed data and source characterisation]
-    B --> C[3. Identification assumptions]
-    C --> D[4. Statistical estimand]
-    D --> E["5. Lock candidate estimators and gate thresholds<br/><i>(cleanTMLE: create_analysis_lock, lock_primary_tmle_spec)</i>"]
-    E --> F["Pre-outcome checks<br/><i>(cleanTMLE: checkpoints, plasmode, DQ stress)</i>"]
-    F --> G["Stage gate<br/><i>(cleanTMLE: gate_check, authorize_outcome_analysis)</i>"]
-    G -->|GO or documented FLAG| H["Unblind and run locked primary analysis<br/><i>(cleanTMLE: TMLE step-by-step, IPCW-TMLE)</i>"]
-    H --> I[At-outcome diagnostics: negative controls, balance]
-    I --> J[Post-outcome sensitivity: E-value, QBA, causal-gap]
-    J --> K[Interpretation and transportability]
+    A["1. Causal question and target trial"] --> B["2. Observed data and source characterisation"]
+    B --> C["3. Identification assumptions"]
+    C --> D["4. Statistical estimand"]
+    D --> E["5. Lock candidate estimators and decision thresholds<br/>cleanTMLE: create_analysis_lock, lock_primary_tmle_spec"]
+    E --> F["Pre-outcome checks<br/>cleanTMLE: checkpoints, plasmode, DQ stress"]
+    F --> G["Pre-outcome decision<br/>cleanTMLE: gate_check, authorize_outcome_analysis"]
+    G -->|proceed or documented review| H["Unblind and run locked primary analysis<br/>cleanTMLE: four-step TMLE, IPCW-TMLE"]
+    H --> I["At-outcome diagnostics: negative controls, balance"]
+    I --> J["Post-outcome sensitivity: E-value, QBA, causal-gap"]
+    J --> K["Interpretation and transportability"]
 
     style E fill:#e6e6e6,stroke:#333,color:#000
     style F fill:#e6e6e6,stroke:#333,color:#000
@@ -1013,7 +1019,7 @@ looks like the following. We omit print output for compactness;
 each print method is documented in `?print.cleanroom_lock` and the
 related help pages.
 
-```{r demo-workflow, eval = FALSE}
+```{r demo-workflow, eval = FALSE, echo = TRUE}
 library(cleanTMLE)
 
 # Stage 1a: lock the analytic specification
