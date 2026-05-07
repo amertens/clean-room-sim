@@ -544,49 +544,45 @@ Stages 1–3 do not access the real outcome. The plasmode at Stage
 the real covariates and treatment, which is why it is a natural
 host for the DQ stress test we describe in §\ref{sec-dq}.
 
-## Access control in code
+## How the workflow records and protects analytic decisions
 
-The lock is a tagged R object created by `create_analysis_lock()`.
-It carries the data, the column names (treatment, outcome,
-covariates), the SuperLearner library, the random seed, and a
-SHA-256 fingerprint of those fields together with the data shape
-and column names (computed via the `digest` package). `save_lock()`
-and `load_lock()` persist the lock and re-verify the fingerprint on
-load. The estimand (`attach_estimand()`) and the prespecified
-candidate (`lock_primary_tmle_spec()`) are attached after the
-fingerprint is computed and are protected by the audit log rather
-than by the fingerprint itself; any modification to those fields
-appears in `export_audit_trail()` as a separate entry. The
-function `mask_outcome()` returns a copy of the lock with the
-outcome column replaced by `NA` and a flag set on the lock;
-`unmask_outcome()` reverses this once the pre-outcome decision
-point has been passed. Every Stage 4 estimator (`run_iptw_workflow()`,
-`run_match_workflow()`, `fit_tmle_outcome_mechanism()`, and so on)
-calls an internal check that stops with an informative error if
-the lock's outcome flag is still masked. The same check looks for
-the authorisation produced by `authorize_outcome_analysis()`,
-which is set only when every required checkpoint has classified
-the analysis as proceed or review (not stop).
+The analysis lock is the central object on which all later
+diagnostics depend. It is created at the start of the workflow and
+records the prespecified analytic specification: the analytic
+dataset, the treatment, outcome, and covariate column names, the
+nuisance-learning library, and the random seed. A fingerprint of
+those fields is recorded so that the same lock can be reconciled
+later by an external reviewer; the estimand and the prespecified
+choice of estimator are attached after the lock is created and are
+captured by the audit trail rather than by the fingerprint, so any
+change to those fields appears as a separate entry in the audit.
+While the analysis is outcome-blind, the lock is held in a state
+in which the outcome column is masked; the workflow restores the
+outcome only after the prespecified diagnostics and checkpoint
+review have been completed. Outcome-analysis functions verify that
+this review has been completed before allowing access to the
+observed outcome.
 
-The audit log accumulates entries automatically from the checkpoint
-functions; the decision log records analyst choices and protocol
-deviations. Both can be exported as tidy data frames with
-`export_audit_trail()` and `export_decision_log()`, archived as RDS
-with `save_audit()`, and reloaded later with `load_audit()`. Every
-entry carries the lock hash, so any post-hoc tampering with the
-lock invalidates the audit. The exported decision log mirrors the
-published Romiplostim worked example [@mcgrath2021romiplostim],
-which @muntner2024staging cite as the canonical model for what a
-clean-room decision log should look like.
+Two complementary records track analytic decisions through the
+workflow. The audit trail accumulates entries automatically from
+the checkpoint diagnostics, recording what was evaluated, when,
+and against which prespecified criteria. The decision log captures
+analyst choices and any deviations from the protocol, with a brief
+rationale for each. Both can be exported as tidy data frames and
+archived alongside the lock; the audit trail is linked to the
+prespecified analysis object, so deviations from the recorded
+workflow can be detected during review. The exported decision log
+follows the structure of the Romiplostim worked example
+[@mcgrath2021romiplostim], which @muntner2024staging take as the
+reference template for a staged clean-room decision record.
 
-Beyond a single binary outcome-mask, @muntner2024staging and
+Beyond a single outcome-masking step, @muntner2024staging and
 @kent2026fiord recommend tiered, role-based access in which
 analytic advisors see summary outputs by stage and checkpoint
-reviewers see summary outputs only by checkpoint. cleanTMLE's
-`export_audit_trail()` and `export_decision_log()` are the
-software analogue of that arrangement: they produce programmatic
-summaries that can be exposed to a reviewer role without granting
-the reviewer raw-data access.
+reviewers see summary outputs only by checkpoint. The exported
+audit and decision logs support that arrangement at the workflow
+level, providing reviewer-facing summaries that do not require
+raw-data access.
 
 ## Personnel-based and simulation-based outcome blinding
 
@@ -864,12 +860,14 @@ assessment guidance [@fda2024considerations; @fda2024ehrclaims;
 
 A note on terminology: @muntner2024staging describe three
 review-team decisions ("proceed to the next stage", "conduct
-additional analyses to address bias", or "terminate the study").
-We use the labels GO, FLAG, and STOP throughout this paper for
-brevity, and the cleanTMLE software uses the same three labels;
-the mapping to the Muntner et al. wording is one-to-one.
+additional analyses to address bias", or "terminate the study"),
+which we shorten in figures and tables to *proceed*, *review*,
+and *stop* (also written as GO / FLAG / STOP where compactness is
+helpful). In prose we prefer the longer wording. The cleanTMLE
+software uses the three labels for the same purpose, and the
+mapping to the Muntner et al. wording is one-to-one.
 
-## What the gate currently does
+## What the pre-outcome decision currently does
 
 In the published TL-RWE literature the pre-outcome gate is a
 prespecified set of qualitative checks: the SAP exists, the lock is
@@ -1731,12 +1729,12 @@ expects [@fda2018rwe; @fda2024considerations;
 @fda2024noninterventional] and match the data-quality dimensions
 in the EMA RWD framework [@ema2026rwd] and ICH M14 (March 2026)
 [@ich2024m14], as summarised in Table \ref{tbl-reg-align}. The
-lock and access guard can complement, but do not replace,
+software-mediated workflow can complement, but does not replace,
 personnel-based access controls and independent oversight.
 Documented source assessment, role-based access where feasible,
-and analyzable protocol artifacts
-remain the regulatory backbone, with the software clean room
-sitting inside that backbone rather than substituting for it.
+and structured protocol records remain the regulatory backbone,
+with the software arrangement sitting inside that backbone rather
+than substituting for it.
 
 ## What the DQ stress test adds
 
@@ -1909,18 +1907,20 @@ The most consequential extensions, in priority order, are:
 ## When to use cleanTMLE inside a broader governed clean-room process
 
 For routine pharmacoepidemiology and most academic RWE studies,
-cleanTMLE used in software-only mode is adequate: the analyst
-prespecifies, runs the workflow inside a single R session, and
-ships the lock, audit, and decision-log artifacts. For
+cleanTMLE used on its own provides an adequate prespecification
+record: the analyst prespecifies the analytic plan, runs the
+workflow inside a single R session, and archives the analysis
+lock together with the audit and decision logs. For
 submission-oriented RWE (FDA, EMA, or HTA contexts), the
-recommended deployment is cleanTMLE *inside* a broader governed
+recommended deployment places cleanTMLE inside a broader governed
 process with separate study-level work items: source-data audit
-and provenance, exposure and outcome phenotype validation, role-
-separated analyst and reviewer access, and an independent gate
-review by personnel who did not author the lock. The software
-clean room enforces the contract; the governed process establishes
-that the contract is the right one [@muntner2024staging;
-@fda2018rwe; @ema2024guide].
+and provenance, exposure and outcome phenotype validation,
+role-separated analyst and reviewer access, and an independent
+review of the pre-outcome decision by personnel who did not
+author the analytic plan. The software-mediated workflow records
+that the prespecified contract has been followed; the governed
+process establishes that the contract is the right one
+[@muntner2024staging; @fda2018rwe; @ema2024guide].
 
 ## Recommendations for practice
 
@@ -1954,7 +1954,7 @@ preparing a TL-RWE study.
 The audit log preserves all of the above. The final paper or
 regulatory submission can be reconstructed from the lock and the
 audit, including the SPIFD2 ranges, the plasmode and DQ stress
-metrics, the gate decision, and the post-outcome estimate.
+metrics, the pre-outcome decision, and the post-outcome estimate.
 
 # Summary {#sec-summary}
 
