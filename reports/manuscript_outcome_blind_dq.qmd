@@ -45,41 +45,43 @@ through target-trial articulation [@hernan2016targettrial;
 [@gatto2022spifd; @gatto2023spifd2].
 
 We present **cleanTMLE**, an R [@rcoreteam2024] package that
-operationalises a quantitative bridge from qualitative
-data-fitness concerns to prespecified outcome-blind plasmode
-stress-test gates, situated inside the causal roadmap
-[@dang2023roadmap; @petersen2014roadmap]. The package implements a
-lock object, an audit trail, a decision log, and a stage gate that
-turn prespecified analytic choices into machine-readable
-artifacts, and it extends the standard outcome-blind plasmode
-estimator-selection loop with a pre-outcome data-quality stress
-test that evaluates candidate estimators under user-specified
-threats (covariate missingness, exposure misclassification,
-outcome misclassification, and unmeasured confounding). We
-illustrate the workflow in a Monte Carlo simulation and in a
-trauma-registry case study with n = 1,693 ambulance patients and
-24.6 % outcome missingness; six estimators implemented in cleanTMLE
-following the staged-analysis vignette agree on direction (risk
-difference 0.026–0.037 in favour of Rescue.Co transport, with the
-prespecified primary full-cohort TMLE interval just crossing zero).
+provides a prespecified quantitative stress test of estimator
+performance under data-quality degradation scenarios derived from
+a prior fit-for-purpose assessment, situated inside the causal
+roadmap [@dang2023roadmap; @petersen2014roadmap]. The package does
+*not* itself determine whether a data source is fit for purpose;
+that judgement remains a study-level activity supported by
+target-trial protocols, validation studies, and source-data
+review. Once investigators have specified plausible data-quality
+threats and severity ranges from external evidence, cleanTMLE
+records the prespecified analytic choices and audit trail and
+extends the standard outcome-blind plasmode estimator-selection
+loop with a pre-outcome stress test that evaluates candidate
+estimators under those user-specified threats (covariate
+missingness, exposure misclassification, outcome misclassification,
+and unmeasured confounding). We illustrate the workflow in a Monte
+Carlo simulation and in a trauma-registry case study (n = 1,693
+ambulance patients, 24.6 % outcome missingness) where six
+estimators implemented in cleanTMLE following the staged-analysis
+vignette agree on direction (risk difference 0.026 to 0.037 in
+favour of Rescue.Co transport, with the prespecified primary
+full-cohort TMLE interval just crossing zero). The case study is
+presented as a workflow demonstration on a real registry rather
+than as evidence that the framework establishes causal validity.
 
 The contribution is operational rather than foundational. The
-package provides computable prespecification, checkpointed
-governance, and candidate-specific
-robustness screening before the study outcome is unblinded. It
-does not replace target-trial design [@hernan2016targettrial],
+package provides reproducible analysis records and
+candidate-specific robustness screening before the study outcome
+is unblinded. It does not replace target-trial design,
 variable-validation studies, source-data relevance and reliability
-review [@fda2018rwe; @fda2024considerations; @ema2024guide],
-independent oversight, or post-unblinding sensitivity analyses
-[@vanderWeele2017evalue; @lash2014qba; @diaz2013sensitivity]. Its
-intended role is to strengthen the pre-outcome phase of real-world
-evidence studies by integrating estimator selection, data-quality
-stress testing, and auditability inside a broader causal and
-governance workflow [@muntner2024staging; @gruber2022sap].
-cleanTMLE reuses the cohort-specification grammar and reporting
-helpers of the **causalRisk** package [@brookhart2024causalrisk]
-under MIT licence and adds the lock, gate, and DQ-stress functions
-that `causalRisk` does not provide.
+review, independent oversight, or post-unblinding sensitivity
+analyses; the explicit list and corresponding regulatory anchors
+appear in the regulatory-alignment table (§\ref{sec-roadmap}) and
+in the discussion. cleanTMLE reuses the cohort-specification
+grammar and reporting helpers of the **causalRisk** package
+[@brookhart2024causalrisk] under MIT licence and adds the
+prespecification, audit, and DQ stress-test functions that
+`causalRisk` does not provide.
 
 **Keywords:** targeted maximum likelihood estimation, plasmode
 simulation, real-world evidence, fit-for-purpose data, outcome-
@@ -127,55 +129,81 @@ treatment distributions may still fail under realistic measurement
 error, missingness, or unmeasured confounding. The plasmode loop is
 under the analyst's control, so it can be extended to ask not only
 "which candidate has the lowest RMSE under the locked
-data-generating process?" but also "which candidate stays inside
-the prespecified gate thresholds across the plausible range of each
-threat documented in the fit-for-purpose review?" We refer to this
-extension as a *data-quality (DQ) stress test*. It is a pre-outcome
-robustness screen rather than a substitute for variable validation
-or for post-unblinding sensitivity analysis.
+data-generating process?" but also "which candidate maintains
+acceptable bias, RMSE, and coverage across the plausible range of
+each threat documented in the fit-for-purpose review?" We refer to
+this extension as a *data-quality (DQ) stress test*. It is a
+pre-outcome robustness screen rather than a substitute for
+variable validation or for post-unblinding sensitivity analysis.
+
+Throughout, we use "data-quality stress testing" in a restricted
+sense. The procedure does not assess data provenance, phenotype
+validity, linkage accuracy, representativeness, or regulatory
+acceptability directly; those remain study-level and
+data-source-level evaluations. The role of cleanTMLE is narrower:
+once investigators have specified plausible data-quality threats
+and severity ranges from external validation studies, data
+profiling, or expert elicitation, the package evaluates how
+candidate estimators behave under those prespecified perturbations
+before the observed treatment-outcome association is examined.
+
+In this manuscript, *outcome-blind* means that decisions about
+cohort construction, candidate estimators, simulation scenarios,
+decision thresholds, and primary-estimator selection are made
+without inspecting the observed treatment-outcome association.
+Analysts may use baseline covariates, treatment assignment,
+missingness indicators, and synthetic outcomes generated for
+plasmode simulations; the marginal mean of the observed outcome on
+covariates is also used internally to fit the plasmode generator.
+The observed treatment-outcome relationship is not used for
+estimator selection or design revision before the pre-outcome
+decision point.
 
 ## What the package adds, and what it does not
 
 This paper introduces **cleanTMLE**, an R [@rcoreteam2024] package
-that operationalises the prespecification, gating, and stress-testing
-steps inside the causal roadmap [@dang2023roadmap; @petersen2014roadmap;
-@gruber2022sap]. cleanTMLE provides a lock object that fingerprints
-the analytic specification, a serialisable audit trail and decision
-log [@muntner2024staging], a stage gate that returns GO / FLAG /
-STOP, an outcome-blind plasmode candidate selector, and the
-DQ stress test described above. Targeted Maximum Likelihood
-Estimation (TMLE) [@vanderLaan2006tmle; @vdL2011tlbook;
-@schuler2017tmle; @zheng2011crossvalidated; @chernozhukov2018dml] is
-the natural setting because every analytic decision (the
-SuperLearner library [@vdL2007superlearner; @phillips2023sl], the
-truncation rule, the candidate grid) can be listed in advance and
-the algorithm remains data-adaptive while still admitting valid
+that records prespecified analytic decisions and supports the
+estimator-selection and stress-testing steps of the causal roadmap
+[@dang2023roadmap; @petersen2014roadmap; @gruber2022sap]. cleanTMLE
+provides an analysis-lock object, a serialisable audit trail and
+decision log [@muntner2024staging], a pre-outcome decision rule
+that classifies the analysis as proceed, review, or stop, an
+outcome-blind plasmode candidate selector, and the DQ stress test
+described above. Targeted Maximum Likelihood Estimation (TMLE)
+[@vanderLaan2006tmle; @vdL2011tlbook; @schuler2017tmle;
+@zheng2011crossvalidated; @chernozhukov2018dml] is the natural
+setting because every analytic decision (the SuperLearner library
+[@vdL2007superlearner; @phillips2023sl], the truncation rule, the
+prespecified set of candidate estimators) can be listed in advance,
+and the algorithm remains data-adaptive while still admitting valid
 Wald-type confidence intervals.
 
 The contribution is operational. The software-mediated outcome
 guard is, as @muntner2024staging put it, an implementation pattern
 rather than a methodological novelty. Its advantage is
-reproducibility: the lock, audit, and decision log turn paper-only
-prespecification checklists into machine-readable, hash-verified
-artifacts that any reviewer can re-execute. cleanTMLE
-operationalises a quantitative bridge from qualitative
-data-fitness concerns to prespecified outcome-blind plasmode
-stress-test gates. Section §\ref{sec-roadmap} situates that
-contribution inside the causal roadmap and Table \ref{tbl-reg-align}
-maps each component to the corresponding FDA, EMA, and ICH
-expectation; we defer the explicit list of activities the package
-does *not* replace to those locations.
+reproducibility: the analysis records, audit trail, and decision
+log turn paper-only prespecification checklists into reproducible
+analysis records that any reviewer can re-execute. cleanTMLE
+provides a prespecified quantitative stress test of estimator
+performance under data-quality degradation scenarios derived from
+a prior fit-for-purpose assessment; it does not itself determine
+whether the data source is fit for purpose. Section
+§\ref{sec-roadmap} situates that contribution inside the causal
+roadmap and Table \ref{tbl-reg-align} maps each component to the
+corresponding FDA, EMA, and ICH expectation; we defer the explicit
+list of activities the package does *not* replace to those
+locations and to the discussion.
 
 Throughout, we use "clean room" interchangeably with "outcome-blind"
-when discussing software because the package refuses to let Stage 4
+when discussing software because the package will not let Stage 4
 estimators run on a lock whose outcome column has not been
 authorised, much as a manufacturing clean room blocks access to a
-sterile area until protocols are followed. The software lock and
-access guard can complement, but do not replace, personnel-based
+sterile area until protocols are followed. The software-level
+access controls can complement, but do not replace, personnel-based
 access controls and independent governance: protocol review, role
 separation, source-data audit, and independent checkpoint review
 remain the broader institutional process inside which the software
-clean room sits.
+arrangement sits.
 
 ::: {.callout-note}
 ## Current scope of cleanTMLE
@@ -186,7 +214,7 @@ risk-difference** estimand, and **MCAR** outcome missingness handled
 by IPCW. Hazard ratios, time-varying treatments, competing risks,
 multinomial exposures, and MAR / MNAR missingness models are out
 of scope for the v0.1 release; analysts who need those estimands
-should compose cleanTMLE's lock and audit machinery with `survtmle`
+should compose cleanTMLE's prespecification and audit functions with `survtmle`
 [@survtmlepackage2018], `lmtp` [@lmtppackage2021], or `causalRisk`
 [@brookhart2024causalrisk] until those features are added.
 :::
@@ -197,22 +225,23 @@ The contributions are operational. First, we extend the
 outcome-blind plasmode loop from candidate-estimator selection
 [@dang2023roadmap; @gruber2022sap; @schreck2024plasmode] to
 candidate-estimator robustness *screening* under prespecified
-threat ranges, so each candidate produces a degradation gradient
-that the gate can score on the same units as the baseline
-plasmode. We position this screen as a quantitative *supplement*
+threat ranges. Each candidate estimator produces a degradation
+gradient on the same bias / RMSE / coverage scale as the baseline
+plasmode, so the prespecified decision rule can be applied
+uniformly across baseline and stressed scenarios. We position this screen as a quantitative *supplement*
 to fit-for-purpose review (§\ref{sec-bridge}) rather than as a
 substitute for variable-validation studies, source-data
 assessment, or post-outcome quantitative bias analysis. Second, we
 provide an R implementation that turns prespecification into
-machine-readable artifacts: a fingerprinted lock, an audit log,
-a decision log, and a `gate_check()` / `authorize_outcome_analysis()`
-sequence that downstream estimators refuse to bypass. Third, we
-reuse the cohort-specification grammar and reporting helpers of
-`causalRisk` [@brookhart2024causalrisk] under MIT licence and add
-the lock, gate, and DQ stress functions that `causalRisk` does not
-provide. The next section (§\ref{sec-roadmap}) places these
-contributions inside the causal roadmap; subsequent sections follow
-that roadmap order.
+reproducible analysis records: a fingerprinted analysis-lock
+object, an audit log, a decision log, and a pre-outcome decision
+point that the prespecified estimator is checked against before
+outcome analysis. Third, we reuse the cohort-specification grammar
+and reporting helpers of `causalRisk` [@brookhart2024causalrisk]
+under MIT licence and add the prespecification, audit, and DQ
+stress-test functions that `causalRisk` does not provide. The next
+section (§\ref{sec-roadmap}) places these contributions inside the
+causal roadmap; subsequent sections follow that roadmap order.
 
 # The causal roadmap and the role of cleanTMLE {#sec-roadmap}
 
@@ -231,6 +260,37 @@ purpose checklists [@gatto2023spifd2; @wang2023harper], and
 source-specific data-relevance and reliability assessments
 [@fda2024considerations; @fda2024ehrclaims; @fda2021registries;
 @ema2024guide; @ema2026rwd].
+
+To support readers who are new to the causal-roadmap vocabulary,
+Table \ref{tbl-layers} distinguishes the conceptual layers that
+the workflow keeps separate. The same table also serves as a
+reference for which decisions are addressed at the design stage
+versus at the estimation stage.
+
+```{r layers-table}
+#| label: tbl-layers
+layers <- data.frame(
+  Layer = c(
+    "Causal question",
+    "Causal estimand",
+    "Identification assumptions",
+    "Statistical estimand",
+    "Estimator",
+    "Pre-outcome diagnostic metric",
+    "Governance decision"),
+  Description = c(
+    "Clinical or policy question framed as a target trial or causal contrast.",
+    "Counterfactual treatment effect of interest (e.g. marginal risk difference).",
+    "Conditions under which the causal estimand can be expressed as an observed-data parameter (exchangeability, positivity, consistency, measurement validity, missingness assumptions).",
+    "Observed-data parameter identified under the assumptions above.",
+    "Algorithm used to estimate the statistical estimand, for example TMLE, IPTW, or matching.",
+    "Pre-outcome quantity used for design checks: simulated bias, RMSE, coverage, effective sample size, balance, negative-control performance.",
+    "Whether prespecified criteria support proceeding, require additional review, or require stopping the analysis before the outcome is examined."),
+  stringsAsFactors = FALSE,
+  check.names = FALSE)
+knitr::kable(layers,
+             caption = "Conceptual layers in the staged workflow. The same vocabulary is used throughout the manuscript to keep estimand, estimator, simulation, and decision rule distinct.")
+```
 
 ```{mermaid}
 %%| fig-cap: "cleanTMLE inside the causal roadmap. Boxes shaded grey indicate work that the package can operationalise; the remaining boxes are external study-level activities."
@@ -252,19 +312,20 @@ flowchart TD
     style H fill:#e6e6e6,stroke:#333,color:#000
 ```
 
-A complementary view emphasises that the *software* clean room is
-one layer in a broader governance stack. External validation
-studies, independent oversight, role-based data access, and data
-standards remain necessary inputs to the gate, regardless of how
-the lock and audit are implemented:
+A complementary view emphasises that the software-level
+arrangement is one layer in a broader governance stack. External
+validation studies, independent oversight, role-based data access,
+and data standards remain necessary inputs to the pre-outcome
+decision, regardless of how the prespecified records and audit
+trail are implemented:
 
 ```{mermaid}
-%%| fig-cap: "Governance layers. The software clean room is necessary but not sufficient for regulatory-grade RWE."
+%%| fig-cap: "Governance layers. The software-level arrangement is necessary but not sufficient for regulatory-grade RWE."
 flowchart LR
-    A[Protocol and estimand] --> B[Software lock]
+    A[Protocol and estimand] --> B[Analysis-lock object]
     B --> C[Audit trail]
     C --> D[Decision log]
-    D --> E[Authorisation gate]
+    D --> E[Pre-outcome decision point]
     E --> F[Primary analysis]
     X[External validation studies] --> E
     Y[Independent review and role governance] --> E
@@ -494,16 +555,17 @@ load. The estimand (`attach_estimand()`) and the prespecified
 candidate (`lock_primary_tmle_spec()`) are attached after the
 fingerprint is computed and are protected by the audit log rather
 than by the fingerprint itself; any modification to those fields
-appears in `export_audit_trail()` as a separate entry. `mask_outcome()` returns a copy of the
-lock with the outcome column replaced by `NA` and a flag set on the
-lock; `unmask_outcome()` reverses this when the gate has signed
-off. Every Stage 4 estimator (`run_iptw_workflow()`,
+appears in `export_audit_trail()` as a separate entry. The
+function `mask_outcome()` returns a copy of the lock with the
+outcome column replaced by `NA` and a flag set on the lock;
+`unmask_outcome()` reverses this once the pre-outcome decision
+point has been passed. Every Stage 4 estimator (`run_iptw_workflow()`,
 `run_match_workflow()`, `fit_tmle_outcome_mechanism()`, and so on)
-calls an internal `.check_outcome_access()` guard that stops with
-an informative error if the lock's outcome flag is still masked.
-The same guard checks for an `authorize_outcome_analysis()` token
-that is produced only when every required checkpoint has decided
-GO or FLAG (not STOP).
+calls an internal check that stops with an informative error if
+the lock's outcome flag is still masked. The same check looks for
+the authorisation produced by `authorize_outcome_analysis()`,
+which is set only when every required checkpoint has classified
+the analysis as proceed or review (not stop).
 
 The audit log accumulates entries automatically from the checkpoint
 functions; the decision log records analyst choices and protocol
@@ -530,29 +592,31 @@ the reviewer raw-data access.
 A traditional clean-room design is an organisational arrangement
 [@muntner2024staging]. A blinded analyst writes the analysis
 plan, fixes the cohort, runs every Stage 1 and Stage 2 diagnostic,
-and signs off on the gate. Only after the gate is signed off does
-a separate, unblinded analyst (or a different role on the same
-team) link the outcome and run the comparative analysis. The
-separation is enforced by data access controls: the blinded
-analyst's view of the database does not include the outcome
-column, and a data manager polices the boundary. Reviewers and
-regulators see two artifacts at the end: a frozen analysis plan
-with a timestamp, and a final estimate produced under that plan.
+and reaches the pre-outcome decision point. Only after that point
+has been passed does a separate, unblinded analyst (or a different
+role on the same team) link the outcome and run the comparative
+analysis. The separation is enforced by data-access controls: the
+blinded analyst's view of the database does not include the
+outcome column, and a data manager polices the boundary.
+Reviewers and regulators see two artifacts at the end, a frozen
+analysis plan with a timestamp and a final estimate produced under
+that plan.
 
 Outcome-blind simulation, the approach we use in this paper, is a
 software arrangement that runs alongside (rather than instead of)
 that institutional arrangement. A single analyst can iterate on
-the candidate grid, on the gate thresholds, and on the data-quality
-stress scenarios because the iteration runs against synthetic
-outcomes generated from a covariate-only model rather than against
-the real treatment-outcome data. **The software lock and access
-guard (`mask_outcome()`, `assert_outcome_authorized()`) can
-complement, but do not replace, personnel-based access controls
-and independent governance**; similarly the audit log complements,
-but does not replace, the timestamped paper plan and the data
-manager's role. Reviewers see machine-readable, re-executable
-artifacts on top of the existing institutional documentation
-rather than as a substitute for it.
+the prespecified set of candidate estimators, the decision
+thresholds, and the data-quality stress scenarios because the
+iteration runs against synthetic outcomes generated from a
+covariate-only model rather than against the real
+treatment-outcome data. The software-level access controls
+(`mask_outcome()`, `assert_outcome_authorized()`) can complement,
+but do not replace, personnel-based access controls and
+independent governance; similarly the audit log complements, but
+does not replace, the timestamped paper plan and the data
+manager's role. Reviewers see reproducible analysis records on
+top of the existing institutional documentation rather than as a
+substitute for it.
 
 The two approaches address the same underlying concern, that
 analytic decisions made after seeing the treatment-outcome
@@ -839,23 +903,24 @@ then has to pass the gate at the ideal data-generating process
 *and* stay inside the gate thresholds across the plausible range
 of each threat documented in SPIFD2.
 
-This shifts the gate in three ways. The data-fitness argument
-becomes numeric, candidate-specific, and machine-readable: instead
-of a prose claim that "the outcome ascertainment algorithm has
-reported sensitivity 0.90," the gate sees that at sens = 0.90 and
-spec = 0.95 the bias of candidate `tmle_glmnet_t05` rises from
-0.001 to 0.014, which exceeds the prespecified threshold of 0.010.
-The default `select_tmle_candidate()` rule, which picks the
-RMSE-minimiser on the baseline plasmode, gains the option
-`rule = "min_max_rmse"`, which selects the candidate with the
-lowest worst-case RMSE across the DQ scenarios; a candidate that
-wins on the baseline but collapses under a 5 % missingness rate
-loses to a slightly less efficient one that stays inside the gate
-thresholds across the entire plausible range. And because the
-gate consumes the DQ output through the same audit-log machinery
-as the baseline plasmode, a reviewer can read the audit trail, see
-the SPIFD2 ranges that went in, see the gate thresholds that came
-out, and reproduce the decision exactly.
+This shifts the pre-outcome decision in three ways. First, the
+data-fitness argument becomes numeric and candidate-specific:
+instead of a prose claim that "the outcome ascertainment algorithm
+has reported sensitivity 0.90," the analyst sees that at
+sensitivity = 0.90 and specificity = 0.95 the bias of candidate
+`tmle_glmnet_t05` rises from 0.001 to 0.014, exceeding the
+prespecified threshold of 0.010. Second, the default
+`select_tmle_candidate()` rule, which picks the RMSE-minimiser on
+the baseline plasmode, gains the option `rule = "min_max_rmse"`,
+which selects the candidate with the lowest worst-case RMSE across
+the DQ scenarios; a candidate that wins on the baseline but
+collapses under a 5 % missingness rate loses to a slightly less
+efficient one that maintains acceptable performance across the
+entire plausible range. Third, because the DQ output is recorded
+in the same audit log as the baseline plasmode, a reviewer can
+read the audit trail, see the externally derived ranges that went
+in, see the prespecified thresholds that came out, and reproduce
+the decision.
 
 ## Position relative to other bias analyses
 
@@ -1381,26 +1446,33 @@ if ("unmeasured_conf" %in% names(res$summaries)) {
 
 # Case Study: Rescue.Co Kenya Trauma Registry {#sec-casestudy}
 
-## Why a real-data case study
+## Why a real-data workflow demonstration
 
-The simulation in §\ref{sec-simulation} is small (5 covariates, n =
-2,000, fully observed outcome) by design, because we wanted analytic
-control over each threat. A working framework also has to survive
-contact with real observational data: covariates that come from
-multiple instruments, outcomes that are missing for non-trivial
-fractions of the cohort, and confounders the protocol forgot. We
-therefore replicated the workflow on the **Rescue.Co Kenya Trauma
-Registry**, an applied comparative-effectiveness study at three
-Nairobi hospitals (KNH, Mama Lucy, Mbagathi) comparing prehospital
-transport by a specialised emergency-medical-services (EMS) provider
-(Rescue.Co) with traditional ambulance care, on functional outcome
-six months post-injury. All five stages were run on cleanTMLE 0.1.1; the released
-`manuscript_artifacts/case_study_metadata.json` records the version
-and lock hash. The case study is fully reproducible from the
-bundled `rescueCo/` directory in the companion repository.
+We use the Rescue.Co Kenya Trauma Registry as a **workflow
+demonstration** and software stress test on a real registry
+structure, not as evidence that the framework improves causal
+validity. The simulation in §\ref{sec-simulation} is small (5
+covariates, n = 2,000, fully observed outcome) by design, because
+we wanted analytic control over each threat. A working framework
+also has to execute on real observational data: covariates that
+come from multiple instruments, outcomes that are missing for
+non-trivial fractions of the cohort, and confounders the protocol
+forgot. The Rescue.Co Kenya Trauma Registry is an applied
+comparative-effectiveness study at three Nairobi hospitals (KNH,
+Mama Lucy, Mbagathi) comparing prehospital transport by a
+specialised emergency-medical-services provider (Rescue.Co) with
+traditional ambulance care, on functional outcome six months
+post-injury. All five stages were run on cleanTMLE 0.1.1; the
+released `manuscript_artifacts/case_study_metadata.json` records
+the version and lock hash. The example is fully reproducible from
+the bundled `rescueCo/` directory in the companion repository.
+The DQ stress test in this run was executed at low replication
+(see §\ref{sec-casestudy-dq}), so the Rescue.Co example is not
+used as primary evidence of DQ-stress validity; it is presented
+as a real-registry execution example.
 
-The case is interesting for four reasons that the simulation does
-not exercise: (a) the primary outcome (Glasgow Outcome Scale
+The example is interesting for four reasons that the simulation
+does not exercise: (a) the primary outcome (Glasgow Outcome Scale
 Extended, GOSE 1--8) has 24.6 % missing values from loss to
 6-month follow-up; (b) 492 ambulance arrivals were inter-facility
 transfers and were excluded from the primary cohort, leaving the
@@ -1409,7 +1481,7 @@ direct-from-scene 1,693; (c) an 8-week healthcare-worker strike
 confounder that is not part of either SPIFD2 or the four threats
 encoded by `run_plasmode_dq_stress()`; and (d) two prespecified
 socioeconomic negative controls (urban household, primary cooking
-fuel) carry the risk of revealing residual SES confounding.
+fuel) screen for residual SES confounding.
 
 ## SuperLearner library specification
 
@@ -1467,7 +1539,7 @@ candidate set (`glm_t01`, `glmnet_t01`, `ensemble_t01`,
 `select_tmle_candidate(rule = "min_max_rmse", dq_results = ...)`,
 the manuscript's recommended minimax rule.
 
-## Pre-outcome gate and plasmode results
+## Pre-outcome gate and plasmode results {#sec-casestudy-dq}
 
 The Stage 2b feasibility plasmode metrics on the locked DGP are:
 
@@ -1625,24 +1697,25 @@ identification. The roadmap and target-trial literature
 already provides that frame, and the package operates inside its
 estimation and pre-outcome diagnostics steps rather than around
 them. The novelty is that staged prespecification, estimator
-locking, and checkpoint governance become *computationally
-explicit*: a lock, an audit trail, a decision log, and a
-GO / FLAG / STOP gate that downstream estimators refuse to bypass.
-The DQ stress test then adds a candidate-specific pre-outcome
-robustness screen on top of the standard plasmode loop. The
-combined effect is that paper-only prespecification checklists
-[@gruber2022sap; @cashin2024target] become machine-readable,
-hash-verified artifacts that any reviewer can re-execute.
+locking, and the pre-outcome decision rule become explicit in
+code: an analysis-lock object, an audit trail, a decision log, and
+a proceed / review / stop classification of the analysis before
+the outcome is examined. The DQ stress test then adds a
+candidate-specific pre-outcome robustness screen on top of the
+standard plasmode loop. The combined effect is that paper-only
+prespecification checklists [@gruber2022sap; @cashin2024target]
+become reproducible analysis records that any reviewer can
+re-execute.
 
 ## Why the contribution is mainly operational
 
 A useful test is to ask what kind of evidence the package can and
-cannot produce. cleanTMLE can demonstrate that the analyst
-prespecified the estimand, the candidate grid, the gate
-thresholds, and the severity ranges; that the gate was scored
-before unblinding; that the locked candidate was the one that
-ran on the real outcome; and that an audit trail with a
-fingerprint records the entire sequence. cleanTMLE *cannot*
+cannot produce. cleanTMLE can document that the analyst
+prespecified the estimand, the set of candidate estimators, the
+decision thresholds, and the severity ranges; that the pre-outcome
+decision was made before unblinding; that the locked candidate
+was the one that ran on the real outcome; and that an audit trail
+with a fingerprint records the sequence. cleanTMLE *cannot*
 demonstrate that the data source is fit for the regulatory
 question, that the exposure or outcome phenotypes have been
 validated, that the target population is the regulatory decision
@@ -1728,15 +1801,32 @@ four years was reported as roughly $-4\%$. The example
 illustrates both the GO/FLAG/STOP gate and the role of NCO
 domains in practice.
 
-## Limitations
+## Limitations of plasmode data-quality stress testing
 
-A plasmode stress test is only as informative as the
-synthetic-outcome mechanisms and degradation ranges used to
-generate it. These mechanisms should be justified from external
-validation studies, data profiling, expert elicitation, or
-sensitivity-analysis bounds. Passing the gate does not establish
-identification, eliminate unmeasured confounding, or prove
-source-data fitness.
+A plasmode data-quality stress test is only as informative as the
+synthetic outcome model and degradation mechanisms used to
+generate it. Passing the pre-outcome decision rule does not
+establish identification, remove unmeasured confounding, validate
+the data source, or demonstrate that the target population matches
+the regulatory decision population. It shows only that, under the
+prespecified outcome-generating mechanism and degradation ranges,
+a candidate estimator maintained acceptable finite-sample
+performance according to the chosen criteria. Severity ranges
+should therefore be justified from external validation studies,
+data profiling, subject-matter knowledge, expert elicitation, or
+formal sensitivity-analysis bounds. When such evidence is weak,
+the stress test should be interpreted as exploratory rather than
+confirmatory.
+
+The DQ stress test also depends on the same parametric
+synthetic-outcome model used by the baseline plasmode. If that
+model misrepresents the joint covariate–treatment–outcome
+distribution (for example by omitting effect modification or
+mis-specifying functional form), the simulated bias and coverage
+under stressed scenarios may be optimistic or pessimistic in ways
+that no amount of replication can correct.
+
+## Other limitations
 
 The current implementation has six additional limitations the
 analyst should keep in mind, grouped into model assumptions,
@@ -1874,24 +1964,27 @@ metrics, the gate decision, and the post-outcome estimate.
 # Summary {#sec-summary}
 
 cleanTMLE is an R package for staged, outcome-blind targeted
-learning with reproducible prespecification artifacts. It extends
-the outcome-blind plasmode loop of @dang2023roadmap and
+learning that produces reproducible prespecification records. It
+extends the outcome-blind plasmode loop of @dang2023roadmap and
 @gruber2022sap with four data-quality degradation mechanisms,
-producing per-candidate degradation gradients that the
-GO/FLAG/STOP gate can consume on the same scale as the baseline
-plasmode metrics. cleanTMLE operationalises a quantitative bridge
-from qualitative data-fitness concerns to prespecified
-outcome-blind plasmode stress-test gates, in code, with a single
-function call. The lock, audit log, and decision log persist the
-prespecification as machine-readable artifacts that downstream
-estimation functions verify before they are allowed to run. The cohort-specification
-and reporting functions follow `causalRisk`
-[@brookhart2024causalrisk] under MIT-licence attribution, so an
-analyst can move between the two packages without relearning the
-function names or argument order. The package is
-available at <https://github.com/amertens/cleanTMLE>; the
-simulation code that produced the results in §\ref{sec-simulation}
-is in the companion repository <https://github.com/amertens/clean-room-sim>.
+producing per-candidate degradation gradients on the same bias /
+RMSE / coverage scale as the baseline plasmode so the prespecified
+decision rule can be applied uniformly to both. cleanTMLE
+operationalises a quantitative bridge from qualitative
+data-fitness concerns to prespecified outcome-blind plasmode
+stress-test scenarios; it does not itself determine whether a data
+source is fit for purpose, and the severity ranges entered into the
+stress test must come from prior validation studies, data
+profiling, or expert elicitation. The analysis-lock object, audit
+log, and decision log persist the prespecification as reproducible
+records that downstream estimation functions check before
+running. Cohort-specification and reporting functions follow
+`causalRisk` [@brookhart2024causalrisk] under MIT-licence
+attribution, so an analyst can move between the two packages
+without relearning the function names or argument order. The
+package is available at <https://github.com/amertens/cleanTMLE>;
+the simulation code for the results in §\ref{sec-simulation} is in
+the companion repository <https://github.com/amertens/clean-room-sim>.
 
 # Acknowledgements {.unnumbered}
 
