@@ -318,6 +318,59 @@ contrast we report cumulative risks at 30, 90, and 180 days
 (constructed times) and a hazard ratio is shown only as a
 secondary summary.
 
+## Missing-outcome analysis
+
+Outcome missingness is the single largest data-quality threat in
+this case study (24.6 % of the analytic cohort have no 6-month
+GOSE). To make the missing-data assumptions concrete rather than
+relegate them to prose, we report (i) a descriptive comparison of
+observed-versus-missing patients by treatment arm and a small
+panel of baseline covariates, (ii) the censoring-model
+specification used by IPCW-TMLE, and (iii) a side-by-side
+comparison of complete-case TMLE and IPCW-TMLE so the reader can
+see directly how much the missingness model is moving the
+estimate.
+
+```{r missing-descriptive, eval = exists("stage1_cohort")}
+# Observed vs missing GOSE by treatment arm and a few baselines.
+miss_summary <- function(dat) {
+  dat$missing <- is.na(dat$gose_good)
+  s <- function(df) data.frame(
+    n           = nrow(df),
+    pct_treated = round(100 * mean(df$A == 1, na.rm = TRUE), 1),
+    age_mean    = round(mean(df$age, na.rm = TRUE), 1),
+    iss_mean    = round(mean(df$eiss_ais, na.rm = TRUE), 1),
+    pct_male    = round(100 * mean(df$sex_male == 1, na.rm = TRUE), 1))
+  rbind(
+    cbind(group = "Observed", s(dat[!dat$missing, ])),
+    cbind(group = "Missing",  s(dat[ dat$missing, ])))
+}
+kable(miss_summary(stage1_cohort),
+      caption = "Observed vs missing 6-month GOSE: cohort size, treatment share, age, ISS, and sex.")
+```
+
+The IPCW model uses a SuperLearner response indicator of the form
+`P(R = 1 | A, W)` where `W` is the locked covariate set; the
+censoring weights are stabilised by the marginal response rate per
+arm and capped at the 99th percentile.
+
+```{r cc-vs-ipcw, eval = exists("comparison")}
+# Complete-case TMLE and IPCW-TMLE rows side by side.
+sub <- comparison[comparison$method %in%
+                    c("Full-cohort TMLE", "IPCW-weighted TMLE"),
+                  c("method", "n", "estimate", "ci_lower",
+                    "ci_upper")]
+kable(sub, digits = 4,
+      caption = "Complete-case (Full-cohort TMLE) vs IPCW-weighted TMLE on the binary outcome.")
+```
+
+The two rows differ by 0.002 on the risk-difference scale and the
+IPCW-TMLE 95 % CI sits closer to (and just above) zero, consistent
+with a small upward shift once the missingness model is included.
+Because the missingness rate is large (24.6 %), this comparison is
+informative as a sensitivity exhibit but does not by itself
+establish whether the missingness mechanism is MCAR, MAR, or MNAR.
+
 ## Sensitivity analyses mapped to assumptions
 
 The case study reports the following sensitivity analyses, each

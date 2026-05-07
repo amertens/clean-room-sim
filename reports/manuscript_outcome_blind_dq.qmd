@@ -35,39 +35,36 @@ library(cleanTMLE)
 Real-world evidence studies must justify both the causal analysis
 strategy and the fitness of the underlying data source for the
 research question. In current practice these two arguments are
-usually developed in parallel but reported separately:
-estimator specification is supported with outcome-blind simulation
-[@franklin2014plasmode; @schuler2017tmle; @dang2023roadmap;
-@gruber2022sap], whereas data fitness is documented qualitatively
-through target-trial articulation [@hernan2016targettrial;
-@hernan2016target], reporting templates such as TARGET
-[@cashin2024target], and fit-for-purpose checklists such as SPIFD2
-[@gatto2022spifd; @gatto2023spifd2].
+usually developed in parallel but reported separately: estimator
+specification is supported with outcome-blind simulation, whereas
+data fitness is documented qualitatively through target-trial
+articulation, reporting templates such as TARGET and START-RWE,
+and fit-for-purpose checklists such as SPIFD2 and HARPER.
 
-We present **cleanTMLE**, an R [@rcoreteam2024] package that
-provides a prespecified quantitative stress test of estimator
-performance under data-quality degradation scenarios derived from
-a prior fit-for-purpose assessment, situated inside the causal
-roadmap [@dang2023roadmap; @petersen2014roadmap]. The package does
-*not* itself determine whether a data source is fit for purpose;
-that judgement remains a study-level activity supported by
-target-trial protocols, validation studies, and source-data
-review. Once investigators have specified plausible data-quality
-threats and severity ranges from external evidence, cleanTMLE
-records the prespecified analytic choices and audit trail and
-extends the standard outcome-blind plasmode estimator-selection
-loop with a pre-outcome stress test that evaluates candidate
-estimators under those user-specified threats (covariate
-missingness, exposure misclassification, outcome misclassification,
-and unmeasured confounding). We illustrate the workflow in a Monte
-Carlo simulation and in a trauma-registry case study (n = 1,693
-ambulance patients, 24.6 % outcome missingness) where six
-estimators implemented in cleanTMLE following the staged-analysis
-vignette agree on direction (risk difference 0.026 to 0.037 in
-favour of Rescue.Co transport, with the prespecified primary
-full-cohort TMLE interval just crossing zero). The case study is
-presented as a workflow demonstration on a real registry rather
-than as evidence that the framework establishes causal validity.
+We present **cleanTMLE**, an R package that provides a
+prespecified quantitative stress test of estimator performance
+under data-quality degradation scenarios derived from a prior
+fit-for-purpose assessment, situated inside the causal roadmap.
+The package does not itself determine whether a data source is
+fit for purpose; that judgement remains a study-level activity
+supported by target-trial protocols, validation studies, and
+source-data review. Once investigators have specified plausible
+data-quality threats and severity ranges from external evidence,
+cleanTMLE records the prespecified analytic choices and audit
+trail and extends the standard outcome-blind plasmode
+estimator-selection loop with a pre-outcome stress test that
+evaluates candidate estimators under those user-specified threats
+(covariate missingness, exposure misclassification, outcome
+misclassification, and unmeasured confounding). We illustrate the
+workflow in a Monte Carlo simulation and in a trauma-registry case
+study (n = 1,693 ambulance patients, 24.6 % outcome missingness)
+where six estimators implemented in cleanTMLE following the
+staged-analysis vignette agree on direction (risk difference 0.026
+to 0.037 in favour of Rescue.Co transport, with the prespecified
+primary full-cohort TMLE interval just crossing zero). The case
+study is presented as a workflow demonstration on a real registry
+rather than as evidence that the framework establishes causal
+validity.
 
 The contribution is operational rather than foundational. The
 package provides reproducible analysis records and
@@ -76,12 +73,11 @@ is unblinded. It does not replace target-trial design,
 variable-validation studies, source-data relevance and reliability
 review, independent oversight, or post-unblinding sensitivity
 analyses; the explicit list and corresponding regulatory anchors
-appear in the regulatory-alignment table (§\ref{sec-roadmap}) and
-in the discussion. cleanTMLE reuses the cohort-specification
-grammar and reporting helpers of the **causalRisk** package
-[@brookhart2024causalrisk] under MIT licence and adds the
-prespecification, audit, and DQ stress-test functions that
-`causalRisk` does not provide.
+appear in the regulatory-alignment table and in the discussion.
+The IPW, g-computation, and AIPW cumulative-risk estimators
+provided by the proprietary `causalRisk` package are an
+alternative implementation of related ideas, with which cleanTMLE
+shares conceptual structure but does not share code.
 
 **Keywords:** targeted maximum likelihood estimation, plasmode
 simulation, real-world evidence, fit-for-purpose data, outcome-
@@ -218,9 +214,11 @@ risk-difference** estimand, and **MCAR** outcome missingness handled
 by IPCW. Hazard ratios, time-varying treatments, competing risks,
 multinomial exposures, and MAR / MNAR missingness models are out
 of scope for the v0.1 release; analysts who need those estimands
-should compose cleanTMLE's prespecification and audit functions with `survtmle`
-[@survtmlepackage2018], `lmtp` [@lmtppackage2021], or `causalRisk`
-[@brookhart2024causalrisk] until those features are added.
+should compose cleanTMLE's prespecification and audit functions
+with `survtmle` [@survtmlepackage2018] or `lmtp`
+[@lmtppackage2021] until those features are added. The proprietary
+`causalRisk` package [@brookhart2024causalrisk] is an alternative
+implementation of related cumulative-risk estimators.
 :::
 
 ## What the paper contributes
@@ -240,10 +238,10 @@ provide an R implementation that turns prespecification into
 reproducible analysis records: a fingerprinted analysis-lock
 object, an audit log, a decision log, and a pre-outcome decision
 point that the prespecified estimator is checked against before
-outcome analysis. Third, we reuse the cohort-specification grammar
-and reporting helpers of `causalRisk` [@brookhart2024causalrisk]
-under MIT licence and add the prespecification, audit, and DQ
-stress-test functions that `causalRisk` does not provide. The next
+outcome analysis. Third, we acknowledge `causalRisk` [@brookhart2024causalrisk] as a
+proprietary alternative implementation of related cumulative-risk
+estimators with which cleanTMLE shares conceptual structure but
+not code. The next
 section (§\ref{sec-roadmap}) places these contributions inside the
 causal roadmap; subsequent sections follow that roadmap order.
 
@@ -1107,7 +1105,7 @@ psi   <- extract_tmle_estimate(upd)$estimates$ATE
 save_lock(final,  "lock.rds")
 save_audit(audit, "audit.rds")
 
-# Reporting tables (function names inherited from causalRisk):
+# Reporting tables.
 make_table1(final, treatment = "treatment", smd = TRUE)
 make_table2(list(`TMLE (primary)` = upd), risk_time = 24)
 ```
@@ -1164,17 +1162,17 @@ outcome ascertainment.
 
 ## Relationship to `causalRisk`
 
-`causalRisk` [@brookhart2024causalrisk] is an MIT-licensed R
-package that implements IPW, g-computation, and AIPW cumulative-
-risk estimators with a cohort-specification grammar that maps
-neatly onto the clean-room idea. cleanTMLE reuses that grammar
-and the associated reporting helpers (Brookhart, Breskin, and
-Eledath are credited as copyright holders for the reused code in
-the package's `DESCRIPTION` file) and adds the lock, gate, audit
-log, step-by-step TMLE functions, and plasmode DQ stress test as
-cleanTMLE-original components. An analyst already using
-`causalRisk` for IPW analyses can move into cleanTMLE without
-relearning the cohort-specification surface.
+The proprietary `causalRisk` package [@brookhart2024causalrisk]
+implements IPW, g-computation, and AIPW cumulative-risk estimators
+with a cohort-specification grammar oriented toward staged,
+prespecified observational analyses. Although cleanTMLE was
+informed by the conceptual structure of that package, the two
+packages do not share code, and cleanTMLE's estimation, gating,
+audit, and DQ stress-test functions are independent
+implementations. We acknowledge `causalRisk` as the closest
+alternative implementation in the R ecosystem, while noting that
+its proprietary licence means independent reproduction of any
+specific function is up to the user.
 
 ## Pre-outcome diagnostics for treatment, censoring, and missingness
 
@@ -1670,14 +1668,22 @@ case_eff <- data.frame(
   Method = c("Crude (unadjusted)",  "PS matching",
              "IPTW (stabilised)",   "Full-cohort TMLE",
              "Matched-cohort TMLE", "IPCW-weighted TMLE"),
+  `Target population` = c(
+    "Complete-outcome subset",
+    "Matched subset (overlap)",
+    "Full eligible cohort",
+    "Full eligible cohort",
+    "Matched subset (overlap)",
+    "Full eligible cohort under censoring model"),
   N      = c(1277L, 615L, 1693L, 1693L, 1230L, 1277L),
   RD     = c(0.0370, 0.0272, 0.0366, 0.0306, 0.0259, 0.0326),
   CI_lo  = c( 0.0031, -0.0198,  0.0017, -0.0012, -0.0150, -0.0004),
   CI_hi  = c( 0.0708,  0.0741,  0.0714,  0.0623,  0.0668,  0.0656),
+  check.names = FALSE,
   stringsAsFactors = FALSE
 )
 knitr::kable(case_eff, digits = 4,
-             caption = "rescueCo binary-outcome estimates (good functional outcome at 6 months, GOSE > 4). All six estimates produced by cleanTMLE 0.1.1 following the staged-analysis vignette.")
+             caption = "rescueCo binary-outcome estimates (good functional outcome at 6 months, GOSE > 4) with the target population for each estimator. All six estimates produced by cleanTMLE 0.1.1 following the staged-analysis vignette.")
 ```
 
 The six estimators agree on direction. The crude unadjusted
@@ -1925,10 +1931,9 @@ computational cost, and estimand scope.
 The covariate-missingness scenario assumes MCAR. MAR and MNAR
 mechanisms require an explicit missingness model and are not yet
 supported. The principled alternative is inverse-probability-of-
-missingness weighting (`identify_missing()` in `causalRisk`
-[@brookhart2024causalrisk]), which weakens the assumption to
-stratified MCAR; we plan to expose the same option in a future
-cleanTMLE release.
+missingness weighting, which weakens the assumption to stratified
+MCAR; we plan to add a native cleanTMLE implementation in a future
+release.
 
 The plasmode DGP itself is parametric. The outcome is generated
 from a logistic regression of $Y$ on $W$ fitted to the lock data,
@@ -1958,20 +1963,19 @@ parallelising the outer loop over scenarios is the right next step.
 
 The running estimand in this paper is the marginal risk difference
 for a binary point exposure. Counterfactual hazard ratios are
-available in `causalRisk` via `estimate_ipwhr()` and in `survtmle`
-[@survtmlepackage2018] but are not yet wrapped into the cleanTMLE
-staged workflow. Sites that need hazard-ratio estimation can call
-those packages directly and feed the output through the same lock
-and audit trail.
+available in `survtmle` [@survtmlepackage2018] but are not yet
+wrapped into the cleanTMLE staged workflow. Sites that need
+hazard-ratio estimation can call that package directly and feed
+the output through the same lock and audit trail.
 
 Several other estimand families sit outside cleanTMLE's current
 scope: counterfactual cumulative-incidence curves with competing
-risks, cumulative-count IPW (`estimate_ipwcount()`), multinomial
-treatments, and the SMR / overlap / normalised / stabilised weight
-families. cleanTMLE in this release narrows to binary-treatment
-risk-difference TMLE; analysts who need the broader estimand
-surface can use `causalRisk` directly with the same cohort-
-specification grammar.
+risks, cumulative-count IPW, multinomial treatments, and the
+SMR / overlap / normalised / stabilised weight families. cleanTMLE
+in this release narrows to binary-treatment risk-difference TMLE;
+analysts who need the broader estimand surface have access to
+`survtmle`, `lmtp` [@lmtppackage2021], or the proprietary
+`causalRisk` package as alternative implementations.
 
 ## Future extensions
 
@@ -1981,10 +1985,9 @@ The most consequential extensions, in priority order, are:
    varying treatment, and competing risks (the current DGP is a
    logistic regression with a constant additive effect on the
    risk-difference scale).
-2. **MAR / MNAR missingness:** `identify_missing()` from `causalRisk`
-   [@brookhart2024causalrisk] gives an inverse-probability-of-
-   missingness weighting path that could be lifted into cleanTMLE
-   without requiring a structural missingness model.
+2. **MAR / MNAR missingness:** a native inverse-probability-of-
+   missingness weighting path that does not require a structural
+   missingness model.
 3. **Survival and competing-risk estimands:** wrapping `survtmle`
    [@survtmlepackage2018] and `lmtp` [@lmtppackage2021] inside the
    lock and audit machinery so that hazard-ratio and cumulative-
@@ -2068,22 +2071,23 @@ stress test must come from prior validation studies, data
 profiling, or expert elicitation. The analysis-lock object, audit
 log, and decision log persist the prespecification as reproducible
 records that downstream estimation functions check before
-running. Cohort-specification and reporting functions follow
-`causalRisk` [@brookhart2024causalrisk] under MIT-licence
-attribution, so an analyst can move between the two packages
-without relearning the function names or argument order. The
-package is available at <https://github.com/amertens/cleanTMLE>;
+running. The proprietary `causalRisk` package
+[@brookhart2024causalrisk] is an alternative implementation of
+related cumulative-risk estimators and is referenced as such; the
+two packages do not share code. The package is available at
+<https://github.com/amertens/cleanTMLE>;
 the simulation code for the results in §\ref{sec-simulation} is in
 the companion repository <https://github.com/amertens/clean-room-sim>.
 
 # Acknowledgements {.unnumbered}
 
-We thank the authors of `causalRisk` (M. Alan Brookhart, Alexander
-Breskin, and Bassim Eledath) for the MIT-licensed code and
-function naming that cleanTMLE inherits, and the targeted-learning
-RWE roadmap authors (Dang, Gruber, Phillips, Lee, Ho, van der Laan, Petersen,
-and colleagues) whose published frameworks cleanTMLE
-operationalises in software. Any errors are ours.
+We thank the targeted-learning RWE roadmap authors (Dang, Gruber,
+Phillips, Lee, Ho, van der Laan, Petersen, and colleagues) whose
+published frameworks cleanTMLE operationalises in software, and
+the authors of the proprietary `causalRisk` package (M. Alan
+Brookhart, Alexander Breskin, and Bassim Eledath) for surfacing
+the cumulative-risk-estimand framing that motivated several of
+our diagnostic helpers. Any errors are ours.
 
 # References {.unnumbered}
 
