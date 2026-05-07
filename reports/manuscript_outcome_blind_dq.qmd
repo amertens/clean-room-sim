@@ -38,52 +38,54 @@ library(cleanTMLE)
 
 # Abstract {.unnumbered}
 
-Real-world evidence studies must justify both the causal analysis
-strategy and the fitness of the underlying data source for the
-research question. In current practice these two arguments are
-usually developed in parallel but reported separately: estimator
-specification is supported with outcome-blind simulation, whereas
-data fitness is documented qualitatively through target-trial
-articulation, reporting templates such as TARGET and START-RWE,
-and fit-for-purpose checklists such as SPIFD2 and HARPER.
+Real-world evidence studies often require many analytic decisions
+before an effect estimate is produced: how to define the study
+population, how to handle limited overlap, which estimator to use,
+and how to assess whether the data are reliable enough for the
+question. In practice, these decisions are commonly documented in
+separate places. The causal question and target-trial design may
+be described in a protocol, data fitness may be assessed in a
+checklist, and estimator choice may be justified in a statistical
+analysis plan. This separation makes it difficult for reviewers to
+see how design assumptions, data limitations, and estimation
+choices are connected.
 
-We present **cleanTMLE**, an R package that provides a
-prespecified quantitative stress test of estimator performance
-under data-quality degradation scenarios derived from a prior
-fit-for-purpose assessment, situated inside the causal roadmap.
-The package does not itself determine whether a data source is
-fit for purpose; that judgement remains a study-level activity
-supported by target-trial protocols, validation studies, and
-source-data review. Once investigators have specified plausible
-data-quality threats and severity ranges from external evidence,
-cleanTMLE records the prespecified analytic choices and audit
-trail and extends the standard outcome-blind plasmode
-estimator-selection loop with a pre-outcome stress test that
-evaluates candidate estimators under those user-specified threats
-(covariate missingness, exposure misclassification, outcome
-misclassification, and unmeasured confounding). We illustrate the
-workflow in a Monte Carlo simulation and in a trauma-registry case
-study (n = 1,693 ambulance patients, 24.6 % outcome missingness)
-where six estimators implemented in cleanTMLE following the
-staged-analysis vignette agree on direction (risk difference 0.026
-to 0.037 in favour of Rescue.Co transport, with the prespecified
-primary full-cohort TMLE interval just crossing zero). The case
-study is presented as a workflow demonstration on a real registry
-rather than as evidence that the framework establishes causal
-validity.
+We present cleanTMLE, an R package that operationalises a staged,
+outcome-blind targeted-learning workflow for binary point-treatment
+studies. The package is situated inside the causal roadmap:
+investigators first define the causal question, observed data,
+identification assumptions, statistical estimand, and candidate
+estimators, then use outcome-blind simulations to compare candidate
+estimators before examining the observed treatment-outcome
+association. cleanTMLE extends this workflow with a plasmode
+data-quality stress test. Using the empirical covariate and
+treatment structure, the package generates synthetic outcomes and
+evaluates candidate estimators under prespecified threats,
+including covariate missingness, exposure misclassification,
+outcome misclassification, and unmeasured confounding.
 
-The contribution is operational rather than foundational. The
-package provides reproducible analysis records and
-candidate-specific robustness screening before the study outcome
-is unblinded. It does not replace target-trial design,
-variable-validation studies, source-data relevance and reliability
-review, independent oversight, or post-unblinding sensitivity
-analyses; the explicit list and corresponding regulatory anchors
-appear in the regulatory-alignment table and in the discussion.
-The IPW, g-computation, and AIPW cumulative-risk estimators
-provided by the proprietary `causalRisk` package are an
-alternative implementation of related ideas, with which cleanTMLE
-shares conceptual structure but does not share code.
+In Monte Carlo experiments, adjusted estimators recovered the true
+risk difference under good overlap, and TMLE and cross-validated
+TMLE remained approximately unbiased under marginal overlap. When
+unmeasured confounding was introduced, all estimators were biased
+in the same direction, and the prespecified pre-outcome decision
+correctly returned STOP, illustrating that the workflow can
+identify settings where the available data do not support the
+causal estimand. The data-quality stress test further showed that
+outcome misclassification and unmeasured confounding produced the
+largest degradation in estimator performance.
+
+We also demonstrate the workflow in the Rescue.Co Kenya Trauma
+Registry (n = 1,693; 24.6 % outcome missingness). Six estimators
+agreed on direction, with risk differences from 0.026 to 0.037 in
+favour of Rescue.Co transport, while the prespecified primary TMLE
+interval crossed zero. This case study is a workflow demonstration,
+not a causal claim. cleanTMLE does not replace target-trial design,
+fit-for-purpose data review, validation studies, independent
+governance, or post-outcome sensitivity analyses. Its contribution
+is narrower: it turns prespecified targeted-learning decisions,
+outcome-blind estimator selection, and data-quality stress testing
+into reproducible, auditable software artifacts.
 
 **Keywords:** targeted maximum likelihood estimation, plasmode
 simulation, real-world evidence, fit-for-purpose data, outcome-
@@ -138,16 +140,18 @@ this extension as a *data-quality (DQ) stress test*. It is a
 pre-outcome robustness screen rather than a substitute for
 variable validation or for post-unblinding sensitivity analysis.
 
-Throughout, we use "data-quality stress testing" in a restricted
-sense. The procedure does not assess data provenance, phenotype
-validity, linkage accuracy, representativeness, or regulatory
-acceptability directly; those remain study-level and
-data-source-level evaluations. The role of cleanTMLE is narrower:
-once investigators have specified plausible data-quality threats
-and severity ranges from external validation studies, data
-profiling, or expert elicitation, the package evaluates how
-candidate estimators behave under those prespecified perturbations
-before the observed treatment-outcome association is examined.
+We use "data-quality stress testing" in a restricted sense: the
+procedure does not assess data provenance, phenotype validity,
+linkage accuracy, representativeness, or regulatory acceptability,
+which remain study-level evaluations. Once investigators have
+specified plausible threats and severity ranges from external
+validation studies, data profiling, or expert elicitation, the
+package evaluates how candidate estimators behave under those
+prespecified perturbations before the observed treatment-outcome
+association is examined. This is the strongest claim we make for
+cleanTMLE: it links candidate-estimator selection and
+fit-for-purpose concerns on a single quantitative scale before
+outcome access.
 
 In this manuscript, *outcome-blind* means that decisions about
 cohort construction, candidate estimators, simulation scenarios,
@@ -163,53 +167,39 @@ decision point.
 
 ## What the package adds, and what it does not
 
-This paper introduces **cleanTMLE**, an R [@rcoreteam2024] package
-that records prespecified analytic decisions and supports the
-estimator-selection and stress-testing steps of the causal roadmap
-[@dang2023roadmap; @petersen2014roadmap; @gruber2022sap]. cleanTMLE
-provides an analysis-lock object, a serialisable audit trail and
+cleanTMLE is an R [@rcoreteam2024] package that operationalises an
+outcome-blind staged workflow for the estimator-selection and
+stress-testing steps of the causal roadmap [@dang2023roadmap;
+@petersen2014roadmap; @gruber2022sap]. Targeted maximum likelihood
+estimation (TMLE) [@vanderLaan2006tmle; @vdL2011tlbook;
+@schuler2017tmle; @zheng2011crossvalidated; @chernozhukov2018dml]
+is the natural setting because every analytic decision (the
+SuperLearner library [@vdL2007superlearner; @phillips2023sl], the
+truncation rule, the prespecified set of candidate estimators) can
+be listed in advance, and the algorithm remains data-adaptive while
+still admitting valid Wald-type confidence intervals. The package
+adds an analysis-lock object, a serialisable audit trail and
 decision log [@muntner2024staging], a pre-outcome decision rule
 that classifies the analysis as proceed, review, or stop, an
 outcome-blind plasmode candidate selector, and the DQ stress test
-described above. Targeted Maximum Likelihood Estimation (TMLE)
-[@vanderLaan2006tmle; @vdL2011tlbook; @schuler2017tmle;
-@zheng2011crossvalidated; @chernozhukov2018dml] is the natural
-setting because every analytic decision (the SuperLearner library
-[@vdL2007superlearner; @phillips2023sl], the truncation rule, the
-prespecified set of candidate estimators) can be listed in advance,
-and the algorithm remains data-adaptive while still admitting valid
-Wald-type confidence intervals.
+described above.
 
-The contribution is operational. The software-mediated outcome
-guard is, as @muntner2024staging put it, an implementation pattern
-rather than a methodological novelty. Its advantage is
-transparency: the analysis lock, audit trail, and decision log
-turn paper-only prespecification checklists into a structured
-record of analytic decisions, supporting reproducible
-reconstruction by an external reviewer. cleanTMLE
-provides a prespecified quantitative stress test of estimator
-performance under data-quality degradation scenarios derived from
-a prior fit-for-purpose assessment; it does not itself determine
-whether the data source is fit for purpose. Section
-§\ref{sec-roadmap} situates that contribution inside the causal
-roadmap and Table \ref{tbl-reg-align} maps each component to the
-corresponding FDA, EMA, and ICH expectation; we defer the explicit
-list of activities the package does *not* replace to those
-locations and to the discussion.
-
-Throughout, we use "clean room" interchangeably with "outcome-blind"
-when discussing software, because the workflow prevents
-outcome-analysis functions from proceeding until the prespecified
-review process has been completed, much as a manufacturing clean
-room blocks access to a sterile area until protocols have been
-followed. The software-mediated workflow partially substitutes for
-personnel-based outcome separation by restricting access to the
-observed outcome until prespecified review steps have been
-completed; it complements, but does not replace, personnel-based
-access controls and independent governance. Protocol review, role
-separation, source-data audit, and independent checkpoint review
-remain the broader institutional process inside which the software
-arrangement sits.
+The contribution is operational rather than methodological
+[@muntner2024staging]. The analysis lock, audit trail, and
+decision log turn paper-only prespecification checklists into a
+structured record of analytic decisions that an external reviewer
+can reconstruct. We use *outcome-blind staged workflow* throughout
+to describe this arrangement. The "clean room" label is sometimes
+used as a governance analogy, by analogy with a manufacturing
+clean room that blocks access to a sterile area until protocols
+have been followed, but the substantive content is the staged
+restriction of outcome access. The software arrangement
+complements, and does not replace, personnel-based access
+controls, protocol review, role separation, source-data audit, and
+independent checkpoint review. Section §\ref{sec-roadmap} situates
+the package inside the causal roadmap and Table
+\ref{tbl-reg-align} maps each component to the corresponding FDA,
+EMA, and ICH expectation.
 
 ::: {.callout-note}
 ## Current scope of cleanTMLE
@@ -229,25 +219,24 @@ implementation of related cumulative-risk estimators.
 
 ## What the paper contributes
 
-The contributions are operational. First, we extend the
-outcome-blind plasmode loop from candidate-estimator selection
-[@dang2023roadmap; @gruber2022sap; @schreck2024plasmode] to
-candidate-estimator robustness *screening* under prespecified
-threat ranges. Each candidate estimator produces a degradation
-gradient on the same bias / RMSE / coverage scale as the baseline
-plasmode, so the prespecified decision rule can be applied
-uniformly across baseline and stressed scenarios. We position this screen as a quantitative *supplement*
-to fit-for-purpose review (§\ref{sec-bridge}) rather than as a
-substitute for variable-validation studies, source-data
-assessment, or post-outcome quantitative bias analysis. Second, we
-provide an R implementation that turns prespecification into
-reproducible analysis records: a fingerprinted analysis-lock
-object, an audit log, a decision log, and a pre-outcome decision
-point that the prespecified estimator is checked against before
-outcome analysis. Third, we acknowledge `causalRisk` [@brookhart2024causalrisk] as a
-proprietary alternative implementation of related cumulative-risk
-estimators with which cleanTMLE shares conceptual structure but
-not code. The next
+The principal contribution is to extend the outcome-blind plasmode
+loop from candidate-estimator selection [@dang2023roadmap;
+@gruber2022sap; @schreck2024plasmode] to estimator robustness
+*screening* under prespecified threat ranges. Each candidate
+produces a degradation gradient on the same bias, RMSE, and
+coverage scale as the baseline plasmode, so the prespecified
+decision rule can be applied uniformly across baseline and
+stressed scenarios. We position this screen as a quantitative
+supplement to fit-for-purpose review (§\ref{sec-bridge}) rather
+than as a substitute for variable-validation studies, source-data
+assessment, or post-outcome quantitative bias analysis. The R
+implementation packages the supporting prespecification artefacts
+(fingerprinted lock, audit log, decision log, pre-outcome decision
+point) so that the screen and the locked primary analysis share a
+single reproducible record. We acknowledge `causalRisk`
+[@brookhart2024causalrisk] as a proprietary alternative
+implementation of related cumulative-risk estimators with which
+cleanTMLE shares conceptual structure but not code. The next
 section (§\ref{sec-roadmap}) places these contributions inside the
 causal roadmap; subsequent sections follow that roadmap order.
 
@@ -1278,10 +1267,13 @@ for (sc in names(res$summaries)) {
 
 ### Interpretation
 
-We let the simulation results speak for themselves; the printed
-tables include the Monte Carlo standard error of the coverage
-estimate so the reader can judge which differences exceed Monte
-Carlo noise. Three patterns are robust to noise.
+The simulation illustrates three intended uses of the staged
+workflow: confirming acceptable finite-sample behavior, detecting
+instability under marginal overlap, and stopping when an
+identification failure is built into the data-generating process.
+The printed tables include the Monte Carlo standard error of the
+coverage estimate so the reader can judge which differences exceed
+Monte Carlo noise. Three patterns are robust to noise.
 
 First, under good overlap (Scenario A) all adjusted estimators
 recover the truth with bias well under the prespecified threshold
@@ -1431,6 +1423,9 @@ under (0.90, 0.95) produces the largest bias of the three
 treatment arm. Unmeasured confounding produces the largest
 degradation overall and is the only threat that pushes the
 selected candidate's RMSE ratio above 1.5 in our default settings.
+Across scenarios, the DQ stress test was most informative when the
+threat directly targeted identification or measurement validity
+rather than ordinary estimator variance.
 
 ```{r dq-gradient-plots, eval = has_dq, fig.height = 10, fig.cap = "Degradation gradient. Bias (top) and coverage (bottom) for the selected TMLE candidate at each severity level of each DQ scenario, faceted by Monte Carlo scenario."}
 dq_combined <- do.call(rbind, lapply(names(dq_all), function(sc) {
