@@ -163,7 +163,177 @@ These outcome construction choices mean that:
 
 - **Binary outcome estimates** are conditional on having 6-month follow-up data and should be interpreted with caution regarding selection bias from differential follow-up.
 - **Survival estimates** are approximations. The Cox hazard ratios and survival TMLE risk differences reflect the *constructed* survival times, not directly observed ones. Consistency across multiple estimators (Cox, TMLE, matched, unmatched) provides some reassurance, but all share the same underlying data limitations.
-- **Sensitivity analyses** varying the imputed time points (e.g., hospital death at LOS midpoint instead of day 1, lost-to-follow-up censored at 7 vs. 60 vs. 90 days) would strengthen the robustness of conclusions.
+- **Sensitivity analyses** varying the imputed time points (for example, hospital death at LOS midpoint instead of day 1, or lost-to-follow-up censored at 7, 60, or 90 days) would strengthen the robustness of conclusions.
+
+## Event-process classification and estimand implications
+
+Post-baseline events should not be assigned a generic role of
+"censoring" or "exclusion." Each event is instead mapped to its
+role in the causal estimand, its operational role in estimation,
+and (when applicable) the corresponding ICH E9(R1) intercurrent-
+event strategy. The classification below uses the
+`clean_event_process_table()` helper from cleanTMLE.
+
+```{r event-classification}
+events <- cleanTMLE::clean_event_process_table(list(
+  list(event_name = "Good functional outcome at 6 months",
+       event_variable = "gose_good",
+       role_in_estimand = "outcome event",
+       role_in_estimation = "fitted by Q-model",
+       primary_handling = "modelled directly"),
+  list(event_name = "Death (in-hospital or by 6 months)",
+       event_variable = "death",
+       role_in_estimand = "competing event",
+       role_in_estimation = "competing-risk component for survival outcome",
+       ICH_E9R1_strategy = "composite or competing-risk strategy",
+       primary_handling = "competing-risk cumulative incidence",
+       sensitivity_handling = "treatment-policy strategy with composite",
+       justification = "Death precludes measurement of GOSE; treated as competing for the binary outcome and as the event of interest for the survival outcome"),
+  list(event_name = "Loss to follow-up at 6 months",
+       event_variable = "missing_gose",
+       role_in_estimand = "missing outcome process",
+       role_in_estimation = "IPCW-TMLE",
+       primary_handling = "IPCW",
+       sensitivity_handling = "sensitivity to alternative censoring time",
+       identification_assumption = "MAR conditional on baseline covariates",
+       notes = "24.6 % of the analytic cohort"),
+  list(event_name = "Inter-facility transfer",
+       event_variable = "is_transfer",
+       role_in_estimand = "intercurrent event (excluded from primary)",
+       role_in_estimation = "exclusion",
+       ICH_E9R1_strategy = "principal-stratum strategy",
+       primary_handling = "exclude from primary cohort",
+       sensitivity_handling = "include with is_transfer covariate",
+       justification = "40.7 % vs 2.5 % imbalance creates a compositional confounder; primary analysis targets direct-from-scene transport"),
+  list(event_name = "Administrative end of follow-up at 6 months",
+       event_variable = "fu_window_end",
+       role_in_estimand = "administrative censoring",
+       role_in_estimation = "censoring boundary for survival outcome",
+       primary_handling = "right-censoring at 180 days"),
+  list(event_name = "Treatment discontinuation",
+       event_variable = "n/a",
+       role_in_estimand = "intercurrent event (not applicable)",
+       primary_handling = "n/a",
+       notes = "Treatment is a one-time prehospital exposure; discontinuation is not defined")
+), censoring_handling = "IPCW for missing outcome; right-censoring at administrative end")
+print(events)
+```
+
+The classification clarifies which events form part of the
+estimand (the outcome and, for the survival contrast, death as a
+competing event), which are censoring or missing-outcome
+processes (loss to follow-up, administrative end of follow-up),
+and which are intercurrent events handled by exclusion plus a
+sensitivity analysis (inter-facility transfer). Death is the only
+event whose role differs across estimands: it is a competing event
+for the binary functional-outcome contrast and the event of
+interest for the survival contrast.
+
+## Target population and reference group
+
+The analytic target population and reference group are declared
+explicitly with `clean_target_population()`. The primary analysis
+targets the full eligible direct-from-scene ambulance population,
+with non-Rescue.Co transport as the reference.
+
+```{r target-pop}
+tp <- cleanTMLE::clean_target_population(
+  target_population = "full eligible population",
+  reference_group   = "Other ambulance (non-Rescue.Co)",
+  rationale         = "Marginal effect of EMS provider in adults transported directly from the injury scene by ambulance",
+  implications_for_interpretation = "The risk difference applies to the population of ambulance-transported trauma patients arriving directly from the scene; it does not generalise to non-ambulance arrivals or to patients transferred from another facility.")
+print(tp)
+```
+
+The contrast is a marginal risk difference. Inter-facility
+transfers are excluded by the prespecified primary analysis
+(rationale above) and re-included as a sensitivity exhibit, so the
+sensitivity exhibit corresponds to a different target population
+(all ambulance arrivals).
+
+## Weight, overlap, and positivity diagnostics
+
+Stage 2 fits the propensity-score model and reports overlap, weight
+distribution, effective sample size, and standardised mean
+differences before and after weighting. The diagnostics below use
+the IPTW weights produced by Stage 2; the same helper accepts
+censoring or missingness weights when those are used.
+
+```{r weight-diag, eval = exists("ps_diag") && !is.null(ps_diag)}
+# ps_diag was produced by Stage 2 (compute_ps_diagnostics).
+# Reconstruct treatment-arm IPTW weights for diagnostic display.
+A <- stage1_cohort$A[match(rownames(ps_diag$ps_data), rownames(stage1_cohort))]
+ps <- ps_diag$ps
+w  <- ifelse(A == 1, 1 / ps, 1 / (1 - ps))
+
+wd <- cleanTMLE::clean_weight_diagnostics(
+  weights = w, treatment = A,
+  covariates = ps_diag$ps_data[, setdiff(names(ps_diag$ps_data), "A")],
+  max_weight_threshold = 10,
+  ess_floor = 0.4 * length(w))
+print(wd)
+```
+
+We use 10 as the maximum-weight threshold and 0.4 N as the ESS
+floor. Both are conservative defaults; sites that have prior
+information on plausible weight ranges should set thresholds in
+the prespecified analysis plan.
+
+## Cumulative-risk reporting
+
+Treatment-specific risks at the prespecified follow-up time, the
+risk difference, the risk ratio, event counts, and the estimator
+that produced each row are reported in a single structured table.
+For the binary functional-outcome contrast the time point is
+"6 months."
+
+```{r risk-report, eval = exists("comparison")}
+binary_rows <- list()
+for (i in seq_len(nrow(comparison))) {
+  binary_rows[[length(binary_rows) + 1L]] <- list(
+    time_point         = 180,
+    treatment_strategy = "Rescue.Co EMS",
+    n_observed         = comparison$n[i],
+    risk               = comparison$risk_1[i],
+    estimator          = comparison$method[i])
+  binary_rows[[length(binary_rows) + 1L]] <- list(
+    time_point         = 180,
+    treatment_strategy = "Other ambulance",
+    n_observed         = comparison$n[i],
+    risk               = comparison$risk_0[i],
+    risk_difference    = comparison$estimate[i],
+    risk_ci_lower      = comparison$ci_lower[i],
+    risk_ci_upper      = comparison$ci_upper[i],
+    estimator          = comparison$method[i])
+}
+rt <- cleanTMLE::clean_risk_report_table(binary_rows)
+print(rt)
+```
+
+The table reports cumulative risks of GOSE > 4 at 6 months, the
+risk difference, and the estimator used. We do not report a hazard
+ratio for the primary contrast, because the binary functional
+outcome is not framed on the hazard scale; for the survival
+contrast we report cumulative risks at 30, 90, and 180 days
+(constructed times) and a hazard ratio is shown only as a
+secondary summary.
+
+## Sensitivity analyses mapped to assumptions
+
+The case study reports the following sensitivity analyses, each
+mapped to the assumption it primarily probes.
+
+| Assumption | Sensitivity analysis or diagnostic |
+|------------|-------------------------------------|
+| Exchangeability (no unmeasured confounding) | Negative-control outcomes (urban household, fuel-wood); E-value on the primary estimate |
+| Positivity | Truncation-grid sensitivity; weight-distribution and ESS reporting |
+| Consistency | Documented exposure phenotype (Rescue.Co vs other ambulance); restriction to direct-from-scene cohort |
+| Dependent censoring | IPCW-TMLE on the binary outcome; sensitivity to alternative censoring times for survival outcome |
+| Missing outcome data | IPCW-TMLE; comparison with complete-case TMLE |
+| Competing events / truncating events | Competing-risk cumulative incidence for survival outcome; coherence check via `clean_check_event_processes()` |
+
+: Sensitivity analyses mapped to identification or measurement
+assumptions.
 
 ## Clean-Room Workflow
 

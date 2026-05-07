@@ -416,6 +416,42 @@ knitr::kable(reg_align,
              caption = "Mapping of causal-roadmap components to manuscript sections, regulatory anchors, what cleanTMLE operationalises, and what still requires external study-level justification.")
 ```
 
+A complementary supplementary mapping (Table \ref{tbl-event-diag})
+lists the additional event-process and diagnostic structures the
+package makes explicit. These rows are intentionally separated
+from the main regulatory-alignment table to keep the latter
+readable.
+
+```{r event-diag-table}
+#| label: tbl-event-diag
+event_diag <- data.frame(
+  Component = c(
+    "Event-process classification",
+    "Target population and reference group",
+    "Treatment, censoring, and missingness weight diagnostics",
+    "Competing-risk and composite-risk coherence check",
+    "Cumulative-risk reporting table",
+    "Hazard-ratio de-emphasis"),
+  `cleanTMLE function` = c(
+    "clean_event_process_table",
+    "clean_target_population",
+    "clean_weight_diagnostics",
+    "clean_check_event_processes",
+    "clean_risk_report_table",
+    "(documented preference; HR as secondary)"),
+  Purpose = c(
+    "Map each post-baseline event to its role in the estimand and ICH E9(R1) intercurrent-event strategy.",
+    "Force explicit declaration of the population and reference group for every contrast.",
+    "Report percentiles, ESS, extreme-weight counts, and weighted SMDs for each weight vector used.",
+    "Verify that event-of-interest plus competing-event cumulative incidences are coherent with the composite risk.",
+    "Single structured table of cumulative risks, contrasts, event counts, and estimator name.",
+    "Cumulative risks, risk differences, and risk ratios are the primary summaries; hazard ratios are reported only as secondary when the estimand is explicitly hazard-based."),
+  check.names = FALSE,
+  stringsAsFactors = FALSE)
+knitr::kable(event_diag,
+             caption = "Supplementary mapping. Event-process and diagnostic structures that the package makes explicit, paired with the helper that produces each one.")
+```
+
 The remaining methods sections follow the roadmap order. §\ref{sec-estimand}
 states the target-trial estimand and identification assumptions
 used in the simulation. §\ref{sec-framework} describes the lock,
@@ -477,6 +513,25 @@ is
 
 with no arrow from $A$ to $W$ (point exposure) and no arrow
 between $W$ and $U$.
+
+## Event-process classification
+
+A recurring source of ambiguity in real-world evidence analyses
+is the treatment of post-baseline events such as treatment
+discontinuation, treatment switching, death, loss to follow-up,
+administrative end of follow-up, and missing outcome measurement.
+These events should not be assigned generically to censoring or
+exclusion rules. Instead, each event should be mapped to its role
+in the causal estimand, its corresponding ICH E9(R1)
+intercurrent-event strategy when applicable, and its operational
+role in estimation. For example, death may be an outcome, a
+competing event, a component of a composite endpoint, or an
+intercurrent event requiring a treatment-policy, hypothetical,
+composite, while-on-treatment, or principal-stratum strategy,
+depending on the clinical question. This classification should be
+prespecified and linked to sensitivity analyses; the package
+provides `clean_event_process_table()` to record it as a
+structured object that the audit log can carry.
 
 ## Identifiability assumptions {#sec-id}
 
@@ -1120,6 +1175,38 @@ log, step-by-step TMLE functions, and plasmode DQ stress test as
 cleanTMLE-original components. An analyst already using
 `causalRisk` for IPW analyses can move into cleanTMLE without
 relearning the cohort-specification surface.
+
+## Pre-outcome diagnostics for treatment, censoring, and missingness
+
+Before outcome-unblinded estimation, investigators should report
+diagnostics for the treatment, censoring, and missingness
+mechanisms that support identification and estimator stability.
+These include propensity-score overlap, distributions of treatment
+and censoring weights, effective sample size, covariate balance
+before and after weighting, and prespecified thresholds for
+unacceptable positivity or weight instability. When competing
+events are present, cumulative incidence for the event of
+interest, the competing event, and the composite event should be
+reported together, with internal checks that component risks are
+coherent with the composite risk. The package supports these
+checks via `clean_weight_diagnostics()` for treatment and
+censoring weights, and `clean_check_event_processes()` for
+component-vs-composite coherence.
+
+## Reporting cumulative risks rather than hazard ratios
+
+Although hazard ratios remain common in time-to-event analyses,
+they are not generally the most transparent primary summary for
+regulatory RWE questions framed as target trials. Cumulative
+risks, risk differences, and risk ratios at clinically meaningful
+follow-up times more directly correspond to treatment-specific
+counterfactual risks and are often easier to align with estimand
+language. Hazard ratios may be reported as secondary analyses when
+proportional hazards is plausible and the estimand is explicitly
+defined on the hazard scale. The package's
+`clean_risk_report_table()` produces a single structured table of
+cumulative risks, contrasts, event counts, and the estimator that
+produced each row.
 
 # Simulation Study {#sec-simulation}
 
