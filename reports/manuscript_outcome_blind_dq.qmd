@@ -196,12 +196,15 @@ list of activities the package does *not* replace to those
 locations and to the discussion.
 
 Throughout, we use "clean room" interchangeably with "outcome-blind"
-when discussing software because the package will not let Stage 4
-estimators run on a lock whose outcome column has not been
-authorised, much as a manufacturing clean room blocks access to a
-sterile area until protocols are followed. The software-level
-access controls can complement, but do not replace, personnel-based
-access controls and independent governance: protocol review, role
+when discussing software, because the workflow prevents
+outcome-analysis functions from proceeding until the prespecified
+review process has been completed, much as a manufacturing clean
+room blocks access to a sterile area until protocols have been
+followed. The software-mediated workflow partially substitutes for
+personnel-based outcome separation by restricting access to the
+observed outcome until prespecified review steps have been
+completed; it complements, but does not replace, personnel-based
+access controls and independent governance. Protocol review, role
 separation, source-data audit, and independent checkpoint review
 remain the broader institutional process inside which the software
 arrangement sits.
@@ -739,15 +742,16 @@ sweeps a vector of severities. The output is a curve of bias,
 RMSE, and coverage against the severity, computed separately for
 each prespecified TMLE candidate. We call this curve a *degradation
 gradient* by analogy with a dose-response curve: it answers the
-question, "how bad does the data have to be before this candidate
-fails the gate?"
+question, "how severe must the data degradation be before this
+candidate fails the prespecified criteria?"
 
-A robust candidate produces a flat gradient that stays inside the
-gate thresholds. A fragile candidate shows a cliff: a small
-worsening of the data tips bias or coverage past the threshold.
-The candidate selection rule (`select_tmle_candidate(rule = "min_rmse")`)
-can be augmented to require a maximum allowed degradation, in
-which case the gate effectively rules out fragile candidates
+A robust candidate produces a flat gradient that remains inside
+the prespecified thresholds. A fragile candidate shows a cliff: a
+small worsening of the data tips bias or coverage past the
+threshold. The candidate-selection rule
+(`select_tmle_candidate(rule = "min_rmse")`) can be augmented to
+require a maximum allowed degradation, in which case the
+prespecified rule excludes fragile candidates
 before the outcome is accessed.
 
 The truncation level inside a TMLE candidate is more than a tuning
@@ -876,22 +880,23 @@ propensity-score overlap looks acceptable, and the negative-
 control-outcome estimate is consistent with no effect
 [@dang2023roadmap; @gruber2022sap; @gruber2024evaluating]. Each
 check is binary or ordinal, and each is computed from a different
-artifact (a pdf SAP, a balance table, a NCO estimate). When the
-data-fitness argument is added, it appears as a separate document,
-typically the SPIFD2 or HARPER table [@wang2023harper], and is
-adjudicated by reviewers rather than scored by the gate.
+source (a PDF SAP, a balance table, a negative-control estimate).
+When the data-fitness argument is added, it usually appears as a
+separate document (the SPIFD2 or HARPER table
+[@wang2023harper]) and is adjudicated by reviewers rather than
+scored against the prespecified decision rule.
 
 ## What the DQ supplement adds
 
 The DQ stress test reports, for each candidate, the same triple
 (bias, RMSE, coverage) at each severity of each threat that the
-baseline plasmode reports. Because the units match, the gate can
-apply the same thresholds it already uses for the baseline
-plasmode (maximum allowed bias, minimum allowed coverage, and an
-allowed SE-calibration window) to the degraded runs. The candidate
-then has to pass the gate at the ideal data-generating process
-*and* stay inside the gate thresholds across the plausible range
-of each threat documented in SPIFD2.
+baseline plasmode reports. Because the units match, the same
+prespecified thresholds (maximum allowed bias, minimum allowed
+coverage, and an allowed SE-calibration window) can be applied
+uniformly to the baseline plasmode and to the degraded runs. The
+prespecified candidate is required to meet those thresholds both
+under the locked data-generating process and across the plausible
+range of each threat documented in the fit-for-purpose review.
 
 This shifts the pre-outcome decision in three ways. First, the
 data-fitness argument becomes numeric and candidate-specific:
@@ -1563,11 +1568,12 @@ run at Stage 3 on the locked PS:
 
 : Stage 3 negative-control TMLE results.
 
-The pre-outcome gate (`authorize_outcome_analysis()`) returns GO
-on the two passing NCs and the plasmode metrics. The audit log
-records the three NC drops alongside the two GO checkpoints, so a
-reviewer can see at a glance that NC coverage is partial. The lock
-is then unmasked and Stage 4 estimators run.
+At the pre-outcome decision point (`authorize_outcome_analysis()`),
+the two passing negative controls and the plasmode metrics support
+a *proceed* classification. The audit log records the three NC
+drops alongside the two passing checkpoints, so a reviewer can see
+at a glance that the negative-control coverage is partial. The
+analysis is then unmasked and the outcome-analysis functions run.
 
 ## Effect estimates
 
@@ -1752,16 +1758,17 @@ specific. They tell the reader how strong an unmeasured confounder
 would have to be to nullify the observed effect. The plasmode DQ
 stress test is pre-hoc and candidate-specific: it tells the
 reviewer how biased each candidate becomes under each hypothesised
-strength of confounding, on the same scale as the rest of the
-gate. The two are answering different questions and should both be
-reported.
+strength of confounding, on the same bias / RMSE / coverage scale
+as the other pre-outcome diagnostics. The two are answering
+different questions and should both be reported.
 
 Quantitative bias analysis [@lash2014qba] adjusts the final
 estimate for postulated biases. Like the E-value, QBA is an
 unblinding-stage tool. The DQ stress test does not adjust the
-estimate; it asks whether the estimator passes the gate when the
-biases are present. We therefore recommend QBA at the analysis
-stage and the DQ stress test at the prespecification stage.
+estimate; it asks whether the estimator continues to meet the
+prespecified performance criteria when the biases are present. We
+therefore recommend QBA at the analysis stage and the DQ stress
+test at the prespecification stage.
 
 The targeted-learning causal-gap sensitivity analysis
 [@diaz2013sensitivity] characterises the change in $\Psi$ as the
