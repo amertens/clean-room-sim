@@ -63,9 +63,9 @@ decisions        <- tryCatch(load_stage_output("stage5_decisions.rds", results_d
 
 ## Introduction
 
-This report presents a **clean-room TMLE analysis** of the RescueCo Kenya Trauma Registry, comparing the effect of Rescue.Co Emergency Medical Services (EMS) transport versus non-EMS transport on trauma patient outcomes.
+This report presents an **outcome-blind staged TMLE analysis** of the RescueCo Kenya Trauma Registry, comparing the effect of Rescue.Co Emergency Medical Services (EMS) transport versus non-EMS transport on trauma patient outcomes. The package implements the software layer of an outcome-blind staged workflow; it sits within, but does not replace, the broader clean-room governance construct of role separation, restricted access, and independent checkpoint review.
 
-The analysis uses a **staged clean-room design** where:
+The analysis uses a **staged outcome-blind workflow** where:
 
 1. Cohort construction and covariate selection proceed without outcome data
 2. Propensity score estimation and matching are performed outcome-blind
@@ -95,6 +95,80 @@ The analysis uses a **staged clean-room design** where:
 | F | Cox PH regression | Survival | Matched |
 | G | Survival TMLE | Survival | Full |
 | H | Survival TMLE | Survival | Matched |
+
+## Cohort flow
+
+```{mermaid}
+%%| fig-cap: "Cohort attrition for the Rescue.Co Kenya Trauma Registry case study. Counts shown at each prespecified inclusion/exclusion criterion. Inter-facility transfers are excluded from the analytic cohort; complete-outcome rows are used for the unweighted estimators and for the IPCW-weighted complete-case TMLE."
+flowchart TD
+    A["Registry observations"]
+    B["Ambulance arrivals at participating hospitals"]
+    C["Direct-from-scene cohort<br/>(inter-facility transfers excluded)"]
+    D["Analytic cohort<br/>n = 1,693 (1,013 Rescue.Co + 680 other)"]
+    E["Complete 6-month GOSE<br/>n = 1,277"]
+    F["Matched subset<br/>n = 615 (matching) / 1,230 (matched-TMLE pseudo-cohort)"]
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    D --> F
+    D -. "missing GOSE<br/>n = 416 (24.6%)" .-> X1["Handled by IPCW"]
+```
+
+## Analytic setup at a glance
+
+The four compact tables below make the case-study specification
+fully visible in one place: the event process, the target
+populations that each candidate procedure addresses, the
+weight-diagnostic thresholds, and the candidate estimator-estimand
+pairs.
+
+**Event-process table.**
+
+| Event-like quantity                       | Class                          | Handling                                              |
+|-------------------------------------------|--------------------------------|-------------------------------------------------------|
+| GOSE > 4 at 6 months                      | Event of interest (outcome)    | Estimand: marginal RD on this binary outcome          |
+| GOSE missing at 6 months                  | Missingness                    | IPCW under MCAR; documented in missing-data plan       |
+| In-hospital death before 6-month GOSE     | Competing event (rare)         | Coded as GOSE = 1 ("worst") per SAP; recorded         |
+| Inter-facility transfer at index event    | Exclusion                      | Excluded from analytic cohort                          |
+| Treatment switching / crossover           | Not applicable                 | Point exposure at scene; no time-varying treatment    |
+| 6-month follow-up window end              | Administrative end of FU       | Fixed at 6 months; no admin censoring before that      |
+
+**Target-population table.**
+
+| Procedure                                 | Target population                                              |
+|-------------------------------------------|----------------------------------------------------------------|
+| Crude (complete-case)                     | Complete-outcome subset (n = 1,277)                            |
+| PS matching                               | Matched overlap subset (n = 615)                               |
+| IPTW (stabilised)                         | Full eligible cohort (n = 1,693)                               |
+| Full-cohort TMLE (prespecified primary)   | Full eligible cohort (n = 1,693)                               |
+| Matched-cohort TMLE                       | Matched overlap subset (n = 1,230)                             |
+| Complete-outcome TMLE with IPCW weights   | Complete-outcome rows, weighted toward the full-cohort marginal contrast |
+
+**Weight-diagnostics table.**
+
+| Weight type                       | Source                       | Reporting                          | Prespecified instability flag                          |
+|-----------------------------------|------------------------------|------------------------------------|--------------------------------------------------------|
+| Treatment weights (stabilised)    | `fit_ps_superlearner()`      | Mean, SD, 99th pct, max, Kish ESS  | Max > 10, or > 1 % of weights above 5                  |
+| IPCW weights (missingness)        | `run_ipcw_tmle()`            | Mean, SD, 99th pct, max            | Max > 10                                               |
+| Combined                          | Product of treatment + IPCW  | Mean, SD, max, ESS                 | Max > 15, or ESS < 30 % of n                            |
+
+**Estimator-estimand table.**
+
+| Candidate                                | Nuisance library         | Truncation | Missingness  | Estimand implication                                                          | Status                  |
+|------------------------------------------|--------------------------|-----------:|--------------|-------------------------------------------------------------------------------|-------------------------|
+| Crude                                    | n/a                      |        n/a | Complete case| Marginal contrast in complete-outcome subset                                  | Reference comparator    |
+| PS matching                              | GLM PS                   |        n/a | Complete case| ATE in matched overlap subset                                                 | Secondary               |
+| IPTW (stabilised)                        | GLM PS                   |       0.01 | Complete case| ATE in full eligible cohort under PS-truncated model                          | Secondary               |
+| Full-cohort TMLE                         | SL ensemble              |       0.01 | Complete case| ATE in full eligible cohort under prespecified locked SL library              | **Primary**             |
+| Matched-cohort TMLE                      | SL ensemble (matched)    |        n/a | Complete case| ATE in matched overlap subset                                                 | Sensitivity (target pop)|
+| Complete-outcome TMLE with IPCW weights  | SL ensemble + SL IPCW    |       0.01 | IPCW         | ATE in full eligible cohort under the locked missingness model                | Sensitivity (missingness)|
+
+These four tables document the estimand-vs-estimator distinction:
+candidates that differ by truncation, matching, or IPCW correspond
+to different effective target populations and are reported as
+paired objects rather than interchangeable estimators of the same
+parameter.
 
 ## Outcome Variable Construction and Assumptions
 
@@ -355,18 +429,25 @@ censoring weights are stabilised by the marginal response rate per
 arm and capped at the 99th percentile.
 
 ```{r cc-vs-ipcw, eval = exists("comparison")}
-# Complete-case TMLE and IPCW-TMLE rows side by side.
+# Complete-outcome TMLE and IPCW-weighted complete-outcome TMLE rows side by side.
 sub <- comparison[comparison$method %in%
                     c("Full-cohort TMLE", "IPCW-weighted TMLE"),
                   c("method", "n", "estimate", "ci_lower",
                     "ci_upper")]
+# Relabel the IPCW row for display so the caption matches the
+# manuscript: the estimand is the full-cohort marginal contrast
+# under the missingness model, but the implementation is a weighted
+# complete-case procedure.
+sub$method[sub$method == "IPCW-weighted TMLE"] <-
+  "Complete-outcome TMLE with IPCW weights"
 kable(sub, digits = 4,
-      caption = "Complete-case (Full-cohort TMLE) vs IPCW-weighted TMLE on the binary outcome.")
+      caption = "Complete-case TMLE (Full-cohort TMLE on complete outcomes) vs Complete-outcome TMLE with IPCW weights. The IPCW row's intended estimand is the full-cohort marginal contrast under the missingness model; the implementation is a weighted complete-case procedure because the upstream `tmle::tmle()` Delta-path raised an error on this lock and the function recorded `method_used = 'ipcw_weighted_complete_case'`. The two rows are therefore directly comparable on the same complete-outcome rows.")
 ```
 
 The two rows differ by 0.002 on the risk-difference scale and the
-IPCW-TMLE 95 % CI sits closer to (and just above) zero, consistent
-with a small upward shift once the missingness model is included.
+IPCW-weighted complete-outcome TMLE 95 % CI sits closer to (and
+just above) zero, consistent with a small upward shift once the
+missingness model is included.
 Because the missingness rate is large (24.6 %), this comparison is
 informative as a sensitivity exhibit but does not by itself
 establish whether the missingness mechanism is MCAR, MAR, or MNAR.
@@ -474,9 +555,25 @@ if (file.exists(img_file)) {
 }
 ```
 
-## Stage 2b: Negative Control Analysis
+## Stage 3: Negative Control Analysis (optional pre-outcome diagnostic)
 
 Negative-control outcomes are pre-treatment covariates (chronic conditions, SES indicators) that ambulance transport should not causally affect. Finding a non-zero TMLE effect on these outcomes would signal residual confounding or model misspecification.
+
+### Negative-control attrition
+
+```{mermaid}
+%%| fig-cap: "Negative-control attrition. Five negative-control endpoints were prespecified in the SAP. Three were dropped at the data-sanitisation step because they failed near-zero-variance (NZV) filtering on the locked cohort. The two surviving NCs (chronic_hypertension, household_urban) carried enough variation to fit a stable PS-adjusted model. The residual-confounding probe therefore rests on a narrower NC panel than originally specified, which is recorded in the audit log."
+flowchart LR
+    A["5 prespecified NCs<br/>chronic_hypertension, chronic_diabetes_insulin,<br/>chronic_hiv_art, household_urban, fuel_wood"]
+    B["NZV filter at data-sanitisation step"]
+    C["3 dropped: chronic_diabetes_insulin,<br/>chronic_hiv_art, fuel_wood"]
+    D["2 analysed: chronic_hypertension,<br/>household_urban"]
+    E["Both pass NC checks"]
+    A --> B
+    B --> C
+    B --> D
+    D --> E
+```
 
 ```{r}
 if (!is.null(nc_results)) {
@@ -501,7 +598,7 @@ if (!is.null(nc_results)) {
   kable(nc_display, caption = "Negative Control TMLE Results",
         col.names = c("NC Outcome", "ATE", "CI Lower", "CI Upper", "p-value", "Result"))
 } else {
-  cat("Negative control results not available (Stage 2b may not have been run).")
+  cat("Negative control results not available (Stage 3 NC analysis may not have been run).")
 }
 ```
 
@@ -548,7 +645,7 @@ if (!is.null(gating_decision)) {
 }
 ```
 
-## Stage 3: Simulation Results
+## Stage 2b/2c: Plasmode Simulation and DQ Stress Results
 
 Simulation used **`r sim_memo$n_sims_binary`** replications for binary outcomes and **`r sim_memo$n_sims_survival`** for survival.
 
@@ -669,6 +766,32 @@ The Cox model provides **hazard ratios** (relative rate of events), while surviv
 
 ## Comparison of Estimators
 
+### Forest plot
+
+```{r forest-plot, eval = exists("comparison"), fig.height = 5, fig.cap = "Forest plot of the six prespecified estimators for the binary GOSE > 4 outcome. Risk differences with 95 percent confidence intervals; the dashed grey line marks zero (no effect). Estimators are grouped by target population. All six estimators agree on direction (RD between 0.026 and 0.037 favouring Rescue.Co), while the prespecified primary TMLE 95 percent CI just crosses zero."}
+library(ggplot2)
+fp_df <- comparison
+# Relabel for display.
+fp_df$method[fp_df$method == "IPCW-weighted TMLE"] <-
+  "Complete-outcome TMLE with IPCW weights"
+# Order by target-population grouping (full vs matched vs complete-outcome).
+order_lvls <- c("Crude (unadjusted)", "Complete-outcome TMLE with IPCW weights",
+                "Full-cohort TMLE", "IPTW (stabilised)",
+                "PS matching", "Matched-cohort TMLE")
+fp_df <- fp_df[fp_df$method %in% order_lvls, ]
+fp_df$method <- factor(fp_df$method, levels = rev(order_lvls))
+
+ggplot(fp_df, aes(x = estimate, y = method)) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_point(size = 3) +
+  geom_errorbarh(aes(xmin = ci_lower, xmax = ci_upper), height = 0.2) +
+  labs(x = "Risk difference (95% CI)", y = NULL,
+       title = "Rescue.Co binary-outcome estimates",
+       subtitle = "Six prespecified estimators; dashed line at RD = 0") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title.position = "plot")
+```
+
 ### Matched vs. Unmatched
 
 Matching restricts to a subset with good PS overlap, potentially reducing bias from positivity violations but losing sample size. Full-cohort TMLE uses all observations with appropriate weighting.
@@ -685,7 +808,7 @@ Regression relies on correct parametric specification of the outcome model.
 
 ## Discussion
 
-This analysis demonstrates how clean-room design principles can be applied to an observational trauma registry:
+This analysis demonstrates how an outcome-blind staged workflow can be applied to an observational trauma registry:
 
 1. **Design decisions were locked** before examining treatment-outcome associations
 2. **Simulation informed** the choice of TMLE specification and SuperLearner libraries
