@@ -1,0 +1,532 @@
+---
+title: "cleanTMLE for Applied Analysts"
+subtitle: "A plain-language introduction to staged, outcome-blind causal analysis"
+author: "Andrew Mertens"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    self-contained: true
+    code-fold: true
+  docx:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+# What this report is, and who it is for
+
+This report is written for an applied analyst — an epidemiologist, biostatistician, data scientist, or health-services researcher — who works with observational health data and has *not* previously used targeted-learning methods or read the staging-and-clean-room methods literature. It is intended to be readable end-to-end in about an hour. By the end you should understand:
+
+1. The problem the cleanTMLE R package is designed to address.
+2. The two main ideas it borrows from the methods literature (targeted learning and outcome-blind staged analysis), in plain language.
+3. How the workflow runs, step by step.
+4. What we learned from the simulation study and the worked case study.
+5. When this package is useful, and when it is not the right tool.
+
+No prior exposure to TMLE, propensity-score methods beyond the basics, or clean-room methodology is assumed.
+
+---
+
+# The problem
+
+## What we are trying to do in observational research
+
+Suppose you have data on a group of patients. Some received a treatment; others did not. You want to estimate what the treatment does — specifically, what the difference in some health outcome would be if everyone had received the treatment versus if no one had. This is a *causal* question, and it is what every observational comparative-effectiveness or pharmacoepidemiology study is asking.
+
+In a randomised trial, the question is answered by the randomisation. In observational data, it has to be answered by *adjustment*: we measure as many baseline characteristics as we can, and we use statistical methods to mimic, as well as we are able, the balance that randomisation would have produced.
+
+## Why this is harder than it looks
+
+Three things go wrong, often at once.
+
+1. **Decisions accumulate during the analysis.** Even with a written protocol, the analyst runs into sparse events, missing values, model convergence problems, and outliers. They make choices to deal with each one. Many of those choices are made *after* they have at least glanced at the comparison they are trying to estimate. A reviewer reading the final paper cannot tell which choices were prespecified and which were made under outcome pressure.
+
+2. **Standard diagnostics tell you about the data, not about your estimator.** Looking at propensity-score overlap, balance tables, and weight distributions tells you whether your *design* is feasible. None of those plots tells you whether the *specific statistical method you plan to use* will give a reliable answer on *your dataset*.
+
+3. **Data-quality concerns are usually documented as prose, not as numbers.** A typical fit-for-purpose review writes "outcome ascertainment may have sensitivity around 0.90". A reviewer cannot tell from that sentence whether the planned estimator is robust to it.
+
+## What we want a workflow to deliver
+
+We want a single artefact, written before the analyst has seen the comparative answer, that lets a reviewer answer five questions:
+
+a. Was the cohort, treatment, outcome, and time horizon defined before the comparative analysis?
+b. Was the statistical method chosen before the comparative analysis?
+c. Was the method checked against plausible data-quality problems for *this* dataset?
+d. Are the diagnostics adequate, or are there warning signs that should change the analysis plan?
+e. Is every decision recorded with a timestamp, a rationale, and a named author?
+
+cleanTMLE is software that produces this artefact. It does not replace the careful design work that has to happen before any code runs; it makes that work auditable.
+
+---
+
+# The big idea, in plain language
+
+## "Outcome-blind staged workflow"
+
+The first idea is that the analysis should be split into stages, and the early stages should be completed *before* anyone has seen the comparative result. The analyst can look at baseline characteristics, propensity scores, weights, and even simulations that use a *synthetic* version of the outcome — but the actual observed treatment-outcome comparison is not opened until the prespecified checks have been passed.
+
+This is not as restrictive as it sounds. Most of the work in a careful observational study (defining the cohort, choosing covariates, fitting the propensity score, looking at balance) does not require seeing the comparative answer. The "lock" simply enforces that the analytic plan is finalised before the comparative analysis runs.
+
+## "Clean room" governance
+
+The second idea comes from clinical-trial governance. In a "clean room", the team running the analysis is separated from the team that has access to the comparative results, and decisions are made by a documented review process. The point is not the metaphor; the point is that the *institutional* arrangement separates decision-making from outcome-driven temptation.
+
+cleanTMLE implements the *software side* of this arrangement. It cannot, on its own, separate teams or stop someone from looking at the data outside the package. What it can do is record everything the analysis does, so that if the institutional side is also in place, the two combine into a credible record.
+
+## Why these ideas have to live together
+
+A prespecified plan can fail during execution. Real datasets surprise you. A workflow that just refuses to update the plan when reality intervenes is worse than no plan at all. A workflow that allows updates *and* records every update with a rationale and a timestamp gives you the best of both: flexibility plus credibility.
+
+---
+
+# The statistical method, in plain language
+
+## What an estimator actually does
+
+A "causal estimator" is a recipe for turning a dataset into a number with a confidence interval. Different estimators use different recipes. They all aim at the same target (the average causal effect), but they get there in different ways.
+
+## Three traditional methods
+
+- **Crude or unadjusted comparison.** Compare the outcome rate in the treated group to the outcome rate in the untreated group. Easy, transparent, and almost always biased because the two groups differed at baseline.
+
+- **Propensity-score matching.** For each treated person, find an untreated person with a similar profile of baseline characteristics, throw away unmatched people, and compare. The estimate is unbiased when matching has done its job. The downside is that you have effectively redefined the population to "people who could plausibly have gone either way".
+
+- **Inverse-probability weighting (IPTW).** Re-weight people so that, in the weighted sample, the treated and untreated groups look balanced. Compare outcome rates in the weighted sample. Pros: keeps everyone. Cons: heavy weights on a few people can dominate the estimate, and the standard-error formula is conservative when the weights are estimated.
+
+## The targeted-learning idea (TMLE), without the maths
+
+Targeted maximum-likelihood estimation, or TMLE, is a different recipe. It works in four steps:
+
+1. **Predict who got the treatment.** Use any flexible model (machine learning is fine) on the baseline characteristics.
+2. **Predict the outcome.** Use any flexible model on baseline characteristics *and* treatment.
+3. **Nudge ("target") the estimate.** This is the distinctive part. The outcome predictions are slightly adjusted using the treatment predictions, in a specific way designed so that the resulting *contrast* (treated minus untreated) is properly calibrated for the question we are asking.
+4. **Read off the contrast and its standard error.**
+
+The reason this works is a mathematical result called the "efficient influence function", but the practical consequence is simple: TMLE can use very flexible machine-learning models for the prediction steps and still produce a treatment-effect estimate with a confidence interval you can interpret in the usual way. Most other methods either lock you into a parametric model (regression, IPTW) or lose interpretable inference when you use flexible models (raw machine-learning predictions).
+
+## Why TMLE fits a staged workflow
+
+Every piece of the recipe — which machine-learning models to use, how the propensity weights are stabilised, how the targeting step is run — can be **written down before the analysis runs**. The flexibility of the underlying models does not require any outcome-driven choices, because the choices that *do* affect the estimate (the model library, the truncation rule) are made on baseline data, not on the comparative answer.
+
+This is the technical reason TMLE is the package's default. Most other estimators are also supported (matching, IPTW, AIPW), but TMLE has the nicest fit with the rest of the workflow.
+
+---
+
+# The cleanTMLE workflow, step by step
+
+The workflow runs in numbered stages. Each stage produces a record. The comparative analysis only runs after all the records show that the prespecified checks have been passed.
+
+## Stage 0 — Protocol and target trial
+
+Before any code runs, the team writes the question down using the **target-trial framework**: if this were a randomised trial, who would be in it, what would the treatment be, what would the comparison be, what would the outcome be, when does follow-up start, how long is follow-up. This is external work, not software work. cleanTMLE assumes it has been done.
+
+## Stage 1a — Lock the plan
+
+The analytic plan is bundled into a single "lock" object. This object records the data shape, the covariate list, the SuperLearner library, the seed, and the candidate estimators. The lock is fingerprinted with a cryptographic hash, so any later change to the plan is detectable.
+
+```{r}
+#| eval: false
+lock <- create_analysis_lock(
+  data        = study_data,
+  treatment   = "A",
+  outcome     = "Y",
+  covariates  = baseline_covariates,
+  sl_library  = c("SL.glm", "SL.glmnet", "SL.ranger"),
+  seed        = 2026
+)
+lock <- attach_estimand(lock,
+  description           = "Effect of A on 24-month event risk",
+  population            = "Adults eligible at index",
+  treatment_strategies  = c("Treatment", "Reference"),
+  outcome_label         = "Event by 24 months",
+  followup              = "24 months",
+  contrast              = "risk_difference"
+)
+```
+
+## Stage 1b — Cohort adequacy
+
+Check that the cohort has enough people and enough events to support the question being asked. If you have 50 events in each arm, you cannot estimate a small risk difference with any precision. This is a software-enforced checkpoint.
+
+```{r}
+#| eval: false
+cp1 <- checkpoint_cohort_adequacy(
+  lock, min_n_per_arm = 200, min_events = 50
+)
+```
+
+## Stage 2a — Design diagnostics
+
+Standard observational-study diagnostics: fit the propensity score, look at overlap, look at balance after weighting, compute the effective sample size. None of this involves the outcome.
+
+```{r}
+#| eval: false
+ps      <- fit_ps_superlearner(lock)
+ps_diag <- compute_ps_diagnostics(ps)
+plot(ps_diag)                         # overlap density
+love_plot_threeway(lock, ps$weights)  # SMDs before/after weighting
+```
+
+## Stage 2b — Baseline plasmode candidate selection
+
+This is where the package starts doing something a standard pipeline does not. We have several candidate methods (different SuperLearner libraries, different truncation levels). Which one should we use? Instead of guessing, we generate a *synthetic* outcome using the real covariate and treatment structure but a known synthetic treatment effect, then compare how each candidate method performs on this synthetic outcome.
+
+This is called a "plasmode" simulation. The candidate with the best performance under the synthetic outcome is locked in as the primary specification.
+
+```{r}
+#| eval: false
+candidates <- list(
+  tmle_candidate("glm_t01", "GLM PS, trunc = 0.01", truncation = 0.01),
+  tmle_candidate("glm_t05", "GLM PS, trunc = 0.05", truncation = 0.05)
+)
+plas <- run_plasmode_feasibility(
+  lock, tmle_candidates = candidates,
+  effect_sizes = c(0.03, 0.05), reps = 200
+)
+```
+
+Crucially, the *real* outcome has not been touched. The selection is based entirely on synthetic outcomes generated from the analyst's model.
+
+## Stage 2c — Data-quality stress test
+
+The fit-for-purpose review for the study lists specific data-quality concerns: outcome ascertainment may be imperfect, exposure may be misclassified, a key confounder may be unmeasured, some covariates may be missing. We turn each of those concerns into a *quantitative perturbation* of the synthetic outcome, and re-run the candidate-selection simulation under each perturbation.
+
+The four built-in threats are:
+
+- **Covariate missingness.** A specified fraction of covariate values are made MCAR-missing, then mean-imputed.
+- **Exposure misclassification.** Treatment status is flipped with a specified sensitivity and specificity.
+- **Outcome misclassification.** Outcome status is flipped with a specified sensitivity and specificity, optionally differential by treatment.
+- **Unmeasured confounding.** A latent variable U is added that affects both treatment and outcome with specified strength.
+
+```{r}
+#| eval: false
+dq_results <- run_plasmode_dq_stress(
+  lock, tmle_candidates = candidates,
+  scenarios = default_dq_scenarios(),
+  n_reps = 200
+)
+selected <- select_tmle_candidate(
+  plas, rule = "min_max_rmse", dq_results = dq_results
+)
+```
+
+The output is a "degradation gradient" for each candidate: how badly does its bias, RMSE, or coverage get under increasingly severe versions of each threat. A robust candidate stays inside the thresholds. A fragile candidate "falls off a cliff".
+
+## Stage 3 — Negative controls (optional)
+
+A negative-control outcome is a pre-treatment variable that should not be affected by the exposure. If your TMLE estimate of treatment effect on a negative-control outcome is far from zero, that is a signal of residual bias. This is a different probe of confounding from what plasmode or stress testing can give.
+
+```{r}
+#| eval: false
+nc_results <- run_residual_confounding_stage(
+  lock,
+  negative_controls = c("chronic_hypertension", "household_urban", ...)
+)
+```
+
+## The pre-outcome decision: GO / FLAG / STOP
+
+All the records from the previous stages are aggregated into a single decision against the prespecified thresholds.
+
+| Label | Meaning |
+|---|---|
+| **GO** | Proceed to the locked comparative analysis. |
+| **FLAG** | Proceed, but document a concern that the report should address. |
+| **STOP** | Do not run the comparative analysis as planned. Redesign, narrow the question, or document an override. |
+
+```{r}
+#| eval: false
+gate <- gate_all(cp1, cp2, cp3, allow_flag = TRUE)
+auth <- authorize_outcome_analysis(lock, gate)
+```
+
+A GO decision is **not** a guarantee that the answer is correct. It means: under the assumptions written down, the prespecified checks did not fail.
+
+## Stage 4 — Locked primary analysis
+
+Only now does the comparative analysis run. The primary-analysis function refuses to run on a lock that has not been authorised by the gate.
+
+```{r}
+#| eval: false
+fit_primary <- run_clean_tmle(lock, spec = selected, ps_fit = ps,
+                              authorization = auth)
+```
+
+## Post-outcome sensitivity
+
+After the comparative analysis runs, prespecified sensitivity analyses are added: a tipping-point sensitivity (how far would the estimate have to shift for the conclusion to change?), an E-value, a truncation-grid sweep. These are *not* the same as the pre-outcome DQ stress test — they ask a different question about the *realised* estimate.
+
+## Export the dossier
+
+Everything — checkpoints, decision-log entries, the lock, the authorisation, the final estimates — exports as a single bundle. This is what the reviewer reads.
+
+---
+
+# The simulation study, in plain English
+
+## Design
+
+We simulated three scenarios on a small dataset (2,000 people, 200 repetitions each). In each scenario we ran six estimators: Crude, PS matching, IPTW, TMLE, CV-TMLE, and matched-TMLE.
+
+- **Scenario A.** Easy: treatment groups overlap well, no hidden confounders.
+- **Scenario B.** Harder: groups overlap only partially.
+- **Scenario C.** Hardest: there is a hidden confounder the analyst cannot measure.
+
+We also re-ran each scenario under four kinds of data-quality stress.
+
+## What we found
+
+1. **Scenario A:** All five adjusted estimators recover the truth. Crude is biased. **Decision: GO.** This is the benchmark check that the machinery is correctly wired.
+
+2. **Scenario B:** TMLE and CV-TMLE keep bias small. IPTW's confidence intervals come out too wide (the standard-error formula treats the propensity score as known when in fact it was estimated). Matched-TMLE has the same issue, even more pronounced (the post-match TMLE step ignores the matching draw). **Decision: GO with a FLAG** noting that bootstrap variance is needed for IPTW or matched-TMLE if either is reported as primary.
+
+3. **Scenario C:** Every estimator is biased in the same direction. TMLE is the least biased, but it is still biased. The baseline plasmode coverage sits at the lower edge of acceptable; what makes the failure unambiguous is the unmeasured-confounder stress-test row, which pushes bias above the locked threshold. **Decision: STOP.**
+
+4. **DQ stress test:** Most informative when the threat targets identification (unmeasured confounding) or measurement (outcome misclassification). Less informative when the threat is ordinary sampling variability, which is already captured by the baseline plasmode.
+
+## What this means for method choice
+
+- **Use TMLE or CV-TMLE as the primary estimator** in most observational settings. It has the best bias control across all three scenarios and produces interpretable confidence intervals.
+- **Report IPTW and PS matching as concordance checks.** If all three agree on direction, you have more to say to a reviewer.
+- **If you must report IPTW as primary, bootstrap the standard error.** The default IF-based variance is too conservative when the propensity score has been estimated.
+- **If you must report matched-TMLE as primary, block-bootstrap.** The post-match TMLE step ignores the matching draw.
+- **If you suspect an unmeasured confounder you cannot measure, do not rely on adjustment.** Collect the missing variable, narrow the question, or accept that you can only do bounded sensitivity analysis. This is the case where the prespecified STOP decision is the honest move.
+
+## Traditional approach vs the outcome-blind workflow
+
+| Scenario | What a traditional analyst would see | What the outcome-blind workflow does |
+|---|---|---|
+| A. Good overlap | PS diagnostics look fine; pick a method; report. | Plasmode confirms all candidates behave well. GO. |
+| B. Marginal overlap | Overlap is strained; some analysts widen truncation, many do not. | Plasmode quantifies IPTW / matched-TMLE SE conservativeness. GO with FLAG, with a specific recommendation to bootstrap. |
+| C. Unmeasured confounding | All adjusted estimates agree on a non-null effect. Without an external probe, the analyst likely proceeds and reports. | DQ stress test catches bias above threshold under the prespecified unmeasured-confounder scenario. STOP. |
+
+The clearest contrast is Scenario C: a careful traditional analyst can pass the standard diagnostics and still proceed with a biased estimator. The outcome-blind workflow flags the candidate as fragile under a prespecified threat *before* unblinding.
+
+## What the simulation does and does not show
+
+**Shows:**
+
+- The candidate-selection machinery is correctly calibrated.
+- The prespecified stress-test row catches a built-in identification failure and triggers STOP.
+- The locked decision rule reaches the right verdict in all three scenarios without ever inspecting the realised treatment-outcome association.
+
+**Does not show:**
+
+- That the workflow "detects" unmeasured confounders. It scores threats the analyst specifies; if the analyst doesn't anticipate a threat, the workflow won't catch it.
+- That cleanTMLE numerically outperforms a careful traditional analysis on the same dataset. The workflow's value is operational (prespecification, auditability, gating), not a different point estimate.
+
+---
+
+# The case study (Rescue.Co Kenya Trauma Registry)
+
+## The question
+
+Rescue.Co operates a motorcycle-based emergency ambulance service in Nairobi. We compared 6-month functional outcome (GOSE > 4) in patients arriving by Rescue.Co versus other ambulance services.
+
+- **Cohort:** 1,693 trauma patients, 2018–2024, ambulance arrival, direct-from-scene.
+- **Treatment:** Rescue.Co (n = 1,013) vs other ambulance (n = 680).
+- **Outcome:** GOSE > 4 at 6 months. **24.6 % of outcomes are missing.**
+
+**This is a workflow demonstration on real data; it is not intended as evidence about whether Rescue.Co transport works.**
+
+## What the pre-outcome stage showed
+
+- **Cohort flow:** 1,693 eligible patients; 1,277 with a complete outcome; 615 in a matched subset.
+- **Design diagnostics:** Propensity scores stayed within an acceptable range; balance was achieved after weighting; effective sample size retained 78 % of observations.
+- **Baseline plasmode:** Two candidates (different truncation levels) both passed.
+- **DQ stress test:** A minimax rule selected the candidate that performed best across worst-case threats.
+- **Negative controls:** Five planned in the protocol. Three failed an automatic data-cleaning filter and were dropped; the two that remained both passed. The drops are recorded in the audit log.
+
+The prespecified rule returned **GO with a documented FLAG** about the narrower negative-control panel.
+
+## What the locked analysis showed
+
+| Method | N | Risk difference | 95 % CI |
+|---|---:|---:|---|
+| Unadjusted | 1,277 | 0.037 | (0.003, 0.071) |
+| PS matching | 615 | 0.027 | (−0.020, 0.074) |
+| IPTW | 1,693 | 0.037 | (0.002, 0.071) |
+| **Full-cohort TMLE (primary)** | **1,693** | **0.031** | **(−0.001, 0.062)** |
+| Matched-cohort TMLE | 1,230 | 0.026 | (−0.015, 0.067) |
+| Complete-outcome TMLE with IPCW weights | 1,277 | 0.033 | (−0.000, 0.066) |
+
+All six methods agree on direction. The primary estimate just crosses zero. The data are consistent with a small, possibly real, possibly null, effect.
+
+## How a reviewer reads it
+
+- Every analytic decision was recorded before the comparative numbers above were produced.
+- Six methods that make different assumptions all point the same way.
+- The primary confidence interval just crosses zero; the workflow does not "confirm" the signal under prespecified diagnostics.
+- The audit log shows the three negative controls that were dropped and why.
+
+A reviewer can reconstruct the entire analysis from the dossier and the lock fingerprint.
+
+---
+
+# How cleanTMLE compares to other tools
+
+Many parts of this workflow already exist as separate tools. cleanTMLE's contribution is to bind them into a single auditable pipeline.
+
+| Feature | TMLE-only packages | causalRisk | Clean-room methods papers | **cleanTMLE** |
+|---|:---:|:---:|:---:|:---:|
+| Targeted-learning estimation | ✓ | -- | -- | ✓ |
+| Cohort-specification grammar | -- | ✓ | -- | ✓ |
+| Cumulative-risk reporting | partial | ✓ | -- | ✓ |
+| Weight diagnostics | -- | ✓ | -- | ✓ |
+| Fingerprinted analysis lock | -- | -- | guidance only | ✓ |
+| Audit + decision logs | -- | -- | guidance only | ✓ |
+| Outcome-blind plasmode candidate selection | -- | -- | -- | ✓ |
+| **Data-quality stress test** | -- | -- | -- | **✓** |
+| Prespecified GO / FLAG / STOP rule | -- | -- | guidance only | ✓ |
+| Software outcome-access gate | -- | -- | -- | ✓ |
+
+cleanTMLE shares the cohort-specification and cumulative-risk reporting concepts with causalRisk, then adds the prespecification, simulation, stress-test, and gate machinery on top.
+
+---
+
+# When to use this package
+
+cleanTMLE is a good fit for:
+
+- **Methods development around outcome-blind workflows.** The package is the easiest way to run an end-to-end staged workflow in R.
+- **Outcome-blind estimator selection.** If you are unsure which propensity-score truncation or which learner library to use, the baseline plasmode tells you which performs best on your covariate and treatment structure before unblinding.
+- **Protocol and statistical-analysis-plan development.** The package can produce a draft dossier you submit as part of the SAP, before any comparative analysis is run.
+- **Exploratory or lower-stakes real-world evidence studies** where structured pre-outcome review is useful but a full institutional clean room is not in place.
+
+# When it is not the right tool
+
+cleanTMLE is not enough on its own for:
+
+- **High-stakes confirmatory or regulatory studies.** Those need an institutional clean-room arrangement (role separation, credentialed data access, independent reviewers) that the software cannot provide.
+- **Settings where the assumptions clearly fail.** If you have a confounder you cannot measure or a phenotype you cannot validate, the package will at best document the problem; it will not solve it.
+- **Estimands outside v0.1 scope.** The current package is tested for binary point exposure, binary outcome, and the marginal risk difference. Time-to-event, time-varying treatment, MAR / MNAR missingness, and native competing-risk estimation are planned but not yet validated.
+
+# What this package does not do
+
+- It does not automate study design.
+- It does not validate source data or phenotypes.
+- It does not guarantee that the assumptions hold.
+- It does not replace negative controls or post-outcome sensitivity analyses.
+- It does not control raw-data access outside the package.
+
+These are still the analyst's and the institution's responsibility.
+
+---
+
+# A short worked example
+
+The full example is in the staged-analysis vignette and the Rescue.Co case study. The skeleton is:
+
+```{r}
+#| eval: false
+library(cleanTMLE)
+
+# Stage 1a: lock the plan
+lock <- create_analysis_lock(
+  data = my_data, treatment = "A", outcome = "Y",
+  covariates = baseline_covariates,
+  sl_library = c("SL.glm", "SL.glmnet"), seed = 2026
+)
+lock <- attach_estimand(lock,
+  description = "Effect of A on 24-month event risk",
+  contrast = "risk_difference"
+)
+
+# Stage 1b: cohort adequacy
+audit <- create_audit_log(lock)
+cp1   <- checkpoint_cohort_adequacy(lock,
+            min_n_per_arm = 200, min_events = 50)
+audit <- record_checkpoint(audit, cp1)
+
+# Stage 2a: PS + balance + weights
+ps      <- fit_ps_superlearner(lock)
+ps_diag <- compute_ps_diagnostics(ps)
+cp2     <- checkpoint_balance(ps_diag, max_smd = 0.10,
+                              lock_hash = lock$lock_hash)
+audit   <- record_checkpoint(audit, cp2)
+
+# Stage 2b + 2c: plasmode + DQ stress
+candidates <- list(
+  tmle_candidate("glm_t01", "GLM PS, trunc = 0.01", truncation = 0.01),
+  tmle_candidate("glm_t05", "GLM PS, trunc = 0.05", truncation = 0.05)
+)
+plas <- run_plasmode_feasibility(lock,
+            tmle_candidates = candidates, reps = 200)
+dq   <- run_plasmode_dq_stress(lock,
+            tmle_candidates = candidates,
+            scenarios = default_dq_scenarios(), n_reps = 200)
+selected <- select_tmle_candidate(plas,
+            rule = "min_max_rmse", dq_results = dq)
+
+# Decision log
+audit <- log_decision_entry(audit,
+  stage = "Stage 2c", decision = "GO",
+  rationale = "All candidates within thresholds",
+  reviewer = "lead_analyst", y_visible = FALSE
+)
+
+# Pre-outcome gate
+gate <- gate_all(cp1, cp2, allow_flag = TRUE)
+auth <- authorize_outcome_analysis(lock, gate)
+
+# Stage 4: locked primary analysis
+fit <- run_clean_tmle(lock, spec = selected, ps_fit = ps,
+                     authorization = auth)
+```
+
+That is the entire workflow. Each function call produces a record. The reviewer reads the records in order.
+
+---
+
+# Glossary
+
+| Term | Plain-language definition |
+|---|---|
+| **Estimand** | The exact treatment-effect quantity you are trying to estimate (e.g. "the difference in 6-month outcome risk between Rescue.Co and other ambulance services in adults eligible at index"). |
+| **Estimator** | A specific statistical recipe for producing a number that estimates the estimand. |
+| **Propensity score** | The predicted probability that a given person received treatment, given their baseline characteristics. |
+| **Overlap (positivity)** | The degree to which treated and untreated groups have similar baseline profiles. Poor overlap makes adjustment unreliable. |
+| **Balance** | How similar the two groups look on baseline variables after weighting or matching. Measured by standardised mean differences (SMDs). |
+| **Effective sample size (ESS)** | The "real" sample size after weighting; if a few people have huge weights, the ESS can be much smaller than n. |
+| **Plasmode simulation** | A simulation that uses the real covariate and treatment structure but generates a synthetic outcome with a known truth. Used to test how candidate estimators behave on data that looks like your study. |
+| **Outcome-blind** | Decisions about cohort, methods, and diagnostics are made without inspecting the observed treatment-outcome comparison. Synthetic outcomes (in plasmode) are allowed. |
+| **TMLE** | Targeted maximum-likelihood estimation. An estimator that uses flexible models for prediction and a targeting step to ensure the treatment-effect estimate is properly calibrated. |
+| **SuperLearner** | A machine-learning ensemble that combines many candidate prediction models. Used by TMLE for the prediction steps. |
+| **IPTW** | Inverse-probability-of-treatment weighting. An adjustment method that re-weights people by the inverse of their propensity score. |
+| **IPCW** | Inverse-probability-of-censoring weighting. Same idea applied to missingness instead of treatment. |
+| **Negative control** | A pre-treatment outcome that the exposure should not affect. A non-zero estimated effect on a negative control is a sign of residual confounding. |
+| **Audit log / decision log** | A timestamped record of every analytic decision and every checkpoint result. |
+| **GO / FLAG / STOP** | The three pre-outcome decisions the prespecified rule can produce. |
+
+---
+
+# Resources
+
+- **Package:** <https://github.com/amertens/cleanTMLE>
+- **Manuscript:** `reports/manuscript_outcome_blind_dq.qmd`
+- **Worked case study:** `rescueCo/reports/rescueco_clean_room_case_study.qmd`
+- **Staged-analysis vignette:** `cleanTMLE/vignettes/cleanTMLE-staged-analysis.qmd`
+- **Function reference vignette:** `cleanTMLE/vignettes/cleanTMLE-functions.qmd`
+- **Methods papers referenced throughout:**
+  - Muntner et al. 2024 (staging and clean-room governance).
+  - McGrath et al. 2021 (Romiplostim worked example of staged-analysis decision logs).
+  - Dang et al. 2023 (targeted-learning RWE roadmap).
+  - Gruber et al. 2022 (targeted-learning SAP template).
+  - Schuler & Rose 2017 (applied TMLE introduction).
+  - van der Laan & Rose 2011 (the targeted-learning textbook).
+  - Franklin et al. 2014; Schreck et al. 2024 (plasmode simulation).
+  - Austin 2009 (PS balance diagnostics).
+  - Lipsitch et al. 2010 (negative controls).
+
+---
+
+# A one-paragraph takeaway
+
+cleanTMLE is software for running an observational study in stages, so that every analytic decision is recorded *before* anyone sees the comparative answer. It uses targeted maximum-likelihood estimation because that method lets you write down the entire recipe in advance while still using flexible machine-learning models. It adds plasmode simulation and a data-quality stress test, so the analyst can score candidate methods on a quantitative scale before unblinding. A prespecified rule then decides whether to proceed (GO), proceed with a documented concern (FLAG), or not run the comparative analysis as planned (STOP). The contribution is not a new estimator or a new theorem; it is an auditable workflow that gives a reviewer everything they need to reconstruct the analysis.
