@@ -150,10 +150,15 @@ specified plausible threats and severity ranges from external
 validation studies, data profiling, or expert elicitation, the
 package evaluates how candidate estimators behave under those
 prespecified perturbations before the observed treatment-outcome
-association is examined. This is the strongest claim we make for
-cleanTMLE: it links candidate-estimator selection and
-fit-for-purpose concerns on a single quantitative scale before
-outcome access.
+association is examined. The central contribution is a
+quantitative bridge between fit-for-purpose review and estimator
+selection. In a conventional workflow, data-fitness concerns are
+documented qualitatively, while estimator choice is justified
+separately through modeling preferences or diagnostics. cleanTMLE
+uses the same outcome-blind plasmode loop used for candidate
+selection to evaluate whether prespecified TMLE candidates remain
+acceptable under data-quality threats derived from the
+fit-for-purpose review.
 
 In this manuscript, *outcome-blind* means that decisions about
 cohort construction, candidate estimators, simulation scenarios,
@@ -189,7 +194,16 @@ is the natural setting because every analytic decision (the
 SuperLearner library [@vdL2007superlearner; @phillips2023sl], the
 truncation rule, the prespecified set of candidate estimators) can
 be listed in advance, and the algorithm remains data-adaptive while
-still admitting valid Wald-type confidence intervals. The package
+still admitting valid Wald-type confidence intervals. TMLE is
+particularly compatible with staged outcome-blind workflows because
+the analyst can prespecify not only the causal estimand, but also
+the nuisance-learning library, truncation rules, targeting
+procedure, and candidate estimator grid. The resulting estimator
+remains data-adaptive while preserving influence-function-based
+inference under standard regularity conditions. This modular
+structure makes it possible to compare prespecified candidates
+under synthetic outcomes without repeatedly revising the analytic
+plan after inspecting observed treatment-outcome associations. The package
 adds an analysis-lock object, a serialisable audit trail and
 decision log [@muntner2024staging], a pre-outcome decision rule
 that classifies the analysis as GO (proceed to the locked primary
@@ -339,7 +353,7 @@ decision, regardless of how the prespecified records and audit
 trail are implemented:
 
 ```{mermaid}
-%%| fig-cap: "Governance layers. The software-level arrangement is necessary but not sufficient for regulatory-grade RWE."
+%%| fig-cap: "Governance layers. The software-level arrangement is necessary but not sufficient for regulatory or confirmatory RWE."
 flowchart LR
     A[Protocol and estimand] --> B[Analysis-lock object]
     B --> C[Audit trail]
@@ -618,6 +632,13 @@ Stages 1–3 do not access the real outcome. The plasmode at Stage
 the real covariates and treatment, which is why it is a natural
 host for the DQ stress test we describe in §\ref{sec-dq}.
 
+Within a staging-and-clean-room framework, the DQ stress test
+functions as a quantitative checkpoint. Rather than relying only
+on qualitative discussion of data-fitness concerns, the workflow
+evaluates whether candidate estimators continue to satisfy
+prespecified operating-characteristic thresholds under threat
+scenarios derived from the fit-for-purpose review.
+
 ## How the workflow records and protects analytic decisions
 
 The analysis lock is the central object on which all later
@@ -704,6 +725,22 @@ realised data. The arrangements are complementary, and a
 defensible RWE pipeline can use both, applying the simulation-based
 workflow inside an institutional partition of duties.
 
+### Personnel-based and simulation-mediated protections are complementary
+
+Personnel-based clean rooms protect against outcome-driven
+protocol drift through role separation, staged access, and audit
+of who can see what at each stage. Simulation-mediated blinding
+supports prespecified estimator selection and stress testing using
+synthetic outcomes generated from the empirical covariate and
+treatment structure. The two arrangements target overlapping but
+distinct residual risks: personnel-based workflows do not by
+themselves quantify estimator fragility under data-quality
+threats, while simulation-mediated workflows depend on the
+fidelity of the synthetic-outcome mechanism. High-stakes studies
+should consider using cleanTMLE inside a personnel-based
+clean-room arrangement so that institutional outcome separation
+and quantitative robustness screening apply together.
+
 ### Methodological tradeoffs
 
 Compared with personnel-mediated outcome blinding, the
@@ -742,11 +779,12 @@ additional layer of cross-validation through the data manager.
 
 We document these trade-offs explicitly in the package's
 documentation so that the analyst can choose the level of
-formality the study requires. For most pharmacoepidemiology RWE
-studies the software-only mode is adequate; for high-stakes
-regulatory submissions we recommend running cleanTMLE inside a
-personnel-based outcome-blinding arrangement so that both the
-institutional and the computational safeguards apply.
+formality the study requires. For exploratory or lower-stakes RWE
+studies, the software-only workflow may be adequate to document
+and audit outcome-blind estimator selection. For high-stakes
+regulatory or confirmatory studies, cleanTMLE should be embedded
+within personnel-based outcome-blinding and access-control
+arrangements.
 
 # Data Quality as a Quantifiable Threat {#sec-dq}
 
@@ -765,9 +803,27 @@ institutional and the computational safeguards apply.
   sensitivity analysis, or narrower causal claims before outcome
   access.
 
+Propensity-score diagnostics assess empirical comparability,
+overlap, and weight stability, but they do not estimate the
+operating characteristics of a candidate estimator.
+Negative-control analyses can help detect residual bias for
+selected control outcomes, but they do not directly evaluate how
+the primary estimator behaves under prespecified measurement
+error, missingness, or unmeasured-confounding scenarios. DQ
+stress testing addresses a different question: whether the locked
+estimator-selection decision is stable under fit-for-purpose
+threats translated into quantitative perturbations before the
+primary treatment-outcome association is inspected.
+
 The DQ stress test is a quantitative supplement to fit-for-purpose
 review, not a substitute for validation, governance, or
-post-outcome quantitative bias analysis.
+post-outcome quantitative bias analysis. The workflow does not
+guarantee that estimator rankings under synthetic outcomes will
+generalize to the realized outcome process. DQ stress testing
+should not be interpreted as a formal identification-region
+analysis or as a replacement for post-outcome quantitative bias
+analysis. It is a pre-outcome robustness screen for estimator
+behavior under prespecified perturbations.
 
 ## Mapping data-quality concerns to plasmode parameters
 
@@ -829,17 +885,15 @@ elements (covariate availability, missingness handling).
 ## The degradation gradient
 
 Rather than testing a single value of each threat, the function
-sweeps a vector of severities. The output is a curve of bias,
-RMSE, and coverage against the severity, computed separately for
-each prespecified TMLE candidate. We call this curve a *degradation
-gradient* by analogy with a dose-response curve: it answers the
-question, "how severe must the data degradation be before this
-candidate fails the prespecified criteria?"
-
-A robust candidate produces a flat gradient that remains inside
-the prespecified thresholds. A fragile candidate shows a cliff: a
-small worsening of the data tips bias or coverage past the
-threshold. The candidate-selection rule
+sweeps a vector of severities. The degradation gradient is the
+curve of bias, RMSE, coverage, or type I error against the
+severity of a prespecified data-quality threat. It is analogous to
+a dose-response curve for estimator fragility: it asks how severe
+the degradation must be before a candidate fails the locked
+decision criteria. A robust candidate has a shallow gradient and
+remains within thresholds across plausible severities. A fragile
+candidate shows a cliff, where a small increase in degradation
+moves bias or coverage beyond the threshold. The candidate-selection rule
 (`select_tmle_candidate(rule = "min_rmse")`) can be augmented to
 require a maximum allowed degradation, in which case the
 prespecified rule excludes fragile candidates
@@ -1754,7 +1808,7 @@ Negative controls run at Stage 3 on the locked PS:
 
 At the pre-outcome decision point (`authorize_outcome_analysis()`),
 the two passing negative controls and the plasmode metrics support
-a *proceed* classification. Three of the five prespecified
+a GO classification. Three of the five prespecified
 negative-control endpoints (chronic-pain history, prior fracture,
 and elective surgery) were dropped from the NC analysis at the
 data-sanitisation step because they failed near-zero-variance
@@ -1932,8 +1986,8 @@ sensitivity analyses [@vanderWeele2017evalue; @lash2014qba;
 
 ## How the workflow aligns with regulatory expectations
 
-For regulatory-grade RWE, cleanTMLE is best used as one layer in a
-broader governed workflow. The lock and audit machinery track the
+For high-stakes regulatory or confirmatory RWE, cleanTMLE is best
+used as one layer in a broader governed workflow. The lock and audit machinery track the
 prespecification and traceability that FDA RWE program guidance
 expects [@fda2018rwe; @fda2024considerations;
 @fda2024noninterventional] and match the data-quality dimensions
@@ -2114,13 +2168,15 @@ The most consequential extensions, in priority order, are:
 
 ## When to use cleanTMLE inside a broader governance arrangement
 
-For routine pharmacoepidemiology and most academic RWE studies,
-cleanTMLE used on its own provides an adequate prespecification
-record: the analyst prespecifies the analytic plan, runs the
-workflow inside a single R session, and archives the analysis
-lock together with the audit and decision logs. For
-submission-oriented RWE (FDA, EMA, or HTA contexts), the
-recommended deployment places cleanTMLE inside a broader governed
+For exploratory or lower-stakes RWE studies, cleanTMLE used on
+its own may be adequate to document and audit outcome-blind
+estimator selection: the analyst prespecifies the analytic plan,
+runs the workflow inside a single R session, and archives the
+analysis lock together with the audit and decision logs. For
+high-stakes regulatory or confirmatory studies (FDA, EMA, or HTA
+submission contexts), cleanTMLE should be embedded within
+personnel-based outcome-blinding and access-control arrangements.
+That deployment places cleanTMLE inside a broader governed
 process with separate study-level work items: source-data audit
 and provenance, exposure and outcome phenotype validation,
 role-separated analyst and reviewer access, and an independent

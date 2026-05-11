@@ -15,26 +15,35 @@ execute:
   message: false
 ---
 
-## The problem
+## Why cleanTMLE?
 
-RWE studies typically separate three activities:
-
-- **Protocol / target-trial design**
-- **Qualitative fit-for-purpose data review** (SPIFD2, HARPER, START-RWE)
-- **Estimator selection** (PS diagnostics; increasingly, plasmode simulation)
-
-Reviewers then have difficulty seeing whether the chosen estimator remains credible under the same data-quality concerns documented in the protocol.
+- RWE workflows separate **protocol design**, **fit-for-purpose data review**, and **estimator choice** into different artefacts
+- Standard diagnostics assess **overlap and balance**, but not **estimator operating characteristics**
+- cleanTMLE links estimator selection and data-quality threats in one pre-outcome, auditable workflow
+- This is the **software layer** of an outcome-blind staged workflow — not a full clean-room governance system
 
 ## What I will cover (≈30 min)
 
-1. The standard pre-outcome review vs. what cleanTMLE adds
+1. Five questions the workflow answers
 2. Outcome-blind staged workflow (and what it does not replace)
-3. The DQ stress test
+3. From qualitative DQ review to quantitative stress testing
 4. Simulation study
 5. Rescue.Co case study (Kenya Trauma Registry)
 6. What cleanTMLE contributes operationally
 7. Limitations and the 0.2 roadmap
 8. Open questions for collaborators
+
+## Five questions, five slides
+
+The rest of the deck is organised around five "why" questions:
+
+1. **Why clean-room / staged design?**
+2. **Why TMLE?**
+3. **Why plasmode simulation?**
+4. **Why DQ stress testing?**
+5. **Why not just PS diagnostics and negative controls?**
+
+If you only remember one slide, remember the contrast table on the next slide.
 
 # Motivation
 
@@ -46,48 +55,67 @@ Reviewers then have difficulty seeing whether the chosen estimator remains credi
 | Data fitness                | Qualitative checklist              | Same, plus locked numerical severity ranges          |
 | Design diagnostics          | PS overlap, balance, SMDs          | Same                                                 |
 | Estimator comparison        | Tradition, or ad-hoc simulation    | Outcome-blind plasmode candidate selection           |
-| **Robustness to DQ threats** | **Qualitative argument**          | **Plasmode DQ stress test on the same scale**        |
+| **Robustness to DQ threats** | **Qualitative argument**           | **Plasmode DQ stress test on the same scale**        |
 | Pre-outcome decision        | Implicit                           | Prespecified GO / FLAG / STOP rule, audit-logged     |
 
 The contribution is operational, not a new estimator.
 
-## The quantitative bridge
+## Why clean-room / staged design?
 
-The plasmode loop is under the analyst's control:
+- The Muntner-style clean room is **broader than software**: role separation, staged access, checkpoint review, audit trail, deviation policy
+- Its purpose is to protect against **outcome-driven protocol drift** — decisions revised after seeing the observed A→Y relationship
+- cleanTMLE implements the **software layer** of that arrangement: lock, audit, decision logs, internal outcome-access checks
+- Personnel-based clean rooms and simulation-mediated blinding are **complementary**: high-stakes studies should embed cleanTMLE inside a personnel-based clean-room arrangement
 
-> **Standard plasmode:** which estimator performs best under the locked synthetic outcome model?
+## Why TMLE?
 
-> **DQ stress test:** does that estimator remain acceptable under prespecified threats from the fit-for-purpose review?
+- The analyst can **prespecify** the estimand, nuisance-learning library, truncation rules, targeting procedure, and candidate estimator grid
+- Nuisance estimation **remains adaptive** (SuperLearner) under the prespecified library
+- Candidates can be compared **under a common target parameter**
+- **Influence-function-based inference** gives a common bias / RMSE / coverage scale across candidates and across stress scenarios
+- This modular structure makes outcome-blind plasmode comparison and DQ stress testing natural; the same machinery runs on baseline plasmode and degraded scenarios
 
-This turns the qualitative data-fitness argument into a quantitative supplement on the same bias / RMSE / coverage scale as the baseline simulation.
+## Why plasmode simulation?
 
-## What outcome-blind means here
+- PS diagnostics evaluate **design feasibility** (overlap, balance, ESS, SMDs), not estimator operating characteristics
+- Plasmode simulation uses the **empirical (W, A) structure** with a synthetic Y to compare candidate estimators on bias, RMSE, and coverage
+- Done before primary outcome access, it supports candidate selection without inspecting the observed A→Y association
+- **Caveat:** rankings under synthetic outcomes are not guaranteed to generalize to the realized outcome process — the synthetic-outcome mechanism is itself an assumption
 
-Decisions about cohort, candidates, simulation scenarios, decision thresholds, and primary-estimator selection are made **without inspecting the observed treatment-outcome association**.
+## Why DQ stress testing?
 
-Allowed pre-decision: baseline covariates, treatment assignment, missingness indicators, synthetic outcomes, and the marginal mean of $Y$ on $W$ (used internally for the plasmode generator).
+- Baseline plasmode answers: *which candidate is best under the locked synthetic outcome model?*
+- DQ stress testing answers: *does that candidate remain acceptable under prespecified threats from the fit-for-purpose review?*
+- The same bias / RMSE / coverage scale is used, so the prespecified GO / FLAG / STOP rule applies uniformly
+- It is a **quantitative checkpoint** in a staging-and-clean-room framework, not a substitute for source-data validation, phenotype validation, or post-outcome QBA
 
-The package can restrict its own exported functions and record an audit trail. It cannot substitute for external access controls or personnel role separation.
+## Why not just PS diagnostics and negative controls?
+
+- **PS diagnostics** assess overlap, balance, and weight stability — design feasibility, not estimator behaviour
+- **Negative controls** can flag residual bias for selected control outcomes, but do not stress-test the primary estimator under prespecified threats
+- **DQ stress testing** evaluates whether the locked estimator-selection decision is stable under fit-for-purpose threats translated into quantitative perturbations before the primary A→Y association is inspected
+- The three are complementary; the workflow uses all three
 
 # Outcome-blind staged workflow
 
 ## Where the package sits
 
-- The **causal roadmap** (Petersen 2014; Dang 2023) has six logically ordered activities: question, observed data, identification, estimand, estimator selection, pre-outcome diagnostics + decision.
-- cleanTMLE operates in **estimator selection** and **pre-outcome diagnostics + decision**.
-- Steps 1 to 4 remain external study-level work.
-
-cleanTMLE is the software layer of the broader Muntner-style clean-room governance, not the full governance system.
+- The **causal roadmap** (Petersen 2014; Dang 2023): question → observed data → identification → estimand → estimator selection → pre-outcome decision → primary analysis → sensitivity
+- cleanTMLE operates in **estimator selection** and the **pre-outcome decision**
+- Steps before that remain external study-level work
+- cleanTMLE records, checks, and audits the software workflow; personnel-based access control is external
 
 ## Stages
 
-- **Stage 1** — estimand metadata and analysis lock
-- **Stage 2a** — PS / design diagnostics: overlap, balance, ESS, SMDs
+- **Stage 0** — feasibility, target-trial specification, protocol / SAP drafting (external)
+- **Stage 1a** — lock estimand, covariates, learners, candidate grid, thresholds
+- **Stage 1b** — cohort adequacy and marginal event support
+- **Stage 2a** — PS, balance, overlap, ESS, design diagnostics
 - **Stage 2b** — baseline plasmode candidate selection
-- **Stage 2c** — plasmode DQ stress test
+- **Stage 2c** — DQ stress testing
+- **Stage 3** (optional) — negative-control outcome checks
 - **Pre-outcome decision** — GO / FLAG / STOP from the prespecified rule
-- **Stage 4** — locked primary analysis
-- **Post-outcome** — sensitivity (E-value, QBA, causal-gap), interpretation
+- **Stage 4** — authorized primary outcome analysis
 
 ## What cleanTMLE records as code artefacts
 
@@ -101,13 +129,43 @@ cleanTMLE is the software layer of the broader Muntner-style clean-room governan
 
 ## What cleanTMLE does *not* do
 
-- Automate target-trial design or phenotype validation
-- Validate source data, linkage, or representativeness
-- Replace clean-room personnel governance, role separation, or access controls
-- Guarantee causal identification — a GO only says the prespecified diagnostics did not trigger STOP under the locked assumptions and stress scenarios
-- Remove the need for post-outcome sensitivity analyses (E-value, QBA, causal-gap)
+- Does not automate target-trial design or phenotype validation
+- Does not validate source data, linkage, or representativeness
+- Does not guarantee exchangeability or positivity
+- Does not replace clean-room personnel governance, role separation, or access controls
+- Does not remove the need for post-outcome sensitivity analyses (E-value, QBA, causal-gap)
+- Does not guarantee that synthetic-outcome rankings generalize to the realized outcome process
 
-# The DQ stress test
+## Comparing four workflows
+
+|                                | Standard RWE | Personnel-based clean room | cleanTMLE software | Hybrid (cleanTMLE inside a clean room) |
+|--------------------------------|:------------:|:--------------------------:|:------------------:|:--------------------------------------:|
+| Outcome-access control         |    Weak      |          Strong            |   Internal only    |               Strong                   |
+| Estimator-selection flexibility|     High     |       Moderate             |      High          |              Moderate                  |
+| Auditability                   |     Low      |        Moderate            |      High          |               High                     |
+| DQ robustness quantification   |     No       |           No               |      Yes           |               Yes                      |
+| Depends on plasmode faithfulness|    No       |           No               |      Yes           |               Yes                      |
+| Institutional overhead         |     Low      |          High              |      Low           |               High                     |
+
+# From qualitative DQ review to quantitative stress testing
+
+## The translation
+
+- **Fit-for-purpose concern** → exposure definition, outcome ascertainment, covariate completeness, unmeasured confounding
+- **Plasmode input** → (sens, spec), missingness fraction, latent U parameters
+- **Output** → bias, RMSE, coverage, type I error
+- **Decision** → GO / FLAG / STOP
+
+The prespecified severity ranges turn qualitative DQ language into auditable numbers.
+
+## The information loop
+
+1. Fit-for-purpose review identifies plausible threats.
+2. Threats are translated into quantitative severity ranges.
+3. Severity ranges are locked before primary outcome access.
+4. Synthetic outcomes are generated and perturbed under each scenario.
+5. Candidate estimators are evaluated using the same metrics as the baseline plasmode.
+6. The prespecified GO / FLAG / STOP rule is applied.
 
 ## Four prespecified threats
 
@@ -120,22 +178,17 @@ cleanTMLE is the software layer of the broader Muntner-style clean-room governan
 
 Each cell reports the same triple as the baseline plasmode: bias, RMSE, coverage.
 
-## The information loop
+## Degradation gradient
 
-1. Fit-for-purpose review identifies plausible threats.
-2. Threats are translated into numerical severity ranges.
-3. The severity ranges are locked.
-4. Synthetic outcomes are generated and perturbed under each scenario.
-5. Candidate estimators are evaluated using the same metrics as the baseline plasmode.
-6. The pre-outcome decision rule applies the prespecified thresholds.
+**A dose-response curve for estimator fragility.**
 
-## Where severity ranges come from
+- **x-axis**: severity of a prespecified DQ threat
+- **y-axis**: bias, RMSE, coverage, or type I error
+- **Robust candidate**: shallow gradient, stays inside the locked threshold across plausible severities
+- **Fragile candidate**: cliff — a small severity increase pushes bias or coverage past the threshold
+- A horizontal line on the plot marks the prespecified decision threshold
 
-- External validation studies (PPV, sensitivity from chart-review studies)
-- Source-specific data profiling
-- Expert elicitation, with the elicitor and rationale logged
-
-The package records the values in use as part of the lock fingerprint.
+The gradient answers: *how severe must the degradation be before this candidate fails the locked decision criteria?*
 
 ## What the test does *not* assess
 
@@ -144,7 +197,7 @@ The package records the values in use as part of the lock fingerprint.
 - Representativeness of the source
 - Regulatory acceptability of the data source
 
-The DQ stress test is a quantitative supplement to fit-for-purpose review, not a substitute.
+The DQ stress test is a quantitative supplement to fit-for-purpose review, not formal causal sensitivity analysis and not a replacement for post-outcome quantitative bias analysis.
 
 # Simulation study
 
@@ -169,7 +222,7 @@ The DQ stress test is a quantitative supplement to fit-for-purpose review, not a
 ## Scenario B: marginal overlap
 
 - TMLE and CV-TMLE hold bias small relative to empirical SD
-- IPTW: SE-to-SD ratio above one (conservative; IF-variance treats PS as known)
+- IPTW: SE-to-SD ratio above one (IF-variance treats PS as known)
 - Matched TMLE: SE-to-SD ratio ≈ 2 (post-match TMLE ignores matching draw)
 - Plasmode-selected specification adapts truncation upward
 - **Decision: GO with FLAG** on IPTW SE calibration
@@ -178,10 +231,10 @@ The DQ stress test is a quantitative supplement to fit-for-purpose review, not a
 
 - Every estimator biased in the same direction (no $W$-only adjustment removes $U$)
 - The U-shift DQ row pushes the absolute bias above `max_abs_bias`
-- **Decision: STOP** — the prespecified decision rule returns STOP; under the workflow, the primary analysis should not be run or interpreted without redesign or a documented override
+- **Decision: STOP** — under the workflow, the primary analysis should not be run or interpreted without redesign, additional validation, narrowing of the claim, or documented override
 - The DQ supplement is what makes the failure unambiguous
 
-## DQ degradation gradient
+## DQ degradation gradient — what we observed
 
 - **Covariate missingness** — flat (MCAR + median imputation is unbiased by construction; weak test)
 - **Exposure misclassification** — bias rises toward null; coverage of the pre-misclassification estimand drops
@@ -203,11 +256,12 @@ The DQ test is most informative when the threat targets identification or measur
 
 ## Pre-outcome stage
 
-- Lock: 18 baseline covariates, IPCW for missingness, six prespecified estimators
+- Stage 1a lock: 18 baseline covariates, IPCW for missingness, six prespecified estimators
+- Stage 1b: cohort adequacy and marginal event support pass
 - Stage 2a: PS in [0.21, 0.81]; balanced SMDs; ESS retention 78 %
 - Stage 2b plasmode: 50 replicates; bias < 0.001; coverage 0.94
-- Stage 2c DQ stress test: minimax rule selects `glm_t01`
-- Negative-control diagnostic: 2 of 5 prespecified NCs survive NZV filtering and both pass; narrower panel than the SAP specified, recorded in the audit log
+- Stage 2c DQ stress: minimax rule selects `glm_t01`
+- Stage 3 (optional NC): 2 of 5 prespecified NCs survive NZV filtering and both pass; narrower panel than the SAP specified, recorded in the audit log
 - **Decision: GO**
 
 ## Effect estimates
@@ -235,9 +289,12 @@ Six estimators agree on direction; primary TMLE 95% CI crosses zero.
 
 ## What cleanTMLE contributes operationally
 
-- **Plasmode loop extended to robustness screening** — each candidate produces a degradation gradient on the same bias / RMSE / coverage scale as the baseline
-- **Lock + audit + decision logs as code artefacts** — a fingerprinted record an external reviewer can reconstruct
-- **Modular TMLE API** — treatment fit, outcome fit, targeting, extract; each step callable at the right stage
+- **Auditable analysis lock** with sha256 fingerprint
+- **Outcome-access checks** inside exported functions
+- **Baseline plasmode estimator selection** under the locked DGP
+- **DQ stress testing** using the same performance metrics, on the same scale
+- **GO / FLAG / STOP** checkpoint record
+- A **reproducible bridge** between fit-for-purpose concerns and estimator choice
 
 The claim is integration and auditability, not a new estimator.
 
@@ -246,14 +303,16 @@ The claim is integration and auditability, not a new estimator.
 - Targeted learning (van der Laan, Petersen, Gruber, Schuler, ...)
 - Plasmode simulation for candidate selection (Franklin 2014; Schuler 2017; Dang 2023)
 - Outcome blinding as a governance idea (Muntner 2024; Kent 2026)
-- Quantitative bias analysis (Lash 2014) — distinct from this pre-outcome screen
+- Quantitative bias analysis (Lash 2014), which remains a post-outcome activity distinct from the pre-outcome DQ stress screen
 
 ## Limitations
 
+- Synthetic-outcome mechanism may not rank estimators the same way as the realized outcome process
 - v0.1 scope: binary point exposure, binary outcome, marginal RD, MCAR outcome missingness handled by IPCW
-- DQ covariate-missingness mechanism is MCAR-only; MAR / MNAR variants are on the 0.2 roadmap
-- Decision-threshold defaults are heuristic, not derived from a regulatory specification; analysts set them from study context
-- The package cannot enforce personnel-level blinding or prevent a user with raw data access from inspecting outcomes outside the package
+- DQ stress testing is not formal causal sensitivity analysis
+- Software cannot replace role separation or source-data validation
+- Severity ranges require external justification (validation studies, profiling, expert elicitation)
+- Decision-threshold defaults are heuristic; analysts set them from study context
 
 ## Next steps (cleanTMLE 0.2)
 
