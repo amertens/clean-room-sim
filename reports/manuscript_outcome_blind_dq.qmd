@@ -794,8 +794,9 @@ arrangements.
 
 ## Why plasmode DQ stress testing adds information beyond standard pre-outcome diagnostics
 
-- Propensity-score diagnostics assess overlap, balance, and design
-  feasibility, not estimator operating characteristics.
+- Propensity-score diagnostics [@austin2009ps] assess overlap,
+  balance, and design feasibility, not estimator operating
+  characteristics.
 - Baseline plasmode simulation assesses candidate estimators under
   a *locked* synthetic outcome model using the empirical $(W, A)$
   structure.
@@ -2007,9 +2008,10 @@ sensitivity analyses [@vanderWeele2017evalue; @lash2014qba;
 
 For high-stakes regulatory or confirmatory RWE, cleanTMLE is best
 used as one layer in a broader governed workflow. The lock and audit machinery track the
-prespecification and traceability that FDA RWE program guidance
-expects [@fda2018rwe; @fda2024considerations;
-@fda2024noninterventional] and match the data-quality dimensions
+prespecification and traceability that FDA RWE program guidance,
+EMA RWD guidance, and the NICE RWE framework expect [@fda2018rwe;
+@fda2024considerations; @fda2024noninterventional; @ema2024guide;
+@nice2022rwe] and match the data-quality dimensions
 in the EMA RWD framework [@ema2026rwd] and ICH M14 (March 2026)
 [@ich2024m14], as summarised in Table \ref{tbl-reg-align}. The
 software-mediated workflow can complement, but does not replace,

@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Andrew Mertens">
-<meta name="dcterms.date" content="2026-05-10">
+<meta name="dcterms.date" content="2026-05-11">
 
 <title>cleanTMLE: An R Package for Staged, Outcome-Blind Targeted Learning with Plasmode Data-Quality Stress Testing</title>
 <style>
@@ -5861,7 +5861,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">May 10, 2026</p>
+      <p class="date">May 11, 2026</p>
     </div>
   </div>
   
@@ -6328,7 +6328,7 @@ W]\)</span>, including the SuperLearner library and the truncation rule. <strong
 <section id="why-plasmode-dq-stress-testing-adds-information-beyond-standard-pre-outcome-diagnostics" class="level2" data-number="5.1">
 <h2 data-number="5.1" class="anchored" data-anchor-id="why-plasmode-dq-stress-testing-adds-information-beyond-standard-pre-outcome-diagnostics"><span class="header-section-number">5.1</span> Why plasmode DQ stress testing adds information beyond standard pre-outcome diagnostics</h2>
 <ul>
-<li>Propensity-score diagnostics assess overlap, balance, and design feasibility, not estimator operating characteristics.</li>
+<li>Propensity-score diagnostics <span class="citation" data-cites="austin2009ps">(<a href="#ref-austin2009ps" role="doc-biblioref">Austin 2009</a>)</span> assess overlap, balance, and design feasibility, not estimator operating characteristics.</li>
 <li>Baseline plasmode simulation assesses candidate estimators under a <em>locked</em> synthetic outcome model using the empirical <span class="math inline">\((W, A)\)</span> structure.</li>
 <li>Negative-control analyses probe residual bias for selected NC outcomes through a different data-generating channel and do not characterise the behaviour of the primary estimator under DQ perturbations.</li>
 <li>DQ stress testing asks whether conclusions about estimator suitability <em>persist</em> under prespecified violations or degradations tied to fit-for-purpose concerns.</li>
@@ -7746,7 +7746,7 @@ R&gt;  3         0.089 0.000000e+00   OK</code></pre>
 </section>
 <section id="how-the-workflow-aligns-with-regulatory-expectations" class="level2" data-number="10.3">
 <h2 data-number="10.3" class="anchored" data-anchor-id="how-the-workflow-aligns-with-regulatory-expectations"><span class="header-section-number">10.3</span> How the workflow aligns with regulatory expectations</h2>
-<p>For high-stakes regulatory or confirmatory RWE, cleanTMLE is best used as one layer in a broader governed workflow. The lock and audit machinery track the prespecification and traceability that FDA RWE program guidance expects <span class="citation" data-cites="fda2018rwe fda2024considerations fda2024noninterventional">(<a href="#ref-fda2018rwe" role="doc-biblioref">U.S. Food and Drug Administration 2018</a>, <a href="#ref-fda2024considerations" role="doc-biblioref">2024a</a>, <a href="#ref-fda2024noninterventional" role="doc-biblioref">2024c</a>)</span> and match the data-quality dimensions in the EMA RWD framework <span class="citation" data-cites="ema2026rwd">(<a href="#ref-ema2026rwd" role="doc-biblioref">European Medicines Agency 2026</a>)</span> and ICH M14 (March 2026) <span class="citation" data-cites="ich2024m14">(<a href="#ref-ich2024m14" role="doc-biblioref">International Council for Harmonisation 2026</a>)</span>, as summarised in Table <span class="math inline">\(\ref{tbl-reg-align}\)</span>. The software-mediated workflow can complement, but does not replace, personnel-based access controls and independent oversight. Documented source assessment, role-based access where feasible, and structured protocol records remain the regulatory backbone, with the software arrangement sitting inside that backbone rather than substituting for it.</p>
+<p>For high-stakes regulatory or confirmatory RWE, cleanTMLE is best used as one layer in a broader governed workflow. The lock and audit machinery track the prespecification and traceability that FDA RWE program guidance, EMA RWD guidance, and the NICE RWE framework expect <span class="citation" data-cites="fda2018rwe fda2024considerations fda2024noninterventional ema2024guide nice2022rwe">(<a href="#ref-fda2018rwe" role="doc-biblioref">U.S. Food and Drug Administration 2018</a>, <a href="#ref-fda2024considerations" role="doc-biblioref">2024a</a>, <a href="#ref-fda2024noninterventional" role="doc-biblioref">2024c</a>; <a href="#ref-ema2024guide" role="doc-biblioref">European Medicines Agency 2024</a>; <a href="#ref-nice2022rwe" role="doc-biblioref">National Institute for Health and Care Excellence 2022</a>)</span> and match the data-quality dimensions in the EMA RWD framework <span class="citation" data-cites="ema2026rwd">(<a href="#ref-ema2026rwd" role="doc-biblioref">European Medicines Agency 2026</a>)</span> and ICH M14 (March 2026) <span class="citation" data-cites="ich2024m14">(<a href="#ref-ich2024m14" role="doc-biblioref">International Council for Harmonisation 2026</a>)</span>, as summarised in Table <span class="math inline">\(\ref{tbl-reg-align}\)</span>. The software-mediated workflow can complement, but does not replace, personnel-based access controls and independent oversight. Documented source assessment, role-based access where feasible, and structured protocol records remain the regulatory backbone, with the software arrangement sitting inside that backbone rather than substituting for it.</p>
 </section>
 <section id="what-the-dq-stress-test-adds" class="level2" data-number="10.4">
 <h2 data-number="10.4" class="anchored" data-anchor-id="what-the-dq-stress-test-adds"><span class="header-section-number">10.4</span> What the DQ stress test adds</h2>
@@ -7823,6 +7823,9 @@ R&gt;  3         0.089 0.000000e+00   OK</code></pre>
 <section id="references" class="level1 unnumbered">
 <h1 class="unnumbered">References</h1>
 <div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" role="list">
+<div id="ref-austin2009ps" class="csl-entry" role="listitem">
+Austin, Peter C. 2009. <span>“Balance Diagnostics for Comparing the Distribution of Baseline Covariates Between Treatment Groups in Propensity-Score Matched Samples.”</span> <em>Statistics in Medicine</em> 28 (25): 3083–3107. <a href="https://doi.org/10.1002/sim.3697">https://doi.org/10.1002/sim.3697</a>.
+</div>
 <div id="ref-survtmlepackage2018" class="csl-entry" role="listitem">
 Benkeser, David, and Nima S. Hejazi. 2018. <span>“Survtmle: Compute Targeted Minimum Loss-Based Estimates in Right-Censored Survival Settings.”</span>
 </div>
@@ -7909,6 +7912,9 @@ McGrath, Leah J., Carrie M. Nielson, Bradley Saul, J. Bradley Layton, Kathleen E
 </div>
 <div id="ref-muntner2024staging" class="csl-entry" role="listitem">
 Muntner, Paul, Rohini K. Hernandez, Shia T. Kent, James E. Browning, David T. Gilbertson, Kathleen E. Hurwitz, Susan S. Jick, et al. 2024. <span>“Staging and Clean Room: Constructs Designed to Facilitate Transparency and Reduce Bias in Comparative Analyses of Real-World Data.”</span> <em>Pharmacoepidemiology and Drug Safety</em> 33 (3): e5770. <a href="https://doi.org/10.1002/pds.5770">https://doi.org/10.1002/pds.5770</a>.
+</div>
+<div id="ref-nice2022rwe" class="csl-entry" role="listitem">
+National Institute for Health and Care Excellence. 2022. <span>“<span>NICE</span> Real-World Evidence Framework (ECD9).”</span> NICE corporate document, London. <a href="https://www.nice.org.uk/corporate/ecd9">https://www.nice.org.uk/corporate/ecd9</a>.
 </div>
 <div id="ref-petersen2014roadmap" class="csl-entry" role="listitem">
 Petersen, Maya L., and Mark J. van der Laan. 2014. <span>“Causal Models and Learning from Data: Integrating Causal Modeling and Statistical Estimation.”</span> <em>Epidemiology</em> 25 (3): 418–26. <a href="https://doi.org/10.1097/EDE.0000000000000078">https://doi.org/10.1097/EDE.0000000000000078</a>.
