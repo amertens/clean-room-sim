@@ -70,9 +70,10 @@ TMLE held bias small relative to the empirical standard deviation
 under marginal overlap. When
 unmeasured confounding was introduced, all estimators were biased
 in the same direction, and the prespecified pre-outcome decision
-correctly returned STOP, illustrating that the workflow can
-identify settings where the available data do not support the
-causal estimand. The data-quality stress test further showed that
+correctly returned STOP, illustrating that the workflow flags
+prespecified unmeasured-confounding scenarios under which the
+planned analysis would no longer meet the locked
+operating-characteristic thresholds. The data-quality stress test further showed that
 outcome misclassification and unmeasured confounding produced the
 largest degradation in estimator performance.
 
@@ -166,6 +167,16 @@ The observed treatment-outcome relationship is not used for
 estimator selection or design revision before the pre-outcome
 decision point.
 
+Standard pre-outcome review often separates three activities:
+target-trial / protocol design, qualitative fit-for-purpose data
+review, and estimator selection. Standard plasmode simulation can
+compare estimators before outcome access, but it usually evaluates
+performance under one locked synthetic outcome mechanism. cleanTMLE
+extends that loop by stress-testing the selected estimator across
+prespecified data-quality threats derived from the fit-for-purpose
+review, creating a quantitative bridge between the qualitative
+data-fitness argument and the estimator-selection argument.
+
 ## What the package adds, and what it does not
 
 cleanTMLE is an R [@rcoreteam2024] package that operationalises an
@@ -181,9 +192,19 @@ be listed in advance, and the algorithm remains data-adaptive while
 still admitting valid Wald-type confidence intervals. The package
 adds an analysis-lock object, a serialisable audit trail and
 decision log [@muntner2024staging], a pre-outcome decision rule
-that classifies the analysis as proceed, review, or stop, an
-outcome-blind plasmode candidate selector, and the DQ stress test
+that classifies the analysis as GO (proceed to the locked primary
+analysis), FLAG (proceed only with documented review or
+qualification), or STOP (do not conduct or report the primary
+comparative analysis under the current estimand/design/specification),
+an outcome-blind plasmode candidate selector, and the DQ stress test
 described above.
+
+cleanTMLE implements the software layer of an outcome-blind staged
+workflow. It records the analysis lock, candidate estimator set,
+plasmode simulation settings, DQ stress scenarios, checkpoint
+decisions, and final authorization state. It does not implement
+personnel separation, source-data access controls, protocol
+adjudication, phenotype validation, or regulatory review.
 
 The contribution is operational rather than methodological
 [@muntner2024staging]. The analysis lock, audit trail, and
@@ -197,7 +218,7 @@ have been followed, but the substantive content is the staged
 restriction of outcome access. The software arrangement
 complements, and does not replace, personnel-based access
 controls, protocol review, role separation, source-data audit, and
-independent checkpoint review. Section §\ref{sec-roadmap} situates
+independent checkpoint review. §\ref{sec-roadmap} situates
 the package inside the causal roadmap and Table
 \ref{tbl-reg-align} maps each component to the corresponding FDA,
 EMA, and ICH expectation.
@@ -299,7 +320,7 @@ flowchart TD
     D --> E["5. Lock candidate estimators and decision thresholds<br/>cleanTMLE: create_analysis_lock, lock_primary_tmle_spec"]
     E --> F["Pre-outcome checks<br/>cleanTMLE: checkpoints, plasmode, DQ stress"]
     F --> G["Pre-outcome decision<br/>cleanTMLE: gate_check, authorize_outcome_analysis"]
-    G -->|proceed or documented review| H["Unblind and run locked primary analysis<br/>cleanTMLE: four-step TMLE, IPCW-TMLE"]
+    G -->|GO or FLAG| H["Unblind and run locked primary analysis<br/>cleanTMLE: four-step TMLE, IPCW-TMLE"]
     H --> I["At-outcome diagnostics: negative controls, balance"]
     I --> J["Post-outcome sensitivity: E-value, QBA, causal-gap"]
     J --> K["Interpretation and transportability"]
@@ -725,9 +746,28 @@ formality the study requires. For most pharmacoepidemiology RWE
 studies the software-only mode is adequate; for high-stakes
 regulatory submissions we recommend running cleanTMLE inside a
 personnel-based outcome-blinding arrangement so that both the
-institutional and the computational guarantees apply.
+institutional and the computational safeguards apply.
 
 # Data Quality as a Quantifiable Threat {#sec-dq}
+
+## Why plasmode DQ stress testing adds information beyond standard pre-outcome diagnostics
+
+- Propensity-score diagnostics assess overlap, balance, and design
+  feasibility, not estimator operating characteristics.
+- Baseline plasmode simulation assesses candidate estimators under
+  a *locked* synthetic outcome model using the empirical $(W, A)$
+  structure.
+- DQ stress testing asks whether conclusions about estimator
+  suitability *persist* under prespecified violations or
+  degradations tied to fit-for-purpose concerns.
+- A STOP under a stress scenario should be read as evidence that
+  the study requires redesign, external validation, additional
+  sensitivity analysis, or narrower causal claims before outcome
+  access.
+
+The DQ stress test is a quantitative supplement to fit-for-purpose
+review, not a substitute for validation, governance, or
+post-outcome quantitative bias analysis.
 
 ## Mapping data-quality concerns to plasmode parameters
 
@@ -916,11 +956,13 @@ assessment guidance [@fda2024considerations; @fda2024ehrclaims;
 A note on terminology: @muntner2024staging describe three
 review-team decisions ("proceed to the next stage", "conduct
 additional analyses to address bias", or "terminate the study"),
-which we shorten in figures and tables to *proceed*, *review*,
-and *stop* (also written as GO / FLAG / STOP where compactness is
-helpful). In prose we prefer the longer wording. The cleanTMLE
-software uses the three labels for the same purpose, and the
-mapping to the Muntner et al. wording is one-to-one.
+which we standardise throughout this manuscript as GO, FLAG, and
+STOP. GO means proceed to the locked primary analysis; FLAG means
+proceed only with documented review or qualification; STOP means
+do not conduct or report the primary comparative analysis under
+the current estimand/design/specification. The cleanTMLE software
+uses the three labels for the same purpose, and the mapping to the
+Muntner et al. wording is one-to-one.
 
 ## What the pre-outcome decision currently does
 
@@ -1585,7 +1627,9 @@ if ("unmeasured_conf" %in% names(res$summaries)) {
 We use the Rescue.Co Kenya Trauma Registry as a **workflow
 demonstration** and software stress test on a real registry
 structure, not as evidence that the framework improves causal
-validity. The simulation in §\ref{sec-simulation} is small (5
+validity. This case study demonstrates auditability and workflow
+behavior; it is not intended as evidence that Rescue.Co transport
+has a causal effect. The simulation in §\ref{sec-simulation} is small (5
 covariates, n = 2,000, fully observed outcome) by design, because
 we wanted analytic control over each threat. A working framework
 also has to execute on real observational data: covariates that
@@ -1763,7 +1807,9 @@ the widest CIs, reflecting the smaller matched-pair samples
 prespecified primary because it is doubly robust and uses the
 locked propensity-score truncation chosen at Stage 2b on the full
 cohort; the IPCW-TMLE is the prespecified missing-outcome
-sensitivity row.
+sensitivity row. This case study demonstrates auditability and
+workflow behavior; it is not intended as evidence that Rescue.Co
+transport has a causal effect.
 
 Following @gruber2022sap (Step 5) and @diaz2013sensitivity, we
 report a tipping-point bound on the simulation-locked full-cohort
@@ -1856,7 +1902,7 @@ estimation and pre-outcome diagnostics steps rather than around
 them. The novelty is that staged prespecification, estimator
 locking, and the pre-outcome decision rule become explicit in
 code: an analysis-lock object, an audit trail, a decision log, and
-a proceed / review / stop classification of the analysis before
+a GO / FLAG / STOP classification of the analysis before
 the outcome is examined. The DQ stress test then adds a
 candidate-specific pre-outcome robustness screen on top of the
 standard plasmode loop. Together, these features support
@@ -1959,7 +2005,7 @@ difference at four years was reported as roughly $-4\%$. The
 example illustrates both the staged decision rule and the role of
 negative-control domains in practice.
 
-## Limitations of plasmode data-quality stress testing
+## Limitations of plasmode data-quality stress testing {#sec-limitations}
 
 A plasmode data-quality stress test is only as informative as the
 synthetic outcome model and degradation mechanisms used to
