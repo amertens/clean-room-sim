@@ -279,13 +279,14 @@ All six methods agree on direction. The prespecified primary estimate (full-coho
 | IPTW, full cohort (n = 1,693) | 0.037 |
 | Full-cohort TMLE, primary (n = 1,693) | 0.031 |
 
-Three things to read from this gap:
+Under standard assumptions (no effect modification by baseline covariates, adequate overlap), the matched and full-cohort estimators target the **same** marginal treatment effect and should agree in expectation. The 0.005 to 0.011 gap here is most plausibly **sampling noise**, with the matched confidence intervals roughly 50 % wider because matching throws away controls (which is also an **efficiency cost**, not a bias signal).
 
-- **The matched estimates are about 0.5 to 1 percentage point smaller** than the full-cohort estimates.
-- **The matched confidence intervals are roughly 50 % wider**, because matching throws away patients outside the overlap region.
-- **The matched and full-cohort estimators are not estimates of the same quantity.** Matched estimators target the average effect *in the matched overlap subset*; full-cohort estimators target the average effect *in the full eligible cohort*. When overlap is partial, these two target populations differ and the estimates *should* differ. Whether matched or full-cohort is the right primary depends on which population the study question is about.
+They would target *different* causal parameters in two specific situations:
 
-In this case study the prespecified primary is the full-cohort TMLE, because the protocol question is about all eligible ambulance patients, not only those whose baseline profile makes them comparable. The matched-cohort row is reported as a sensitivity analysis on a narrower target population.
+- **Effect modification by baseline covariates.** If the Rescue.Co effect were genuinely different in the overlap subset than in the full cohort, the two estimators would converge to different numbers in expectation.
+- **Positivity strain.** If propensity scores for some patients were near 0 or 1, the marginal full-cohort ATE would not be identifiable without model-based extrapolation, and the matched estimator would be the more conservative target.
+
+In rescueCo, propensity scores stayed inside [0.21, 0.81] and the gap is within roughly one standard error of each estimate, so the most parsimonious reading is sampling noise plus the efficiency cost of matching. The prespecified primary is the full-cohort TMLE because the protocol question is about all eligible ambulance patients; the matched-cohort row is a sensitivity analysis showing the answer is robust to the narrower target population.
 
 ## How a reviewer would read this
 
