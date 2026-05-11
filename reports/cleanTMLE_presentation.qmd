@@ -1,0 +1,298 @@
+---
+title: "cleanTMLE"
+subtitle: "Staged, outcome-blind targeted learning with plasmode data-quality stress testing"
+author: "Andrew Mertens"
+institute: "University of California, Berkeley"
+date: today
+format:
+  pptx:
+    # To restyle: drop a master .pptx into reports/templates/ and
+    # uncomment the reference-doc line below. The layout NAMES in the
+    # reference must match Pandoc's defaults ("Title Slide",
+    # "Section Header", "Title and Content", "Two Content", "Comparison",
+    # "Title Only", "Blank"). Out of the box this renders with the
+    # default Pandoc/Quarto pptx theme.
+    # reference-doc: templates/lab_template.pptx
+    slide-level: 2
+    incremental: false
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+## Why this talk
+
+- Real-world evidence (RWE) studies require many analytic decisions before any estimate is produced
+- Target-trial design, identification, estimator choice, and data-fitness review are usually documented in **separate** artefacts
+- Reviewers cannot see how the pieces connect
+- **cleanTMLE** is a small R package that turns the prespecified decisions into a single reproducible record, and adds a quantitative stress test for data-quality threats before outcome access
+
+## What I will cover (≈30 min)
+
+1. Motivation: prespecification + fit-for-purpose data in RWE
+2. The causal roadmap, and where the package sits
+3. Outcome-blind staged workflow
+4. The DQ stress test
+5. Simulation study
+6. Rescue.Co case study (Kenya Trauma Registry)
+7. What is genuinely new, what is not
+8. Limitations and the 0.2 roadmap
+9. Open questions for collaborators
+
+# Motivation
+
+## Two arguments, reported separately
+
+In a typical RWE study:
+
+- The **estimator-selection** argument is increasingly developed with outcome-blind plasmode simulation
+  (Franklin 2014; Schuler 2017; Dang 2023; Schreck 2024)
+- The **fit-for-purpose** argument is documented qualitatively through SPIFD2, HARPER, TARGET, START-RWE checklists
+- The simulation is numeric; the fit-for-purpose argument is prose
+
+A candidate estimator that wins the simulation can still fail under realistic measurement error, missingness, or unmeasured confounding.
+
+## A quantitative bridge
+
+The plasmode loop is under the analyst's control. We can extend it to ask:
+
+> *"Which candidate maintains acceptable bias, RMSE, and coverage across the plausible range of each threat documented in the fit-for-purpose review?"*
+
+This is a **data-quality (DQ) stress test**: a pre-outcome robustness screen, not a substitute for variable validation or for post-unblinding sensitivity analysis.
+
+## What outcome-blind means here
+
+Decisions about cohort, candidate estimators, simulation scenarios, decision thresholds, and primary-estimator selection are made **without inspecting the observed treatment–outcome association**.
+
+Allowed: baseline covariates, treatment assignment, missingness indicators, synthetic outcomes, and the marginal mean of $Y$ on $W$ (used internally for the plasmode generator).
+
+Not allowed before the decision point: the observed $A \to Y$ relationship.
+
+# The causal roadmap and where the package sits
+
+## Six logically ordered activities
+
+1. Causal question and target trial
+2. Observed data and source characterisation
+3. Identification assumptions
+4. Statistical estimand
+5. **Estimator selection (locked)**
+6. **Pre-outcome diagnostics and decision** → interpretation and post-outcome sensitivity
+
+cleanTMLE operates in steps **5** and the pre-outcome portion of **6**.
+
+Steps 1–4 remain external study-level work, supported by target-trial templates and fit-for-purpose checklists.
+
+## Governance is a stack, not a single layer
+
+| Layer                                | Provided by               |
+|--------------------------------------|---------------------------|
+| Protocol, estimand, target trial     | Investigator + sponsor    |
+| Source-data audit, phenotype validation | Data custodian + external studies |
+| Role separation, access controls     | Institution               |
+| **Analysis lock, audit and decision logs, pre-outcome decision** | **cleanTMLE**             |
+| Locked primary analysis              | Analyst (under lock)      |
+| Post-outcome sensitivity analyses    | Analyst + reviewer        |
+
+# Outcome-blind staged workflow
+
+## Stages
+
+- **Stage 1** — cohort and covariates locked; outcome not loaded
+- **Stage 2a** — propensity-score and design diagnostics; weights, overlap, SMDs
+- **Stage 2b** — plasmode candidate selection: synthetic outcomes, bias / RMSE / coverage across candidates
+- **Stage 3** — DQ stress test: each candidate evaluated under prespecified data-quality threats
+- **Pre-outcome decision** — GO / FLAG / STOP from the prespecified rule
+- **Stage 4** — locked primary analysis; at-outcome diagnostics; post-outcome sensitivity
+
+## What cleanTMLE adds
+
+- A fingerprinted **analysis-lock object** (sha256 over the lock specification)
+- Serialisable **audit trail** and **decision log**
+- A **modular TMLE API**: fit treatment mechanism, fit outcome mechanism, target, extract
+- An outcome-blind **plasmode candidate selector**
+- A **DQ stress test** (`run_plasmode_dq_stress()`) with four threat scenarios
+- A **pre-outcome decision rule** classifying GO / FLAG / STOP
+- IPW, G-computation, AIPW, IPCW-TMLE, matched TMLE — all calling an internal outcome-access check until the decision authorises Stage 4
+
+## What it does not replace
+
+- Target-trial design
+- Source-data audit, phenotype validation, linkage assessment
+- Independent personnel governance and role separation
+- Post-outcome quantitative bias analysis (E-value, QBA, causal-gap)
+- The proprietary `causalRisk` package — alternative implementation of related cumulative-risk estimators; **no shared code**
+
+# The DQ stress test
+
+## Four prespecified threats
+
+| Threat                       | Mechanism                                  | Severity parameters       |
+|------------------------------|--------------------------------------------|---------------------------|
+| Covariate missingness        | MCAR on a covariate subset, median impute  | proportion missing        |
+| Exposure misclassification   | Flip A with given (sens, spec)             | (sens, spec) pairs        |
+| Outcome misclassification    | Flip Y with given (sens, spec), optional differential | (sens, spec) pairs   |
+| Unmeasured confounding       | Latent U shifts both A and Y               | $\beta_{UA}$, $\beta_{UY}$ |
+
+Each cell produces the same triple — bias, RMSE, coverage — as the baseline plasmode, on the same scale.
+
+## How severity ranges are chosen
+
+- External validation studies (PPV, sensitivity from chart-review studies)
+- Source-specific data profiling
+- Expert elicitation, with the elicitor and rationale logged
+
+The package records the values in use as part of the lock fingerprint, so a reviewer can see what numerical assumptions drove the decision.
+
+## What the test does *not* assess
+
+- Data provenance or linkage accuracy
+- Phenotype validity for a specific endpoint
+- Representativeness of the source
+- Regulatory acceptability of the data source
+
+Those remain study-level evaluations. The DQ stress test is a quantitative supplement, not a substitute.
+
+# Simulation study
+
+## Design
+
+- $N = 2{,}000$ observations per replicate, 200 replicates per scenario
+- Six estimators: Crude, IPTW, Match, G-comp, AIPW, TMLE, CV-TMLE
+- Three Monte Carlo scenarios:
+  - **A**: good overlap (textbook benchmark)
+  - **B**: marginal overlap
+  - **C**: unmeasured confounding ($U$ shifts both $A$ and $Y$)
+- For each scenario, the full DQ stress sweep at $n_{\text{reps}} = 200$
+
+## Scenario A — good overlap
+
+- All adjusted estimators recover the truth
+- Bias well under the prespecified 0.02 threshold
+- Coverage at nominal 95%
+- Crude estimator has substantial residual confounding; CIs do not cover at 95%
+- **Decision: GO** — textbook benchmark behaviour
+
+## Scenario B — marginal overlap
+
+- Crude shifts further from truth
+- IPTW shows wider CIs reflecting heavier weights; SE-to-SD ratio above one
+- TMLE and CV-TMLE hold bias small relative to empirical SD
+- Matched TMLE shows conservative SE (ratio ≈ 2): the post-match TMLE step ignores the matching draw
+- Plasmode-selected specification adapts truncation level upward
+- **Decision: GO with FLAG** on IPTW SE calibration
+
+## Scenario C — unmeasured confounding
+
+- Every estimator biased in the same direction (no $W$-only adjustment can remove $U$)
+- Bias smallest for TMLE, largest for crude — difference of degree, not of kind
+- Baseline plasmode TMLE coverage at the lower edge of the prespecified range
+- The U-shift DQ row pushes the absolute bias estimate above `max_abs_bias`
+- **Decision: STOP** — the staged workflow declines to run the primary analysis
+
+The DQ supplement is what makes the failure unambiguous.
+
+## DQ degradation gradient
+
+Four qualitatively different profiles:
+
+- **Covariate missingness**: flat gradient (median imputation under MCAR is unbiased by construction — confirms no harm, but a weak test)
+- **Exposure misclassification**: bias rises toward the null as (sens, spec) worsen; coverage of the pre-misclassification estimand drops
+- **Outcome misclassification (0.90, 0.95)**: largest bias of the three measurement threats, especially when differential
+- **Unmeasured confounding**: largest degradation overall; the only threat that pushes RMSE ratio above 1.5
+
+The DQ test is most informative when the threat targets identification or measurement validity rather than ordinary estimator variance.
+
+# Case study: Rescue.Co (Kenya Trauma Registry)
+
+## Background and question
+
+- Rescue.Co operates motorcycle-based trauma transport in Nairobi, Kenya
+- Question: does Rescue.Co transport (vs. self-/other-arranged) improve 6-month functional outcome?
+- Outcome: GOSE > 4 at 6 months (good functional outcome)
+- $n = 1{,}693$ eligible; **24.6% outcome missingness**
+- A workflow demonstration, not a transport-effectiveness claim
+
+## Pre-outcome stage
+
+- Lock: 18 baseline covariates, IPCW for missingness, six prespecified estimators
+- Stage 2a: PS scores in [0.21, 0.81]; SMDs balanced after weighting; ESS retention 78%
+- Stage 2b plasmode: 50 replicates; bias < 0.001; coverage 0.94
+- Stage 3 DQ stress test: minimax rule selects `glm_t01`
+- Negative controls: 2 of 5 prespecified NCs surviving NZV filter (chronic hypertension, household urban) both pass — narrower NC panel than the SAP originally specified
+- **Decision: PROCEED**
+
+## Effect estimates
+
+| Method                | Target population                          |     N | RD      | 95% CI            |
+|-----------------------|--------------------------------------------|------:|--------:|-------------------|
+| Crude (unadjusted)    | Complete-outcome subset                    | 1,277 |  0.0370 | (0.003, 0.071)    |
+| PS matching           | Matched subset (overlap)                   |   615 |  0.0272 | (−0.020, 0.074)   |
+| IPTW (stabilised)     | Full eligible cohort                       | 1,693 |  0.0366 | (0.002, 0.071)    |
+| Full-cohort TMLE      | Full eligible cohort                       | 1,693 |  0.0306 | (−0.001, 0.062)   |
+| Matched-cohort TMLE   | Matched subset (overlap)                   | 1,230 |  0.0259 | (−0.015, 0.067)   |
+| IPCW-weighted TMLE    | Full cohort under censoring model          | 1,277 |  0.0326 | (−0.000, 0.066)   |
+
+Six estimators agree on direction; primary TMLE 95% CI crosses zero.
+
+## What the case study tells us
+
+- Six estimators agree on direction (RD between 0.026 and 0.037 favouring Rescue.Co)
+- The prespecified primary TMLE 95% CI crosses zero
+- An additive bias of 0.0012 would push the lower CI bound across zero (a weak sensitivity, not a full QBA)
+- The audit log captures every analytic decision, including the three NC drops at NZV filtering
+- This is a **workflow demonstration**; cleanTMLE does not establish causal validity, validate the data source, or prove that Rescue.Co transport is effective
+
+# Discussion
+
+## What is genuinely new
+
+- **Plasmode loop extended to robustness screening**: each candidate produces a degradation gradient on the same bias/RMSE/coverage scale as the baseline, so the same decision rule applies uniformly
+- **Lock + audit + decision logs as code artefacts**: a fingerprinted record an external reviewer can reconstruct
+- **A modular TMLE API**: treatment fit, outcome fit, target, extract — each step callable at the right stage of the workflow
+
+## What is not new
+
+- Targeted learning (van der Laan, Petersen, Gruber, Schuler, …)
+- Plasmode simulation for candidate selection (Franklin 2014; Schuler 2017)
+- Outcome blinding as a governance idea (Muntner 2024; Kent 2026)
+- Quantitative bias analysis (Lash 2014) — distinct from this pre-outcome screen
+
+cleanTMLE is mostly **operational glue** that pulls these together into a reproducible record.
+
+## Limitations
+
+- v0.1 scope: binary point exposure, binary outcome, marginal RD, MCAR outcome missingness handled by IPCW
+- Out of scope (yet): hazard ratios, time-varying treatments, competing risks, multinomial exposures, MAR / MNAR missingness, effect modification in the plasmode generator
+- DQ covariate-missingness mechanism is MCAR-only; MAR / MNAR variants are on the roadmap
+- Gate-threshold defaults are heuristic, not derived from a regulatory specification — analysts set them from study context
+
+## Next steps (cleanTMLE 0.2)
+
+- MAR and MNAR missingness in the DQ stress test
+- Time-window confounders (strike windows, calendar-time shocks)
+- Inter-facility transfer imbalance as a built-in scenario
+- Time-to-event endpoints via composition with `survtmle` and `lmtp`
+- A reference-paper-driven `data_quality_scenarios.yml` reader that ingests validation-literature parameters (PPV, sens, claims-accuracy ranges) and attaches citations to the audit log
+- Bootstrap variance for IPTW and matched TMLE
+
+# Open questions for collaborators
+
+## Where I want input
+
+1. **Severity-range calibration**: how should we elicit and document `(sens, spec)`, missingness, and U-shift ranges for a new study? What standard would a reviewer accept?
+2. **Decision-threshold defaults**: are `max_abs_bias = 0.01`, `min_coverage = 0.90`, `SE-band = (0.8, 1.2)` reasonable, or should they scale with the prespecified estimand magnitude and Type I error budget?
+3. **Negative-control panels**: when the NZV filter prunes the prespecified NCs, what is the right policy — re-elicit before unblinding, or accept a narrower panel and document?
+4. **Personnel governance**: for submission-grade studies, what minimum role separation should sit on top of the software workflow?
+5. **Plasmode faithfulness**: is the parametric synthetic-outcome mechanism faithful enough for decision-making, or do we need richer DGPs (effect modification, time-varying treatment)?
+6. **Where to publish**: methods/tutorial paper venue — `Epidemiology`, `Stat Med`, `Biometrics`, or an RWE-specific venue (`Pharmacoepi DS`, `Drug Safety`)?
+
+## Resources
+
+- Package: <https://github.com/amertens/cleanTMLE>
+- Manuscript draft: `reports/manuscript_outcome_blind_dq.qmd`
+- Case study: `rescueCo/reports/rescueco_clean_room_case_study.qmd`
+- Vignette: `cleanTMLE/vignettes/cleanTMLE-staged-analysis.qmd`
+
+Thank you. Questions and pushback welcome.
