@@ -236,9 +236,8 @@ have been followed, but the substantive content is the staged
 restriction of outcome access. The software arrangement
 complements, and does not replace, personnel-based access
 controls, protocol review, role separation, source-data audit, and
-independent checkpoint review. §\ref{sec-roadmap} situates
-the package inside the causal roadmap and Table
-\ref{tbl-reg-align} maps each component to the corresponding FDA,
+independent checkpoint review. @sec-roadmap situates
+the package inside the causal roadmap and @tbl-reg-align maps each component to the corresponding FDA,
 EMA, and ICH expectation.
 
 ::: {.callout-note}
@@ -267,7 +266,7 @@ produces a degradation gradient on the same bias, RMSE, and
 coverage scale as the baseline plasmode, so the prespecified
 decision rule can be applied uniformly across baseline and
 stressed scenarios. We position this screen as a quantitative
-supplement to fit-for-purpose review (§\ref{sec-bridge}) rather
+supplement to fit-for-purpose review (@sec-bridge) rather
 than as a substitute for variable-validation studies, source-data
 assessment, or post-outcome quantitative bias analysis. The R
 implementation packages the supporting prespecification artefacts
@@ -277,7 +276,7 @@ single reproducible record. We acknowledge `causalRisk`
 [@brookhart2024causalrisk] as a proprietary alternative
 implementation of related cumulative-risk estimators with which
 cleanTMLE shares conceptual structure but not code. The next
-section (§\ref{sec-roadmap}) places these contributions inside the
+section (@sec-roadmap) places these contributions inside the
 causal roadmap; subsequent sections follow that roadmap order.
 
 # The causal roadmap and the role of cleanTMLE {#sec-roadmap}
@@ -299,7 +298,7 @@ source-specific data-relevance and reliability assessments
 @ema2024guide; @ema2026rwd].
 
 To support readers who are new to the causal-roadmap vocabulary,
-Table \ref{tbl-layers} distinguishes the conceptual layers that
+@tbl-layers distinguishes the conceptual layers that
 the workflow keeps separate. The same table also serves as a
 reference for which decisions are addressed at the design stage
 versus at the estimation stage.
@@ -371,7 +370,7 @@ flowchart LR
 
 ## Regulatory alignment
 
-Table \ref{tbl-reg-align} maps each roadmap component to the
+@tbl-reg-align maps each roadmap component to the
 corresponding manuscript section, the relevant FDA / EMA / ICH
 expectation, what cleanTMLE can operationalise in software, and
 what still requires external study-level justification. The table
@@ -396,16 +395,16 @@ reg_align <- data.frame(
     "Post-outcome sensitivity analyses"
   ),
   `Manuscript section` = c(
-    "§\\ref{sec-estimand}",
-    "§\\ref{sec-estimand}, §\\ref{sec-casestudy}",
-    "§\\ref{sec-id}",
-    "§\\ref{sec-estimand}",
-    "§\\ref{sec-framework}, §\\ref{sec-implementation}",
-    "§\\ref{sec-dq}",
-    "§\\ref{sec-bridge}",
-    "§\\ref{sec-implementation}",
-    "§\\ref{sec-discussion}",
-    "§\\ref{sec-discussion}"
+    "@sec-estimand",
+    "@sec-estimand, @sec-casestudy",
+    "@sec-id",
+    "@sec-estimand",
+    "@sec-framework, @sec-implementation",
+    "@sec-dq",
+    "@sec-bridge",
+    "@sec-implementation",
+    "@sec-discussion",
+    "@sec-discussion"
   ),
   `FDA / EMA / ICH anchor` = c(
     "Hernán target-trial framework; FDA RWE Framework; ICH M14 (March 2026)",
@@ -450,7 +449,7 @@ knitr::kable(reg_align,
              caption = "Mapping of causal-roadmap components to manuscript sections, regulatory anchors, what cleanTMLE operationalises, and what still requires external study-level justification.")
 ```
 
-A complementary supplementary mapping (Table \ref{tbl-event-diag})
+A complementary supplementary mapping (@tbl-event-diag)
 lists the additional event-process and diagnostic structures the
 package makes explicit. These rows are intentionally separated
 from the main regulatory-alignment table to keep the latter
@@ -486,18 +485,18 @@ knitr::kable(event_diag,
              caption = "Supplementary mapping. Event-process and diagnostic structures that the package makes explicit, paired with the helper that produces each one.")
 ```
 
-The remaining methods sections follow the roadmap order. §\ref{sec-estimand}
+The remaining methods sections follow the roadmap order. @sec-estimand
 states the target-trial estimand and identification assumptions
-used in the simulation. §\ref{sec-framework} describes the lock,
-audit, and pre-outcome-decision functions. §\ref{sec-dq} introduces the DQ stress
+used in the simulation. @sec-framework describes the lock,
+audit, and pre-outcome-decision functions. @sec-dq introduces the DQ stress
 test, including a threat-to-assumption matrix that is explicit
 about what each scenario probes and what it does not probe, and
 discusses calibration of severity ranges from external evidence.
-§\ref{sec-bridge} reframes the DQ stress test as a quantitative
+@sec-bridge reframes the DQ stress test as a quantitative
 *supplement* to fit-for-purpose review rather than a replacement
-for it. §\ref{sec-implementation}--§\ref{sec-casestudy} report
+for it. @sec-implementation--@sec-casestudy report
 the implementation, the simulation, and the case study;
-§\ref{sec-discussion} discusses limitations and the role of
+@sec-discussion discusses limitations and the role of
 post-outcome sensitivity analyses.
 
 # Estimand, Causal Model, and Identifiability {#sec-estimand}
@@ -514,7 +513,7 @@ $\Psi = E\{Y(1)\} - E\{Y(0)\}$. Intercurrent events are handled
 under a treatment-policy strategy; censoring and treatment
 switching are not modelled in this illustration. The corresponding
 statistical estimand under the identification assumptions in
-§\ref{sec-id} is $\Psi = E_W\{E[Y \mid A=1, W] - E[Y \mid A=0, W]\}$,
+@sec-id is $\Psi = E_W\{E[Y \mid A=1, W] - E[Y \mid A=0, W]\}$,
 the marginal g-formula contrast [@robins1986newapproach;
 @hernan2020causal].
 
@@ -605,7 +604,7 @@ useful.
 The simulation thus contains one analytic challenge (marginal
 overlap, B) and one identifiability violation (unmeasured
 confounding, C). We use C to demonstrate what the DQ stress test
-detects when an unmeasured confounder is anticipated, and to
+flags under a prespecified latent-U scenario, and to
 contrast the stress-test output with the post-hoc E-value
 [@vanderWeele2017evalue] and with the negative-control-outcome
 check [@lipsitch2010negative].
@@ -626,7 +625,7 @@ the stage *content* matches Steps 0–6 of @dang2023roadmap.
 | 1b | Cohort adequacy: $N$ per arm, events, design precision | Events only |
 | 2a | Propensity-score diagnostics: overlap, ESS, balance | No |
 | 2b | Outcome-blind plasmode candidate selection | No (synthetic outcome) |
-| **2b\*** | **Plasmode DQ stress test (proposed)** | **No (synthetic outcome)** |
+| **2c** | **Plasmode DQ stress test** | **No (synthetic outcome)** |
 | 3 | Negative-control outcomes, residual-bias check | NC outcomes only |
 | Pre-outcome decision | GO/FLAG/STOP authorisation | No |
 | 4 | Primary comparative analysis | **Yes** |
@@ -634,7 +633,7 @@ the stage *content* matches Steps 0–6 of @dang2023roadmap.
 Stages 1–3 do not access the real outcome. The plasmode at Stage
 2b generates synthetic outcomes from a parametric model fitted to
 the real covariates and treatment, which is why it is a natural
-host for the DQ stress test we describe in §\ref{sec-dq}.
+host for the DQ stress test we describe in @sec-dq.
 
 Within a staging-and-clean-room framework, the DQ stress test
 functions as a quantitative checkpoint. Rather than relying only
@@ -937,7 +936,7 @@ post-hoc on the realised data.
 
 Each DQ scenario is best understood as an *engineering
 approximation* to a class of threats rather than an
-assumption-specific diagnostic. Table \ref{tbl-threat-matrix}
+assumption-specific diagnostic. @tbl-threat-matrix
 makes that distinction explicit: for each scenario it lists the
 identification or measurement assumption nominally probed, the
 scenario operationalisation, and the threats the scenario *does
@@ -975,7 +974,7 @@ threat_mat <- data.frame(
   stringsAsFactors = FALSE
 )
 knitr::kable(threat_mat,
-             caption = "Threat-to-assumption matrix. For each scenario, the assumption nominally probed, the operationalisation, and the threats the scenario does NOT probe. Severity ranges must come from external validation evidence (see §\\ref{sec-calibration}).")
+             caption = "Threat-to-assumption matrix. For each scenario, the assumption nominally probed, the operationalisation, and the threats the scenario does NOT probe. Severity ranges must come from external validation evidence (see @sec-calibration).")
 ```
 
 A consequence is that the `run_plasmode_dq_stress()` output is
@@ -1017,8 +1016,8 @@ that a reviewer can check both the values and their provenance. The
 boundaries of what this screen does *not* establish (data-source
 validation, causal identification, post-outcome sensitivity, and
 independent governance) are listed concisely in the regulatory
-alignment table (§\ref{sec-roadmap}, Table \ref{tbl-reg-align}) and
-in the limitations paragraph in the Discussion (§\ref{sec-discussion}).
+alignment table (@sec-roadmap, @tbl-reg-align) and
+in the limitations paragraph in the Discussion (@sec-discussion).
 
 # A quantitative supplement to fit-for-purpose review {#sec-bridge}
 
@@ -1029,7 +1028,7 @@ candidate estimators against prespecified threat ranges; the
 validity of those ranges, and of the data source itself, remains
 an external study-level argument anchored in source-specific
 assessment guidance [@fda2024considerations; @fda2024ehrclaims;
-@ema2026rwd] (see Table \ref{tbl-reg-align}).
+@ema2026rwd] (see @tbl-reg-align).
 
 A note on terminology: @muntner2024staging describe three
 review-team decisions ("proceed to the next stage", "conduct
@@ -1120,13 +1119,17 @@ threat, at a different stage, with a different artifact.
 ## Why "outcome-blind" matters here
 
 The DQ stress test runs on synthetic outcomes generated from the
-real covariate distribution and the real treatment. The real
-outcome is never read. This is the property that makes the test
+real covariate distribution and the real treatment. The observed
+primary treatment-outcome association is not read; depending on
+the configured mode, the plasmode generator may use marginal
+outcome information (the covariate-only mean model $E[Y \mid W]$)
+without using the joint $(A, Y) \mid W$ relationship, or it may
+take $E[Y \mid W]$ from external pilot data
+[@dang2023roadmap, p. 7]. This is the property that makes the test
 admissible inside the prespecification: the analyst can iterate on
 the prespecified set of candidate estimators, on the degradation
-parameters, and on the decision thresholds without learning
-anything about the treatment-outcome association in the actual
-study data [@dang2023roadmap, p. 7]. The analysis-lock fingerprint
+parameters, and on the decision thresholds without learning the
+observed treatment-outcome association in the actual study data. The analysis-lock fingerprint
 records the final choices. Once the prespecified workflow has been
 completed, the outcome is unmasked and the primary analysis is
 run.
@@ -1175,7 +1178,7 @@ cp2     <- checkpoint_balance(ps_diag, max_smd = 0.10,
                               lock_hash = lock$lock_hash)
 audit   <- record_checkpoint(audit, cp2)
 
-# Stage 2b: plasmode candidate selection + DQ stress test
+# Stage 2b plasmode candidate selection + Stage 2c DQ stress test
 candidates <- list(
   tmle_candidate("glm_t01",   "GLM PS, trunc=0.01",
                  g_library = "SL.glm",     truncation = 0.01),
@@ -1580,7 +1583,7 @@ gradient therefore confirms that median imputation does not
 introduce additional bias under MCAR but is not a strong test of
 the missingness handling. We discuss this limitation, and the
 MAR / MNAR scenarios that would constitute a stronger test, in
-§\ref{sec-limitations}. Treatment misclassification attenuates the
+@sec-limitations. Treatment misclassification attenuates the
 estimate toward the null: bias against the (pre-misclassification)
 target estimand rises as (sens, spec) worsen. Coverage of the
 pre-misclassification target therefore drops as severity increases;
@@ -1687,9 +1690,13 @@ if ("unmeasured_conf" %in% names(res$summaries)) {
     cat(sprintf("| E-value (from Scenario A estimate) | %.2f |\n", ev["e_value"]))
 
     if (nrow(dq_u_rows) > 0) {
-      for (i in seq_len(nrow(dq_u_rows))) {
+      # Collapse to one row per severity level (the table is candidate-
+      # specific; if multiple candidates appear, report their mean bias
+      # at each level so the table stays interpretable).
+      dq_u_agg <- aggregate(bias ~ level, data = dq_u_rows, FUN = mean)
+      for (i in seq_len(nrow(dq_u_agg))) {
         cat(sprintf("| DQ stress bias at %s | %.5f |\n",
-                    dq_u_rows$level[i], dq_u_rows$bias[i]))
+                    dq_u_agg$level[i], dq_u_agg$bias[i]))
       }
     }
 
@@ -1705,7 +1712,7 @@ if ("unmeasured_conf" %in% names(res$summaries)) {
 We use the Rescue.Co Kenya Trauma Registry as a workflow
 demonstration on a real registry structure, not as evidence that
 Rescue.Co transport has a causal effect. The simulation in
-§\ref{sec-simulation} is small (5
+@sec-simulation is small (5
 covariates, n = 2,000, fully observed outcome) by design, because
 we wanted analytic control over each threat. A working framework
 also has to execute on real observational data: covariates that
@@ -1721,7 +1728,7 @@ released `manuscript_artifacts/case_study_metadata.json` records
 the version and lock hash. The example is fully reproducible from
 the bundled `rescueCo/` directory in the companion repository.
 The DQ stress test in this run was executed at low replication
-(see §\ref{sec-casestudy-dq}), so the Rescue.Co example is not
+(see @sec-casestudy-dq), so the Rescue.Co example is not
 used as primary evidence of DQ-stress validity; it is presented
 as a real-registry execution example.
 
@@ -1810,15 +1817,15 @@ Both candidates pass the prespecified decision targets
 `se_sd_window = (0.8, 1.2)`); the two truncation thresholds
 produce indistinguishable performance because the propensity
 scores stay well inside the [0.01, 0.99] bounds (range
-0.21--0.81). The Stage 3 DQ stress test sweeps the four threats
+0.21--0.81). The Stage 2c DQ stress test sweeps the four threats
 over four candidates; the minimax rule locks `glm_t01` as the
 primary specification. [NOTE: the bundled
-`config/clean_room_config.yml` sets `simulation.n_sims = 3`. At
-this replicate count the per-cell coverage estimates are noisy
-and the qualitative degradation pattern, not the absolute coverage
-number, is what the decision rule consumes. The companion
-configuration `inst/extdata/rescueco_dq_full.yml` runs the same
-sweep at `n_sims = 200` and reproduces the same minimax winner.]
+`config/clean_room_config.yml` sets `simulation.n_sims = 3`. The
+bundled low-replicate run is retained only as a fast reproducibility
+example; the case-study DQ results should not be interpreted
+inferentially from `n_sims = 3`. The companion configuration
+`inst/extdata/rescueco_dq_full.yml` runs the same sweep at
+`n_sims = 200` and is provided to confirm the minimax winner.]
 Negative controls run at Stage 3 on the locked PS:
 
 | Negative control       | Estimate | SE      | p-value | Pass |
@@ -1831,12 +1838,12 @@ Negative controls run at Stage 3 on the locked PS:
 At the pre-outcome decision point (`authorize_outcome_analysis()`),
 the two passing negative controls and the plasmode metrics support
 a GO classification. Three of the five prespecified
-negative-control endpoints (chronic-pain history, prior fracture,
-and elective surgery) were dropped from the NC analysis at the
-data-sanitisation step because they failed near-zero-variance
-filtering on the locked cohort; only chronic hypertension and
-household urban status carried enough variation to fit a stable
-PS-adjusted model. The audit log records the three drops alongside
+negative-control endpoints (`chronic_diabetes_insulin`,
+`chronic_hiv_art`, and `fuel_wood`) were dropped from the NC
+analysis at the data-sanitisation step because they failed
+near-zero-variance filtering on the locked cohort; only
+`chronic_hypertension` and `household_urban` carried enough
+variation to fit a stable PS-adjusted model. The audit log records the three drops alongside
 the two passing checkpoints, and the residual-confounding argument
 in this study therefore rests on a narrower NC panel than the
 SAP originally specified. The analysis is then unmasked and the
@@ -1918,22 +1925,21 @@ variance during data sanitisation, because those drops occurred
 upstream of the negative-control fits rather than at fit time.
 The cleanTMLE 0.1.1 fix only partially closes that gap. With that
 caveat, the prespecification and audit functions performed as
-described in §\ref{sec-framework}.
+described in @sec-framework.
 
 ### Outcome-blind plasmode
 
 Stage 2b feasibility coverage of 0.94 with bias below 0.001 across
-50 replicates is the kind of validation a reviewer would want.
-Stage 3 then runs the full DQ stress test (`run_plasmode_dq_stress()`)
-over the four threats and produces a structural pass on each
-scenario. [NOTE: the bundled configuration uses 3 replicates per
-scenario × severity cell. At this replicate count the per-cell
-coverage estimates are noisy (baseline coverage rounds to 1.00
-because all 3 CIs happened to cover); the qualitative pattern of
-degradation across severity levels is reproducible but the
-absolute coverage numbers should be regenerated at 200+ replicates
-before they are used for inference. A `n_reps = 200` configuration
-is provided in `inst/extdata/rescueco_dq_full.yml`.] The four
+50 replicates is the kind of design validation a reviewer would
+want. Stage 2c then runs the full DQ stress test
+(`run_plasmode_dq_stress()`) over the four threats and produces a
+structural pass on each scenario. [NOTE: the bundled low-replicate
+run uses 3 replicates per scenario × severity cell and is retained
+only as a fast reproducibility example. The case-study DQ
+results should not be interpreted inferentially from `n_sims = 3`.
+A `n_reps = 200` configuration is provided in
+`inst/extdata/rescueco_dq_full.yml` to confirm the minimax winner
+under sufficient replicates.] The four
 threats encoded by `run_plasmode_dq_stress()` (covariate MCAR,
 exposure misclassification, outcome misclassification, latent $U$)
 do not cover two design challenges that mattered in the rescueCo
@@ -1966,7 +1972,7 @@ directory contains the data behind the tables above.
 
 # Discussion {#sec-discussion}
 
-## What is genuinely novel
+## What cleanTMLE contributes operationally
 
 The novelty in this paper is not that cleanTMLE solves causal
 identification. The roadmap and target-trial literature
@@ -2013,7 +2019,7 @@ EMA RWD guidance, and the NICE RWE framework expect [@fda2018rwe;
 @fda2024considerations; @fda2024noninterventional; @ema2024guide;
 @nice2022rwe] and match the data-quality dimensions
 in the EMA RWD framework [@ema2026rwd] and ICH M14 (March 2026)
-[@ich2024m14], as summarised in Table \ref{tbl-reg-align}. The
+[@ich2024m14], as summarised in @tbl-reg-align. The
 software-mediated workflow can complement, but does not replace,
 personnel-based access controls and independent oversight.
 Documented source assessment, role-based access where feasible,
@@ -2137,7 +2143,7 @@ the same demand qualitatively, and the DQ stress test inherits it.
 ### Computational cost
 
 Each scenario $\times$ severity adds a full set of plasmode
-replicates. With the configuration of §\ref{sec-simulation} (50
+replicates. With the configuration of @sec-simulation (50
 replicates per cell, fifteen scenario $\times$ severity cells, and
 four candidates) the test fits 3,000 TMLE models per Monte Carlo
 scenario. The default settings already use fewer replicates than
@@ -2263,7 +2269,7 @@ running. The proprietary `causalRisk` package
 related cumulative-risk estimators and is referenced as such; the
 two packages do not share code. The package is available at
 <https://github.com/amertens/cleanTMLE>;
-the simulation code for the results in §\ref{sec-simulation} is in
+the simulation code for the results in @sec-simulation is in
 the companion repository <https://github.com/amertens/clean-room-sim>.
 
 # Acknowledgements {.unnumbered}

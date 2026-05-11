@@ -192,7 +192,7 @@ The DQ stress test is a quantitative supplement to fit-for-purpose review, not f
 ## Design
 
 - $N = 2{,}000$ per replicate, 200 replicates per scenario
-- Six estimators: Crude, IPTW, Match, G-comp, AIPW, TMLE, CV-TMLE
+- Six estimators: Crude, IPTW, PS Match, TMLE, TMLE_CF (CV-TMLE), Match_TMLE
 - Three Monte Carlo scenarios:
   - **A**: good overlap (benchmark)
   - **B**: marginal overlap
