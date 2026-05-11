@@ -33,18 +33,6 @@ execute:
 7. Limitations and the 0.2 roadmap
 8. Open questions for collaborators
 
-## Five questions, five slides
-
-The rest of the deck is organised around five "why" questions:
-
-1. **Why clean-room / staged design?**
-2. **Why TMLE?**
-3. **Why plasmode simulation?**
-4. **Why DQ stress testing?**
-5. **Why not just PS diagnostics and negative controls?**
-
-If you only remember one slide, remember the contrast table on the next slide.
-
 # Motivation
 
 ## Standard vs. cleanTMLE approach
@@ -283,7 +271,6 @@ Six estimators agree on direction; primary TMLE 95% CI crosses zero.
 - The prespecified primary TMLE 95% CI crosses zero
 - A 0.0012 additive bias would push the lower CI bound across zero (a CI-tipping-point distance, not a full QBA)
 - The audit log captures every analytic decision, including the three NC drops
-- *Workflow demonstration; not a causal claim about Rescue.Co.*
 
 # Discussion
 

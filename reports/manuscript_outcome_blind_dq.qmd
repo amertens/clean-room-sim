@@ -50,17 +50,16 @@ analysis plan. This separation makes it difficult for reviewers to
 see how design assumptions, data limitations, and estimation
 choices are connected.
 
-We present cleanTMLE, an R package that operationalises a staged,
-outcome-blind targeted-learning workflow for binary point-treatment
-studies. The package is situated inside the causal roadmap:
-investigators first define the causal question, observed data,
-identification assumptions, statistical estimand, and candidate
-estimators, then use outcome-blind simulations to compare candidate
-estimators before examining the observed treatment-outcome
-association. cleanTMLE extends this workflow with a plasmode
-data-quality stress test. Using the empirical covariate and
-treatment structure, the package generates synthetic outcomes and
-evaluates candidate estimators under prespecified threats,
+cleanTMLE is an R package for staged, outcome-blind targeted
+learning on binary point-treatment studies. Working inside the
+causal roadmap, the analyst first defines the causal question,
+observed data, identification assumptions, statistical estimand,
+and a set of candidate estimators, then uses outcome-blind
+simulation to compare those candidates before inspecting the
+observed treatment-outcome association. The package extends this
+loop with a plasmode data-quality stress test: it generates
+synthetic outcomes from the empirical covariate and treatment
+structure and evaluates each candidate under prespecified threats,
 including covariate missingness, exposure misclassification,
 outcome misclassification, and unmeasured confounding.
 
@@ -77,17 +76,17 @@ operating-characteristic thresholds. The data-quality stress test further showed
 outcome misclassification and unmeasured confounding produced the
 largest degradation in estimator performance.
 
-We also demonstrate the workflow in the Rescue.Co Kenya Trauma
-Registry (n = 1,693; 24.6 % outcome missingness). Six estimators
-agreed on direction, with risk differences from 0.026 to 0.037 in
-favour of Rescue.Co transport, while the prespecified primary TMLE
-interval crossed zero. This case study is a workflow demonstration,
-not a causal claim. cleanTMLE does not replace target-trial design,
-fit-for-purpose data review, validation studies, independent
-governance, or post-outcome sensitivity analyses. Its contribution
-is narrower: it turns prespecified targeted-learning decisions,
-outcome-blind estimator selection, and data-quality stress testing
-into reproducible, auditable software artifacts.
+We illustrate the workflow on the Rescue.Co Kenya Trauma Registry
+(n = 1,693; 24.6 % outcome missingness). Six estimators agreed on
+direction, with risk differences from 0.026 to 0.037 favouring
+Rescue.Co transport; the prespecified primary TMLE interval crossed
+zero. cleanTMLE is the software layer of an outcome-blind staged
+workflow: it does not replace target-trial design, fit-for-purpose
+data review, validation studies, independent governance, or
+post-outcome sensitivity analyses. Its contribution is to turn
+prespecified targeted-learning decisions, outcome-blind estimator
+selection, and data-quality stress testing into a reproducible
+record an external reviewer can reconstruct.
 
 **Keywords:** targeted maximum likelihood estimation, plasmode
 simulation, real-world evidence, fit-for-purpose data, outcome-
@@ -184,9 +183,9 @@ data-fitness argument and the estimator-selection argument.
 
 ## What the package adds, and what it does not
 
-cleanTMLE is an R [@rcoreteam2024] package that operationalises an
-outcome-blind staged workflow for the estimator-selection and
-stress-testing steps of the causal roadmap [@dang2023roadmap;
+cleanTMLE is an R [@rcoreteam2024] package that implements the
+estimator-selection and stress-testing steps of an outcome-blind
+staged workflow within the causal roadmap [@dang2023roadmap;
 @petersen2014roadmap; @gruber2022sap]. Targeted maximum likelihood
 estimation (TMLE) [@vanderLaan2006tmle; @vdL2011tlbook;
 @schuler2017tmle; @zheng2011crossvalidated; @chernozhukov2018dml]
@@ -823,7 +822,7 @@ generalize to the realized outcome process. DQ stress testing
 should not be interpreted as a formal identification-region
 analysis or as a replacement for post-outcome quantitative bias
 analysis. It is a pre-outcome robustness screen for estimator
-behavior under prespecified perturbations.
+behaviour under prespecified perturbations.
 
 ## Mapping data-quality concerns to plasmode parameters
 
@@ -1388,21 +1387,21 @@ for (sc in names(res$summaries)) {
 ### Interpretation
 
 The simulation illustrates three intended uses of the staged
-workflow: confirming acceptable finite-sample behavior, detecting
+workflow: confirming acceptable finite-sample behaviour, detecting
 instability under marginal overlap, and stopping when an
 identification failure is built into the data-generating process.
 The printed tables include the Monte Carlo standard error of the
 coverage estimate so the reader can judge which differences exceed
-Monte Carlo noise. Three patterns are robust to noise.
+Monte Carlo noise.
 
-First, under good overlap (Scenario A) all adjusted estimators
+Under good overlap (Scenario A) all adjusted estimators
 recover the truth with bias well under the prespecified threshold
 of 0.02 and with confidence intervals that cover at the nominal
 rate. The crude estimator has substantial residual confounding and
 its confidence intervals do not cover at 95%. This is the textbook
 benchmark check.
 
-Second, under marginal overlap (Scenario B) the crude estimator
+Under marginal overlap (Scenario B) the crude estimator
 shifts further from the truth and IPTW shows wider CIs reflecting
 the heavier weights, while TMLE and CV-TMLE hold bias small
 relative to their empirical standard deviation (the residual bias
@@ -1412,7 +1411,7 @@ empirical SD). The plasmode-selected specification chooses
 a higher truncation level than under Scenario A, illustrating that
 the candidate selection adapts to the observed data structure.
 
-Third, under unmeasured confounding (Scenario C) every estimator is
+Under unmeasured confounding (Scenario C) every estimator is
 biased in the same direction, because no method that adjusts only
 on $W$ can remove the contribution of $U$ to the treatment-outcome
 association. The bias is smallest for TMLE and largest for the
@@ -1427,7 +1426,7 @@ DQ supplement is what makes the failure unambiguous. This
 illustrates the intended role of the DQ stress test as a
 quantitative supplement to the baseline plasmode metrics.
 
-A fourth pattern concerns standard-error calibration for the IPW
+A separate pattern concerns standard-error calibration for the IPW
 estimator and is worth surfacing because it routinely surprises
 applied users. The mean-SE-to-empirical-SD
 ratio for IPTW is often above one in our scenarios, because the
@@ -1678,12 +1677,10 @@ if ("unmeasured_conf" %in% names(res$summaries)) {
 
 ## Why a real-data workflow demonstration
 
-We use the Rescue.Co Kenya Trauma Registry as a **workflow
-demonstration** and software stress test on a real registry
-structure, not as evidence that the framework improves causal
-validity. This case study demonstrates auditability and workflow
-behavior; it is not intended as evidence that Rescue.Co transport
-has a causal effect. The simulation in §\ref{sec-simulation} is small (5
+We use the Rescue.Co Kenya Trauma Registry as a workflow
+demonstration on a real registry structure, not as evidence that
+Rescue.Co transport has a causal effect. The simulation in
+§\ref{sec-simulation} is small (5
 covariates, n = 2,000, fully observed outcome) by design, because
 we wanted analytic control over each threat. A working framework
 also has to execute on real observational data: covariates that
@@ -1861,9 +1858,7 @@ the widest CIs, reflecting the smaller matched-pair samples
 prespecified primary because it is doubly robust and uses the
 locked propensity-score truncation chosen at Stage 2b on the full
 cohort; the IPCW-TMLE is the prespecified missing-outcome
-sensitivity row. This case study demonstrates auditability and
-workflow behavior; it is not intended as evidence that Rescue.Co
-transport has a causal effect.
+sensitivity row.
 
 Following @gruber2022sap (Step 5) and @diaz2013sensitivity, we
 report a tipping-point bound on the simulation-locked full-cohort
@@ -2228,13 +2223,13 @@ extends the outcome-blind plasmode loop of @dang2023roadmap and
 @gruber2022sap with four data-quality degradation mechanisms,
 producing per-candidate degradation gradients on the same bias /
 RMSE / coverage scale as the baseline plasmode so the prespecified
-decision rule can be applied uniformly to both. cleanTMLE
-operationalises a quantitative bridge from qualitative
-data-fitness concerns to prespecified outcome-blind plasmode
-stress-test scenarios; it does not itself determine whether a data
-source is fit for purpose, and the severity ranges entered into the
-stress test must come from prior validation studies, data
-profiling, or expert elicitation. The analysis-lock object, audit
+decision rule can be applied uniformly to both. This is a
+quantitative bridge from qualitative data-fitness concerns to
+prespecified outcome-blind plasmode stress-test scenarios; the
+package does not itself determine whether a data source is fit
+for purpose, and the severity ranges entered into the stress test
+must come from prior validation studies, data profiling, or
+expert elicitation. The analysis-lock object, audit
 log, and decision log persist the prespecification as reproducible
 records that downstream estimation functions check before
 running. The proprietary `causalRisk` package
@@ -2248,8 +2243,8 @@ the companion repository <https://github.com/amertens/clean-room-sim>.
 # Acknowledgements {.unnumbered}
 
 We thank the targeted-learning RWE roadmap authors (Dang, Gruber,
-Phillips, Lee, Ho, van der Laan, Petersen, and colleagues) whose
-published frameworks cleanTMLE operationalises in software, and
+Phillips, Lee, Ho, van der Laan, Petersen, and colleagues), whose
+published frameworks this software builds on, and
 the authors of the proprietary `causalRisk` package (M. Alan
 Brookhart, Alexander Breskin, and Bassim Eledath) for surfacing
 the cumulative-risk-estimand framing that motivated several of
