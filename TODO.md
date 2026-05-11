@@ -170,6 +170,110 @@ Add a block-bootstrap variant that resamples matched pairs and
 returns the bootstrap SE alongside the IF-based SE. See manuscript
 §8.2.4 and the in-source NOTE in `run_matched_tmle()`.
 
+### A.21 Plasmode candidate-grid expansion (workshop-driven, 2026-05)
+
+Five PDFs from the March workshop materials (Phillips et al. 2023
+*Practical considerations for specifying a super learner*; Gruber et al.
+2023 *Developing a TL-based SAP* + supplement; Gruber et al. 2023
+*Evaluating and improving RWE with TL*; Gruber & van der Laan 2009
+*Gentle intro to TMLE*) identify seven axes that the plasmode loop
+should expose so candidate selection probes the dimensions that
+actually move finite-sample bias and CI coverage:
+
+**A.21.1 Variance menu.** Add `variance_method = c("IF","cv_IF","robust","bootstrap_HAL","targeted_bootstrap")`
+to `tmle_candidate()` and surface it as a candidate-grid axis.
+IF (current default) is anti-conservative under near-positivity;
+`robust` calls upstream `tmle::tmle(variance.method = "tmle")`
+plug-in variance (Tran et al. 2018); `bootstrap_HAL` forces HAL on
+both Q and g and bootstraps; `targeted_bootstrap` implements Coyle
+& van der Laan 2018. SAP p.472.
+
+**A.21.2 CV-TMLE vs sample-split vs no-CV.** Add `cv_scheme = c("none","cv_tmle","sample_split")`.
+The current `n_folds/fold_vec` arguments collapse into
+`cv_scheme = "cv_tmle"`. Phillips Step 3.
+
+**A.21.3 SuperLearner library presets.** New helper
+`build_sl_library(role = c("Q","g","Delta"), n_eff, p, preset = c("small_n","default","rich","very_rich"))`
+returning role-aware learner lists keyed by effective sample size
+and dimensionality. Adopt the SAP-supplement Checklists C–E spec
+for the three roles (binomial family / NNLS / stratifyCV per role).
+Phillips Steps 2-5.
+
+**A.21.4 Discrete vs convex super learner.** Add `discrete_sl = FALSE/TRUE`;
+when TRUE, build the SL with `method.NNLS` and include the eSL
+itself in the dSL pool. Phillips Step 5.
+
+**A.21.5 Screeners.** Add `screener = c("All","corP","corRank","glmnet","randomForest")`;
+couple a screener with every Q, g learner inside CV. Phillips p.1283.
+
+**A.21.6 Truncation rule names.** Allow `truncation_rule` to accept
+either a numeric bound or a named rule: `"sqrt_n_ln_n"` (= `5/(sqrt(n)*ln(n))`,
+the SAP-supplement default), `"fixed_001"`, `"fixed_025"`, `"fixed_05"`.
+Document running the same TMLE under at least three rules and
+reporting all three. SAP-supp §8.3.2.
+
+**A.21.7 Estimator family.** Add `estimator = c("tmle","aipw","onestep","ctmle","drtmle")`.
+AIPW and one-step are wrappers around existing nuisances; C-TMLE
+delegates to `ctmle::ctmleDiscrete()`; drtmle delegates to
+`drtmle::drtmle()`. C-TMLE is the high-priority addition because
+of its identifiability-recovery behaviour under borderline ETA.
+Gruber 2009 §3.2.
+
+**A.21.8 Tmle-control pass-through.** Add `tmle_control = list(fluctuation, alpha, target.gwt, automate, min.retain, cv_Qinit)`
+so upstream `tmle::tmle()` controls are surfaceable from the
+candidate spec. SAP-supp B2.
+
+### A.22 New plasmode helpers and post-processors (workshop-driven)
+
+- `compute_n_eff(Y, family)` — implements `n_eff = min(n, 5*n_rare)`
+  for binary outcomes. Drives default `cv_V` and library size.
+- `compute_G_value(fit)` — the size of causal gap that would flip
+  the conclusion: `G = min(|psi - 1.96*se - null|, |psi + 1.96*se - null|)`.
+  RWE Gruber et al. 2023 p.5.
+- `run_delta_sensitivity(fit, delta_grid)` — varies the causal-gap
+  delta over a grid and returns the corresponding point estimate,
+  CI, and p-value. SAP §8.3.4.
+- `run_positivity_diagnostics(fit)` — PS C-statistic, propensity
+  histograms by arm, % truncated, bounded-g quantiles, and a
+  near-positivity-violation flag using
+  `eps(n) = max(0.01, 5/(sqrt(n)*ln(n)))`. Already partly available;
+  reorganise into a single object.
+- `run_bootstrap_variance(fit, B, type = c("nonparam","targeted","HAL_targeted"))` --
+  three bootstrap variance implementations on the modular path.
+
+### A.23 Selection-criterion expansion in `select_tmle_candidate()`
+
+Add `criterion = c("min_rmse","minmax_rmse","min_bias","ci_coverage","min_se","composite")`
+so the selector can prioritise CI coverage rather than RMSE alone.
+The workshop materials emphasise coverage under near-positivity.
+This is also the second stage of the FIORD two-stage selector (A.1).
+
+### A.24 Plasmode-loop Cartesian-product grid
+
+Update `run_plasmode_feasibility()` to accept the new axes as named
+lists (`variance_methods`, `estimators`, `cv_schemes`,
+`truncation_rules`, `sl_presets`, `discrete_sl`, `screeners`) and
+Cartesian-product them with a `max_candidates` cap so the grid
+stays bounded. Emit a stable `tmle_candidate_id` from a hash of the
+serialised args so `select_tmle_candidate()` can join results across
+runs.
+
+### A.25 Difficulty grouping for items A.21-A.24
+
+- **Low (argument pass-through):** A.21.2, A.21.4, A.21.5, A.21.6,
+  A.21.8, A.22 (compute_n_eff, compute_G_value), A.23.
+- **Medium (new code path):** A.21.1 (IF/cv_IF/robust variance),
+  A.21.3 (build_sl_library), A.21.7 (AIPW/one-step), A.22 (delta-
+  sensitivity, positivity diagnostics consolidation), A.24
+  (Cartesian-product grid).
+- **High (new estimator family or wrapping a separate package):**
+  A.21.1 (bootstrap_HAL, targeted_bootstrap), A.21.7 (C-TMLE via
+  ctmle pkg, drtmle via drtmle pkg), A.22 (run_bootstrap_variance).
+
+The low and medium items can be staged across two cleanTMLE 0.2
+point releases; the C-TMLE and bootstrap variance work is the
+natural 0.3 release.
+
 ---
 
 ## B. Documentation, governance, and operational
