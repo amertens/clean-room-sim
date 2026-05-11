@@ -12,7 +12,7 @@ format:
     # "Section Header", "Title and Content", "Two Content", "Comparison",
     # "Title Only", "Blank"). Out of the box this renders with the
     # default Pandoc/Quarto pptx theme.
-    # reference-doc: templates/lab_template.pptx
+    reference-doc: templates/lab_template.pptx
     slide-level: 2
     incremental: false
 execute:
