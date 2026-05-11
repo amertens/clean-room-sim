@@ -88,6 +88,88 @@ These require new R code and tests, and rerun no existing simulation.
 - Capture: NC name, filter that fired (NZV / collinearity / other), prevalence in the cohort, the SAP rationale for including the NC, and the impact ("narrower NC panel; residual-confounding probe partial").
 - Closes the gap the rescueCo case study identified.
 
+### A.17 Dead-export cleanup (code audit, 2026-05)
+
+The function-usage audit identified 14 exported functions with no
+caller in tests, vignettes, manuscript, or case study. Each needs
+either an executable usage example or a deprecation.
+
+Advertised in README and `_pkgdown.yml` but not exercised:
+- `hr_data()`
+- `update_censoring()`, `update_outcome()`, `update_treatment()`
+- `identify_missing()`
+- `inspect_ipw_weights()`
+- `re_estimate()`
+
+Name-mentioned in vignettes but not invoked:
+- `refine_ps_after_nco()`
+- `get_final_cohort()`
+- `load_audit()`
+- `fit_ps_parallel()`
+- `create_analysis_lock_from_yaml()`
+
+Only referenced in manuscript prose:
+- `tipping_point_sensitivity()` (rescueCo case study uses the
+  output value but does not call the function explicitly)
+
+Internal-only candidates:
+- `validate_superlearner_spec()` — only its `.Rd` references it
+- `expit`, `logit`, `wrap_ps_fit` — used internally; mark
+  `@keywords internal`
+
+Action: for each "advertised but unused" function, either add an
+executable example in `cleanTMLE-functions.qmd` or move to
+`@keywords internal` and drop from `_pkgdown.yml`.
+
+### A.18 Pedagogical pass on `cleanTMLE-staged-analysis.qmd`
+
+Current vignette opens with governance vocabulary before any
+clinical anchor and runs the DQ stress test with `eval = FALSE`.
+Pedagogically less accessible than the comparator's vignettes.
+Concrete actions:
+
+- Add a real-dataset opening with one clinical question (port an
+  ACTG / WIHS-style example or use a clean simulated analogue with
+  a clinical narrative).
+- Add a "concept primer" block at the head defining clever
+  covariate, EIC, plasmode, ESS, SMD, MDD, IPCW in one place.
+- Render the four-step TMLE output between code chunks rather
+  than only at the end.
+- Add a stacked-estimators risk-curve overlay (crude → IPW →
+  g-comp → AIPW → TMLE) — the single most pedagogically effective
+  figure in the comparator's vignettes.
+- Demote the GO / FLAG / STOP vocabulary to where it is actually
+  earned (after the reader has seen a Table 1).
+- Eliminate forward references to stages that have not yet been
+  introduced.
+
+### A.19 Comparator feature-parity items (2026-05 parity audit)
+
+Gaps identified by the function-by-function parity audit. Each is
+a concrete API or dataset addition:
+
+- `estimate_ipwcount()` and the cumulative-count family
+  (`identify_count`, `update_count`, `plot.cumcount`).
+- `compare_protocols()` analogue for > 2-arm cumulative-risk
+  comparison.
+- `subgroup()` as an exported model-spec verb (current workaround
+  uses `subset_idx` arguments).
+- `update_missing()`, `update_count()`, `update_label()`.
+- SMR weight scheme (`wt_type = 1`) in `estimate_ipwrisk()`.
+- Public reproducible datasets equivalent to `actg`, `wihs`,
+  `leukemia` (license-permitting) or clean simulated analogues
+  with realistic structure.
+- Standalone `trim_ps()` exported helper.
+- `hist.ipw` method on weight objects for one-liner muscle memory.
+
+### A.20 Block-bootstrap variance for matched TMLE
+
+The matched-cohort TMLE EIC currently treats the matched subset as
+an iid sample. The reported SE is therefore not a paired-design SE.
+Add a block-bootstrap variant that resamples matched pairs and
+returns the bootstrap SE alongside the IF-based SE. See manuscript
+§8.2.4 and the in-source NOTE in `run_matched_tmle()`.
+
 ---
 
 ## B. Documentation, governance, and operational

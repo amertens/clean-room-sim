@@ -527,6 +527,117 @@ That is the entire workflow. Each function call produces a record. The reviewer 
 
 ---
 
+# Critical evaluation and verification
+
+This section answers four questions about cleanTMLE that an applied analyst might reasonably ask before adopting the package, and documents how the package was independently audited. Both audits were read-only and did not change numerical results.
+
+## Q1. Does cleanTMLE have all the functionality of the closest open-source / proprietary cumulative-risk reporting package?
+
+**Partial.** A function-by-function comparison was run against the comparator cumulative-risk reporting package. cleanTMLE matches it on the core cohort-specification grammar (`specify_models()`, the `identify_*()` family), all four cumulative-risk estimators (IPW, g-computation, AIPW, IPW hazard ratio), and the standard reporting helpers (Table 1, Table 2, weight summary, extreme weights, forest plot, plot.cumrisk). Concrete gaps:
+
+- **Cumulative-count family** (`estimate_ipwcount`, `identify_count`, `update_count`, `plot.cumcount`) is not implemented.
+- **`compare_protocols()` analogue** for arbitrary treatment-protocol lists is missing.
+- **`subgroup()` as a model-spec verb** is only available indirectly via `subset_idx` arguments.
+- **`update_missing`, `update_count`, `update_label`** are not implemented.
+- **SMR weight scheme** (`wt_type = 1` in the comparator's `estimate_ipwrisk`) is not exposed.
+- **Public reproducible datasets** (ACTG, WIHS, leukemia) are not shipped; users cannot reproduce the comparator's vignettes against cleanTMLE.
+
+These gaps are tracked as items in *TODO.md* and are scheduled for cleanTMLE 0.2.
+
+## Q2. Is cleanTMLE an improvement on that package?
+
+**Yes, on governance, estimator depth, and pre-outcome stress testing; equal on cumulative-risk reporting.**
+
+What cleanTMLE adds:
+
+- A **fingerprinted analysis lock, audit log, and decision log** so the prespecification is itself a code artefact.
+- **Doubly-robust TMLE** in addition to AIPW (four-step pipeline, modular API, IPCW-TMLE, matched-cohort TMLE).
+- **Outcome-blind plasmode candidate selection** under the empirical (W, A) structure before unblinding.
+- A **data-quality stress test** that turns qualitative concerns into quantitative reruns of the same simulation.
+- A **prespecified GO / FLAG / STOP rule** with software-enforced outcome-access gates on Stage 4 estimators.
+- **Negative-control screening**, **E-value / tipping-point** helpers, **three-way Love plot**, **influence-curve diagnostics**.
+
+The comparator package is *just as good* on: IPW cumulative risk, g-computation, AIPW, IPW HR API, Table 1 / Table 2 / weight summary / forest plot, and the model-specification grammar.
+
+## Q3. Is the cleanTMLE vignette as readable as the comparator's vignettes for a new user?
+
+**Not yet.** The comparator's ACTG, WIHS, and leukemia vignettes open with a real dataset and a clinical question, stack incremental models on one risk-curve overlay, and render output after every code chunk. The cleanTMLE staged-analysis vignette currently opens with governance vocabulary, uses a simulated dataset with no clinical anchor, and leaves several teaching units (the four-step TMLE, the DQ stress test) running `eval = FALSE` so the reader never sees the output.
+
+The honest near-term moves:
+
+1. Port one comparator vignette (ACTG or WIHS) to cleanTMLE so the reader gets a real-data, curve-first tutorial on the same problem.
+2. Add a concept primer at the head of the staged vignette defining clever covariate, EIC, plasmode, ESS, SMD, MDD, and IPCW in one place.
+3. Render the four-step TMLE output between chunks rather than only at the end.
+4. Add a stacked-estimators risk-curve overlay (crude → IPW → g-comp → AIPW → TMLE).
+
+These are tracked in *TODO.md* as the highest-priority documentation gap.
+
+The present document — `cleanTMLE_for_applied_analysts.qmd` — is the package's first attempt at a plain-language tutorial for an analyst with no prior TMLE or clean-room background. If you got this far, that part is working.
+
+## Q4. Is the outcome-blind simulation functionality complete?
+
+**Mostly, with three specific limitations.** The current implementation correctly performs the FIORD five-step procedure (define goals, specify DGP, generate replicates, apply candidate estimators factorially, compare on prespecified metrics) on the hybrid DGP that uses the empirical (W, A) structure with a covariate-only outcome model. The DQ stress test correctly extends this to four prespecified threats (covariate missingness, exposure misclassification, outcome misclassification, unmeasured confounding) and produces degradation gradients on a common scale.
+
+What is *not* yet complete:
+
+1. **The FIORD two-stage selector.** cleanTMLE 0.1 implements a single-step RMSE / minimax selector that conflates point-estimator selection and variance-method selection. FIORD requires them to be done in two stages: first screen point estimators by oracle coverage (CI from the Monte Carlo empirical SE), then select the variance method on the locked point estimator. This is documented in the manuscript §10.2 as a current-release limitation, not just future work.
+2. **The DGP spectrum** beyond the hybrid mode. Fully investigator-specified (structural-equation) and parametric-bootstrap DGPs are documented as planned (see the "Outcome-blind DGP mode" subsection in `cleanTMLE-functions.qmd`).
+3. **Nonparametric bootstrap variance** is the FIORD case-study winner for IPTW and matched estimators; cleanTMLE 0.1 supports IF-based and TMLE-robust variance natively and recommends bootstrap externally. A native bootstrap path is on the roadmap.
+
+The simulation we report in the manuscript (Scenarios A / B / C × four DQ threats) exercises the full hybrid-mode pipeline and demonstrates that the workflow returns the correct GO / FLAG / STOP verdict in each scenario before unblinding.
+
+## Using cleanTMLE without the staged-analysis governance layer (minimal mode)
+
+cleanTMLE can be used as a plain outcome-blind RWE estimation package without the staged-analysis governance machinery (audit log, hash, gate, GO / FLAG / STOP rule). For users who want unbiased estimation with the package's design diagnostics but not the full clean-room workflow:
+
+```{r}
+#| eval: false
+library(cleanTMLE)
+
+# Create a "simple" lock that does NOT activate the software-enforced
+# outcome guard, the gate authorisation, or the audit-trail requirement.
+# The fingerprint and design diagnostics remain available; outcome
+# blindness becomes the analyst's responsibility rather than software-
+# enforced.
+lock <- create_simple_lock(
+  data       = my_data,
+  treatment  = "A",
+  outcome    = "Y",
+  covariates = baseline_covariates,
+  sl_library = c("SL.glm", "SL.glmnet"),
+  seed       = 2026
+)
+
+# Design diagnostics (same as the full workflow)
+ps      <- fit_ps_superlearner(lock)
+ps_diag <- compute_ps_diagnostics(ps)
+plot(ps_diag)
+love_plot_threeway(lock, ps$weights)
+
+# Estimation (no authorisation step needed)
+fit_tmle  <- run_clean_tmle(lock)
+fit_iptw  <- run_iptw_workflow(lock)
+fit_gcomp <- estimate_gcomprisk(lock)
+fit_aipw  <- estimate_aipwrisk(lock)
+```
+
+`create_simple_lock()` returns a lock with `cleanroom_enabled = FALSE`, which short-circuits the internal outcome-access check. Use this when:
+
+- you want to compare estimators on a real-data analysis without buying into the GO / FLAG / STOP framework
+- you are running a quick exploratory analysis or a methods-development comparison
+- you have an external governance arrangement (institutional clean room, role separation) that already provides the outcome-access controls the software would otherwise enforce
+
+For high-stakes confirmatory studies, use the default `create_analysis_lock()` and the full staged workflow with the gate.
+
+## How the audits were run
+
+Two independent read-only audits were run on the package:
+
+- **Function-usage and TMLE-correctness audit.** Every exported function was cross-referenced against R/, tests/, vignettes/, manuscript, and case study. 99 of ~115 exports were found to be actively used; 14 were flagged as dead exports (advertised but not exercised) and are listed in *TODO.md* with recommended actions. The TMLE implementation was verified against the canonical four-step recipe (initial Q, propensity g, targeting via logistic fluctuation submodel, plug-in psi + IF variance). Both the hand-rolled modular path (`run_tmle_targeting_step()` and friends) and the `tmle::tmle()` delegation path (`estimate_tmle_risk_point()`, `run_ipcw_tmle()`) implement the recipe correctly. Three minor issues were identified and either fixed in this revision (silent targeting-step fallback now emits a warning; IPCW fallback warning now states the loss of double robustness; matched-TMLE EIC carries an in-source note about the paired-design SE caveat) or tracked in *TODO.md* (block-bootstrap variance for matched TMLE).
+- **Feature-parity audit** against the comparator cumulative-risk reporting package, summarised in Q1–Q3 above.
+
+A one-paragraph takeaway follows.
+
 # A one-paragraph takeaway
 
 cleanTMLE is software for running an observational study in stages, so that every analytic decision is recorded *before* anyone sees the comparative answer. It uses targeted maximum-likelihood estimation because that method lets you write down the entire recipe in advance while still using flexible machine-learning models. It adds plasmode simulation and a data-quality stress test, so the analyst can score candidate methods on a quantitative scale before unblinding. A prespecified rule then decides whether to proceed (GO), proceed with a documented concern (FLAG), or not run the comparative analysis as planned (STOP). The contribution is not a new estimator or a new theorem; it is an auditable workflow that gives a reviewer everything they need to reconstruct the analysis.
