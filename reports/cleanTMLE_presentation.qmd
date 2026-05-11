@@ -376,3 +376,316 @@ The claim is integration and auditability, not a new estimator.
 - Vignette: `cleanTMLE/vignettes/cleanTMLE-staged-analysis.qmd`
 
 Thank you. Questions and pushback welcome.
+
+# Appendix A: Conceptual tables and roadmap
+
+## Conceptual layers in the staged workflow
+
+| Layer | Description |
+|---|---|
+| Causal question | Clinical or policy question framed as a target trial or causal contrast. |
+| Causal estimand | Counterfactual treatment effect of interest (e.g. marginal risk difference). |
+| Identification assumptions | Conditions under which the causal estimand can be expressed as an observed-data parameter. |
+| Statistical estimand | Observed-data parameter identified under the assumptions above. |
+| Estimator | Algorithm used to estimate the statistical estimand (e.g. TMLE, IPTW, matching). |
+| Pre-outcome diagnostic | Quantity used for design checks: simulated bias, RMSE, coverage, ESS, balance, NC performance. |
+| Governance decision | Whether prespecified criteria support proceeding, require review, or require stopping. |
+
+## Causal roadmap and where cleanTMLE sits
+
+```{mermaid}
+flowchart TD
+    A["1. Causal question and target trial"] --> B["2. Observed data and source characterisation"]
+    B --> C["3. Identification assumptions"]
+    C --> D["4. Statistical estimand"]
+    D --> E["5. Lock candidate estimators and decision thresholds"]
+    E --> F["Pre-outcome checks: checkpoints, plasmode, DQ stress"]
+    F --> G["Pre-outcome decision: GO / FLAG / STOP"]
+    G -->|GO or FLAG| H["Unblind and run locked primary analysis"]
+    H --> I["At-outcome diagnostics: negative controls, balance"]
+    I --> J["Post-outcome sensitivity: E-value, QBA, causal-gap"]
+    J --> K["Interpretation and transportability"]
+    style E fill:#e6e6e6,stroke:#333,color:#000
+    style F fill:#e6e6e6,stroke:#333,color:#000
+    style G fill:#e6e6e6,stroke:#333,color:#000
+    style H fill:#e6e6e6,stroke:#333,color:#000
+```
+
+## Governance stack
+
+```{mermaid}
+flowchart LR
+    A[Protocol and estimand] --> B[Analysis-lock object]
+    B --> C[Audit trail]
+    C --> D[Decision log]
+    D --> E[Pre-outcome decision point]
+    E --> F[Primary analysis]
+    X[External validation studies] --> E
+    Y[Independent review and role governance] --> E
+    Z[Data standards and provenance] --> E
+```
+
+## Regulatory alignment (excerpt)
+
+| Roadmap component | FDA / EMA / ICH anchor | What cleanTMLE operationalises |
+|---|---|---|
+| Causal question | Hernán target-trial framework; FDA RWE Framework; ICH M14 | Locked estimand, target trial timing |
+| Statistical estimand | ICH E9(R1); FDA RWE Considerations | `attach_estimand()`, lock fingerprint |
+| Estimator selection | FDA non-interventional studies; ICH M14 | `tmle_candidate()`, `lock_primary_tmle_spec()` |
+| Pre-outcome DQ stress | Source reliability (FDA/EMA); validation evidence | `run_plasmode_dq_stress()` |
+| Stage gate (GO/FLAG/STOP) | Internal protocol governance | `gate_all()`, `authorize_outcome_analysis()` |
+| Post-outcome sensitivity | FDA non-interventional; ICH E9(R1) | `compute_evalue()`, `tipping_point_sensitivity()` |
+
+## DQ threats and parameter inputs
+
+| Threat | Mechanism | Severity parameters |
+|---|---|---|
+| Covariate missingness | MCAR on a covariate subset, median impute | proportion missing |
+| Exposure misclassification | Flip A with given (sens, spec) | (sens, spec) pairs |
+| Outcome misclassification | Flip Y with given (sens, spec), optional differential | (sens, spec) pairs |
+| Unmeasured confounding | Latent U shifts both A and Y | $\beta_{UA}$, $\beta_{UY}$ |
+
+## Threat-to-assumption matrix
+
+| Scenario | Assumption nominally probed | What it does NOT probe |
+|---|---|---|
+| Covariate MCAR | Some forms of missing-data robustness | MAR / MNAR; phenotype validity |
+| Exposure misclassification | Treatment-measurement validity | Differential misclassification by outcome |
+| Outcome misclassification | Outcome-measurement validity | Time-varying outcome ascertainment |
+| Unmeasured confounding | Exchangeability | Multiple unmeasured Us; effect modification by U |
+
+# Appendix B: Case-study setup (Rescue.Co)
+
+## Cohort flow
+
+```{mermaid}
+flowchart TD
+    A["Registry observations"]
+    B["Ambulance arrivals at participating hospitals"]
+    C["Direct-from-scene cohort<br/>(inter-facility transfers excluded)"]
+    D["Analytic cohort<br/>n = 1,693 (1,013 Rescue.Co + 680 other)"]
+    E["Complete 6-month GOSE<br/>n = 1,277"]
+    F["Matched subset<br/>n = 615 (matching) / 1,230 (matched-TMLE pseudo-cohort)"]
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    D --> F
+    D -. "missing GOSE<br/>n = 416 (24.6%)" .-> X1["Handled by IPCW"]
+```
+
+## Estimand grid (case-study estimators)
+
+| # | Estimator | Outcome | Cohort |
+|---|---|---|---|
+| A | PS-matched logistic regression | Binary | Matched |
+| B | PS-matched TMLE | Binary | Matched |
+| C | Outcome-blind plasmode candidate selection | -- | -- |
+| D | Full-cohort TMLE | Binary | Full |
+| E | IPTW (stabilised) | Binary | Full |
+| F | Complete-outcome TMLE with IPCW weights | Binary | Complete-outcome |
+| G | Survival TMLE (experimental) | Survival | Full |
+| H | Cox PH (sensitivity) | Survival | Full |
+
+## Target-trial timing table
+
+| Design element | Rescue.Co implementation | Pre-outcome status |
+|---|---|---|
+| Index date / time zero | Trauma-related ambulance arrival at participating hospital | Locked in `identify_interval()` |
+| Treatment definition | Rescue.Co EMS (A=1) vs other ambulance (A=0) at index | Locked in `identify_treatment()` |
+| Reference group | Other ambulance services, same hospitals + period | Locked |
+| Eligibility window | 2018-2024 trauma transports, direct-from-scene only | Locked |
+| Covariate window | At or before index | Locked |
+| Outcome window | 6 months from index | Locked |
+| Outcome definition | GOSE > 4 at 6 months | Locked |
+| Missingness / censoring | Missing 6-month GOSE; primary complete-outcome + IPCW sensitivity | Locked |
+| Switching / discontinuation | Not applicable (point exposure at scene) | Locked |
+| Administrative end of FU | Fixed at 6 months | Locked |
+| Excluded intercurrent events | Inter-facility transfers excluded; recorded as `is_transfer` | Locked |
+
+## Event-process table
+
+| Event-like quantity | Class | Handling |
+|---|---|---|
+| GOSE > 4 at 6 months | Event of interest (outcome) | Estimand: marginal RD on this binary outcome |
+| GOSE missing at 6 months | Missingness | Primary: complete-outcome; IPCW sensitivity |
+| In-hospital death before 6-month GOSE | Outcome component / intercurrent event | Coded as GOSE = 1 (worst-rank) |
+| Inter-facility transfer at index | Exclusion | Excluded from analytic cohort |
+| Treatment switching / crossover | Not applicable | Point exposure at scene |
+| 6-month follow-up window end | Administrative end of FU | Fixed at 6 months |
+
+## Target-population table
+
+| Procedure | Target population |
+|---|---|
+| Crude (complete-case) | Complete-outcome subset (n = 1,277) |
+| PS matching | Matched overlap subset (n = 615) |
+| IPTW (stabilised) | Full eligible cohort (n = 1,693) |
+| Full-cohort TMLE | Full eligible cohort (n = 1,693) |
+| Matched-cohort TMLE | Matched overlap subset (n = 1,230) |
+| Complete-outcome TMLE w/ IPCW weights | Complete-outcome rows, weighted to full-cohort target |
+
+## Weight-diagnostics table
+
+| Weight type | Source | Reporting | Prespecified instability flag |
+|---|---|---|---|
+| Treatment weights (stabilised) | `fit_ps_superlearner()` | Mean, SD, 99th pct, max, Kish ESS | Max > 10 or > 1 % above 5 |
+| IPCW weights | `run_ipcw_tmle()` | Mean, SD, 99th pct, max | Max > 10 |
+| Combined | Product of treatment + IPCW | Mean, SD, max, ESS | Max > 15 or ESS < 30 % of n |
+
+## Estimator-estimand pairs
+
+| Candidate | Library | Truncation | Missingness | Status |
+|---|---|---:|---|---|
+| Crude | n/a | n/a | Complete case | Reference |
+| PS matching | GLM PS | n/a | Complete case | Secondary |
+| IPTW (stabilised) | GLM PS | 0.01 | Complete case | Secondary |
+| Full-cohort TMLE | SL ensemble | 0.01 | Complete case | **Primary** |
+| Matched-cohort TMLE | SL ensemble (matched) | n/a | Complete case | Sensitivity (target pop) |
+| Complete-outcome TMLE w/ IPCW | SL ensemble + SL IPCW | 0.01 | IPCW | Sensitivity (missingness) |
+
+## Checkpoint dashboard (case study)
+
+| Stage | Evidence | Threshold | Decision |
+|---|---|---|:---:|
+| Stage 0 protocol/setup | Target-trial timing, SAP, lock fingerprint | All design elements specified before data access | GO |
+| Stage 1b cohort adequacy | `checkpoint_cohort_adequacy()`, attrition table | min_n_per_arm = 200; min_events = 50 | GO |
+| Stage 2a overlap / balance | PS in [0.21, 0.81]; balanced SMDs; ESS 78 % | PS in [0.01, 0.99]; SMD <= 0.10; max wt <= 10 | GO |
+| Stage 2b baseline plasmode | bias < 0.001; coverage 0.94 | bias <= 0.01; coverage >= 0.90; SE/SD in (0.8, 1.2) | GO |
+| Stage 2c DQ stress | Minimax rule selects `glm_t01` | Each scenario within thresholds across severities | GO |
+| Stage 3 negative controls | 2 of 5 NCs survived NZV; both pass | All analysed NCs pass at α = 0.05 | GO with FLAG |
+| Gate authorisation | `authorize_outcome_analysis()` | All preceding GO or documented FLAG | GO |
+
+## Decision-log example
+
+| Timestamp | Stage | Issue | Decision | Y visible? |
+|---|---|---|:---:|:---:|
+| 2026-01-12 09:14 | 2a | Three NCs failed NZV filter | FLAG | No |
+| 2026-01-12 11:02 | 2c | DQ stress at n_sims = 3 (fast demo) | FLAG | No |
+| 2026-01-12 14:45 | Gate | All checkpoints GO or documented FLAG | GO | No |
+
+## Sensitivity analyses mapped to assumptions
+
+| Assumption | Sensitivity analysis or diagnostic |
+|---|---|
+| Exchangeability | Negative-control outcomes; E-value on primary estimate |
+| Positivity | Truncation-grid sensitivity; weight + ESS reporting |
+| Consistency | Documented exposure phenotype; direct-from-scene restriction |
+| Dependent censoring | IPCW-TMLE on binary outcome |
+| Missing outcome | IPCW-TMLE vs complete-case TMLE comparison |
+| Composite / competing | Coherence check via `clean_check_event_processes()` |
+
+## Stage 2b feasibility plasmode metrics
+
+| Candidate | Bias | RMSE | Coverage | SE/SD |
+|---|---:|---:|---:|---:|
+| `glm_t01` | < 0.001 | 0.018 | 0.94 | 1.01 |
+| `glm_t05` | < 0.001 | 0.018 | 0.94 | 1.01 |
+
+## Stage 3 negative-control TMLE
+
+| Negative control | Estimate | SE | p-value | Pass |
+|---|---:|---:|---:|:---:|
+| chronic hypertension | 0.00248 | 0.0072 | 0.73 | ✓ |
+| household urban | -0.00077 | 0.0071 | 0.91 | ✓ |
+
+## Negative-control attrition
+
+```{mermaid}
+flowchart LR
+    A["5 prespecified NCs"]
+    B["NZV filter at data-sanitisation"]
+    C["3 dropped:<br/>chronic_diabetes_insulin,<br/>chronic_hiv_art, fuel_wood"]
+    D["2 analysed:<br/>chronic_hypertension,<br/>household_urban"]
+    E["Both pass"]
+    A --> B
+    B --> C
+    B --> D
+    D --> E
+```
+
+## Rescue.Co binary-outcome estimates (six estimators)
+
+| Method | Target population | N | RD | 95% CI |
+|---|---|---:|---:|---|
+| Crude | Complete-outcome subset | 1,277 | 0.0370 | (0.003, 0.071) |
+| PS matching | Matched subset | 615 | 0.0272 | (-0.020, 0.074) |
+| IPTW (stabilised) | Full eligible cohort | 1,693 | 0.0366 | (0.002, 0.071) |
+| Full-cohort TMLE | Full eligible cohort | 1,693 | 0.0306 | (-0.001, 0.062) |
+| Matched-cohort TMLE | Matched subset | 1,230 | 0.0259 | (-0.015, 0.067) |
+| Complete-outcome TMLE w/ IPCW | Complete-outcome rows, weighted to full-cohort | 1,277 | 0.0326 | (-0.000, 0.066) |
+
+# Appendix C: Case-study diagnostic figures
+
+## PS overlap density
+
+![Propensity-score density by treatment group with truncation cutoffs marked.](../rescueCo/results/ps_overlap_density.png)
+
+## Love plot: matched vs unweighted
+
+![Standardised mean differences for retained covariates before and after PS matching.](../rescueCo/results/love_plot.png)
+
+## Three-way Love plot: unweighted vs matched vs IPTW
+
+![Three-way balance: unweighted, after matching, and after stabilised IPTW.](../rescueCo/results/weighted_love_plot.png)
+
+## IPTW weight distribution
+
+![Distribution of stabilised IPTW weights by treatment group.](../rescueCo/results/weight_distribution.png)
+
+## Plasmode simulation performance
+
+![Plasmode performance across candidate estimators (true ATE = 0).](../rescueCo/results/plasmode_performance.png)
+
+## Binary-outcome estimator forest plot
+
+![Forest plot of binary-outcome risk differences across the six prespecified estimators.](../rescueCo/results/cleanTMLE_forest_plot.png)
+
+## Influence-curve distribution (full-cohort TMLE)
+
+![Influence-curve distribution for the full-cohort TMLE primary estimator.](../rescueCo/results/ic_plot.png)
+
+## Clever covariate H_n by treatment arm
+
+![Clever covariate H_n by treatment arm (full-cohort TMLE).](../rescueCo/results/clever_covariate_plot.png)
+
+## Counterfactual cumulative-risk curves (full-cohort TMLE)
+
+![Counterfactual cumulative-risk curves with CI bands, full-cohort TMLE.](../rescueCo/results/risk_curves_full_ci.png)
+
+## Kaplan-Meier curves by treatment arm (descriptive)
+
+![KM survival curves by treatment arm; descriptive only.](../rescueCo/results/km_curves.png)
+
+# Appendix D: Helpers and outcome-access taxonomy
+
+## Outcome-access taxonomy
+
+| Label | Definition |
+|---|---|
+| No Y access | Function uses W, A, metadata, lock objects, synthetic outcomes, or diagnostics not involving Y |
+| Marginal Y only | Function uses event counts or marginal outcome support, not the A-Y association |
+| Synthetic Y only | Function uses plasmode-generated outcomes |
+| Negative-control Y only | Function uses prespecified NC outcomes, not the primary outcome |
+| Primary Y | Function uses the observed primary outcome for treatment-effect estimation |
+
+These labels describe what cleanTMLE exported functions use internally. They do not prevent a user with raw data access from inspecting outcomes outside the package.
+
+## Helper functions by dossier component
+
+| Dossier component | cleanTMLE artefact | Outcome access |
+|---|---|---|
+| Protocol and target-trial timing | `attach_estimand()` | No Y |
+| Cohort flow / attrition | `attrition_table()` | No Y |
+| Event-process classification | `clean_event_process_table()`, `clean_check_event_processes()` | No Y |
+| Covariate and missingness summary | `make_table1()`, missingness checks | No Y |
+| PS overlap and balance | `compute_ps_diagnostics()`, `love_plot()`, `love_plot_threeway()` | No Y |
+| Weight diagnostics | `clean_weight_diagnostics()`, `extreme_weights()` | No Y |
+| Event-count adequacy | `checkpoint_cohort_adequacy()` | Marginal Y only |
+| Baseline plasmode | `run_plasmode_feasibility()`, `select_tmle_candidate()` | Synthetic Y only |
+| DQ stress test | `run_plasmode_dq_stress()`, `summarize_dq_degradation()` | Synthetic Y only |
+| Negative controls | `run_residual_confounding_stage()` | Negative-control Y only |
+| Composite gate | `gate_all()` (+ planned `checkpoint_dashboard()`) | No Y |
+| Decision and audit logs | `export_decision_log()`, `save_decision_log()` | No Y |
+| Authorisation | `authorize_outcome_analysis()` | No Y |
+| Primary analysis | `run_clean_tmle()`, `fit_tmle_*()` family, `run_ipcw_tmle()` | Primary Y |
