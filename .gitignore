@@ -32,3 +32,4 @@ renv/sandbox/
 
 # Office lockfiles
 ~$*
+*_old.docx
