@@ -246,14 +246,19 @@ EMA, and ICH expectation.
 The simulation, vignette, and case study in this paper run on a
 **binary point exposure**, a **binary outcome**, the **marginal
 risk-difference** estimand, and **MCAR** outcome missingness handled
-by IPCW. Hazard ratios, time-varying treatments, competing risks,
+by IPCW. Within that scope, the package exposes the full
+estimator spectrum: IPTW with stabilised weights
+(`estimate_ipwrisk()`), parametric g-computation
+(`estimate_gcomprisk()`), augmented IPW (`estimate_aipwrisk()`),
+and TMLE (`run_clean_tmle()`, plus the modular `fit_tmle_*()`
+primitives and the IPCW variant `run_ipcw_tmle()`). The
+prespecified primary estimator is TMLE; the other three are
+reported as concordance checks. Hazard ratios, time-varying treatments, competing risks,
 multinomial exposures, and MAR / MNAR missingness models are out
 of scope for the v0.1 release; analysts who need those estimands
 should compose cleanTMLE's prespecification and audit functions
 with `survtmle` [@survtmlepackage2018] or `lmtp`
-[@lmtppackage2021] until those features are added. The proprietary
-`causalRisk` package [@brookhart2024causalrisk] is an alternative
-implementation of related cumulative-risk estimators.
+[@lmtppackage2021] until those features are added.
 :::
 
 ## What the paper contributes
@@ -272,10 +277,7 @@ assessment, or post-outcome quantitative bias analysis. The R
 implementation packages the supporting prespecification artefacts
 (fingerprinted lock, audit log, decision log, pre-outcome decision
 point) so that the screen and the locked primary analysis share a
-single reproducible record. We acknowledge `causalRisk`
-[@brookhart2024causalrisk] as a proprietary alternative
-implementation of related cumulative-risk estimators with which
-cleanTMLE shares conceptual structure but not code. The next
+single reproducible record. The next
 section (@sec-roadmap) places these contributions inside the
 causal roadmap; subsequent sections follow that roadmap order.
 
@@ -920,7 +922,7 @@ variance-stabilising tuning knob. Trimming or truncating the
 propensity score alters the effective target population by
 restricting support to units with adequate overlap, and therefore
 changes the estimand itself rather than only the variance of the
-estimator [@brookhart2024causalrisk; @lash2014qba]. When the
+estimator [@lash2014qba]. When the
 prespecified truncation level varies across candidates, the
 candidates are paired estimator-and-estimand objects, and the
 pre-outcome decision must consider whether the implied target
@@ -1143,6 +1145,13 @@ looks like the following. We omit print output for compactness;
 each print method is documented in `?print.cleanroom_lock` and the
 related help pages.
 
+Before Stage 1b, the package's `attrition_table()` provides a
+code-level ledger of inclusion and exclusion criteria, producing
+a CONSORT-style flow from the raw source table to the analytic
+cohort. Recording attrition this way anchors the locked cohort
+definition to its data-driven realisation and gives the Stage 1b
+cohort-adequacy checkpoint a reproducible source.
+
 ```{r demo-workflow, eval = FALSE, echo = TRUE}
 library(cleanTMLE)
 
@@ -1290,19 +1299,48 @@ and specificity, allowing the user to probe differential
 misclassification, which is the most worrying case in observational
 outcome ascertainment.
 
-## Relationship to `causalRisk`
+## Cumulative-risk workflow considerations
 
-The proprietary `causalRisk` package [@brookhart2024causalrisk]
-implements IPW, g-computation, and AIPW cumulative-risk estimators
-with a cohort-specification grammar oriented toward staged,
-prespecified observational analyses. Although cleanTMLE was
-informed by the conceptual structure of that package, the two
-packages do not share code, and cleanTMLE's estimation, gating,
-audit, and DQ stress-test functions are independent
-implementations. We acknowledge `causalRisk` as the closest
-alternative implementation in the R ecosystem, while noting that
-its proprietary licence means independent reproduction of any
-specific function is up to the user.
+cleanTMLE provides software support for several analytic considerations
+that arise in cumulative-risk pharmacoepidemiology workflows.
+
+*Model specification grammar.* The `identify_*()` family
+(`identify_treatment()`, `identify_outcome()`, `identify_censoring()`,
+`identify_competing_risk()`, `identify_subject()`, `identify_interval()`,
+`identify_missing()`) and the `specify_models()` constructor allow
+analysts to declare eligibility, treatment, outcome, censoring,
+competing-risk, follow-up-interval, and intercurrent-event components
+as code objects rather than prose. This lets the analysis lock
+fingerprint the cohort definition together with the estimator.
+
+*Cumulative-risk reporting.* `clean_risk_report_table()` produces a
+compact table of cumulative risks at clinically meaningful follow-up
+times, paired with risk-difference and risk-ratio summaries; the
+`plot.cumrisk()` method renders the same content visually. The
+package emphasises absolute risks at prespecified times rather than
+ratio-only summaries.
+
+*Censoring and missingness weights as a first-class analytic object.*
+`run_ipcw_tmle()` carries inverse-probability-of-censoring weights
+through the targeting step, and `clean_weight_diagnostics()` exposes
+effective sample size, weight percentiles, the maximum weight, and
+prespecified instability thresholds so that weight behaviour is
+auditable alongside the point estimate rather than buried inside a
+nuisance fit.
+
+*Event-process classification.* `clean_event_process_table()` and
+`clean_check_event_processes()` distinguish event of interest,
+competing event, censoring, treatment discontinuation or switching,
+transfer-driven exclusions, and administrative end of follow-up,
+and check component-vs-composite coherence so that follow-up
+accounting is explicit rather than implicit.
+
+*Hazard-ratio de-emphasis.* Cumulative risks, risk differences,
+and risk ratios at clinically meaningful time points are more
+directly aligned with counterfactual estimands in many RWE
+settings. Hazard ratios are treated as secondary unless the
+estimand is explicitly defined on the hazard scale and a
+proportional-hazards interpretation is scientifically justified.
 
 ## Pre-outcome diagnostics for treatment, censoring, and missingness
 
@@ -1312,7 +1350,22 @@ mechanisms that support identification and estimator stability.
 These include propensity-score overlap, distributions of treatment
 and censoring weights, effective sample size, covariate balance
 before and after weighting, and prespecified thresholds for
-unacceptable positivity or weight instability. When competing
+unacceptable positivity or weight instability. IPTW weights are
+stabilised by default in cleanTMLE; effective sample size is
+reported using the Kish formula on the stabilised weights so that
+ESS is comparable across truncation candidates and across the
+treatment- and censoring-weight passes. Extreme observations are
+listed via `extreme_weights()` so the top-percentile units are
+visible alongside the summary distribution.
+
+For covariate balance, the recommended display is a three-way
+Love plot showing absolute standardised mean differences in the
+unweighted cohort, after matching, and after stabilised IPTW
+(`love_plot_threeway()` consumes a lock and the matched / IPTW
+weights). Plotting the three on a single axis makes it visible
+which covariates remain imbalanced under which weighting strategy
+and supports the estimator-vs-estimand distinction recorded in the
+candidate lock. When competing
 events are present, cumulative incidence for the event of
 interest, the competing event, and the composite event should be
 reported together, with internal checks that component risks are
@@ -1335,18 +1388,20 @@ cleanTMLE::clean_check_event_processes(ep, tolerance = 1e-3)
 
 ## Reporting cumulative risks rather than hazard ratios
 
-Although hazard ratios remain common in time-to-event analyses,
-they are not generally the most transparent primary summary for
-regulatory RWE questions framed as target trials. Cumulative
-risks, risk differences, and risk ratios at clinically meaningful
-follow-up times more directly correspond to treatment-specific
-counterfactual risks and are often easier to align with estimand
-language. Hazard ratios may be reported as secondary analyses when
-proportional hazards is plausible and the estimand is explicitly
-defined on the hazard scale. The package's
-`clean_risk_report_table()` produces a single structured table of
-cumulative risks, contrasts, event counts, and the estimator that
-produced each row.
+Cumulative risks, risk differences, and risk ratios at clinically
+meaningful time points are more directly aligned with counterfactual
+estimands in many RWE settings: each corresponds to a contrast of
+counterfactual risks at a clinically interpretable horizon, with
+no implicit averaging across a follow-up window during which the
+hazard ratio may not be constant. Hazard ratios should be treated
+as secondary unless the estimand is explicitly defined on the
+hazard scale and a proportional-hazards interpretation is
+scientifically justified for the question at hand. cleanTMLE
+reflects this ordering: `clean_risk_report_table()` produces a
+single structured table of cumulative risks, contrasts, and event
+counts at the prespecified follow-up time, and hazard-ratio
+helpers are provided only as secondary analyses with an explicit
+hazard-scale estimand declaration.
 
 # Simulation Study {#sec-simulation}
 
@@ -1460,8 +1515,8 @@ applied users. The mean-SE-to-empirical-SD
 ratio for IPTW is often above one in our scenarios, because the
 default IF-based variance estimator treats the propensity score
 as known and is therefore conservative when the propensity score
-has actually been estimated [@robins1992rotnitzky;
-@brookhart2024causalrisk]. Doubly robust estimators (TMLE, AIPW,
+has actually been estimated [@robins1992rotnitzky].
+Doubly robust estimators (TMLE, AIPW,
 CV-TMLE) do not share this conservativeness once the nuisance
 fits are properly cross-fit; the SE/SD ratio for TMLE_CF stays
 near one across our scenarios. A bootstrap variance estimator
@@ -1529,6 +1584,33 @@ ggplot(plot_data, aes(x = method, y = se_sd_ratio, colour = scenario,
   theme_minimal() +
   theme(legend.position = "bottom",
         axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+```{r mc-forest, eval = has_mc, fig.height = 6, fig.cap = "Forest plot of Monte Carlo mean estimates by estimator and scenario, with Monte Carlo 95 percent intervals. The dashed grey line marks each scenario's true RD; the dashed red lines mark the prespecified |bias| decision threshold around the truth (max_abs_bias = 0.02). Candidates falling outside the red lines trip the locked decision rule for that scenario."}
+max_abs_bias <- 0.02
+fp <- do.call(rbind, lapply(names(res$summaries), function(sc) {
+  df <- res$summaries[[sc]]
+  df$scenario <- res$scenarios[[sc]]$label
+  df$truth    <- res$truths[[sc]]$RD
+  df
+}))
+fp$lo <- fp$mean_est - 1.96 * fp$mc_se
+fp$hi <- fp$mean_est + 1.96 * fp$mc_se
+
+ggplot(fp, aes(x = mean_est, y = method)) +
+  geom_vline(aes(xintercept = truth), linetype = "dashed",
+             colour = "grey40") +
+  geom_vline(aes(xintercept = truth - max_abs_bias),
+             linetype = "dashed", colour = "red", alpha = 0.6) +
+  geom_vline(aes(xintercept = truth + max_abs_bias),
+             linetype = "dashed", colour = "red", alpha = 0.6) +
+  geom_point(size = 2.5) +
+  geom_errorbarh(aes(xmin = lo, xmax = hi), height = 0.2) +
+  facet_wrap(~ scenario, scales = "free_x", ncol = 1) +
+  labs(x = "Mean RD estimate (Monte Carlo)", y = NULL,
+       title = "Forest plot: candidate estimators vs locked decision thresholds") +
+  theme_minimal() +
+  theme(legend.position = "none")
 ```
 
 ## Plasmode DQ stress-test results
@@ -1624,12 +1706,21 @@ if (nrow(dq_plot) > 0) {
     }))
   }
 
+  # Locked decision thresholds (heuristic defaults; see §6 prose)
+  max_abs_bias  <- 0.02
+  min_coverage  <- 0.90
+
   p1 <- ggplot(dq_plot, aes(x = level, y = abs(bias),
                               colour = scenario, group = scenario)) +
     geom_point(size = 2.5) + geom_line(linewidth = 0.8) +
+    geom_hline(yintercept = max_abs_bias, linetype = "dashed",
+               colour = "red") +
+    annotate("text", x = Inf, y = max_abs_bias, hjust = 1.05,
+             vjust = -0.5, label = "|bias| threshold",
+             size = 3, colour = "red") +
     facet_wrap(~ mc_scenario, scales = "free_x") +
     labs(x = "DQ severity level", y = "|Bias|",
-         title = "A. Bias",
+         title = "A. Bias (with prespecified decision threshold)",
          colour = "DQ scenario") +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
@@ -1638,10 +1729,16 @@ if (nrow(dq_plot) > 0) {
   p2 <- ggplot(dq_plot, aes(x = level, y = coverage,
                               colour = scenario, group = scenario)) +
     geom_point(size = 2.5) + geom_line(linewidth = 0.8) +
-    geom_hline(yintercept = 0.95, linetype = "dashed", colour = "red") +
+    geom_hline(yintercept = 0.95, linetype = "dotted",
+               colour = "grey50") +
+    geom_hline(yintercept = min_coverage, linetype = "dashed",
+               colour = "red") +
+    annotate("text", x = Inf, y = min_coverage, hjust = 1.05,
+             vjust = -0.5, label = "min coverage",
+             size = 3, colour = "red") +
     facet_wrap(~ mc_scenario, scales = "free_x") +
     labs(x = "DQ severity level", y = "Coverage",
-         title = "B. Coverage",
+         title = "B. Coverage (nominal 0.95 dotted; min threshold dashed)",
          colour = "DQ scenario") +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
@@ -1800,6 +1897,86 @@ candidate set (`glm_t01`, `glmnet_t01`, `ensemble_t01`,
 `select_tmle_candidate(rule = "min_max_rmse", dq_results = ...)`,
 the manuscript's recommended minimax rule.
 
+### Cohort flow
+
+```{mermaid}
+%%| fig-cap: "Cohort attrition for the Rescue.Co Kenya Trauma Registry case study. Counts shown at each prespecified inclusion/exclusion criterion. Inter-facility transfers are excluded from the analytic cohort; complete-outcome rows are used for the unweighted estimators and for the IPCW-weighted complete-case TMLE."
+flowchart TD
+    A["Registry observations<br/>(all 2018-2024 trauma transports)"]
+    B["Ambulance arrivals at participating hospitals"]
+    C["Direct-from-scene cohort<br/>(inter-facility transfers excluded)"]
+    D["Analytic cohort<br/>n = 1,693 (1,013 Rescue.Co + 680 other)"]
+    E["Complete 6-month GOSE<br/>n = 1,277"]
+    F["Matched subset<br/>n = 615 (matching) / 1,230 (matched-TMLE pseudo-cohort)"]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    D --> F
+    D -. "missing GOSE<br/>n = 416 (24.6%)" .-> X1["Handled by IPCW"]
+```
+
+### Analytic setup at a glance
+
+Four compact setup tables make the case-study specification fully
+visible in one place: the event process, the target populations
+that each candidate procedure addresses, the weight-diagnostic
+thresholds, and the candidate estimator-estimand pairs.
+
+**Event-process table.** This table classifies every event-like
+quantity in the cohort as outcome, censoring, missingness,
+intercurrent event, exclusion, or administrative end of follow-up:
+
+| Event-like quantity                       | Class                          | Handling                                              |
+|-------------------------------------------|--------------------------------|-------------------------------------------------------|
+| GOSE > 4 at 6 months                      | Event of interest (outcome)    | Estimand: marginal RD on this binary outcome          |
+| GOSE missing at 6 months                  | Missingness                    | IPCW under MCAR; documented in missing-data plan       |
+| In-hospital death before 6-month GOSE     | Competing event (rare)         | Coded as GOSE = 1 ("worst") per SAP; recorded         |
+| Inter-facility transfer at index event    | Exclusion                      | Excluded from analytic cohort at Stage 1b              |
+| Treatment switching / crossover           | Not applicable                 | Point exposure at scene; no time-varying treatment    |
+| 6-month follow-up window end              | Administrative end of FU       | Fixed at 6 months; no admin censoring before that      |
+
+**Target-population table.** Different candidate procedures
+correspond to different target populations:
+
+| Procedure                                 | Target population                                              |
+|-------------------------------------------|----------------------------------------------------------------|
+| Crude (complete-case)                     | Complete-outcome subset (n = 1,277)                            |
+| PS matching                               | Matched overlap subset (n = 615)                               |
+| IPTW (stabilised)                         | Full eligible cohort (n = 1,693)                               |
+| Full-cohort TMLE (prespecified primary)   | Full eligible cohort (n = 1,693)                               |
+| Matched-cohort TMLE                       | Matched overlap subset (n = 1,230)                             |
+| Complete-outcome TMLE with IPCW weights   | Complete-outcome rows weighted toward full-cohort marginal contrast |
+
+**Weight-diagnostics table.** Treatment weights and missingness
+weights are evaluated against prespecified thresholds:
+
+| Weight type                       | Source                       | Reporting                          | Prespecified instability flag                          |
+|-----------------------------------|------------------------------|------------------------------------|--------------------------------------------------------|
+| Treatment weights (stabilised)    | `fit_ps_superlearner()`      | Mean, SD, 99th pct, max, Kish ESS  | Max > 10, or > 1 % of weights above 5                  |
+| IPCW weights (missingness)        | `run_ipcw_tmle()`            | Mean, SD, 99th pct, max            | Max > 10                                               |
+| Combined (for `Complete-outcome TMLE with IPCW`) | Product of treatment and IPCW weights | Mean, SD, max, ESS         | Max > 15, or ESS < 30 % of n                            |
+
+**Estimator-estimand table.** Each candidate is recorded as a
+paired estimator-and-estimand object:
+
+| Candidate                  | Nuisance library         | Truncation | Missingness  | Estimand implication                                                          | Status                  |
+|----------------------------|--------------------------|-----------:|--------------|-------------------------------------------------------------------------------|-------------------------|
+| Crude                      | n/a                      |        n/a | Complete case| Marginal contrast in complete-outcome subset                                  | Reference comparator    |
+| PS matching                | GLM PS                   |        n/a | Complete case| ATE in matched overlap subset                                                 | Secondary               |
+| IPTW (stabilised)          | GLM PS                   |       0.01 | Complete case| ATE in full eligible cohort under PS-truncated model                          | Secondary               |
+| Full-cohort TMLE           | SL ensemble              |       0.01 | Complete case| ATE in full eligible cohort under prespecified locked SL library              | **Primary**             |
+| Matched-cohort TMLE        | SL ensemble (matched)    |        n/a | Complete case| ATE in matched overlap subset                                                 | Sensitivity (target pop)|
+| Complete-outcome TMLE w/ IPCW | SL ensemble + SL IPCW  |       0.01 | IPCW         | ATE in full eligible cohort under the locked missingness model                | Sensitivity (missingness)|
+
+These four tables make the analytic considerations explicit before
+the pre-outcome decision rule is read. They also document the
+estimand-vs-estimator distinction: candidates that differ by
+truncation, matching, or IPCW correspond to different effective
+target populations and are reported as paired objects rather than
+interchangeable estimators of the same parameter.
+
 ## Pre-outcome decision and plasmode results {#sec-casestudy-dq}
 
 The Stage 2b feasibility plasmode metrics on the locked DGP are:
@@ -1855,14 +2032,14 @@ outcome-analysis functions run.
 case_eff <- data.frame(
   Method = c("Crude (unadjusted)",  "PS matching",
              "IPTW (stabilised)",   "Full-cohort TMLE",
-             "Matched-cohort TMLE", "IPCW-weighted TMLE"),
+             "Matched-cohort TMLE", "Complete-outcome TMLE with IPCW weights"),
   `Target population` = c(
     "Complete-outcome subset",
     "Matched subset (overlap)",
     "Full eligible cohort",
     "Full eligible cohort",
     "Matched subset (overlap)",
-    "Full eligible cohort under censoring model"),
+    "Complete-outcome rows, weighted toward the full-cohort marginal contrast"),
   N      = c(1277L, 615L, 1693L, 1693L, 1230L, 1277L),
   RD     = c(0.0370, 0.0272, 0.0366, 0.0306, 0.0259, 0.0326),
   CI_lo  = c( 0.0031, -0.0198,  0.0017, -0.0012, -0.0150, -0.0004),
@@ -1871,7 +2048,7 @@ case_eff <- data.frame(
   stringsAsFactors = FALSE
 )
 knitr::kable(case_eff, digits = 4,
-             caption = "rescueCo binary-outcome estimates (good functional outcome at 6 months, GOSE > 4) with the target population for each estimator. All six estimates produced by cleanTMLE 0.1.1 following the staged-analysis vignette. [NOTE: the IPCW-weighted TMLE row reports N = 1,277 (complete-outcome rows) because the bundled `tmle::tmle()` version's Delta-path raised an error on this lock and `run_ipcw_tmle()` fell back to a complete-case TMLE with IPCW obsWeights. The function now emits a `warning()` and records `method_used = 'ipcw_weighted_complete_case'` in the result object; the column label is retained as `IPCW-weighted TMLE` because the censoring-model weights are still applied. A full-cohort Delta-path run is on the cleanTMLE 0.2 roadmap once the upstream `tmle` interface is pinned.]")
+             caption = "rescueCo binary-outcome estimates (good functional outcome at 6 months, GOSE > 4) with the target population for each estimator. All six estimates produced by cleanTMLE 0.1.1 following the staged-analysis vignette. The last row is a *complete-outcome* TMLE with inverse-probability-of-censoring weights: the estimand is intended to recover the full-cohort marginal contrast under the missingness model, but the implementation is currently a weighted complete-case estimating procedure (N = 1,277 complete-outcome rows). The full-cohort `tmle::tmle()` Delta-path raised an error on this lock and `run_ipcw_tmle()` fell back to the complete-case path with IPCW obsWeights; the function records `method_used = 'ipcw_weighted_complete_case'` in the result object. A full-cohort Delta-path run is on the cleanTMLE 0.2 roadmap once the upstream `tmle` interface is pinned.")
 ```
 
 The six estimators agree on direction. The crude unadjusted
@@ -1879,10 +2056,11 @@ contrast (RD = 0.037) and the stabilised IPTW (RD = 0.037) sit at
 the upper end of the range, with 95 % confidence intervals that
 exclude zero. The simulation-locked full-cohort TMLE (the
 prespecified primary estimator) returns RD = 0.031 with a 95 % CI
-that just crosses zero (−0.001, 0.062). The IPCW-weighted TMLE,
-which uses inverse-probability-of-censoring weights to address the
-24.6 % outcome missingness, returns RD = 0.033 with a CI that just
-crosses zero (−0.0004, 0.066). The two matching-based estimators
+that just crosses zero (−0.001, 0.062). The complete-outcome TMLE
+with IPCW weights, which uses inverse-probability-of-censoring
+weights to recover the full-cohort marginal contrast under the
+missingness model, returns RD = 0.033 with a CI that just crosses
+zero (−0.0004, 0.066). The two matching-based estimators
 give the smallest point estimates (RD = 0.027 for matched RD
 without further adjustment; RD = 0.026 for matched-cohort TMLE) and
 the widest CIs, reflecting the smaller matched-pair samples
@@ -2165,8 +2343,8 @@ risks, cumulative-count IPW, multinomial treatments, and the
 SMR / overlap / normalised / stabilised weight families. cleanTMLE
 in this release narrows to binary-treatment risk-difference TMLE;
 analysts who need the broader estimand surface have access to
-`survtmle`, `lmtp` [@lmtppackage2021], or the proprietary
-`causalRisk` package as alternative implementations.
+`survtmle` and `lmtp` [@lmtppackage2021] as alternative
+implementations.
 
 ## Future extensions
 
@@ -2264,10 +2442,7 @@ must come from prior validation studies, data profiling, or
 expert elicitation. The analysis-lock object, audit
 log, and decision log persist the prespecification as reproducible
 records that downstream estimation functions check before
-running. The proprietary `causalRisk` package
-[@brookhart2024causalrisk] is an alternative implementation of
-related cumulative-risk estimators and is referenced as such; the
-two packages do not share code. The package is available at
+running. The package is available at
 <https://github.com/amertens/cleanTMLE>;
 the simulation code for the results in @sec-simulation is in
 the companion repository <https://github.com/amertens/clean-room-sim>.
@@ -2276,11 +2451,10 @@ the companion repository <https://github.com/amertens/clean-room-sim>.
 
 We thank the targeted-learning RWE roadmap authors (Dang, Gruber,
 Phillips, Lee, Ho, van der Laan, Petersen, and colleagues), whose
-published frameworks this software builds on, and
-the authors of the proprietary `causalRisk` package (M. Alan
-Brookhart, Alexander Breskin, and Bassim Eledath) for surfacing
-the cumulative-risk-estimand framing that motivated several of
-our diagnostic helpers. Any errors are ours.
+published frameworks this software builds on, and the broader
+cumulative-risk pharmacoepidemiology literature whose estimand
+framing motivated several of our diagnostic helpers. Any errors
+are ours.
 
 # References {.unnumbered}
 

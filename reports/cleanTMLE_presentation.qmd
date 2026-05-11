@@ -109,7 +109,10 @@ The contribution is operational, not a new estimator.
 
 - Fingerprinted **analysis-lock object** (sha256 over the lock specification)
 - Serialisable **audit trail** and **decision log**
+- **Cohort attrition ledger** (`attrition_table()`) for a code-level CONSORT-style flow
 - Modular **TMLE API**: treatment fit, outcome fit, targeting, extract
+- **Estimator spectrum** for the binary RD scope: IPTW (stabilised), g-computation (`estimate_gcomprisk()`), AIPW (`estimate_aipwrisk()`), TMLE, IPCW-TMLE (`run_ipcw_tmle()`)
+- IPW Cox-style hazard ratio (`estimate_ipwhr()`) for analyses where a hazard-scale estimand is the primary scientific question
 - Outcome-blind **plasmode candidate selector**
 - **DQ stress test** (`run_plasmode_dq_stress()`)
 - **Pre-outcome decision rule** producing GO / FLAG / STOP
@@ -261,7 +264,7 @@ The DQ test is most informative when the threat targets identification or measur
 | IPTW (stabilised)     | Full eligible cohort                       | 1,693 |  0.0366 | (0.002, 0.071)    |
 | Full-cohort TMLE      | Full eligible cohort                       | 1,693 |  0.0306 | (-0.001, 0.062)   |
 | Matched-cohort TMLE   | Matched subset                             | 1,230 |  0.0259 | (-0.015, 0.067)   |
-| IPCW-weighted TMLE    | Full cohort under censoring model          | 1,277 |  0.0326 | (-0.000, 0.066)   |
+| Complete-outcome TMLE w/ IPCW weights | Complete-outcome rows, weighted to full-cohort target | 1,277 |  0.0326 | (-0.000, 0.066)   |
 
 Six estimators agree on direction; primary TMLE 95% CI crosses zero.
 
