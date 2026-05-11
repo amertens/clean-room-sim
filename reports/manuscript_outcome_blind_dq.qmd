@@ -840,6 +840,28 @@ produced only after authorisation.
 
 # Data Quality as a Quantifiable Threat {#sec-dq}
 
+The outcome-blind plasmode loop on which the DQ stress test is built
+follows the guidance developed in the FIORD outcome-blind simulation
+manuscript [@nance2026fiord], which formalises a five-step pre-outcome
+candidate-evaluation procedure: (1) declare the candidate estimators,
+learner libraries, truncation grids, and variance methods to be
+compared; (2) specify a data-generating process; (3) generate
+replicates and apply candidate estimators factorially; (4) select
+candidates in two stages, first the point estimator (against an
+oracle-coverage screen built from the Monte Carlo empirical SE),
+then the variance method; (5) implement on real data and report
+transparently. FIORD also formalises a **spectrum of data-generating
+processes** for the simulation, from fully investigator-specified
+parametric structural equations, through hybrid generators that use
+empirical covariates and fitted treatment / censoring mechanisms with
+an investigator-specified outcome regression, to parametric bootstraps
+from the fitted joint. cleanTMLE's default plasmode sits in the
+*hybrid* middle of this spectrum: it uses the empirical $(W, A)$
+structure with a covariate-only outcome model, never the joint
+$(A, Y) \mid W$ relationship. The DQ stress test extends FIORD by
+adding the prespecified perturbation step on top of the same
+hybrid generator.
+
 ## Why plasmode DQ stress testing adds information beyond standard pre-outcome diagnostics
 
 - Propensity-score diagnostics [@austin2009ps] assess overlap,
@@ -958,11 +980,21 @@ the degradation must be before a candidate fails the locked
 decision criteria. A robust candidate has a shallow gradient and
 remains within thresholds across plausible severities. A fragile
 candidate shows a cliff, where a small increase in degradation
-moves bias or coverage beyond the threshold. The candidate-selection rule
-(`select_tmle_candidate(rule = "min_rmse")`) can be augmented to
-require a maximum allowed degradation, in which case the
-prespecified rule excludes fragile candidates
-before the outcome is accessed.
+moves bias or coverage beyond the threshold. The candidate-selection
+rule (`select_tmle_candidate(rule = "min_rmse")`) is currently a
+single-step approximation of the **two-stage selector** formalised
+in FIORD [@nance2026fiord]: in FIORD's procedure, candidates are
+first screened to those that achieve nominal **oracle coverage**
+(a CI built from the Monte Carlo empirical SE), and the point
+estimator with the lowest variance among the survivors is locked
+in; the variance method is then selected separately to achieve
+nominal coverage on the locked point estimator. The current cleanTMLE
+rule conflates these two stages, choosing on RMSE only; the
+forthcoming `rule = "fiord_two_stage"` (planned for cleanTMLE 0.2)
+implements the full two-stage procedure. The rule can additionally
+be augmented to require a maximum allowed degradation in the DQ
+stress test, which excludes fragile candidates before the outcome
+is accessed.
 
 The truncation level inside a TMLE candidate is more than a
 variance-stabilising tuning knob. Trimming or truncating the
@@ -1167,13 +1199,20 @@ threat, at a different stage, with a different artifact.
 
 ## Why "outcome-blind" matters here
 
-The DQ stress test runs on synthetic outcomes generated from the
-real covariate distribution and the real treatment. The observed
-primary treatment-outcome association is not read; depending on
-the configured mode, the plasmode generator may use marginal
-outcome information (the covariate-only mean model $E[Y \mid W]$)
-without using the joint $(A, Y) \mid W$ relationship, or it may
-take $E[Y \mid W]$ from external pilot data
+The plasmode generator and DQ stress test use **all the data
+except the outcome**: real baseline covariates $W$, real treatment
+assignment $A$, real missingness indicators, real follow-up
+intervals, but not the observed primary treatment-outcome
+association. This phrasing, which we adopt from the FIORD
+outcome-blind simulation literature [@nance2026fiord], makes the
+admissibility argument concrete: every input to the candidate
+evaluation is drawn from the study data except the comparative
+quantity the analysis is supposed to estimate. Depending on
+configured mode, the plasmode generator may use the marginal
+outcome model $E[Y \mid W]$ (the *hybrid* mode that sits in the
+middle of the FIORD DGP spectrum), or it may take $E[Y \mid W]$
+from external pilot data, with the joint $(A, Y) \mid W$
+relationship never inspected
 [@dang2023roadmap, p. 7]. This is the property that makes the test
 admissible inside the prespecification: the analyst can iterate on
 the prespecified set of candidate estimators, on the degradation
@@ -1558,29 +1597,34 @@ DQ supplement is what makes the failure unambiguous. This
 illustrates the intended role of the DQ stress test as a
 quantitative supplement to the baseline plasmode metrics.
 
-A separate pattern concerns standard-error calibration for the IPW
-estimator and is worth surfacing because it routinely surprises
-applied users. The mean-SE-to-empirical-SD
-ratio for IPTW is often above one in our scenarios, because the
-default IF-based variance estimator treats the propensity score
-as known and is therefore conservative when the propensity score
-has actually been estimated [@robins1992rotnitzky].
-Doubly robust estimators (TMLE, AIPW,
-CV-TMLE) do not share this conservativeness once the nuisance
-fits are properly cross-fit; the SE/SD ratio for TMLE_CF stays
-near one across our scenarios. A bootstrap variance estimator
-[@xu2020bootstrap] is the principled fix when reporting an
-IPW-only estimate; we recommend that users wrapping
-`run_iptw_workflow()` for primary inference resample the IPTW
-estimator externally rather than rely on the default IF-based SE.
-The matching-with-TMLE composition shows a similar pattern in
-Scenario B, where the SE-to-empirical-SD ratio reaches roughly
-two and coverage exceeds nominal. The conservativeness comes from
-treating the matched cohort as if it were a fresh independent
-sample at the TMLE step, ignoring the residual variability
-introduced by the matching draw. Users reporting matched-TMLE as
-primary should either bootstrap over the matching step or use a
-block-bootstrap variant.
+A separate pattern concerns **variance-estimator selection**, the
+second stage of FIORD's two-stage selector [@nance2026fiord], and is
+worth surfacing because it routinely surprises applied users. The
+mean-SE-to-empirical-SD ratio for IPTW is often above one in our
+scenarios, because the default IF-based variance estimator treats
+the propensity score as known and is therefore conservative when
+the propensity score has actually been estimated
+[@robins1992rotnitzky]. Doubly robust estimators (TMLE, AIPW,
+CV-TMLE) do not share this conservativeness once the nuisance fits
+are properly cross-fit; the SE/SD ratio for TMLE_CF stays near one
+across our scenarios. The matching-with-TMLE composition shows a
+similar pattern in Scenario B, where the SE-to-empirical-SD ratio
+reaches roughly two and coverage exceeds nominal, because the
+post-match TMLE step treats the matched cohort as if it were a
+fresh independent sample, ignoring the residual variability
+introduced by the matching draw.
+
+The applied implication is consistent across the FIORD case study
+[@nance2026fiord], the older Mertens–Zhang Danish-registry
+investigation [@mertens2024danish], and our own results here: when
+the prespecified primary is an IPW estimator, a matched-cohort
+estimator, or any TMLE running on a non-i.i.d. sample, the
+default IF-based variance is likely to be conservative and the
+**nonparametric bootstrap variance** is the principled fix. The
+bootstrap is therefore the recommended variance method for the
+two-stage selector's second stage in cleanTMLE 0.2; the present
+release supports it externally and surfaces the IF-based SE for
+back-compatibility.
 
 ```{r mc-boxplots, eval = has_mc, fig.height = 9, fig.cap = "Sampling distribution of the risk-difference estimate across Monte Carlo replicates. The dashed red line marks the true RD. Under unmeasured confounding (C), all estimators are shifted from the truth."}
 raw_data <- do.call(rbind, lapply(names(res$results), function(sc) {
@@ -2143,7 +2187,13 @@ results, DQ stress-test results, authorisation gate. Not yet
 implemented in this release: native competing-risk
 cumulative-incidence estimands, time-varying treatment, MAR/MNAR
 missingness models, full-cohort Delta-path IPCW-TMLE (the
-function falls back to weighted complete-case).
+function falls back to weighted complete-case), and the
+matched-vs-full plasmode diagnostic that would disambiguate
+whether the 0.5-to-1 percentage-point gap between the matched
+(RD = 0.026) and full-cohort (RD = 0.031) TMLE estimates is
+sampling noise plus the efficiency cost of matching, an effect-
+modification signal, or a positivity-strain signal. That
+diagnostic is on the cleanTMLE 0.2 roadmap.
 
 At the pre-outcome decision point (`authorize_outcome_analysis()`),
 the two passing negative controls and the plasmode metrics support
@@ -2485,26 +2535,53 @@ implementations.
 
 The most consequential extensions, in priority order, are:
 
-1. **Richer synthetic-outcome models:** effect modification, time-
+1. **FIORD two-stage candidate selector** [@nance2026fiord]:
+   separate the point-estimator selection (oracle-coverage screen
+   on the Monte Carlo empirical SE) from the variance-method
+   selection, in place of the current single-step RMSE rule.
+2. **Nonparametric bootstrap variance** as the default variance
+   method for IPTW and matched-cohort estimators (the FIORD
+   case-study winner; see also @mertens2024danish).
+3. **Unmeasured-confounding severity gradient:** vary the strength
+   of the latent-U scenario across a prespecified grid rather than
+   running a single strong-U setting, so the DQ stress test
+   produces an E-value-style sensitivity curve as a by-product.
+4. **Pre-protocol stress-test mode:** allow the plasmode and DQ
+   stress test to run on user-specified covariate distributions
+   and treatment-mechanism strength (no real data required) so
+   that investigators can decide which dataset to use before any
+   data-use agreement is signed.
+5. **DGP-spectrum argument** for the plasmode generator: structural-
+   equation (`simcausal`-style), hybrid (current default), and
+   parametric-bootstrap modes, with synthetic-data fidelity metrics
+   (Hellinger / Wasserstein, or covariate SMDs between real and
+   synthetic samples) so the analyst can judge whether the DGP is
+   faithful enough to base candidate selection on.
+6. **Matched-cohort vs full-cohort plasmode diagnostic:** under a
+   known synthetic truth, compare the two estimators side by side
+   to diagnose whether observed real-data gaps are sampling noise
+   or positivity-driven.
+7. **Richer synthetic-outcome models:** effect modification, time-
    varying treatment, and competing risks (the current DGP is a
    logistic regression with a constant additive effect on the
    risk-difference scale).
-2. **MAR / MNAR missingness:** a native inverse-probability-of-
+8. **MAR / MNAR missingness:** a native inverse-probability-of-
    missingness weighting path that does not require a structural
    missingness model.
-3. **Survival and competing-risk estimands:** wrapping `survtmle`
-   [@survtmlepackage2018] and `lmtp` [@lmtppackage2021] inside the
-   lock and audit machinery so that hazard-ratio and cumulative-
+9. **Survival and competing-risk estimands:** wrapping `survtmle`
+   [@survtmlepackage2018] and `lmtp` [@lmtppackage2021] (and
+   `ltmle` for the longitudinal FIORD setting) inside the lock
+   and audit machinery so that hazard-ratio and cumulative-
    incidence estimands inherit the same governance.
-4. **Transportability and decision-population shift:** the
-   plasmode framework can in principle simulate covariate-
-   distribution shift between the analytic cohort and the target
-   population, but the package does not yet expose this scenario.
-5. **Calibration helpers for severity ranges:** small helpers that
-   read validation-literature parameters (PPV, sensitivity, claims-
-   accuracy ranges) from a YAML file and translate them into
-   `data_quality_scenarios` lists, with the citations attached to
-   the audit log.
+10. **Transportability and decision-population shift:** the
+    plasmode framework can in principle simulate covariate-
+    distribution shift between the analytic cohort and the target
+    population, but the package does not yet expose this scenario.
+11. **Calibration helpers for severity ranges:** small helpers that
+    read validation-literature parameters (PPV, sensitivity, claims-
+    accuracy ranges) from a YAML file and translate them into
+    `data_quality_scenarios` lists, with the citations attached to
+    the audit log.
 
 ## When to use cleanTMLE inside a broader governance arrangement
 
