@@ -140,6 +140,11 @@ each threat documented in the fit-for-purpose review?" We refer to
 this extension as a *data-quality (DQ) stress test*. It is a
 pre-outcome robustness screen rather than a substitute for
 variable validation or for post-unblinding sensitivity analysis.
+The workflow does not guarantee that estimator rankings under
+synthetic outcomes will generalise to the realised outcome
+process; the conclusions are only as credible as the
+synthetic-outcome model and the externally justified severity
+ranges entered into the DQ stress test.
 
 We use "data-quality stress testing" in a restricted sense: the
 procedure does not assess data provenance, phenotype validity,
@@ -794,6 +799,10 @@ arrangements.
 - Baseline plasmode simulation assesses candidate estimators under
   a *locked* synthetic outcome model using the empirical $(W, A)$
   structure.
+- Negative-control analyses probe residual bias for selected NC
+  outcomes through a different data-generating channel and do not
+  characterise the behaviour of the primary estimator under DQ
+  perturbations.
 - DQ stress testing asks whether conclusions about estimator
   suitability *persist* under prespecified violations or
   degradations tied to fit-for-purpose concerns.
@@ -802,23 +811,31 @@ arrangements.
   sensitivity analysis, or narrower causal claims before outcome
   access.
 
-Propensity-score diagnostics assess empirical comparability,
-overlap, and weight stability, but they do not estimate the
-operating characteristics of a candidate estimator.
-Negative-control analyses can help detect residual bias for
-selected control outcomes, but they do not directly evaluate how
-the primary estimator behaves under prespecified measurement
-error, missingness, or unmeasured-confounding scenarios. DQ
-stress testing addresses a different question: whether the locked
-estimator-selection decision is stable under fit-for-purpose
-threats translated into quantitative perturbations before the
-primary treatment-outcome association is inspected.
+Four pre-outcome tools answer four different questions and are
+complementary rather than substitutable. (i) Propensity-score
+diagnostics assess empirical comparability, overlap, and weight
+stability, indicating whether the design is feasible under the
+observed covariate and treatment distributions; they do not
+estimate the operating characteristics of a candidate estimator.
+(ii) Baseline plasmode simulation evaluates candidate-estimator
+operating characteristics (bias, RMSE, coverage) under a single
+locked synthetic outcome model conditional on the empirical
+$(W, A)$ structure. (iii) Negative-control analyses probe
+residual bias for selected control outcomes against a different
+data-generating channel altogether; they do not directly evaluate
+how the primary estimator behaves under prespecified measurement
+error, missingness, or unmeasured-confounding scenarios.
+(iv) The DQ stress test asks whether the locked
+estimator-selection decision is stable under prespecified
+fit-for-purpose threats translated into quantitative
+perturbations of the baseline plasmode, before the primary
+treatment-outcome association is inspected.
 
 The DQ stress test is a quantitative supplement to fit-for-purpose
 review, not a substitute for validation, governance, or
 post-outcome quantitative bias analysis. The workflow does not
 guarantee that estimator rankings under synthetic outcomes will
-generalize to the realized outcome process. DQ stress testing
+generalise to the realised outcome process. DQ stress testing
 should not be interpreted as a formal identification-region
 analysis or as a replacement for post-outcome quantitative bias
 analysis. It is a pre-outcome robustness screen for estimator
@@ -898,14 +915,21 @@ require a maximum allowed degradation, in which case the
 prespecified rule excludes fragile candidates
 before the outcome is accessed.
 
-The truncation level inside a TMLE candidate is more than a tuning
-knob. Trimming or truncating the propensity score changes the
-support of the population to which the estimand applies, and
-therefore the estimand itself [@brookhart2024causalrisk;
-@lash2014qba]. cleanTMLE treats the truncation level as part of
-the prespecified candidate, so any estimand drift induced by
-truncation is locked into the audit log and scored on the same
-RMSE and coverage metrics as everything else rather than chosen
+The truncation level inside a TMLE candidate is more than a
+variance-stabilising tuning knob. Trimming or truncating the
+propensity score alters the effective target population by
+restricting support to units with adequate overlap, and therefore
+changes the estimand itself rather than only the variance of the
+estimator [@brookhart2024causalrisk; @lash2014qba]. When the
+prespecified truncation level varies across candidates, the
+candidates are paired estimator-and-estimand objects, and the
+pre-outcome decision must consider whether the implied target
+population still answers the scientific question posed in the
+target trial. cleanTMLE records the truncation rule for each
+candidate as part of the analysis lock, so the
+estimand-versus-estimator distinction is auditable and any
+estimand drift induced by truncation is scored on the same RMSE
+and coverage metrics as everything else rather than chosen
 post-hoc on the realised data.
 
 ## Threat-to-assumption matrix: what each scenario probes (and what it does not) {#sec-threat-matrix}

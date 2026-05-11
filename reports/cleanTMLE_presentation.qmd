@@ -57,11 +57,11 @@ The contribution is operational, not a new estimator.
 
 ## Why TMLE?
 
-- The analyst can **prespecify** the estimand, nuisance-learning library, truncation rules, targeting procedure, and candidate estimator grid
-- Nuisance estimation **remains adaptive** (SuperLearner) under the prespecified library
-- Candidates can be compared **under a common target parameter**
-- **Influence-function-based inference** gives a common bias / RMSE / coverage scale across candidates and across stress scenarios
-- This modular structure makes outcome-blind plasmode comparison and DQ stress testing natural; the same machinery runs on baseline plasmode and degraded scenarios
+- The analyst can **prespecify** the estimand, SuperLearner library, truncation rule, targeting procedure, and candidate estimator grid before outcome access
+- Nuisance estimation **remains adaptive** under the prespecified library
+- Candidates can be compared **under a common target parameter** on an influence-function-based bias / RMSE / coverage scale
+- **Truncation is an estimand choice, not only a tuning knob:** different truncation levels imply different effective target populations, so candidates are paired estimator-and-estimand objects
+- The same machinery runs on baseline plasmode and on stress scenarios
 
 ## Why plasmode simulation?
 
