@@ -274,6 +274,58 @@ The low and medium items can be staged across two cleanTMLE 0.2
 point releases; the C-TMLE and bootstrap variance work is the
 natural 0.3 release.
 
+### A.26 Shipped in 2026-05-11 (status update)
+
+**Shipped (in `R/plasmode_extensions.R` and `cleanroom.R`):**
+
+- `compute_n_eff()`, `recommend_cv_V()` — Phillips Steps 2-3.
+- `build_sl_library(role, n_eff, p, preset, include_screeners)` —
+  four presets keyed by `n_eff`.
+- `resolve_truncation_rule()` — named rules `"sqrt_n_ln_n"`,
+  `"fixed_001"`, `"fixed_025"`, `"fixed_05"`, plus numeric pass-through.
+- `run_positivity_diagnostics(ps_fit)` — single tidy object with C-stat,
+  per-arm summary, % truncated, bounded-g quantiles, near-violation flag.
+- `compute_G_value()` — pre-QBA tipping-point readout.
+- `run_delta_sensitivity()` — causal-gap delta sweep on top of an
+  existing fit.
+- `compute_aipw(g_fit, Q_fit)` — AIPW estimate from the same nuisances
+  the modular TMLE uses.
+- `tmle_candidate()` extended with `variance_method`, `cv_scheme`,
+  `cv_V`, `estimator`, `discrete_sl`, `screener`, `tmle_control`,
+  `match_spec`. Back-compatible (all new args default to current
+  behaviour).
+- `expand_tmle_candidate_grid()` extended with the new axes as named
+  lists; Cartesian-products them with a `max_candidates` cap.
+- `select_tmle_candidate()` extended with `rule = "ci_coverage"`,
+  `"min_se"`, `"composite"`, `"fiord_two_stage"`. FIORD two-stage:
+  Stage 1 screens candidates by oracle coverage within
+  `fiord_coverage_tol` of nominal, Stage 2 picks the smallest mean SE.
+- `fit_tmle_treatment_mechanism()` now resolves named truncation
+  rules at fit time (when sample size is known) and auto-sets V from
+  the candidate's `cv_scheme = "cv_tmle"` flag using the Phillips rule.
+
+**Still pending (the work that requires deeper code paths):**
+
+- A.21.1 `variance_method = "robust"` dispatch to
+  `tmle::tmle(variance.method = "tmle")` inside the modular path.
+- A.21.1 `variance_method ∈ {"bootstrap_HAL","targeted_bootstrap"}`
+  end-to-end implementations.
+- A.21.7 dispatch of `estimator = "aipw"` / `"onestep"` inside the
+  plasmode candidate loop (currently the candidate spec records the
+  choice but the fitter still runs TMLE). `compute_aipw()` is
+  available as a separate post-processor.
+- A.21.7 C-TMLE wrapper (`run_ctmle_candidate()`) and drtmle wrapper.
+- A.21.2 `cv_scheme = "sample_split"` (single 50/50 holdout) path
+  inside the modular TMLE.
+- A.21.5 screener wrapping inside the SL library construction (the
+  candidate spec records the choice but the SL fit does not yet wrap
+  each base learner with the screener).
+- A.21.8 forwarding of `tmle_control` arguments to `tmle::tmle()` on
+  the delegation path.
+
+These pending items are tracked here and in the "Experimental /
+planned extensions" section of README.md.
+
 ---
 
 ## B. Documentation, governance, and operational
