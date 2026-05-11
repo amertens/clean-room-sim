@@ -220,9 +220,15 @@ described above.
 cleanTMLE implements the software layer of an outcome-blind staged
 workflow. It records the analysis lock, candidate estimator set,
 plasmode simulation settings, DQ stress scenarios, checkpoint
-decisions, and final authorization state. It does not implement
-personnel separation, source-data access controls, protocol
-adjudication, phenotype validation, or regulatory review.
+decisions, and final authorisation state. cleanTMLE authorisation
+checks restrict the package's exported primary-analysis functions
+until the required checkpoints have been recorded. These checks
+do not control raw-data access outside the package and therefore
+complement, but do not replace, institutional clean-room
+safeguards such as role separation, credentialed folders, and
+review-team checkpoints. The package does not implement personnel
+separation, source-data access controls, protocol adjudication,
+phenotype validation, or regulatory review.
 
 The contribution is operational rather than methodological
 [@muntner2024staging]. The analysis lock, audit trail, and
@@ -647,6 +653,18 @@ evaluates whether candidate estimators continue to satisfy
 prespecified operating-characteristic thresholds under threat
 scenarios derived from the fit-for-purpose review.
 
+Clean-room guidance addresses a limitation of preregistration:
+during RWE execution, investigators often encounter data
+incompleteness, coding limitations, sparse events, covariate
+imbalance, model-convergence problems, and censoring or
+missingness issues that require decisions after data access but
+before comparative effect estimation
+[@mcgrath2021romiplostim; @muntner2024staging]. cleanTMLE
+operationalises the software portion of this process by recording
+pre-outcome diagnostics, checkpoint decisions, deviations, and
+authorisation status before the observed primary
+treatment-outcome association is estimated.
+
 ## How the workflow records and protects analytic decisions
 
 The analysis lock is the central object on which all later
@@ -793,6 +811,32 @@ and audit outcome-blind estimator selection. For high-stakes
 regulatory or confirmatory studies, cleanTMLE should be embedded
 within personnel-based outcome-blinding and access-control
 arrangements.
+
+## Reviewer-facing pre-outcome study dossier
+
+The pre-outcome study dossier is a structured bundle the review
+team can read before authorising the primary analysis. It
+consists of:
+
+| Component | cleanTMLE artefact | Outcome access |
+|---|---|---|
+| Protocol and target-trial timing | `attach_estimand()` + target-trial timing table | No Y |
+| Cohort flow / attrition | `attrition_table()` | No Y |
+| Event-process classification | `clean_event_process_table()`, `clean_check_event_processes()` | No Y |
+| Covariate and missingness summary | `make_table1()`, missingness-pattern checks | No Y |
+| PS overlap and balance | `compute_ps_diagnostics()`, `love_plot()`, `love_plot_threeway()` | No Y |
+| Treatment- and IPCW-weight diagnostics | `clean_weight_diagnostics()`, `extreme_weights()` | No Y |
+| Event-count and precision adequacy | `checkpoint_cohort_adequacy()`, `estimate_design_precision()` | Marginal Y only |
+| Baseline plasmode candidate selection | `run_plasmode_feasibility()`, `select_tmle_candidate()` | Synthetic Y only |
+| DQ stress-test results | `run_plasmode_dq_stress()`, `summarize_dq_degradation()` | Synthetic Y only |
+| Negative-control eligibility and attrition | `run_residual_confounding_stage()`, NC attrition diagram | Negative-control Y only |
+| GO / FLAG / STOP checkpoint dashboard | `gate_all()` composite + per-checkpoint records | No Y |
+| Decision log and audit log export | `export_decision_log()`, `save_decision_log()` | No Y |
+| Authorisation record for primary analysis | `authorize_outcome_analysis()` | No Y |
+
+The dossier is the artefact the reviewer reads. Comparative
+treatment-outcome estimates are not part of the dossier and are
+produced only after authorisation.
 
 # Data Quality as a Quantifiable Threat {#sec-dq}
 
@@ -1982,6 +2026,51 @@ truncation, matching, or IPCW correspond to different effective
 target populations and are reported as paired objects rather than
 interchangeable estimators of the same parameter.
 
+**Target-trial timing table.** The following table records the
+prespecified target-trial design elements and their lock status
+before any outcome access.
+
+| Design element | Rescue.Co implementation | Pre-outcome status |
+|---|---|---|
+| Index date / time zero | Time of trauma-related ambulance arrival at participating hospital | Locked in `identify_interval()` |
+| Treatment definition | Rescue.Co EMS transport (A = 1) vs. other ambulance services (A = 0) at index | Locked in `identify_treatment()` |
+| Reference group | Other ambulance services at the same hospitals during the same period | Locked |
+| Eligibility window | 2018 to 2024 trauma transports, direct-from-scene only | Locked |
+| Covariate window | At or before index (no post-index covariates) | Locked |
+| Outcome window | 6 months from index | Locked |
+| Outcome definition | GOSE > 4 at 6 months (good functional outcome) | Locked |
+| Missingness / censoring definition | Missing 6-month GOSE = missingness; primary complete-outcome with IPCW sensitivity | Locked |
+| Treatment switching / discontinuation | Not applicable (point exposure at scene) | Locked |
+| Administrative end of follow-up | Fixed at 6 months; no admin censoring before that | Locked |
+| Excluded intercurrent events / transfer groups | Inter-facility transfers excluded; recorded as `is_transfer` for sensitivity | Locked |
+
+**Checkpoint dashboard.** The reviewer-facing dashboard summarises
+the evidence available at each checkpoint and whether the decision
+is software-enforced (driven by a prespecified threshold the
+package evaluates automatically) or rests on reviewer judgment.
+
+| Stage | Evidence used | Threshold | Decision | Reviewer interpretation | Software-enforced vs reviewer-judgment |
+|---|---|---|---|---|---|
+| Stage 0 protocol/setup | Target-trial timing table, SAP, lock fingerprint | All design elements specified before data access | GO | Cohort and estimand definitions complete | Reviewer-judgment |
+| Stage 1b cohort adequacy and event counts | `checkpoint_cohort_adequacy()` output, attrition table | `min_n_per_arm` = 200, `min_events` = 50 | GO | Adequate cohort for the prespecified estimand | Software-enforced |
+| Stage 2a overlap, balance, ESS, weight stability | `compute_ps_diagnostics()`, `love_plot_threeway()`, `clean_weight_diagnostics()` | PS in [0.01, 0.99]; max-SMD <= 0.10 after weighting; max weight <= 10 | GO | Positivity and balance acceptable for full-cohort target | Software-enforced |
+| Stage 2b baseline plasmode | `run_plasmode_feasibility()` bias 0.001, coverage 0.94 | bias <= 0.01, coverage >= 0.90, SE/SD in (0.8, 1.2) | GO | Candidate operates within prespecified envelope | Software-enforced |
+| Stage 2c DQ stress test | `run_plasmode_dq_stress()` minimax rule | Each scenario within thresholds across severities | GO | Selected candidate is stable across prespecified threats | Software-enforced |
+| Stage 3 negative controls | `run_residual_confounding_stage()` (2 of 5 NCs survived NZV; both pass) | All analysed NCs pass at $\alpha$ = 0.05 | GO with FLAG | Narrower NC panel than SAP; residual-confounding probe partial | Reviewer-judgment |
+| Gate authorisation | `authorize_outcome_analysis()` returns GO | All preceding checkpoints GO or documented FLAG | GO | Proceed to locked primary analysis | Software-enforced |
+
+**Decision-log example (illustrative).** The following rows are
+illustrative entries in the format produced by
+`export_decision_log()`. They are not the literal log; they show
+the structure a reviewer would read for each prespecified or
+deviation entry.
+
+| timestamp | stage | diagnostic or issue | prespecified criterion | decision | rationale | reviewer role | effect estimate visible? | action taken | override? |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-01-12 09:14 | Stage 2a | Three NCs failed NZV filter | NZV check at lock-fingerprint covariate set | FLAG | Drop the three NCs; record narrower panel | Lead analyst | No | Continue with 2 surviving NCs; note as limitation | No |
+| 2026-01-12 11:02 | Stage 2c | DQ stress run at `n_sims = 3` for fast reproducibility | `n_sims` >= 200 for inferential interpretation | FLAG | Bundle low-replicate run as workflow demo; companion `n_sims = 200` file confirms minimax winner | Lead analyst | No | Use `n_sims = 200` for inference; cite `n_sims = 3` only as smoke test | No |
+| 2026-01-12 14:45 | Gate | All checkpoints GO or documented FLAG | All preceding stages recorded | GO | Authorise Stage 4 | Reviewer | No | Run locked primary analysis | No |
+
 ## Pre-outcome decision and plasmode results {#sec-casestudy-dq}
 
 The Stage 2b feasibility plasmode metrics on the locked DGP are:
@@ -2046,6 +2135,15 @@ flowchart LR
     B --> D
     D --> E
 ```
+
+Demonstrated in this case study: cohort flow, event counts,
+missingness summary, PS overlap, three-way Love plot, weight
+diagnostics, ESS, negative-control attrition, baseline plasmode
+results, DQ stress-test results, authorisation gate. Not yet
+implemented in this release: native competing-risk
+cumulative-incidence estimands, time-varying treatment, MAR/MNAR
+missingness models, full-cohort Delta-path IPCW-TMLE (the
+function falls back to weighted complete-case).
 
 At the pre-outcome decision point (`authorize_outcome_analysis()`),
 the two passing negative controls and the plasmode metrics support
@@ -2116,8 +2214,10 @@ residual bias of 0.0017 (4.6 % of the IPTW point estimate). The
 E-value [@vanderWeele2017evalue] for the full-cohort TMLE is 1.22
 (CI bound 1.00), small in either case. The qualitative reading is
 "Rescue.Co transport is consistent with a small favourable shift
-in functional outcome that the prespecified primary estimator
-cannot distinguish from null at $\alpha = 0.05$." An unmeasured
+in functional outcome; the prespecified primary estimator does
+not confirm the signal under the prespecified workflow at
+$\alpha = 0.05$, and the analysis proceeded under prespecified
+diagnostics." An unmeasured
 confounder of the strength suggested by the healthcare-worker
 strike, or by the inter-facility transfer imbalance (40.7 % of
 non-Rescue.Co versus 2.5 % of Rescue.Co ambulance arrivals were

@@ -138,6 +138,50 @@ The contribution is operational, not a new estimator.
 | Depends on plasmode faithfulness|    No       |           No               |      Yes           |               Yes                      |
 | Institutional overhead         |     Low      |          High              |      Low           |               High                     |
 
+## Why preregistration is not enough for RWE execution
+
+- Data incompleteness and coding limitations emerge during implementation, not at protocol time
+- Sample size, event counts, covariate distributions, and model convergence affect which specifications are feasible
+- Decisions must therefore be made *after* data access but *before* comparative outcome results are inspected
+- cleanTMLE records those decisions in a decision log and gates the primary analysis behind authorisation
+
+## Reviewer-facing pre-outcome dossier
+
+Protocol setup → cohort flow → event counts → overlap / balance → weights / ESS → baseline plasmode → DQ stress test → negative controls → GO / FLAG / STOP → authorisation.
+
+The dossier is the artefact the reviewer reads. Comparative treatment-outcome estimates are not part of the dossier and are produced only after authorisation.
+
+## What the review team sees before authorisation
+
+| Summary outputs available | Not available | Decision |
+|---|---|---|
+| Cohort flow and attrition | The observed primary $A \to Y$ association | Proceed (GO) |
+| Event counts and adequacy | Primary comparative estimate | Revise / qualify (FLAG) |
+| Missingness summary | | Stop |
+| PS overlap and balance | | |
+| Treatment and IPCW weight diagnostics, ESS | | |
+| Model-convergence diagnostics | | |
+| Baseline plasmode / DQ stress diagnostics | | |
+| Negative-control results | | |
+
+## Gated execution
+
+`checkpoint records complete` → `authorisation object created` → `primary-analysis function allowed`.
+
+The software gate complements external access control; it does not replace it. cleanTMLE cannot prevent a user with raw-data access from inspecting outcomes outside the package.
+
+## Case-study checkpoint dashboard
+
+| Stage                       | Evidence                                                        | Threshold                                            | Decision |
+|-----------------------------|-----------------------------------------------------------------|------------------------------------------------------|:--------:|
+| Stage 0 protocol/setup      | Target-trial timing table, SAP, lock fingerprint                | All design elements specified before data access     | GO       |
+| Stage 1b cohort adequacy    | `checkpoint_cohort_adequacy()`, attrition table                 | min_n_per_arm = 200; min_events = 50                 | GO       |
+| Stage 2a overlap / balance  | PS in [0.21, 0.81]; SMDs balanced; ESS retention 78 %           | PS in [0.01, 0.99]; SMD <= 0.10; max weight <= 10    | GO       |
+| Stage 2b baseline plasmode  | bias < 0.001; coverage 0.94                                     | bias <= 0.01; coverage >= 0.90; SE/SD in (0.8, 1.2)  | GO       |
+| Stage 2c DQ stress          | Minimax rule selects `glm_t01`                                  | Each scenario within thresholds across severities    | GO       |
+| Stage 3 negative controls   | 2 of 5 NCs survived NZV; both pass                              | All analysed NCs pass at $\alpha = 0.05$             | GO with FLAG |
+| Gate authorisation          | `authorize_outcome_analysis()`                                  | All preceding GO or documented FLAG                  | GO       |
+
 # From qualitative DQ review to quantitative stress testing
 
 ## The translation
