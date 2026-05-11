@@ -142,6 +142,19 @@ We simulated three contrasting scenarios on a small dataset (2,000 people, 200 r
 
 We also re-ran each scenario under four kinds of data-quality stress: covariate missingness, exposure measurement error, outcome measurement error, and unmeasured confounding.
 
+## The six methods, in plain language
+
+| Method | What it does |
+|---|---|
+| **Crude** | Compare outcome rates in the two groups; ignore baseline differences. |
+| **Propensity-score matching** | Pair each treated person with an untreated person who looks similar at baseline. |
+| **IPTW** (inverse-probability weighting) | Re-weight people so the two groups look balanced on baseline variables, then compare. |
+| **TMLE** | Use flexible models for who got treatment and who has the outcome, then nudge the estimate so it is properly calibrated for the *treatment effect*. |
+| **CV-TMLE** | TMLE with cross-fitting; gives more honest standard errors when the models are flexible. |
+| **Matched TMLE** | Match first, then run TMLE on the matched subset. |
+
+The first three are "traditional" methods. The last three are targeted-learning methods.
+
 ## Result 1 — under good overlap, everything works
 
 In Scenario A, all the adjusted estimators recover the true effect. Bias is well under the 0.02 threshold we set, and the 95 % confidence intervals cover the truth about 95 % of the time. The unadjusted comparison has substantial leftover confounding.
@@ -184,6 +197,40 @@ The four kinds of stress behaved differently:
 
 1. **IPTW standard errors are conservative when the propensity score was estimated.** This is a well-known property of the influence-function-based variance. If IPTW is primary, bootstrap the standard error.
 2. **Matched-TMLE standard errors are also conservative.** The post-match TMLE step ignores the matching draw. A block bootstrap fixes this.
+
+## Traditional approach vs the outcome-blind workflow
+
+| Scenario | What a traditional analyst would see | What the outcome-blind workflow does |
+|---|---|---|
+| **A. Good overlap** | PS diagnostics look good; pick a method; report. | Same diagnostics, plus plasmode confirms all candidates behave well. **GO.** |
+| **B. Marginal overlap** | PS overlap shows the strain; weights are heavy. An attentive analyst will widen the truncation or switch methods. Many do not. | Plasmode quantifies that IPTW SE/SD ratio runs > 1 and matched-TMLE doubles it. **GO with a FLAG** explicitly recommending bootstrap variance. |
+| **C. Unmeasured confounding** | All adjusted estimates agree on a non-null effect. Without an external probe, the analyst would likely proceed and report. | The prespecified unmeasured-confounding row of the DQ stress test pushes bias above the locked threshold. **STOP.** |
+
+The contrast is sharpest in Scenario C: a traditional careful analyst can pass the standard PS diagnostics and still proceed with a biased estimator. The outcome-blind workflow flags the candidate as fragile under a prespecified threat *before* unblinding.
+
+## Method recommendations for colleagues
+
+| Situation | Primary recommendation | Why |
+|---|---|---|
+| Good overlap, well-measured covariates | **CV-TMLE** as primary; report IPTW + PS matching as concordance checks | Robust across all three scenarios; interpretable CIs; doubly robust |
+| Marginal overlap | **CV-TMLE** as primary; **bootstrap** the SE if you ever report IPTW or matched TMLE as primary | TMLE bias is well controlled; IPTW/matched SE formulas are too conservative |
+| Heavy truncation needed for positivity | **Reconsider the estimand**, not just the estimator | Heavy truncation changes the target population from "everyone eligible" to "everyone plausibly treatable" |
+| Suspected unmeasured confounder | **Collect it, narrow the question, or accept bounded sensitivity analysis** | No statistical method on measured covariates can rescue you |
+
+A baseline plasmode before unblinding is cheap and high-information. A DQ stress test is informative when you have *specific* concerns about measurement, missingness, or unmeasured confounding.
+
+## What the simulation does and does not show
+
+**Does show:**
+- The candidate-selection machinery recovers the truth on synthetic outcomes when assumptions hold.
+- TMLE / CV-TMLE bias is well controlled under marginal overlap; IPTW and matched-TMLE SE calibration is not.
+- When a hidden confounder is built into the data-generating process, the prespecified stress-test row catches the resulting bias and the locked rule returns STOP.
+- The prespecified rule arrives at the right verdict in all three scenarios *without ever inspecting the realised treatment-outcome association*.
+
+**Does not show:**
+- That the outcome-blind workflow detects an unmeasured confounder a traditional analyst would have missed. The workflow does not "detect" confounders; it scores prespecified threats.
+- That cleanTMLE delivers a numerical advantage over a careful traditional analysis on the *same* dataset. The workflow's value is operational (prespecification, auditability, gating), not a different point estimate.
+- That the small DGP used here generalises to all RWE settings. The case study exercises real-data behaviour separately.
 
 # 4. Case study: Rescue.Co, Nairobi
 
