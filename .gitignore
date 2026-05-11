@@ -29,3 +29,6 @@ renv/library/
 renv/staging/
 renv/python/
 renv/sandbox/
+
+# Office lockfiles
+~$*
