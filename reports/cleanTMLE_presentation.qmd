@@ -270,6 +270,23 @@ The prespecified rule returned **GO with a documented FLAG** about the narrower 
 
 All six methods agree on direction. The prespecified primary estimate (full-cohort TMLE) just crosses zero. The data are consistent with a small, possibly real, possibly null, effect.
 
+## Matched vs full cohort: what the gap means
+
+| Comparison | Risk difference |
+|---|---:|
+| PS matching (n = 615) | 0.027 |
+| Matched-cohort TMLE (n = 1,230) | 0.026 |
+| IPTW, full cohort (n = 1,693) | 0.037 |
+| Full-cohort TMLE, primary (n = 1,693) | 0.031 |
+
+Three things to read from this gap:
+
+- **The matched estimates are about 0.5 to 1 percentage point smaller** than the full-cohort estimates.
+- **The matched confidence intervals are roughly 50 % wider**, because matching throws away patients outside the overlap region.
+- **The matched and full-cohort estimators are not estimates of the same quantity.** Matched estimators target the average effect *in the matched overlap subset*; full-cohort estimators target the average effect *in the full eligible cohort*. When overlap is partial, these two target populations differ and the estimates *should* differ. Whether matched or full-cohort is the right primary depends on which population the study question is about.
+
+In this case study the prespecified primary is the full-cohort TMLE, because the protocol question is about all eligible ambulance patients, not only those whose baseline profile makes them comparable. The matched-cohort row is reported as a sensitivity analysis on a narrower target population.
+
 ## How a reviewer would read this
 
 - Every analytic decision was recorded before the comparative numbers above were produced.
