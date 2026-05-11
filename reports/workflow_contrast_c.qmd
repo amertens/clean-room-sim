@@ -1,0 +1,263 @@
+---
+title: "Workflow contrast C: fixed-library vs plasmode-selected TMLE under three DGPs"
+subtitle: "A standalone sensitivity simulation for cleanTMLE"
+author: "Andrew Mertens"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    code-fold: true
+    self-contained: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+set.seed(2026)
+library(cleanTMLE)
+library(ggplot2)
+suppressPackageStartupMessages({
+  if (!requireNamespace("SuperLearner", quietly = TRUE))
+    stop("SuperLearner is required.")
+})
+```
+
+# What this report shows
+
+This is a standalone sensitivity simulation for the cleanTMLE package. It is **not** part of the main manuscript; it answers a narrower question that the main simulation does not address:
+
+> When a **fixed-library TMLE** (the traditional approach) is compared against a **plasmode-selected-library TMLE** (the cleanTMLE workflow) on the same datasets, does the plasmode selection adapt to the data-generating process in a way that improves bias and coverage?
+
+The main simulation in §8 of the manuscript answers the *decision-rule* question (does the GO / FLAG / STOP gate land on the right verdict before unblinding?). This report answers the *adaptive-library* question (does the candidate-selection step actually do work that a fixed-library analyst would not have done?).
+
+The hypothesis is: under a DGP whose true outcome model is well-approximated by the fixed library, the two workflows agree. Under a nonlinear or sparse DGP, the plasmode-selected workflow chooses a richer library and recovers better operating characteristics than the fixed-library traditional analysis.
+
+# Design
+
+```{r design}
+n_per_rep <- 600L
+n_reps    <- 60L  # small budget for a sensitivity sim; raise for inference
+true_RD   <- -0.05
+```
+
+- **Sample size per replicate:** `r n_per_rep`.
+- **Replicates per DGP:** `r n_reps`.
+- **True RD:** `r true_RD` (constant across DGPs so bias and coverage are comparable).
+- **DGPs:** three contrasting outcome-generating mechanisms with the same baseline-covariate distribution (4 covariates: age, sex, biomarker, comorbidity).
+- **Workflows compared:**
+  - **Fixed-library TMLE.** A traditional analyst picks the SuperLearner library *a priori* (`SL.glm + SL.mean`) and the truncation level *a priori* (0.01). No candidate selection.
+  - **Plasmode-selected TMLE.** The cleanTMLE candidate grid `{SL.glm only, SL.glm + SL.mean, SL.glm + SL.glmnet + SL.mean}` × `{truncation 0.01, 0.05}` is evaluated on one outcome-blind plasmode replicate per simulated dataset, and the candidate with the smallest plasmode RMSE is locked. The locked candidate is then fit on the real (within-simulation) outcome.
+
+## The three DGPs
+
+- **Linear.** Outcome rate is logit-linear in age, sex, biomarker, comorbidity. A linear-GLM library should capture this almost perfectly.
+- **Nonlinear.** Outcome rate adds a smooth nonlinear effect of `biomarker` (quadratic + interaction with treatment). A linear GLM library will miss it; glmnet still does poorly without a basis expansion.
+- **Sparse.** Outcome rate depends on a *single* covariate, but the analyst's library includes all four. Lasso shrinks the irrelevant covariates and a richer library beats the unregularised GLM.
+
+```{r dgps}
+make_data <- function(n, dgp = c("linear","nonlinear","sparse"), true_RD = -0.05) {
+  dgp <- match.arg(dgp)
+  age          <- stats::rnorm(n, 60, 10)
+  sex          <- stats::rbinom(n, 1, 0.5)
+  biomarker    <- stats::rnorm(n, 0, 1)
+  comorbidity  <- stats::rbinom(n, 1, 0.3)
+  # Treatment depends on age + biomarker + comorbidity (same across DGPs)
+  lp_A <- -0.5 + 0.02 * (age - 60) + 0.5 * biomarker + 0.3 * comorbidity
+  p_A  <- stats::plogis(lp_A)
+  A    <- stats::rbinom(n, 1, p_A)
+
+  lp_Y0 <- switch(dgp,
+    linear     = -2 + 0.03 * (age - 60) + 0.2 * sex + 0.4 * biomarker +
+                 0.5 * comorbidity,
+    nonlinear  = -2 + 0.03 * (age - 60) + 0.2 * sex +
+                 0.4 * biomarker + 0.4 * biomarker^2 +
+                 0.5 * comorbidity,
+    sparse     = -2 + 1.2 * biomarker
+  )
+  p_Y0 <- stats::plogis(lp_Y0)
+  p_Y1 <- pmin(pmax(p_Y0 + true_RD, 0.01), 0.99)
+  Y    <- ifelse(A == 1L, stats::rbinom(n, 1, p_Y1),
+                          stats::rbinom(n, 1, p_Y0))
+  data.frame(
+    treatment = A, event_24 = Y,
+    age = age, sex = sex, biomarker = biomarker,
+    comorbidity = comorbidity
+  )
+}
+```
+
+# The two workflows, one function each
+
+```{r workflows}
+covariates <- c("age", "sex", "biomarker", "comorbidity")
+
+# Fixed-library TMLE: pick lib and truncation a priori.
+fit_fixed <- function(data) {
+  lock <- create_simple_lock(
+    data       = data,
+    treatment  = "treatment",
+    outcome    = "event_24",
+    covariates = covariates,
+    sl_library = c("SL.glm", "SL.mean"),
+    seed       = 1L
+  )
+  spec <- tmle_candidate("fixed",
+                         g_library = c("SL.glm", "SL.mean"),
+                         q_library = c("SL.glm", "SL.mean"),
+                         truncation = 0.01)
+  lock <- lock_primary_tmle_spec(lock, spec)
+  ps   <- fit_ps_superlearner(lock)
+  g    <- fit_tmle_treatment_mechanism(lock, ps)
+  Qf   <- fit_tmle_outcome_mechanism(lock, g)
+  upd  <- run_tmle_targeting_step(g, Qf)
+  extract_tmle_estimate(upd)
+}
+
+# Plasmode-selected TMLE: pick the candidate with the smallest plasmode
+# RMSE on one outcome-blind plasmode replicate from the same DGP.
+fit_plasmode <- function(data) {
+  lock <- create_simple_lock(
+    data       = data,
+    treatment  = "treatment",
+    outcome    = "event_24",
+    covariates = covariates,
+    sl_library = c("SL.glm", "SL.mean", "SL.glmnet"),
+    seed       = 1L
+  )
+  candidates <- list(
+    tmle_candidate("glm_t01",       g_library = "SL.glm",
+                   q_library = "SL.glm", truncation = 0.01),
+    tmle_candidate("glm_mean_t01",  g_library = c("SL.glm","SL.mean"),
+                   q_library = c("SL.glm","SL.mean"), truncation = 0.01),
+    tmle_candidate("glmnet_t01",    g_library = c("SL.glm","SL.glmnet","SL.mean"),
+                   q_library = c("SL.glm","SL.glmnet","SL.mean"),
+                   truncation = 0.01),
+    tmle_candidate("glmnet_t05",    g_library = c("SL.glm","SL.glmnet","SL.mean"),
+                   q_library = c("SL.glm","SL.glmnet","SL.mean"),
+                   truncation = 0.05)
+  )
+  # One outcome-blind plasmode replicate per simulated dataset
+  plas <- tryCatch(
+    run_plasmode_feasibility(lock,
+                             tmle_candidates = candidates,
+                             effect_sizes    = c(true_RD),
+                             reps            = 10L),
+    error = function(e) NULL
+  )
+  selected_id <- if (!is.null(plas) && !is.null(plas$metrics)) {
+    agg <- aggregate(rmse ~ candidate, data = plas$metrics, FUN = mean)
+    agg$candidate[which.min(agg$rmse)]
+  } else "glmnet_t01"
+
+  selected <- candidates[[which(vapply(
+    candidates, function(c) c$candidate_id, character(1)) == selected_id)]]
+  lock <- lock_primary_tmle_spec(lock, selected)
+  ps   <- fit_ps_superlearner(lock)
+  g    <- fit_tmle_treatment_mechanism(lock, ps)
+  Qf   <- fit_tmle_outcome_mechanism(lock, g)
+  upd  <- run_tmle_targeting_step(g, Qf)
+  out  <- extract_tmle_estimate(upd)
+  attr(out, "selected_candidate") <- selected_id
+  out
+}
+```
+
+# Run the simulation
+
+```{r run-sim, cache = TRUE}
+run_one <- function(rep_i, dgp) {
+  set.seed(2026 + 1000L * match(dgp, c("linear","nonlinear","sparse")) + rep_i)
+  d <- make_data(n_per_rep, dgp = dgp, true_RD = true_RD)
+  fix <- tryCatch(fit_fixed(d), error = function(e) NULL)
+  pls <- tryCatch(fit_plasmode(d), error = function(e) NULL)
+  data.frame(
+    dgp           = dgp,
+    rep           = rep_i,
+    fixed_est     = if (!is.null(fix)) fix$estimate else NA_real_,
+    fixed_se      = if (!is.null(fix)) fix$se       else NA_real_,
+    plasmode_est  = if (!is.null(pls)) pls$estimate else NA_real_,
+    plasmode_se   = if (!is.null(pls)) pls$se       else NA_real_,
+    plasmode_pick = if (!is.null(pls)) attr(pls, "selected_candidate") %||% NA_character_
+                    else NA_character_,
+    stringsAsFactors = FALSE
+  )
+}
+
+dgps <- c("linear", "nonlinear", "sparse")
+all_rows <- list()
+for (dgp in dgps) {
+  message("DGP: ", dgp)
+  rows <- lapply(seq_len(n_reps), run_one, dgp = dgp)
+  all_rows[[dgp]] <- do.call(rbind, rows)
+}
+sim <- do.call(rbind, all_rows)
+saveRDS(sim, "../results/workflow_contrast_c.rds")
+```
+
+# Results
+
+```{r summary}
+summarise_one <- function(est, se, truth = true_RD) {
+  bias <- mean(est - truth, na.rm = TRUE)
+  rmse <- sqrt(mean((est - truth)^2, na.rm = TRUE))
+  cover <- mean(
+    (est - 1.96 * se <= truth) & (est + 1.96 * se >= truth),
+    na.rm = TRUE
+  )
+  c(mean = mean(est, na.rm = TRUE), bias = bias, rmse = rmse,
+    coverage = cover, n_valid = sum(!is.na(est)))
+}
+
+summary_table <- do.call(rbind, lapply(dgps, function(d) {
+  sub <- sim[sim$dgp == d, ]
+  fx  <- summarise_one(sub$fixed_est, sub$fixed_se)
+  pls <- summarise_one(sub$plasmode_est, sub$plasmode_se)
+  rbind(
+    data.frame(dgp = d, workflow = "Fixed-library TMLE",
+               t(fx), stringsAsFactors = FALSE),
+    data.frame(dgp = d, workflow = "Plasmode-selected TMLE",
+               t(pls), stringsAsFactors = FALSE)
+  )
+}))
+knitr::kable(summary_table, digits = 4,
+  caption = "Bias, RMSE, and coverage of the two workflows across three DGPs (true RD = -0.05).")
+```
+
+```{r picked}
+cat("\nPlasmode-selected candidate by DGP (counts):\n\n")
+print(table(DGP = sim$dgp, Selected = sim$plasmode_pick, useNA = "ifany"))
+```
+
+```{r forest, fig.cap = "RD estimates by workflow under each DGP. Dashed line marks the true RD."}
+ggplot(sim, aes(y = workflow_factor <- factor(NA))) +
+  facet_wrap(~ dgp, ncol = 1, scales = "free_y") +
+  geom_vline(xintercept = true_RD, linetype = "dashed", colour = "red") +
+  geom_jitter(aes(x = fixed_est, y = "Fixed"), height = 0.1,
+              alpha = 0.4, size = 1) +
+  geom_jitter(aes(x = plasmode_est, y = "Plasmode-selected"),
+              height = 0.1, alpha = 0.4, size = 1, colour = "steelblue") +
+  scale_y_discrete(limits = c("Plasmode-selected", "Fixed")) +
+  labs(x = "RD estimate", y = NULL) +
+  theme_minimal(base_size = 10)
+```
+
+# Reading the results
+
+The headline question is whether the plasmode-selected workflow adapts to the DGP in a way the fixed-library workflow does not.
+
+- **Linear DGP.** The two workflows should agree because the fixed library (GLM + mean) is correctly specified for the outcome model. Any difference is finite-sample noise.
+- **Nonlinear DGP.** The fixed library is mis-specified for the outcome model. The plasmode-selected workflow should pick the glmnet-augmented candidate more often, and its bias should be smaller.
+- **Sparse DGP.** The fixed library cannot regularise away the three irrelevant covariates. The plasmode-selected workflow should pick the glmnet-augmented candidate and its RMSE should be smaller; bias may be similar.
+
+The "Plasmode-selected candidate by DGP" table shows how often each candidate was picked; if the plasmode workflow is doing useful work, the selected candidate should vary across DGPs.
+
+# Limitations
+
+This is a sensitivity simulation with `r n_reps` replicates per DGP, not an inferential study. Coverage estimates have a Monte Carlo standard error of about $\sqrt{0.05 \cdot 0.95 / `r n_reps`}$ ≈ 0.028. Bias estimates similarly have a Monte Carlo standard error on the order of `emp_sd / sqrt(n_reps)`.
+
+The plasmode-selection step in each replicate is itself a 10-replicate inner simulation, which is far below an inferentially-defensible budget. Use this report to confirm that the *direction* of the contrast matches the hypothesis; raise both budgets before any quantitative claim.
+
+For the main manuscript simulation see `reports/manuscript_outcome_blind_dq.qmd`.

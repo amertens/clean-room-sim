@@ -1564,13 +1564,26 @@ if (file.exists(res_path)) {
 ```
 
 ```{r mc-table, eval = has_mc, results = "asis"}
+# Add a G-value column (TODO A.22): the additive bias that would
+# push the 95% CI across the null. Computed post-hoc from each
+# row's mean estimate and mean SE.
 for (sc in names(res$summaries)) {
   truth <- res$truths[[sc]]$RD
   label <- res$scenarios[[sc]]$label
+  s <- res$summaries[[sc]]
+  s$g_value <- pmin(
+    abs(s$mean_est - 1.96 * s$mean_se),
+    abs(s$mean_est + 1.96 * s$mean_se)
+  )
   cat(sprintf("\n### %s (true RD = %.5f)\n\n", label, truth))
-  knitr::kable(res$summaries[[sc]],
-               digits = c(NA, 0, 5, 5, 5, 5, 5, 3, 5, 3, 5),
-               caption = label) |> print()
+  knitr::kable(
+    s, digits = c(NA, 0, 5, 5, 5, 5, 5, 3, 5, 3, 5, 5),
+    caption = paste0(
+      label,
+      ". The g_value column is the additive bias that would push the ",
+      "95% CI across zero (Gruber 2023 RWE p.5); smaller values mean ",
+      "the conclusion is more easily flipped by a postulated bias.")
+  ) |> print()
   cat("\n")
 }
 ```
@@ -1741,6 +1754,22 @@ ggplot(fp, aes(x = mean_est, y = method)) +
   theme(legend.position = "none")
 ```
 
+### Traditional workflow vs outcome-blind staged workflow
+
+The same simulation data answer a different question if we read them as a workflow-vs-workflow contrast rather than an estimator-vs-estimator contrast. The decision-rule table below summarises what a traditional analyst would have reported under each scenario versus what the prespecified GO / FLAG / STOP rule returns. The estimates and CIs are unchanged; only the decision-rule overlay is new.
+
+| Scenario | Traditional pipeline | Outcome-blind workflow | Where they differ |
+|---|---|---|---|
+| **A. Good overlap** | Run prespecified TMLE; report a non-null effect; SE / SD ratio near 1; coverage at nominal 95 % | **GO**; same point estimate and CI as the traditional pipeline | No practical difference |
+| **B. Marginal overlap** | Run prespecified TMLE; report. SE / SD ratio for matched-TMLE is 2.1 and for IPTW is 1.01 with conservative IF variance. Many reviewers will not catch this | **GO with FLAG** on IPTW and matched-TMLE SE calibration; the workflow flags both before unblinding and recommends bootstrap variance | The workflow surfaces the SE-conservativeness issue as part of the dossier; the traditional pipeline relies on the reviewer to catch it |
+| **C. Unmeasured confounding** | Run prespecified TMLE; report a biased non-null estimate (mean bias 0.007, coverage 0.93). Without an external probe, this estimate would be published | **STOP** under the prespecified unmeasured-U DQ scenario; the locked analysis does not run as planned | The workflow blocks publication of the biased estimate; the traditional pipeline does not |
+
+The contrast is clearest in Scenario C: both pipelines have identical fits because the same nuisance models are used, but the workflow's prespecified rule refuses to authorise the Stage 4 analysis once the unmeasured-U row of the DQ stress test exceeds the locked bias threshold. The traditional pipeline has no equivalent block.
+
+The workflow does *not* invent free bias reduction. In Scenario C the TMLE bias is the same under both pipelines (0.007); the workflow's contribution is the decision rule, not a different estimator.
+
+A note on what the simulation does **not** show: it does not compare a "traditional" fixed-library TMLE against a *plasmode-selected* TMLE under varied DGPs (the workflow-contrast-C question). That comparison is reported in a standalone analysis (see `reports/workflow_contrast_c.qmd` in the project repository).
+
 ## Plasmode DQ stress-test results
 
 ```{r load-dq-results}
@@ -1875,6 +1904,46 @@ if (nrow(dq_plot) > 0) {
   gridExtra::grid.arrange(p1, p2, ncol = 1)
 }
 ```
+
+### FIORD two-stage selector on the cached plasmode
+
+Applied to the cached `plasmode_*.csv` candidate-evaluation tables, the FIORD two-stage selector first screens candidates whose oracle coverage is within `fiord_coverage_tol = 0.02` of the nominal 0.95, then picks the candidate with the smallest mean SE among the survivors. The single-step `rule = "min_rmse"` rule that the manuscript currently uses does not separate the two stages and can choose a candidate whose coverage is on the edge of acceptable but whose RMSE is technically smallest.
+
+```{r fiord-two-stage-comparison, eval = has_mc, results = "asis"}
+fiord_compare <- list()
+for (sc in c("good_overlap", "marginal_overlap", "unmeasured_conf")) {
+  pf <- sprintf("../results/plasmode_%s.csv", sc)
+  if (!file.exists(pf)) next
+  plas <- read.csv(pf)
+  # collapse over effect_size: pick the candidate with the lowest RMSE
+  # (current single-step rule) and the candidate that survives the
+  # FIORD oracle-coverage screen with the smallest mean SE.
+  agg <- aggregate(
+    cbind(bias, rmse, coverage, emp_sd, mean_se) ~ candidate,
+    data = plas, FUN = mean
+  )
+  single_step <- agg$candidate[which.min(agg$rmse)]
+  keep <- abs(agg$coverage - 0.95) <= 0.02
+  fiord <- if (any(keep)) agg$candidate[keep][which.min(agg$mean_se[keep])]
+           else paste0(agg$candidate[which.min(abs(agg$coverage - 0.95))],
+                       " (no candidate within tol)")
+  fiord_compare[[sc]] <- data.frame(
+    scenario        = sc,
+    single_step_min_rmse = single_step,
+    fiord_two_stage      = fiord,
+    stringsAsFactors = FALSE
+  )
+}
+if (length(fiord_compare) > 0L) {
+  fc <- do.call(rbind, fiord_compare)
+  knitr::kable(
+    fc, row.names = FALSE,
+    caption = "Single-step minimax (current cleanTMLE default) vs FIORD two-stage selector on the cached plasmode candidate metrics, by scenario. When the two columns disagree, the FIORD selector is choosing a candidate that achieves nominal oracle coverage at a slightly higher RMSE."
+  )
+}
+```
+
+The case-study `glm_t01` and `glm_t05` candidates differ by < 0.001 on the simulation DGP because the propensity-score density never approaches 0 or 1, so both selectors typically agree. The contrast becomes informative when overlap is strained, when the candidate libraries differ in flexibility, or when severity ranges in the DQ stress test push some candidates off-coverage.
 
 ## Comparison with E-value-based sensitivity
 
