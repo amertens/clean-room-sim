@@ -1,0 +1,591 @@
+---
+title: "cleanTMLE"
+subtitle: |
+  Staged, outcome-blind targeted learning
+  with plasmode data-quality stress testing
+author: "Andrew Mertens"
+institute: "University of California, Berkeley"
+date: today
+format:
+  revealjs:
+    theme: simple
+    slide-number: c/t
+    progress: true
+    incremental: false
+    self-contained: true
+    width: 1280
+    height: 720
+    fig-width: 8
+    fig-height: 4.5
+    code-line-numbers: false
+bibliography: references.bib
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo       = FALSE,
+  warning    = FALSE,
+  message    = FALSE,
+  fig.width  = 9,
+  fig.height = 4.5
+)
+library(ggplot2)
+
+# ── Monte Carlo results ────────────────────────────────────────
+# Prefer the archived snapshot of the prior run as a baseline,
+# then splice in any newer per-scenario interim results from the
+# in-progress rerun. The aggregated `simulation_results.rds` in
+# results/ is only written at the very end of the rerun, so until
+# then we read partial progress from `interim_<scenario>.rds`.
+
+archive_path <- file.path("..", "archive", "results_pre_rerun_2026-04-27",
+                          "simulation_results.rds")
+current_path <- file.path("..", "results", "simulation_results.rds")
+
+res <- if (file.exists(archive_path)) {
+  readRDS(archive_path)
+} else if (file.exists(current_path)) {
+  readRDS(current_path)
+} else NULL
+has_mc <- !is.null(res)
+
+# Splice in newer interim files if they cover ≥ 50 replicates
+# (enough that the boxplot stops jittering visibly).
+mc_data_sources <- list()
+if (has_mc) {
+  for (sc in names(res$results)) {
+    interim_path <- file.path("..", "results", sprintf("interim_%s.rds", sc))
+    if (file.exists(interim_path)) {
+      interim <- readRDS(interim_path)
+      n_done  <- interim$n_done %||% 0
+      if (is.null(n_done)) n_done <- 0
+      if (n_done >= 50 && !is.null(interim$results) &&
+          nrow(interim$results) > 0) {
+        res$results[[sc]] <- interim$results
+        mc_data_sources[[sc]] <- sprintf(
+          "rerun in progress (%d / %d reps, %s)",
+          n_done, interim$n_total %||% NA,
+          format(interim$saved_at, "%H:%M")
+        )
+      } else {
+        mc_data_sources[[sc]] <- "prior run (archived 2026-04-03)"
+      }
+    } else {
+      mc_data_sources[[sc]] <- "prior run (archived 2026-04-03)"
+    }
+  }
+}
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
+# ── DQ stress results ──────────────────────────────────────────
+# DQ stress is written all-or-nothing per scenario, so we read
+# whatever is currently on disk; once a scenario finishes in the
+# rerun, its file is overwritten and the slide picks up the new
+# gradient automatically.
+
+dq_files <- list.files(
+  file.path("..", "results"),
+  pattern    = "^dq_stress_",
+  full.names = TRUE
+)
+has_dq <- length(dq_files) > 0
+dq_data_sources <- list()
+if (has_dq) {
+  dq_all <- lapply(dq_files, readRDS)
+  names(dq_all) <- sub("dq_stress_(.+)\\.rds", "\\1", basename(dq_files))
+  for (sc in names(dq_all)) {
+    f <- dq_files[sub("dq_stress_(.+)\\.rds", "\\1",
+                       basename(dq_files)) == sc]
+    mtime <- file.info(f)$mtime
+    dq_data_sources[[sc]] <- if (as.Date(mtime) >= as.Date("2026-04-27")) {
+      sprintf("rerun (%s)", format(mtime, "%Y-%m-%d %H:%M"))
+    } else {
+      sprintf("prior run (%s)", format(mtime, "%Y-%m-%d"))
+    }
+  }
+}
+```
+
+## RWE has to clear two hurdles {.smaller}
+
+Before the outcome is unblinded, an RWE study has to show two
+things:
+
+1. **the analysis is valid** — the chosen estimator gives the
+   right answer under the planned conditions, and
+2. **the data are fit for the question** — the data source
+   actually has the cohort, the exposure, and the outcome the
+   target trial asks for.
+
+These two arguments live in different documents and use different
+evidence.
+
+::: {.fragment}
+- Analysis validity is checked with **outcome-blind plasmode
+  simulation**, reporting bias, RMSE, and CI coverage for each
+  candidate estimator [@dang2023roadmap; @gruber2022sap;
+  @franklin2014plasmode].
+- Data fitness is recorded in **stepwise written templates**
+  such as SPIFD2 [@gatto2022spifd; @gatto2023spifd2] or
+  STaRT-RWE [@wang2021startrwe].
+:::
+
+::: {.fragment .center}
+The simulation is numeric. The template is qualitative.
+:::
+
+---
+
+## The two checks meet at the gate {.smaller}
+
+@muntner2024staging describe a staged "clean-room" workflow in
+which each pre-outcome stage ends with a review-team decision:
+*proceed*, *do more bias analyses*, or *stop*. We use the labels
+**GO / FLAG / STOP** for these three decisions throughout.
+
+::: {.fragment}
+| Stage | What gets done | Source |
+|------|----------------|--------|
+| 0 | Feasibility, utilisation, draft protocol/SAP | @kent2026fiord |
+| 1a | Lock the analysis plan | @muntner2024staging |
+| 1b | Cohort adequacy + design precision (CP1) | @muntner2024staging |
+| 2a | Propensity-score diagnostics + balance (CP2) | @muntner2024staging |
+| **2b** | **Outcome-blind plasmode candidate selection** | **this paper** |
+| 3 | Negative-control outcomes (CP3) | @muntner2024staging |
+| Gate | Pre-outcome authorisation | @muntner2024staging |
+| 4 | Primary comparative analysis | @muntner2024staging |
+:::
+
+::: {.fragment}
+In the published staging workflow, the **data-fitness argument
+arrives as a separate document** and is read by reviewers rather
+than scored by the gate.
+:::
+
+---
+
+## What we propose
+
+> **Fold the data-fitness check into the same outcome-blind
+> simulation that already scores the analysis check.**
+
+::: {.fragment}
+- The plasmode is under the analyst's control, so we can degrade
+  it on purpose.
+- For each candidate estimator, vary the severity of each
+  realistic data threat and read off bias, RMSE, and coverage.
+- Apply the same gate thresholds to the degraded runs as to the
+  baseline plasmode.
+:::
+
+::: {.fragment .center}
+*This is the bridge from SPIFD2 to GO/FLAG/STOP.*
+:::
+
+::: {.fragment}
+Implemented in **`cleanTMLE`** (R package, MIT-licensed) as
+`run_plasmode_dq_stress()`.
+:::
+
+---
+
+## What the package contributes {.smaller}
+
+Three new pieces of software:
+
+::: {.fragment}
+1. **`run_plasmode_dq_stress()`** — an outcome-blind plasmode
+   loop with four data-quality (DQ) degradation mechanisms. For
+   each prespecified TMLE candidate it returns a degradation
+   gradient: bias, RMSE, and coverage as the threat gets worse.
+:::
+
+::: {.fragment}
+2. **`gate_check()` / `gate_all()`** — take the baseline plasmode
+   metrics, the DQ-stress metrics, and the stage checkpoints and
+   return a single GO / FLAG / STOP decision per stage.
+:::
+
+::: {.fragment}
+3. **The `cleanroom_lock`** — a hashed, saveable analysis plan
+   with an audit log and a decision log. Every Stage 4 estimator
+   (`fit_tmle_outcome_mechanism()`, `run_iptw_workflow()`, …)
+   refuses to run until `authorize_outcome_analysis()` has
+   signed off, so the lock physically enforces the workflow.
+:::
+
+::: {.fragment}
+The cohort-specification grammar (`specify_models()`,
+`identify_treatment()`, `identify_outcome()`, …) and the reporting
+helpers (`make_table1()`, `make_table2()`, …) follow `causalRisk`
+[@brookhart2024causalrisk] under MIT-licence attribution.
+:::
+
+---
+
+## Estimand, DAG, identifiability {.smaller}
+
+Following ICH E9(R1) [@ich2019e9r1] and @dang2023roadmap:
+
+| Attribute | Specification |
+|-----------|---------------|
+| Population | Adults eligible at index |
+| Treatment | Binary point exposure $A \in \{0,1\}$ |
+| Endpoint | Event by 24 months ($Y$) |
+| Summary | Marginal counterfactual RD, $\Psi = E\{Y(1)\} - E\{Y(0)\}$ |
+| Intercurrent events | Treatment-policy strategy |
+
+::: {.fragment}
+**Statistical estimand** under exchangeability + positivity +
+consistency + correctly specified nuisance models:
+$$
+\Psi = E_W\{E[Y \mid A=1, W] - E[Y \mid A=0, W]\}
+$$
+:::
+
+::: {.fragment}
+**Each DQ stress scenario probes one identifiability assumption:**
+unmeasured-U → exchangeability; misclassified A → consistency;
+misclassified Y → outcome measurement; covariate missingness →
+stratified MCAR; truncation/library → nuisance specification.
+:::
+
+---
+
+## Outcome-blind simulation vs. traditional clean room {.smaller}
+
+::: {.columns}
+
+::: {.column width="50%"}
+**Traditional clean room** [@muntner2024staging]
+
+- Two roles: blinded analyst and unblinded analyst.
+- The blinded analyst writes the plan, fixes the cohort, and
+  runs Stages 1–3.
+- A data manager controls who sees the outcome.
+- The plan and the final estimate are paper artifacts.
+:::
+
+::: {.column width="50%"}
+**Outcome-blind simulation** *(this paper)*
+
+- One analyst.
+- Iteration runs on synthetic outcomes generated from a
+  covariate-only $Q_0$ model — the analyst never sees the
+  real treatment-outcome association.
+- `mask_outcome()` and `assert_outcome_authorized()` replace
+  the data manager.
+- The lock and audit log are machine-readable, so the whole
+  pre-outcome workflow is re-executable.
+:::
+
+:::
+
+::: {.fragment .center}
+The two are **complementary**, not competing.
+:::
+
+::: {.fragment}
+What the software-only mode adds: no need to split the team into
+two roles; the analyst can iterate without seeing the outcome;
+the lock hash makes the workflow byte-for-byte reproducible; and
+the same loop can stress-test data quality.
+:::
+
+---
+
+## The DQ stress test — four mechanisms {.smaller}
+
+Mapping data-quality concerns from SPIFD2 [@gatto2023spifd2] and
+the harmonised data-quality dimensions of @kahn2016data to
+plasmode parameters:
+
+| Data-quality concern | Plasmode parameter |
+|------------------------|--------------------|
+| Covariate measurement / availability (Kahn: completeness) | Fraction $\pi$ of MCAR missingness |
+| Treatment exposure definition (Kahn: conformance) | (sens, spec) of treatment ascertainment |
+| Outcome ascertainment (Kahn: conformance + plausibility) | (sens, spec) of outcome ascertainment, optionally per arm |
+| Unmeasured confounding (SPIFD2 sensitivity step) | Latent $U$ with prevalence $p_U$ and $(\text{OR}_A, \text{OR}_Y)$ |
+
+::: {.fragment}
+The mapping is **one-to-many**: a single SPIFD2 element can drive
+several plasmode parameters, and a single plasmode parameter can
+address several SPIFD2 elements.
+:::
+
+::: {.fragment}
+Plausible ranges for each parameter come from data profiling,
+validation studies, or expert elicitation. The chosen ranges are
+recorded in the lock.
+:::
+
+---
+
+## The degradation gradient
+
+For each candidate the test runs a range of severity levels and
+reports bias, RMSE, and coverage at each level — on the **same
+units** as the baseline plasmode.
+
+::: {.fragment}
+- **Robust candidate:** a flat curve that stays inside the gate
+  thresholds.
+- **Fragile candidate:** a cliff — a small worsening of the data
+  pushes bias or coverage past the threshold.
+:::
+
+::: {.fragment}
+The candidate-selection rule can require a **maximum tolerated
+degradation**, which lets the gate rule out fragile candidates
+*before* the outcome is accessed.
+:::
+
+::: {.fragment .center}
+*Same metrics, same gate, candidate-specific answer.*
+:::
+
+---
+
+## Worked example — simulation design {.smaller}
+
+- $n = 2{,}000$ per replicate, 200 Monte Carlo replicates.
+- Six estimators: **Crude, IPTW, PS Match, TMLE, CV-TMLE,
+  Match_TMLE** (CV-TMLE = cross-fitted TMLE in the sense of
+  @zheng2011crossvalidated and @chernozhukov2018dml).
+- Three scenarios:
+
+| | Overlap | Confounding |
+|-|---------|-------------|
+| **A** Good overlap | PS in [0.2, 0.8] | only measured |
+| **B** Marginal overlap | PS reaches [0.04, 0.99] | only measured |
+| **C** Unmeasured confounding | PS in [0.2, 0.8] | $U$, $\text{OR}_A=\text{OR}_Y=2$ |
+
+- DQ stress: covariate missingness {5%, 10%, 20%}, treatment
+  misclass {(0.95, 0.99), (0.90, 0.95)}, outcome misclass
+  {(0.95, 0.99), (0.90, 0.95)}, unmeasured U with
+  $\text{OR} \in \{1.5, 2.0\}$.
+
+---
+
+## Results — Monte Carlo {.smaller}
+
+```{r mc-boxplots, eval = has_mc, fig.cap = "Sampling distribution by estimator and scenario; dashed red line = true RD."}
+raw_data <- do.call(rbind, lapply(names(res$results), function(sc) {
+  df <- as.data.frame(res$results[[sc]])
+  df$scenario <- res$scenarios[[sc]]$label
+  df$truth    <- res$truths[[sc]]$RD
+  df
+}))
+ggplot(raw_data, aes(x = method, y = estimate, fill = method)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 0.5) +
+  geom_hline(aes(yintercept = truth), linetype = "dashed",
+             colour = "red") +
+  facet_wrap(~ scenario, ncol = 3, scales = "free_y") +
+  labs(x = NULL, y = "Risk-difference estimate") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 30, hjust = 1, size = 9))
+```
+
+```{r mc-fallback, eval = !has_mc, results = "asis"}
+cat("*Monte Carlo results not yet available; rerun `run_simulation.R` to populate this slide.*")
+```
+
+```{r mc-source-note, eval = has_mc, results = "asis"}
+parts <- vapply(names(mc_data_sources), function(sc) {
+  sprintf("%s: %s", res$scenarios[[sc]]$label, mc_data_sources[[sc]])
+}, character(1))
+cat("<div style='font-size:60%; color:#555;'>Data sources — ",
+    paste(parts, collapse = "; "), ".</div>", sep = "")
+```
+
+::: {.fragment}
+**Standard-error calibration.** The IPW influence-function SE
+treats the propensity score as known and is therefore
+conservative when the propensity score has actually been
+estimated [@robins1992rotnitzky; @brookhart2024causalrisk]. TMLE
+and CV-TMLE do not share this conservativeness once the nuisance
+fits are cross-fit. Crude under-covers when there is confounding;
+under unmeasured $U$ the gate returns **STOP**.
+:::
+
+---
+
+## Results — DQ degradation gradients {.smaller}
+
+```{r dq-gradient-plot, eval = has_dq, fig.height = 4.2, fig.cap = "Bias gradient for the selected candidate at each severity level of each DQ scenario, faceted by Monte Carlo scenario."}
+dq_combined <- do.call(rbind, lapply(names(dq_all), function(sc) {
+  m <- dq_all[[sc]]$metrics
+  m$mc_scenario <- if (has_mc && sc %in% names(res$scenarios))
+    res$scenarios[[sc]]$label else sc
+  m
+}))
+dq_plot <- dq_combined[dq_combined$scenario != "none", ]
+
+if (has_mc) {
+  sel_map <- vapply(names(res$meta),
+                    function(sc) res$meta[[sc]]$selected, character(1))
+  sc_label_map <- vapply(names(res$scenarios),
+                         function(sc) res$scenarios[[sc]]$label, character(1))
+  dq_plot <- do.call(rbind, lapply(split(dq_plot, dq_plot$mc_scenario), function(d) {
+    sc_key <- names(sc_label_map)[sc_label_map == d$mc_scenario[1]]
+    if (length(sc_key) > 0 && sc_key %in% names(sel_map)) {
+      d[d$candidate == sel_map[sc_key], ]
+    } else d
+  }))
+}
+
+ggplot(dq_plot, aes(x = level, y = abs(bias),
+                     colour = scenario, group = scenario)) +
+  geom_point(size = 2.4) + geom_line(linewidth = 0.8) +
+  facet_wrap(~ mc_scenario, scales = "free_x") +
+  labs(x = "DQ severity level", y = "|Bias|", colour = "DQ scenario") +
+  theme_minimal(base_size = 11) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1, size = 8),
+        legend.position = "bottom")
+```
+
+```{r dq-fallback, eval = !has_dq, results = "asis"}
+cat("*DQ stress results not yet available; rerun `run_simulation.R` to populate this slide.*")
+```
+
+```{r dq-source-note, eval = has_dq, results = "asis"}
+parts <- vapply(names(dq_data_sources), function(sc) {
+  label <- if (!is.null(res) && sc %in% names(res$scenarios))
+    res$scenarios[[sc]]$label else sc
+  sprintf("%s: %s", label, dq_data_sources[[sc]])
+}, character(1))
+cat("<div style='font-size:60%; color:#555;'>Data sources — ",
+    paste(parts, collapse = "; "), ".</div>", sep = "")
+```
+
+::: {.fragment}
+The covariate-missingness gradient is flat. Treatment
+misclassification attenuates the estimate toward the null.
+Outcome misclassification gets worse as (sens, spec) drop.
+Unmeasured $U$ produces the largest degradation, and is the
+only threat that the standard plasmode alone cannot catch.
+:::
+
+---
+
+## What the bridge does **not** replace {.smaller}
+
+::: {.fragment}
+**E-values** [@vanderWeele2017evalue]. *Post-hoc and not
+candidate-specific.* Reports the minimum confounder strength
+that would nullify the observed effect.
+:::
+
+::: {.fragment}
+**Quantitative bias analysis** [@lash2014qba]. *Adjusts the
+final estimate.* The DQ stress test does not adjust the
+estimate; it asks whether the estimator can still pass the gate
+when the bias is present.
+:::
+
+::: {.fragment}
+**Causal-gap ($\delta$) sensitivity** [@diaz2013sensitivity]. The
+targeted-learning sensitivity tool: it shows how $\Psi$ moves as
+a hypothesised unmeasured-confounder bound varies. Used at
+unblinding, not pre-outcome.
+:::
+
+::: {.fragment}
+**Negative-control outcomes** [@lipsitch2010negative;
+@levintow2023nco; @muntner2024staging Table 2]. *Used on the
+real outcome data.* The DQ stress test cannot detect residual
+confounding; the NCO check cannot detect missingness or
+misclassification. They target different threats.
+:::
+
+::: {.fragment .center}
+*Pre-outcome (DQ stress) → at-outcome (NCO) → post-outcome
+(E-value, QBA, causal-gap).* Three sequential bias analyses.
+:::
+
+---
+
+## Limitations + roadmap {.smaller}
+
+::: {.fragment}
+- **MCAR only** for covariate missingness. The principled
+  alternative is inverse-probability-of-missingness weighting
+  (`identify_missing()` in `causalRisk`); we plan to expose it
+  in a future release.
+:::
+
+::: {.fragment}
+- **Parametric data-generating process.** The plasmode adds a
+  fixed risk difference to a logistic $Q_0$ model fitted to the
+  lock data; effect modification is not modelled.
+:::
+
+::: {.fragment}
+- **Single binary unmeasured confounder.** A vector or
+  continuous $U$ would require a richer DGP than the current
+  package supports.
+:::
+
+::: {.fragment}
+- **Computational cost.** The number of TMLE fits scales with
+  scenarios × severity levels × candidates × replicates. We run
+  scenarios in parallel.
+:::
+
+::: {.fragment}
+- **Estimand scope.** The current release targets the binary
+  risk difference. Counterfactual hazard ratios via
+  `estimate_ipwhr()` and survival TMLE via `survtmle` are not
+  yet wrapped in the staged workflow.
+:::
+
+::: {.fragment}
+- **Single trust boundary.** A software-only clean room has no
+  independent role-based check. For high-stakes regulatory
+  work, run cleanTMLE *inside* a traditional clean-room
+  arrangement [@muntner2024staging; @kent2026fiord] so both
+  the institutional and the computational guarantees apply.
+:::
+
+---
+
+## Take-home {.smaller}
+
+::: {.fragment}
+- Outcome-blind plasmode simulation can do two jobs at once:
+  pick a candidate estimator **and** stress-test it against the
+  data threats SPIFD2 lists qualitatively.
+:::
+
+::: {.fragment}
+- The output — bias, RMSE, and coverage gradients on the same
+  units as the baseline plasmode — feeds the same GO / FLAG /
+  STOP gate the rest of the pre-outcome workflow already uses.
+:::
+
+::: {.fragment}
+- The result is a reproducible, hash-verified pre-outcome
+  bundle: the lock, the audit log, the decision log, and the
+  degradation gradient.
+:::
+
+::: {.fragment}
+- Implementation: **`cleanTMLE`** (R, MIT-licensed) at
+  <https://github.com/amertens/cleanTMLE>; companion simulation
+  at <https://github.com/amertens/clean-room-sim>.
+:::
+
+::: {.fragment .center}
+**Acknowledgements.** The `causalRisk` authors (Brookhart,
+Breskin, Eledath) for the MIT-licensed cohort-specification
+grammar that cleanTMLE inherits. The TL-RWE roadmap authors
+(Dang, Gruber, Phillips, Lee, Ho, van der Laan, Petersen, and
+colleagues) whose published frameworks cleanTMLE operationalises.
+Kent and the Amgen Center for Observational Research for the
+applied staging examples used in the FIORD 2026 talk.
+:::
+
+::: footer
+References in `references.bib` and the companion manuscript.
+:::

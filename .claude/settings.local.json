@@ -87,7 +87,10 @@
       "Bash(ls \"/c/Program Files/R/\"*/bin/Rscript.exe)",
       "Bash(ls \"/c/Program Files/R/\"*/bin/x64/Rscript.exe)",
       "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla _quick_test.R)",
-      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla run_simulation.R)"
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" --vanilla run_simulation.R)",
+      "Bash(Rscript -e \"roxygen2::roxygenise\\(\\)\")",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"devtools::install\\(''cleanTMLE'', quick = TRUE, quiet = TRUE\\)\")",
+      "Bash(git submodule *)"
     ]
   }
 }

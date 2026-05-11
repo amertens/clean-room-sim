@@ -1,0 +1,452 @@
+Received: 3 September 2023  Revised: 29 January 2024  Accepted: 30 January 2024
+DOI: 10.1002/pds.5770
+
+ORIGINAL ARTICLE
+
+Staging and clean room: Constructs designed to facilitate
+transparency and reduce bias in comparative analyses of
+real-world data
+
+Paul Muntner 1 | Rohini K. Hernandez2 | Shia T. Kent2 | James E. Browning2 |
+David T. Gilbertson3 | Kathleen E. Hurwitz4 | Susan S. Jick5 | Edward C. Lai6 |
+Timothy L. Lash7 | Keri L. Monda2 | Kenneth J. Rothman8,9 | Brian D. Bradbury2 |
+M. Alan Brookhart10
+
+1Department of Epidemiology, School of Public Health, University of Alabama at Birmingham, Birmingham, Alabama, USA
+2Center for Observational Research, Amgen Inc., Thousand Oaks, California, USA
+3Chronic Disease Research Group, Hennepin Healthcare Research Institute, Minneapolis, Minnesota, USA
+4Target RWE, Durham, North Carolina, USA
+5Boston Collaborative Drug Surveillance Program, Boston University School of Public Health, Boston, Massachusetts, USA
+6School of Pharmacy, Institute of Clinical Pharmacy and Pharmaceutical Sciences, College of Medicine, National Cheng Kung University, Tainan, Taiwan
+7Department of Epidemiology, Rollins School of Public Health, Emory University, Atlanta, Georgia, USA
+8RTI Health Solutions, Research Triangle Institute, Research Triangle Park, North Carolina, USA
+9Department of Epidemiology, Boston University School of Public Health, Boston, Massachusetts, USA
+10Department of Population Health Sciences, Duke University, Durham, North Carolina, USA
+
+Correspondence                              Abstract
+Paul Muntner, 1600 University Boulevard,
+Birmingham, AL 35294, USA.                  Purpose: We describe constructs designed to protect the integrity of the results from
+Email: pmuntner@yahoo.com                   comparative analyses using real-world data (RWD): staging and clean room.
+                                            Methods: Staging involves performing sequential preliminary analyses and evaluating
+Present address                             the population size available and potential bias before conducting comparative ana-
+Paul Muntner, Department of Epidemiology,   lyses. A clean room involves restricted access to data and preliminary results, policies
+University of Alabama at Birmingham,        governing exploratory analyses and protocol deviations, and audit trail. These con-
+Birmingham, Alabama, USA.                   structs are intended to allow decisions about protocol deviations, such as changes to
+                                            design or model specification, to be made without knowledge of how they might
+Funding information                         affect subsequent analyses. We describe an example for implementing staging with a
+Amgen                                       clean room.
+                                            Results: Stage 1 may involve selecting a data source, developing and registering a
+                                            protocol, establishing a clean room, and applying inclusion/exclusion criteria. Stage
+                                            2 may involve attempting to achieve covariate balance, often through propensity
+                                            score models. Stage 3 may involve evaluating the presence of residual confounding
+                                            using negative control outcomes. After each stage, check points may be implemented
+                                            when a team of statisticians, epidemiologists and clinicians masked to how their deci-
+                                            sions may affect study outcomes, reviews the results. This review team may be
+                                            tasked with making recommendations for protocol deviations to address study
+
+Pharmacoepidemiol Drug Saf. 2024;33:e5770.            wileyonlinelibrary.com/journal/pds  © 2024 John Wiley & Sons Ltd.  1 of 10
+https://doi.org/10.1002/pds.5770
+2 of 10                                                                                                                              MUNTNER ET AL.  10991557, 2024, 3, Downloaded from https://onlinelibrary.wiley.com/doi/10.1002/pds.5770 by Gil Expense- Us, Wiley Online Library on [09/10/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+         precision or bias. They may recommend proceeding to the next stage, conducting
+         additional analyses to address bias, or terminating the study. Stage 4 may involve
+         conducting the comparative analyses.
+         Conclusions: The staging and clean room constructs are intended to protect the
+         integrity and enhance confidence in the results of analyses of RWD.
+
+         KEYWORDS
+         comparative effectiveness, methods, real-world data, safety, study design
+
+         Key Points
+
+         · We present two constructs designed to protect the integrity of the results of real-world data
+            analyses: staging and clean room
+
+         · Staging is a process of reviewing results from sequential preliminary analyses and evaluating
+            the population size available and potential bias before committing to conducting the compar-
+            ative analysis.
+
+         · A clean room process is designed to protect the integrity of a study by allowing decisions
+            about model specification changes and other protocol deviations to be made without knowl-
+            edge of how they might affect subsequent analyses.
+
+         · A clean room imposes restricted access to data and preliminary study results; it also includes
+            policies governing exploratory analyses and protocol deviations, and audit/decision logs.
+
+         · An example for implementing staging with a clean room is provided.
+
+         Plain Language Summary
+
+         There are concerns that data analyses can be tilted in the direction of desired results and that
+         only selected results are reported. We describe two approaches designed to increase confidence
+         that the results from analyses of data from nonrandomized studies are valid: staging and clean
+         room. Staging is a multi-step process during, which results from preliminary analyses are
+         reviewed. There can be check points after each step during which a review team can evaluate
+         whether the data are appropriate for conducting a comparative analysis. For example, the
+         review team can evaluate if the study size is large enough to be informative or if the treatment
+         groups are comparable. Depending on the results of these initial analyses, at each check point,
+         the review team can recommend to stop the analysis, continue to the next step, or make modifi-
+         cations to the study protocol. If modifications to the protocol occur, they should be made before
+         starting a formal comparison of the treatments. A clean room restricts access to data and to pre-
+         liminary study results, allowing for exploratory analyses to be conducted, while limiting knowl-
+         edge for how these will affect the results of subsequent comparative safety and effectiveness
+         analyses.
+
+1 | INTRODUCTION                                                         substantial increase in the availability of RWD, pharmacoepidemiology
+                                                                         study designs for causal inference and new statistical methods, there
+As part of the 21st Century Cures Act, signed into US law on             is increased potential for generating RWE on drug safety and
+December 13, 2016, the Food and Drug Administration (FDA) com-           effectiveness.5­7
+mitted to realizing the potential of real-world data (RWD) for generat-
+ing evidence that advances the development of therapeutic products            RWD analyses are based on existing data, which has led to con-
+and supports regulatory oversight.1 The use of evidence from analyses    cerns that analyses can be engineered to produce desired results and
+of RWD, hereafter referred to as real world evidence (RWE), for          only selected results are chosen to be reported.8,9 In contrast, well-
+decision-making is not new. RWE has been used to monitor drug            designed randomized trials are conducted prospectively, following a
+safety and expand indications for FDA-approved medications.2,3           protocol that delineates the study population to be enrolled, the data
+However, RWD has been used on a limited basis by regulatory              to be collected, the exposure(s) being evaluated, the primary outcome
+authorities to evaluate the effectiveness of medications.4 With the      and secondary outcomes, and the specific analyses that will be exe-
+                                                                         cuted. Many peer-reviewed medical journals require that, to be
+MUNTNER ET AL.                                                             3 of 10                                                                       10991557, 2024, 3, Downloaded from https://onlinelibrary.wiley.com/doi/10.1002/pds.5770 by Gil Expense- Us, Wiley Online Library on [09/10/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+considered for publication, randomized trials be registered on a public    process. The personnel working in a clean room typically wear protec-
+website with detailed information on the design before participants        tive clothing to reduce further the introduction of contaminants.
+are enrolled.10 The registration of a trial and its design can inform      Investigator biases, such as the desire to find a large effect of a treat-
+readers whether the results were based on a priori-defined plans.11        ment, are analogous to the contaminants in semiconductor
+This requirement has been viewed as challenging for RWD analyses           manufacturing.
+as preliminary results may change the approach used in subsequent
+steps to address bias or confounding.12                                         In many RWD analyses, small and large deviations from prespeci-
+                                                                           fied protocols may be necessary to obtain an unbiased estimate. For
+     A Task Force created by the International Society for Pharmacoe-      example, regression models may not converge, covariate balance may
+conomics and Outcomes Research (ISPOR) and the International Soci-         not be achieved by a priori-specified propensity score censoring
+ety for Pharmacoepidemiology (ISPE) has provided recommendations           models, missing data may need to be addressed, and variable defini-
+to build confidence in RWE.13,14 These recommendations have                tions may need to be revised. We describe an approach in which a
+described study design considerations for RWD analyses, but there          review committee of statisticians, epidemiologists, and clinicians, can
+has been limited guidance to address issues that may arise during the      make recommendations for modifications to the planned analysis. A
+execution of the study.12,15­18 In this manuscript, we describe two        fundamental attribute of the review committee is that its members
+constructs that were designed to protect the integrity of the results      are shielded from knowing how their decisions might affect the results
+from RWD analyses: staging and clean room. A process similar to the        of subsequent comparative effectiveness and safety analyses. The
+staging construct that we describe was used in RCT-DUPLICATE, an           masking of the review committee can occur using a clean room that
+initiative that evaluated if RWD could be used to replicate results        has technical safeguards with restricted access to analytic data and
+from randomized trials.19 In RCT-DUPLICATE, several feasibility ana-       results, and policies and procedures governing exploratory analyses,
+lyses in sequential steps were conducted before initiating the compar-     protocol deviations, decision logs, and release of summary data
+ative effectiveness analyses. In earlier work, a clean room was applied    (Figure 1). Technical safeguards may include establishing separate
+in a RWD analysis assessing the effectiveness of Romiplostim for           folders in the clean room (e.g., on a server) for each stage of an analy-
+immune thrombocytopenia, a study conducted to support regulatory           sis, limited to the data sets needed. Each folder can have unique user
+discussions.20 The current manuscript extends these prior studies by       authentication. Using these safeguards, a clean room can allow for
+providing practical information on the staging and clean room con-         exploratory analyses to be conducted, while limiting knowledge
+structs when conducting RWD analyses for comparative effectiveness         for how protocol modifications will affect the results of subsequent
+and safety studies.                                                        comparative safety and effectiveness analyses.
+
+2 | STAGING                                                                     A key component of the clean room is the maintenance of an
+                                                                           audit trail or decision log that records data management and statistical
+Staging refers to the process of reviewing preliminary results, identify-  analyses. The audit trail provides documentation of which analyses
+ing potential concerns, such as the presence of bias, and proceeding       were preplanned and whether exploratory analyses were conducted
+to a comparative analysis only if no concerns exist or if investigators    independently of their effect on subsequent comparative analyses.
+can remedy them. There can be a check point after each stage at            This documentation may be particularly useful for studies evaluating
+which time the results are reviewed and decisions are made regarding       drug safety and effectiveness based on a priori defined hypotheses or
+whether and how to proceed. If a potential issue is identified at a        whenever a potential conflict of interest may be perceived to exist. In
+check point, the protocol may be modified to address it before pro-        the previously-referenced analysis of Romiplostim for immune throm-
+ceeding to a comparative analysis. If an issue (e.g., confounding) can-    bocytopenia, the review committee met multiple times to revise the
+not be addressed, the study may proceed with this knowledge or may         choice of propensity score weights, model specification, a missing
+be stopped before conducting the comparative analysis.                     data model, and multiple censoring models to address problems of
+                                                                           covariate imbalance and model convergence.20 In Table S1, we pro-
+3 | CLEAN ROOM                                                             vide a section of the decision log from that study to illustrate the type
+                                                                           of information that can be recorded.
+Implicit in the staging construct is the need to make decisions about
+proceeding with a study or implementing protocol deviations when                In the following sections, we provide an example for the imple-
+unexpected data, design, or analytical issues are encountered. To          mentation of a clean room with staging in a standard propensity score
+make these decisions in a way that protects a study's integrity, we        weighted comparative analysis (Figure 2).
+propose a construct that we term clean room. We borrow the term
+clean room from semiconductor manufacturing, in which a clean room         4 | STUDY TEAM/INVESTIGATOR ROLES
+is a highly controlled environment designed to reduce the concentra-
+tion of contaminants that could adversely affect the production            Implementing a RWD analysis with staging and a clean room may bene-
+                                                                           fit from investigators with statistical, epidemiologic, and medical exper-
+                                                                           tise. Investigators' roles can be defined by the activities they lead, their
+                                                                           access to data for conducting analyses versus interpreting study results,
+4 of 10                                                                   MUNTNER ET AL.                                                            10991557, 2024, 3, Downloaded from https://onlinelibrary.wiley.com/doi/10.1002/pds.5770 by Gil Expense- Us, Wiley Online Library on [09/10/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+F I G U R E 1 Attributes of a clean room for a comparative analysis including staff roles and responsibilities, documentation, data security, and
+data sharing plans.
+
+and the responsibility they have in deciding whether to proceed to the    recommendations for additional analyses and protocol modifications
+next stage of the study. Below, we describe two groups of personnel:      before proceeding to the next stage of an analysis. Defining the cri-
+study investigators and a review team. In Table 1 and Figure 3, we pro-   teria to be used by the review team in the protocol before a study is
+vide an example of specific roles that investigators and the review team  initiated can increase transparency and trust in the results of the com-
+may have in an analysis using staging and a clean room.                   parative analyses. Members of the review team may be co-authors on
+                                                                          manuscripts resulting from the preliminary analyses and comparative
+     The study investigators can set up a clean room, restrict data       analyses or may be recognized by listing them in the acknowledge-
+access, generate an audit log to track data management and statistical    ment section of manuscripts or reports.
+analyses, prepare data sets for analysis and conduct the
+statistical analysis. Staging with a clean room is an iterative process   5 | DEMONSTRATION OF STAGING AND
+and investigators may be asked at multiple points to add new data ele-    CLEAN ROOM CONSTRUCTS THROUGH
+ments (e.g., negative control outcomes, study outcomes) to an initial     EXAMPLE STAGES OF A RWD ANALYSIS
+data set in the clean room that may include only variables to apply the
+inclusion/exclusion criteria, exposure information. and covariates. A     In this section, we review an approach for implementing staging of a
+lead investigator may provide guidance to the other investigators for     RWD analysis using a clean room in sequential steps. Following the
+each step of the analysis and communicating with the review team,         constructs of staging with a clean room, this approach can be adapted
+whose members do not have access to study data but have an impor-         to address issues related to transparency and bias in RWD analyses.
+tant role in providing feedback on the preliminary analyses.
+                                                                          6 | STAGE 1A: STUDY DEVELOPMENT
+     The review team is comprised of advisors who review results at
+check points after each stage and provide recommendations on how          The initial phase of a RWD analysis is to develop a protocol, which
+to proceed with a study. As described in the example below, at the        may include the study objectives and the dataset(s) to be used, char-
+check points, the review team may focus on assessing (1) study size/      acteristics of the clean room, research and review teams, groups to be
+number of events available, (2) propensity score models and covariate     compared, and the selection of outcomes and covariates with
+balance, and (3) potential residual confounding due to unmeasured or
+mismeasured confounding. The review team's decisions have major
+implications; they can advise whether a study will proceed to a
+comparative analysis or not. In addition, they can provide
+MUNTNER ET AL.                                                              5 of 10                                                             10991557, 2024, 3, Downloaded from https://onlinelibrary.wiley.com/doi/10.1002/pds.5770 by Gil Expense- Us, Wiley Online Library on [09/10/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+F I G U R E 2 Example of a staged
+analysis for a real-world data analysis.
+
+confirmation that they can be defined through existing elements or          (e.g., European Network of Centres for Pharmacoepidemiology and
+validated algorithms. The protocol can also provide characteristics of      Pharmacovigilance) for further transparency.11
+the clean room, research and review teams, a list of stages and check
+points, information on the motivation for each one, and criteria to         7 | STAGE 1B: STUDY SET UP AND
+proceed or not to the next stage in the protocol can provide transpar-      COHORT BUILD
+ency. Guidance for these steps has been published.21,22 Once all
+investigators, an institutional review board and, if applicable, a health-  When the study protocol has been finalized, a clean room with a
+care authority, have reviewed and approved the final study protocol,        secure file structure can be assembled. The clean room may include
+investigators may consider registering it on public websites
+6 of 10                                                                                                                      MUNTNER ET AL.           10991557, 2024, 3, Downloaded from https://onlinelibrary.wiley.com/doi/10.1002/pds.5770 by Gil Expense- Us, Wiley Online Library on [09/10/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+T A B L E 1 Example of roles for team members conducting a comparative analysis with the staging and clean room constructs.
+
+                     Analysis stage
+
+Investigators        Stage 1                          Stage 2                           Stage 3                     Stage 4
+   Programmer
+   Analyst           Establish clean room place data  Add covariates to data set        Add negative control        Add outcomes to data set
+                        sets in clean room                                                 outcomes to data set     Conduct comparative
+   Analytic                                           Assess covariate balance
+      advisor (lead  Apply inclusion/exclusion           prepare propensity score,      Conduct negative control       analyses
+      investigator)     criteria                         inverse probability treatment     outcomes analyses
+                                                         weights conduct trimming of                                Confirm analyses were done
+Review team          Develop study aims Identify         data as needed                 Review data to assess if       following the study
+                        appropriate data set draft                                         residual confounding is     protocol prepare final
+                        and publicly post protocol    Review data to assess                present                     study report
+                        review estimates of sample       covariate balance
+                        size, number of outcomes                                        Determine if residual       None
+                        and/or statistical precision  Determine if the treatment           confounding is present
+                                                         groups are comparable
+                     Determine if adequate
+                        statistical precision is
+                        available
+
+F I G U R E 3 Example of the workflow and communication between the investigators in a study using staging and a clean room. For the masked
+data that the analyst receive, variables defining the treatment groups can be labeled to reduce bias from investigators and the review team being
+aware of treatment status.
+
+a firewall with different levels of data access for the study investiga-  apply the inclusion and exclusion criteria from the protocol to create a
+tors and the review team. Variables defining the exposure groups can      study cohort. Using these data, investigators can evaluate if adequate
+be labeled to mask investigators and review team. Investigators can       statistical precision is available. Stating the desired study size, number
+MUNTNER ET AL.                                                                                                                           7 of 10     10991557, 2024, 3, Downloaded from https://onlinelibrary.wiley.com/doi/10.1002/pds.5770 by Gil Expense- Us, Wiley Online Library on [09/10/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+of events, median length of follow-up, and statistical precision to pro-  T A B L E 2 Potential domains to be used for negative control
+ceed to the next stage of the study in the protocol can reduce subjec-    outcomes.
+tive decision-making.
+                                                                          Domain                          Example variables
+8 | CHECK POINT 1: ADEQUATE STUDY                                         Confounding by indication
+SIZE/STATISTICAL PRECISION                                                                                Receipt of other treatments for the
+                                                                          Functional status, cognition,      condition under study, presence of
+Investigators can prepare a report with estimates of statistical preci-      mobility, frailty, disease-     risk factors
+sion for the primary and secondary analyses to be shared with the            severity
+review team. The degree of precision required may result from discus-                                     Anemia, asthma, decubitus ulcer,
+sions between a study sponsor and a regulatory agency or healthcare       Health-seeking behaviors           dementia, osteoarthritis and
+authority. The review team may recommend proceeding if a priori                                              transfusions
+defined statistical precision criteria are met. Alternatively, they can   Access to healthcare
+recommend protocol modifications or not to proceed.                                                       Annual wellness visits,
+                                                                                                             electrocardiogram and influenza
+                                                                                                             vaccination
+
+                                                                                                          Pelvic exams or mammograms for
+                                                                                                             cancer screening in women, colon
+                                                                                                             cancer screening, Moh's surgery
+                                                                                                             and visual field testing
+
+9 | STAGE 2: GENERATE TREATMENT                                           11 | STAGE 3: ASSESS FOR
+ARMS WITH BALANCED COVARIATES                                             UNCONTROLLED AND RESIDUAL
+                                                                          CONFOUNDING
+Achieving covariate balance across treatment arms is key for compar-
+ative analyses. Prior research has suggested selecting covariates for     Even after balancing covariates, uncontrolled, and residual confound-
+propensity scores using subject-matter knowledge and causal dia-          ing due to unmeasured or mismeasured confounders can lead to
+grams.23 This approach can be supplemented by data-driven                 biased estimates in comparative analyses. Assessing the association of
+approaches including high-dimensional propensity scores.24 After          treatment groups with negative control outcomes is a method to iden-
+applying covariate balancing methodology (e.g., propensity scores),       tify the presence of uncontrolled confounding.27,28 A negative control
+descriptive statistics for inverse probability of treatment weighted      outcome is an event that has no plausible mechanism by which it can
+populations can be generated. Based on these results, altering the eli-   be caused by the treatment of interest but may share a confounding
+gibility criteria to generate more comparable weighted populations        structure with the treatment-outcome association.29 After controlling
+may be necessary.                                                         for a set of confounders, through adjustment, a propensity score or an
+                                                                          alternate approach, any observed association between the treatment
+10 | CHECK POINT 2: COVARIATE                                             and a negative control outcome suggests uncontrolled confounding.30
+BALANCE
+                                                                               Negative control outcomes can be chosen based on their hypoth-
+The review team can review tables and figures with summary sta-           esized ability to identify the presence of residual confounding in con-
+tistics for the covariates considered in the analysis, and propensity     ceptual domains that are likely to be inadequately controlled.31
+score models that include all relevant variables for each outcome         Previous studies have used negative controls in domains that include
+being evaluated. This review can include assessing the propensity         confounding by indication, functional status, health-seeking behaviors,
+score distribution overlap between the treatment groups, confirm-         and access to health care (Table 2).32,33 During the study development
+ing the sum of the weights for the total study size if inverse proba-     phase, the investigators may convene an external committee compris-
+bility of treatment weighting is used, and determining that the           ing researchers and clinicians to finalize the selection of negative con-
+minimum and maximum weights are not extreme values.25 If                  trol outcomes. The association between the exposure (e.g., treatment)
+inverse probability of treatment weighting or propensity score            and negative control outcomes can be assessed in regression models
+matching is used, the standardized mean differences between               conducted in the final weighted populations developed in Stage
+treatment groups for covariates can be checked.26 Analytic compli-        2 using the same approach being planned for the main comparative
+cations may be identified by the review team that require protocol        analyses.
+changes. Having the review team assess and approve changes to
+the eligibility criteria and documenting these changes in a protocol      12 | CHECK POINT 3: UNCONTROLLED
+amendment can be done to increase transparency. If the study size         CONFOUNDING
+is reduced during this stage, the review team may choose to recom-
+mend revisiting Stage 1 and confirming that adequate statistical          There is no widely accepted guidance for defining the presence of
+precision is still available.                                             uncontrolled confounding in a negative control outcome analysis. It
+                                                                          may be useful to avoid stringent criteria for assessing confounding
+8 of 10                                                                    MUNTNER ET AL.                                                           10991557, 2024, 3, Downloaded from https://onlinelibrary.wiley.com/doi/10.1002/pds.5770 by Gil Expense- Us, Wiley Online Library on [09/10/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+using negative controls until standardized criteria are defined. How-      increase transparency regarding study design and execution and
+ever, specifying criteria for assessing confounding using negative con-    enable reproducibility. Investigators may choose to publish their audit
+trols can provide transparency that the presence of confounding is         trail/decision log as Supporting Information to a manuscript that
+being evaluated unambiguously. An example may be to consider sub-          details study results or on the public website where the study proto-
+stantial uncontrolled confounding present if the measure of associa-       col and modifications were published. We have used the terms stag-
+tion (e.g., hazard ratio) for a negative control outcome is not close to   ing and clean room in the current manuscript, but other nomenclature
+1 (e.g., not between 0.87 and 1.15). The more negative control out-        for these concepts may exist and be preferable. Assuming these types
+comes that are being evaluated, the more likely an association will be     of approaches become more commonly used, leading professional
+present by chance. Therefore, to identify if uncontrolled confounding      societies including ISPOR and ISPE could recommend standard pro-
+is present, it may be informative to assess the consistency of the asso-   cesses and nomenclature. Finally, publishing findings from preliminary
+ciations for multiple negative control outcomes in a single domain and     analyses when a study is stopped before conducting the comparative
+whether a single negative control outcome consistently shows bias          analyses can increase transparency and provide new information on
+across different populations, if more than one population is to be         confounding and bias.
+studied. The review team can decide whether the study should pro-
+ceed with negligible or moderate concern for confounding or does not       15 | CONCLUSION
+proceed due to strong concerns regarding confounding. The review
+team could also use the results from negative control outcome ana-         The increased availability of RWD and development of pharmacoepide-
+lyses to revise aspects of the design, for example restricting the analy-  miology study designs for causal inference and new statistical methods
+sis to a subset of more recent data or to higher risk patients, where      provide opportunities to conduct comparative analyses on the safety
+residual confounding appears to be less problematic.                       and effectiveness of medications. Approaches are needed to address
+                                                                           potential limitations of RWD analyses, including selectively choosing
+13 | STAGE 4: CONDUCT THE                                                  comparator groups or results to present and bias from uncontrolled con-
+COMPARATIVE ANALYSIS                                                       founding. Implementing staging and clean room constructs when con-
+                                                                           ducting a RWD analysis has the potential to increase transparency and
+After the preliminary stages have been passed, the comparative ana-        reduce the risk of bias, resulting in increased reliability of RWE.
+lyses can be conducted. These analyses can include the primary com-
+parative analysis, quantitative bias analysis, sensitivity analyses, and   FUNDING INFORMATION
+bias adjustment using information from the negative control out-           None.
+comes.34,35 Prespecifying the analyses in the protocol, or in protocol
+modifications made before initiating this stage, can increase trust that   CONFLICT OF INTEREST STATEMENT
+the results were not selectively chosen for presentation.                  Paul Muntner is an employee of the US government. The work for this
+                                                                           manuscript was conducted prior to assuming this position and does
+14 | ADDITIONAL ASPECTS TO CONSIDER                                        not reflect the views of the US Government. Rohini K Hernandez,
+                                                                           Shia T Kent, James E Browning, Keri L Monda, and Brian D Bradbury
+The staging and clean room constructs have limitations; they require       are employees and shareholder of Amgen Inc. David T Gilbertson has
+substantial resources to implement. Not all studies require staging and    no conflicts to disclose. Kathleen E Hurwitz is employed by and owns
+a clean room, especially those intended to generate hypotheses. More       equity in Target RWE. Susan S Jick has no conflicts to disclose.
+complex analyses, such as those involving specification of censoring       Edward C Lai has received research grants from Amgen, AbbVie,
+and missing data models, may require different stages and different        Sanofi, Takeda, Roche, the National Science and Technology Council
+decisions to be made in a clean room process than described in this        of Taiwan, and the National Health Research Institutes (NHRI) of
+manuscript. Also, many studies have protocol deviations. Defining the      Taiwan. All outside the submitted work. Timothy L Lash is a member
+approach for making these changes, the role of a review team in eval-      of the Amgen Methods Advisor Council, for which he receives con-
+uating and approving these changes, and publicly posting changes           sulting fees and travel support. Kenneth J Rothman has no conflicts to
+with the original protocol, may increase transparency. Members of          disclose. M Alan Brookhart serves on scientific advisory committees
+review teams may have their own bias. It may be useful to have a           for Accompany Health, American Academy of Allergy, Asthma &
+review team comprising individuals who are not likely to be influenced     Immunology, Amgen, Astellas/Seagen, Atara Biotherapeutics, Brigham
+by the study results. Coding errors are possible. Software has been        and Women's Hospital, Gilead/Kite, Intercept, National Institute of
+developed for executing RWD analyses that reduce human program-            Diabetes and Digestive and Kidney Diseases, Regeneron, and Vertex;
+ming errors and increase transparency by providing documentation           he owns equity in Accompany Health, and Target RWE.
+and an audit trail, and has the potential to make the process less
+resource intensive. Having documentation and an audit trail can            ETHICS STATEMENT
+                                                                           No data were analyzed for this study.
+MUNTNER ET AL.                                                                9 of 10                                                                        10991557, 2024, 3, Downloaded from https://onlinelibrary.wiley.com/doi/10.1002/pds.5770 by Gil Expense- Us, Wiley Online Library on [09/10/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+ORCID                                                                         17. Ray WA. Evaluating medication effects outside of clinical trials: new-
+                                                                                    user designs. Am J Epidemiol. 2003;158(9):915-920. doi:10.1093/aje/
+Paul Muntner https://orcid.org/0000-0002-4711-5492                                  kwg231
+
+Susan S. Jick https://orcid.org/0000-0002-2215-1067                           18. Wang SV, Schneeweiss S. Assessing and interpreting real-world evi-
+                                                                                    dence studies: introductory points for new reviewers. Clin Pharmacol
+Edward C. Lai https://orcid.org/0000-0002-5852-7652                                 Ther. 2022;111(1):145-149. doi:10.1002/cpt.2398
+
+REFERENCES                                                                    19. Wang SV, Schneeweiss S, RCT-Duplicate Initiative, et al. Emulation of
+                                                                                    randomized clinical trials with nonrandomized database analyses:
+ 1. Food and Drug Administration. Framework for FDA's real-world evi-               results of 32 clinical trials. JAMA. 2023;329(16):1376-1385. doi:10.
+      dence program. 2023 Accessed April 30, 2023. https://www.fda.gov/             1001/jama.2023.4221
+      media/120060/download
+                                                                              20. McGrath LJ, Nielson C, Saul B, et al. Lessons learned using real-world
+ 2. Gatto NM, Sobel RE, Geier J, Mo J, Bate A, Reynolds RF. The role of             data to emulate randomized trials: a case study of treatment effec-
+      pharmacoepidemiology in industry. In: Strom BL, ed. Pharmacoepidemiol-        tiveness for newly diagnosed immune thrombocytopenia. Clin Phar-
+      ogy. 6th ed. Wiley-Blackwell; 2007:98-125 chap 7.                             macol Ther. 2021;110(6):1570-1578. doi:10.1002/cpt.2399
+
+ 3. Ball R, Robb M, Anderson SA, Dal Pan G. The FDA's sentinel                21. Gatto NM, Campbell UB, Rubinstein E, et al. The structured process
+      initiative--a comprehensive approach to medical product surveillance.         to identify fit-for-purpose data: a data feasibility assessment frame-
+      Clin Pharmacol Ther. 2016;99(3):265-268. doi:10.1002/cpt.320                  work. Clin Pharmacol Ther. 2022;111(1):122-134. doi:10.1002/cpt.
+                                                                                    2466
+ 4. Baumfeld Andre E, Reynolds R, Caubel P, Azoulay L, Dreyer NA. Trial
+      designs using real-world data: the changing landscape of the regula-    22. Duke-Margolis Center for Health Policy. Characterizing RWD Quality
+      tory approval process. Pharmacoepidemiol Drug Saf. 2020;29(10):               and Relevancy for Regulatory Purposes. 2018 Accessed: May
+      1201-1212. doi:10.1002/pds.4932                                               7, 2023. https://healthpolicy.duke.edu/sites/default/files/2020-03/
+                                                                                    characterizing_rwd.pdf
+ 5. Concato J, Corrigan-Curay J. Real-world evidence--where are we
+      now? N Engl J Med. 2022;386(18):1680-1682. doi:10.1056/NEJMp            23. Tennant PWG, Murray EJ, Arnold KF, et al. Use of directed acyclic
+      2200089                                                                       graphs (DAGs) to identify confounders in applied health research:
+                                                                                    review and recommendations. Int J Epidemiol. 2021;50(2):620-632.
+ 6. de Lusignan S, Crawford L, Munro N. Creating and using real-world               doi:10.1093/ije/dyaa213
+      evidence to answer questions about clinical effectiveness. J Innov
+      Health Inform. 2015;22(3):368-373. doi:10.14236/jhi.v22i3.177           24. Rassen JA, Blin P, Kloss S, et al. High-dimensional propensity scores
+                                                                                    for empirical covariate selection in secondary database studies: plan-
+ 7. Franklin JM, Pawar A, Martin D, et al. Nonrandomized real-world                 ning, implementation, and reporting. Pharmacoepidemiol Drug Saf.
+      evidence to support regulatory decision making: process for a ran-            2023;32(2):93-106. doi:10.1002/pds.5566
+      domized trial replication project. Clin Pharmacol Ther. 2020;107(4):
+      817-826. doi:10.1002/cpt.1633                                           25. Austin PC, Stuart EA. Moving towards best practice when using
+                                                                                    inverse probability of treatment weighting (IPTW) using the propen-
+ 8. PLoS Medicine Editors. Observational studies: getting clear about               sity score to estimate causal treatment effects in observational stud-
+      transparency. PLoS Med. 2014;11(8):e1001711. doi:10.1371/journal.             ies. Stat Med. 2015;34(28):3661-3679. doi:10.1002/sim.6607
+      pmed.1001711
+                                                                              26. Zhang Z, Kim HJ, Lonjon G, Zhu Y, AMEB-DCTCG. Balance diagnos-
+ 9. Sox HC, Helfand M, Grimshaw J, et al. Comparative effectiveness                 tics after propensity score matching. Ann Transl Med. 2019;7(1):16.
+      research: challenges for medical journals. PLoS Med. 2010;7(4):               doi:10.21037/atm.2018.12.10
+      e1000269. doi:10.1371/journal.pmed.1000269
+                                                                              27. Dusetzina SB, Brookhart MA, Maciejewski ML. Control outcomes and
+10. International Committee of Medical Journal Editors. Clinical Trials.            exposures for improving internal validity of nonrandomized studies.
+      2014 Accessed April 30, 2023. https://www.icmje.org/recommen                  Health Serv Res. 2015;50(5):1432-1451. doi:10.1111/1475-6773.
+      dations/browse/publishing-and-editorial-issues/clinical-trial-regis           12279
+      tration.html
+                                                                              28. Arnold BF, Ercumen A. Negative control outcomes: a tool to detect
+11. Li T, Boutron I, Al-Shahi Salman R, et al. Review and publication of            bias in randomized trials. JAMA. 2016;316(24):2597-2598. doi:10.
+      protocol submissions to trials--what have we learned in 10 years? Tri-        1001/jama.2016.17700
+      als. 2016;18(1):34. doi:10.1186/s13063-016-1743-0
+                                                                              29. Lipsitch M, Tchetgen Tchetgen E, Cohen T. Negative controls: a tool
+12. Wang SV, Pinheiro S, Hua W, et al. STaRT-RWE: structured tem-                   for detecting confounding and bias in observational studies. Epidemi-
+      plate for planning and reporting on the implementation of real                ology. 2010;21(3):383-388. doi:10.1097/EDE.0b013e3181d61eeb
+      world evidence studies. BMJ. 2021;372:m4856. doi:10.1136/bmj.
+      m4856                                                                   30. Shi X, Miao W, Tchetgen ET. A selective review of negative control
+                                                                                    methods in epidemiology. Curr Epidemiol Rep. 2020;7(4):190-202. doi:
+13. Berger ML, Sox H, Willke RJ, et al. Good practices for real-world data          10.1007/s40471-020-00243-4
+      studies of treatment and/or comparative effectiveness: recommenda-
+      tions from the joint ISPOR-ISPE special task force on real-world evi-   31. Levintow SN, Nielson CM, Hernandez RK, et al. Pragmatic consider-
+      dence in health care decision making. Pharmacoepidemiol Drug Saf.             ations for negative control outcome studies to guide non-randomized
+      2017;26(9):1033-1039. doi:10.1002/pds.4297                                    comparative analyses: a narrative review. Pharmacoepidemiol Drug
+                                                                                    Saf. 2023;32(6):599-606. doi:10.1002/pds.5623
+14. Orsini LS, Monz B, Mullins CD, et al. Improving transparency to build
+      trust in real-world secondary data studies for hypothesis testing-why,  32. McGrath LJ, Spangler L, Curtis JR, et al. Using negative control out-
+      what, and how: recommendations and a road map from the real-                  comes to assess the comparability of treatment groups among
+      world evidence transparency initiative. Pharmacoepidemiol Drug Saf.           women with osteoporosis in the United States. Pharmacoepidemiol
+      2020;29(11):1504-1513. doi:10.1002/pds.5079                                   Drug Saf. 2020;29(8):854-863. doi:10.1002/pds.5037
+
+15. Donelan R, Walker S, Salek S. Factors influencing quality decision-       33. Levintow SN, Orroth KK, Breskin A, et al. Use of negative control out-
+      making: regulatory and pharmaceutical industry perspectives. Pharma-          comes to assess the comparability of patients initiating lipid-lowering
+      coepidemiol Drug Saf. 2015;24(3):319-328. doi:10.1002/pds.3752                therapies. Pharmacoepidemiol Drug Saf. 2022;31(4):383-392. doi:10.
+                                                                                    1002/pds.5396
+16. Sturmer T, Wang T, Golightly YM, Keil A, Lund JL, Jonsson FM. Meth-
+      odological considerations when analysing and interpreting real-world    34. Lash TL, Fox MP, Cooney D, Lu Y, Forshee RA. Quantitative bias anal-
+      data. Rheumatology (Oxford). 2020;59(1):14-25. doi:10.1093/rheuma             ysis in regulatory settings. Am J Public Health. 2016;106(7):1227-
+      tology/kez320                                                                 1230. doi:10.2105/AJPH.2016.303199
+10 of 10                                                                                                                                                MUNTNER ET AL.  10991557, 2024, 3, Downloaded from https://onlinelibrary.wiley.com/doi/10.1002/pds.5770 by Gil Expense- Us, Wiley Online Library on [09/10/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+35. Hunnicutt JN, Ulbricht CM, Chrysanthopoulou SA, Lapane KL.             How to cite this article: Muntner P, Hernandez RK, Kent ST,
+      Probabilistic bias analysis in pharmacoepidemiology and comparative  et al. Staging and clean room: Constructs designed to facilitate
+      effectiveness research: a systematic review. Pharmacoepidemiol Drug  transparency and reduce bias in comparative analyses of real-
+      Saf. 2016;25(12):1343-1353. doi:10.1002/pds.4076                     world data. Pharmacoepidemiol Drug Saf. 2024;33(3):e5770.
+                                                                           doi:10.1002/pds.5770
+SUPPORTING INFORMATION
+Additional supporting information can be found online in the Support-
+ing Information section at the end of this article.
+

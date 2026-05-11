@@ -125,14 +125,14 @@ pairs.
 
 **Event-process table.**
 
-| Event-like quantity                       | Class                          | Handling                                              |
-|-------------------------------------------|--------------------------------|-------------------------------------------------------|
-| GOSE > 4 at 6 months                      | Event of interest (outcome)    | Estimand: marginal RD on this binary outcome          |
-| GOSE missing at 6 months                  | Missingness                    | IPCW under MCAR; documented in missing-data plan       |
-| In-hospital death before 6-month GOSE     | Competing event (rare)         | Coded as GOSE = 1 ("worst") per SAP; recorded         |
-| Inter-facility transfer at index event    | Exclusion                      | Excluded from analytic cohort                          |
-| Treatment switching / crossover           | Not applicable                 | Point exposure at scene; no time-varying treatment    |
-| 6-month follow-up window end              | Administrative end of FU       | Fixed at 6 months; no admin censoring before that      |
+| Event-like quantity                       | Class                                      | Handling                                                                          |
+|-------------------------------------------|--------------------------------------------|-----------------------------------------------------------------------------------|
+| GOSE > 4 at 6 months                      | Event of interest (outcome)                | Estimand: marginal RD on this binary outcome                                      |
+| GOSE missing at 6 months                  | Missingness                                | Primary: complete-outcome analysis; IPCW sensitivity under a conditional missingness model |
+| In-hospital death before 6-month GOSE     | Outcome component / intercurrent event     | Coded as GOSE = 1 under a composite or worst-rank strategy; recorded               |
+| Inter-facility transfer at index event    | Exclusion                                  | Excluded from analytic cohort                                                      |
+| Treatment switching / crossover           | Not applicable                             | Point exposure at scene; no time-varying treatment                                |
+| 6-month follow-up window end              | Administrative end of FU                   | Fixed at 6 months; no admin censoring before that                                  |
 
 **Target-population table.**
 
@@ -159,7 +159,7 @@ pairs.
 |------------------------------------------|--------------------------|-----------:|--------------|-------------------------------------------------------------------------------|-------------------------|
 | Crude                                    | n/a                      |        n/a | Complete case| Marginal contrast in complete-outcome subset                                  | Reference comparator    |
 | PS matching                              | GLM PS                   |        n/a | Complete case| ATE in matched overlap subset                                                 | Secondary               |
-| IPTW (stabilised)                        | GLM PS                   |       0.01 | Complete case| ATE in full eligible cohort under PS-truncated model                          | Secondary               |
+| IPTW (stabilised)                        | GLM PS                   |       0.01 | Complete case| Full-cohort marginal contrast estimated with stabilised, truncated treatment weights; truncation may approximate the practical estimand and should be reported | Secondary |
 | Full-cohort TMLE                         | SL ensemble              |       0.01 | Complete case| ATE in full eligible cohort under prespecified locked SL library              | **Primary**             |
 | Matched-cohort TMLE                      | SL ensemble (matched)    |        n/a | Complete case| ATE in matched overlap subset                                                 | Sensitivity (target pop)|
 | Complete-outcome TMLE with IPCW weights  | SL ensemble + SL IPCW    |       0.01 | IPCW         | ATE in full eligible cohort under the locked missingness model                | Sensitivity (missingness)|

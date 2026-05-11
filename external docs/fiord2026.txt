@@ -1,0 +1,2311 @@
+                              Forum on the Integration of         CTML
+                              Observational and Randomized Data
+                                                                  CENTER FOR TARGETED MACHINE
+FIORD 2026                                                       LEARNING AND CAUSAL INFERENCE
+                                            LUNCH
+
+                                           We will restart at 1:30
+
+4TH ANNUAL
+
+FIORDvvJ, Focom oo the lotegcatloo offAf}J"                          CTML
+
+Observational and Randomized Data                                    CENTER FOR TARGETED MACHINE
+                                                                    LEARNING AND CAUSAL INFERENCE
+A Staging Framework to Facilitate Transparency and
+Reduce Bias in Comparative Analyses of Real-World Data
+
+FIORD 2026
+
+Shia Kent
+Amgen's Center for Observational Research (CfOR)
+Agenda
+
+1. Staging and Clean Room for Comparative Studies:
+    Motivation and Overview
+
+2. Execution of Staging and Clean Room for a Comparative
+    Study: Comparative Effectiveness of Evolocumab
+
+2
+Ensuring a principled approach to comparative RWE
+
+            With increasing opportunity for RWE to contribute to regulatory and other healthcare
+            decision making, it is important to:
+
+               ·Ensure transparency and documentation of study procedures and decisions
+               ·Ensure sufficient precision and study validity
+               ·Have a thorough assessment of confounding by indication and other systematic biases
+
+            Amgen's Center for Observational Research is implementing "clean room" and
+            "staging" frameworks1
+
+               ·Controlled and tracked access to study data and results by role
+               ·Pre-specified "checkpoints" in the study timeline ensure analytic decisions are made prior to seeing results
+               ·A similar framework is being implemented for RCT Duplicate, within the Sentinel Innovation Center, and among
+
+                 other researchers2, 3
+
+1Muntner (2024) PMID 38419140; 2Franklin (2020) PMID: 31541454; 3Desai (2024) PMID 38346815
+3
+Challenge: How do we ensure trial-like rigor and transparency when
+data are already available?
+
+· Clinical Trial Data                 · Secondary Data
+                                      · Before outcome data are analyzed...
+   · Before outcome data are
+      received...                        1. Protocol and SAP
+                                         2. Establish clean room procedures
+     1. Protocol and SAP                 3. Programming within staging framework
+     2. Data collection plan
+     3. Primary analysis programming
+
+Studies in secondary data sources need pre-defined mechanisms to demonstrate that
+analytic decisions were made before observing outcome data.
+
+4
+A Staged Approach With Pre-specified Criteria That Assess
+Precision And Validity
+
+            STAGE 0                                  CLEAN ROOM                                           STAGE 4
+  STUDY DEVELOPMENT         Separates data access by role and Stage/Checkpoint               RESULTS DISSEMINATION
+· Feasibility assessment  · Programmers & analysts with direct data access                   · Required for all
+· Utilization study       · Analytic advisors with view-only access to summary
+· Protocol & SAP                                                                                 comparative studies
+                              data by Stage & Checkpoint
+                          · Checkpoint reviewers with view-only access to
+
+                              summary data by Checkpoint
+                          · Final full study results in locked output folder
+
+           STAGE 1                    STAGE 2a                         STAGE 2b                             STAGE 3
+      COHORT BUILD             ASSESS COVARIATE                  ASSESS RESIDUAL                CONDUCT COMPARATIVE
+· Review attrition table
+· Assess power and/or                 BALANCE                              BIAS                            ANALYSES
+     precision            · Patient characteristics            · NCO and/or other            · Includes any quantitative
+                          · Propensity score
+                                                                     bias analyses               bias and sensitivity analyses
+                                building and weighting
+                                                                           Revisit earlier
+                                             Revisit earlier               Checkpoint if
+                                             Checkpoint if                eligibility or PS
+                                          eligibility changes             model changes
+
+       CHECKPOINT 1                   CHECKPOINT 2a                   CHECKPOINT 2b
+   Reviewers assess each        Reviewers assess treatment      Reviewers assess treatment
+  planned comparison for  exchangeability and comparability    residual bias as indicated by
+adequate power/precision   as indicated by covariate balance   NCO and other bias analyses
+Staging and Clean Room Use Case:
+
+Real-World Effectiveness of Evolocumab in
+Reducing Major Adverse Cardiovascular
+Events in Patients With Atherosclerotic
+Cardiovascular Disease
+Real-World Effectiveness of Evolocumab in Reducing Major Adverse
+Cardiovascular Events
+
+Patients were identified from the Komodo Healthcare Map®
+
+                             Inclusion criteria               Continuous      Treated      End of follow-up
+· Evolocumab initiation between 01/01/2017 and 12/31/2023          use         cohort
+· Continuous enrollment for 365 days prior to and 75 days                   (n=87,102)  · Discontinued evolocumab
+                                                                                        · Initiated other PCSK9i or BA
+ following evolocumab initiation                                            Nontreated  · MACE outcome
+· Age  18 years at evolocumab initiation                                       cohort   · End of data coverage
+· Documented history of ASCVD prior to evolocumab initiation                            · Death
+· No prior use of any PCSK9i                                                (n=24,609)  · Disenrollment
+
+       Initial                                                Index date:                 End of follow-up
+   evolocumab                                                 day 75 after
+   prescription                                                                         · Reinitiated PCSK9i or
+                                                                  initial                initiated BA
+                                                              prescription              · MACE outcome
+                                                                                        · End of data coverage
+          Baseline period                                     Discontinued              · Death
+   (All available data prior to                                                         · Disenrollment
+
+          the index date)
+
+ASCVD, atherosclerotic cardiovascular disease; LDL-C, low-density lipoprotein cholesterol; MACE, major adverse cardiovascular events; RCT,  7
+
+randomized controlled trial; RWE, real-world evidence.
+
+7
+Stage 1 ­ Cohort Build
+
+              STAGE 0
+   STUDY DEVELOPMENT
+ · Feasibility assessment
+ · Utilization study
+ · Protocol & SAP
+
+           STAGE 1
+      COHORT BUILD
+· Review attrition table
+· Assess power and/or
+     precision
+
+  8
+Checkpoint 1 ­
+Sample Size Assessment Identified Sufficient Precision
+
+              STAGE 0
+   STUDY DEVELOPMENT
+ · Feasibility assessment
+ · Utilization study
+ · Protocol & SAP
+
+           STAGE 1
+      COHORT BUILD
+· Review attrition table
+· Assess power and/or
+     precision
+
+   CHECKPOINT 1
+
+   Reviewers assess each
+
+   planned comparison for
+
+9  adequate power/precision
+Stage 2a ­
+Assess Patient Characteristics and Build PS Model
+
+            STAGE 0
+  STUDY DEVELOPMENT
+· Feasibility assessment
+· Utilization study
+· Protocol & SAP
+
+           STAGE 1                    STAGE 2a
+      COHORT BUILD             ASSESS COVARIATE
+· Review attrition table
+· Assess power and/or                 BALANCE
+     precision            · Patient characteristics
+                          · Propensity score
+
+                                building and weighting
+
+    CHECKPOINT 1
+
+    Reviewers assess each
+
+    planned comparison for
+
+10  adequate power/precision
+Stage 2a ­IPT Weighting Resulted in Sufficient Covariate
+Balance (SMD<0.1)
+
+11
+Stage 2b - Conduct IPT-Weighted Negative Control
+Outcome Analyses
+
+            STAGE 0
+  STUDY DEVELOPMENT
+· Feasibility assessment
+· Utilization study
+· Protocol & SAP
+
+           STAGE 1                    STAGE 2a                  STAGE 2b
+      COHORT BUILD             ASSESS COVARIATE           ASSESS RESIDUAL
+· Review attrition table
+· Assess power and/or                 BALANCE                   BALANCE
+     precision            · Patient characteristics     · NCO and/or other
+                          · Propensity score
+                                                              bias analyses
+                                building and weighting
+
+    CHECKPOINT 1              CHECKPOINT 2a
+
+    Reviewers assess each     Reviewers assess treatment
+
+    planned comparison for    exchangeability and comparability
+
+12  adequate power/precision  as indicated by covariate balance
+Negative Control Outcome Results Show Potential
+Modest Bias in the Healthcare-Seeking Domain
+
+    · In response to NCO results, additional baseline variables capturing health-seeking behavior
+        were added to the PS model
+          · NCOs were subsequently slightly attenuated, but potential modest bias was still suggested
+
+13  · The study team and checkpoint reviewers agreed to proceed in the presence of potential
+
+    modest bias with a pre-specified quantitative bias analysis plan (e-values)
+Stage 3 ­ Outcomes and Sensitivity Analyses
+
+            STAGE 0
+  STUDY DEVELOPMENT
+· Feasibility assessment
+· Utilization study
+· Protocol & SAP
+
+           STAGE 1                    STAGE 2a                  STAGE 2b                    STAGE 3
+      COHORT BUILD             ASSESS COVARIATE           ASSESS RESIDUAL       CONDUCT COMPARATIVE
+· Review attrition table
+· Assess power and/or                 BALANCE                   BALANCE                    ANALYSES
+     precision            · Patient characteristics     · NCO and/or other   · Includes any quantitative
+                          · Propensity score
+                                                              bias analyses      bias and sensitivity analyses
+                                building and weighting
+
+    CHECKPOINT 1              CHECKPOINT 2a                                  CHECKPOINT 2b
+
+    Reviewers assess each     Reviewers assess treatment         Reviewers assess treatment
+
+    planned comparison for    exchangeability and comparability  residual bias as indicated by
+
+14  adequate power/precision  as indicated by covariate balance  NCO and other bias analyses
+Lower Risk of MACE Outcomes in the Treated vs
+Nontreated Group
+
+      Primary outcome: composite MACE                                                                             Secondary outcome: composite MACE
+    (MI, stroke, coronary revascularization)                                                                                  (MI, stroke, CV death)
+
+    25 RR (95% CI) at 4 years: 0.80 (0.73, 0.86)                                                                  25 RR (95% CI) at 4 years: 0.71 (0.64, 0.78)
+
+            RD (95% CI) at 4 years: -4.1% (-5.7%; -2.6%)                                                                  RD (95% CI) at 4 years: -4.2% (-5.4%; -3.0%)
+
+    20                                                                                                            20
+Cumulative Risk of                                        20.4% (19.2%, 21.7%)
+   Composite MACE, %
+                                                                                                                  15             14.6% (13.6%, 15.5%)
+                                                                                        Cumulative Risk of
+                                                                                            Composite MACE, %
+    15                                                                                                            10
+
+                                                                                            16.3% (15.4%, 17.2%)   5
+
+    10                                                                                                             0
+                                                                                                                      0
+    5                                                     Nontreated                                                             10.4% (9.6%, 11.1%)
+
+                                                                                      Treated                                         Nontreated
+                                                                                                                                       Treated
+    0
+          12  24  36                                                                           48                        12  24  36                                       48
+       0
+
+          Months of Follow-up Since Index Date                                                                           Months of Follow-up Since Index Date
+
+          (75 days after initial evolocumab prescription)                                                                (75 days after initial evolocumab prescription)
+
+    Patients in the evolocumab-treated cohort had a 20% lower risk of composite MI, stroke, and
+
+    coronary revascularization and a 29% lower risk of composite MI, stroke, and CV death at 4 years
+
+15                compared with those in the nontreated cohort
+QBA suggested that observed residual bias is unlikely to
+fully explain the observed RR for study outcomes
+
+16
+Staging and Clean Room Framework Ensure Trust and
+Minimize Bias in RW Comparative Studies
+
+                  Staging and clean room frameworks are implemented to provide transparency and
+                  documentation of a process minimizing biases in RW comparative studies
+
+                  A comparative effectiveness study of evolocumab is one of several in which we
+                  have applied these frameworks, using Target Trial Emulation and robust adjustment
+                  for potential confounding.
+
+                  Our findings provide complementary knowledge to trial results, extending the
+                  evidence for effectiveness of evolocumab to a large real-world cohort of patients
+                  with ASCVD
+
+17
+Questions?
+
+18
+                                            Thank you
+
+                                           Up next, please welcome
+                                                 Joshua Nugent.
+
+4TH ANNUAL
+
+FIORDvvJ, Focom oo the lotegcatloo offAf}J"                          CTML
+
+Observational and Randomized Data                                    CENTER FOR TARGETED MACHINE
+                                                                    LEARNING AND CAUSAL INFERENCE
+Promise (and pitfalls) in emulated
+trials with longitudinal EHR data
+
+Joshua R. Nugent, PhD
+Research Scientist / Biostatistician
+Division of Research
+Kaiser Permanente Northern California
+
+FIORD 2026
+Outline
+
+2
+Outline
+
+   Overview of KPNC DOR
+
+2
+Outline
+
+   Overview of KPNC DOR
+   Barriers to more & better emulated trials with EHR data
+
+2
+Outline
+
+   Overview of KPNC DOR
+   Barriers to more & better emulated trials with EHR data
+   Experiments with streamlining using AI
+
+2
+Outline
+
+   Overview of KPNC DOR
+   Barriers to more & better emulated trials with EHR data
+   Experiments with streamlining using AI
+   Future directions
+
+2
+KPNC overview
+
+KPNC
+
+                                             ­  1 https://pmc.ncbi.nlm.nih.gov/articles/PMC10266863/
+
+3
+KPNC overview
+
+KPNC
+   4.5 million members across northern CA
+
+                                             ­  1 https://pmc.ncbi.nlm.nih.gov/articles/PMC10266863/
+
+3
+KPNC overview
+
+KPNC
+   4.5 million members across northern CA
+   Dozens of facilities
+
+                                             ­  1 https://pmc.ncbi.nlm.nih.gov/articles/PMC10266863/
+
+3
+KPNC overview
+
+KPNC
+   4.5 million members across northern CA
+   Dozens of facilities
+   Members reflect (reasonably well) the socio-demographics of our service areas1
+
+                                             ­
+
+3  1 https://pmc.ncbi.nlm.nih.gov/articles/PMC10266863/
+KPNC overview
+
+KPNC
+   4.5 million members across northern CA
+   Dozens of facilities
+   Members reflect (reasonably well) the socio-demographics of our service areas1
+
+Division of Research
+
+                                             ­
+
+3  1 https://pmc.ncbi.nlm.nih.gov/articles/PMC10266863/
+KPNC overview
+
+KPNC
+   4.5 million members across northern CA
+   Dozens of facilities
+   Members reflect (reasonably well) the socio-demographics of our service areas1
+
+Division of Research
+   ~70 researchers, mostly epidemiologists, MD/PhDs, and biostatisticians
+
+                                             ­
+
+3  1 https://pmc.ncbi.nlm.nih.gov/articles/PMC10266863/
+KPNC overview
+
+KPNC
+   4.5 million members across northern CA
+   Dozens of facilities
+   Members reflect (reasonably well) the socio-demographics of our service areas1
+
+Division of Research
+   ~70 researchers, mostly epidemiologists, MD/PhDs, and biostatisticians
+   ­ Focus areas: Cancer, maternal and child health, cardiovascular health, implementation science, ...
+
+3  1 https://pmc.ncbi.nlm.nih.gov/articles/PMC10266863/
+KPNC overview
+
+KPNC
+   4.5 million members across northern CA
+   Dozens of facilities
+   Members reflect (reasonably well) the socio-demographics of our service areas1
+
+Division of Research
+   ~70 researchers, mostly epidemiologists, MD/PhDs, and biostatisticians
+   ­ Focus areas: Cancer, maternal and child health, cardiovascular health, implementation science, ...
+   Mix of federal (50%), foundation & industry (20%), and internal (30%) funding
+
+3  1 https://pmc.ncbi.nlm.nih.gov/articles/PMC10266863/
+KPNC overview
+
+KPNC
+   4.5 million members across northern CA
+   Dozens of facilities
+   Members reflect (reasonably well) the socio-demographics of our service areas1
+
+Division of Research
+   ~70 researchers, mostly epidemiologists, MD/PhDs, and biostatisticians
+   ­ Focus areas: Cancer, maternal and child health, cardiovascular health, implementation science, ...
+   Mix of federal (50%), foundation & industry (20%), and internal (30%) funding
+   Competitive advantage: Massive data; integrated health system; long patient retention
+
+3  1 https://pmc.ncbi.nlm.nih.gov/articles/PMC10266863/
+We do emulated trials with EHR data
+
+using g-methods, marginal structural models, longitudinal TMLE, ...
+
+4
+We do emulated trials with EHR data
+
+using g-methods, marginal structural models, longitudinal TMLE, ...
+
+4
+We do emulated trials with EHR data
+
+using g-methods, marginal structural models, longitudinal TMLE, ...
+
+4
+We do emulated trials with EHR data
+
+g-methods, marginal structural models, longitudinal TMLE, ...
+
+5
+We do emulated trials with EHR data
+
+g-methods, marginal structural models, longitudinal TMLE, ...
+
+...however, we don't do enough of it.
+Why?
+
+5
+Barriers to advanced longitudinal causal modeling with EHR data
+
+6  1 https://pubmed.ncbi.nlm.nih.gov/27694465/
+
+   2 DOI: 10.1511/2014.111.460
+Barriers to advanced longitudinal causal modeling with EHR data
+
+   Many software implementations are `research code'
+
+6  1 https://pubmed.ncbi.nlm.nih.gov/27694465/
+
+   2 DOI: 10.1511/2014.111.460
+Barriers to advanced longitudinal causal modeling with EHR data
+
+   Many software implementations are `research code'
+   Can be hard to know which tools are best
+
+6  1 https://pubmed.ncbi.nlm.nih.gov/27694465/
+
+   2 DOI: 10.1511/2014.111.460
+Barriers to advanced longitudinal causal modeling with EHR data
+
+   Many software implementations are `research code'
+   Can be hard to know which tools are best
+   Requires careful data management & manipulation
+
+6  1 https://pubmed.ncbi.nlm.nih.gov/27694465/
+
+   2 DOI: 10.1511/2014.111.460
+Barriers to advanced longitudinal causal modeling with EHR data
+
+   Many software implementations are `research code'
+   Can be hard to know which tools are best
+   Requires careful data management & manipulation
+   Choices multiply, multiverse/forking paths problems1,2 may arise
+
+6  1 https://pubmed.ncbi.nlm.nih.gov/27694465/
+
+   2 DOI: 10.1511/2014.111.460
+Barriers to advanced longitudinal causal modeling with EHR data
+
+   Many software implementations are `research code'
+   Can be hard to know which tools are best
+   Requires careful data management & manipulation
+   Choices multiply, multiverse/forking paths problems1,2 may arise
+   Computational burden
+
+6  1 https://pubmed.ncbi.nlm.nih.gov/27694465/
+
+   2 DOI: 10.1511/2014.111.460
+Barriers to advanced longitudinal causal modeling with EHR data
+
+   Many software implementations are `research code'
+   Can be hard to know which tools are best
+   Requires careful data management & manipulation
+   Choices multiply, multiverse/forking paths problems1,2 may arise
+   Computational burden
+   Lack of statistical expertise
+
+6  1 https://pubmed.ncbi.nlm.nih.gov/27694465/
+
+   2 DOI: 10.1511/2014.111.460
+Barriers to advanced longitudinal causal modeling with EHR data
+
+   Many software implementations are `research code'
+   Can be hard to know which tools are best
+   Requires careful data management & manipulation
+   Choices multiply, multiverse/forking paths problems1,2 may arise
+   Computational burden
+   Lack of statistical expertise
+
+We've been experimenting with using AI tools to surmount these; here's a brief report on our efforts.
+
+7  1 https://pubmed.ncbi.nlm.nih.gov/27694465/
+
+   2 DOI: 10.1511/2014.111.460
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+8
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+8
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Complex logic for
+   transforming raw data
+   into appropriate
+   discrete-time format
+   Powerful but slow: for
+   some analyses on
+   multi-million row data
+   at KP, took as long as
+   a month
+   ~3k lines of code in
+   core functions
+
+8
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+                                             ­
+                                             ­
+                                             ­
+
+9
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Prompt to Claude Code CLI (Opus 4.6): "This algorithm is slow, can you find ways to speed it up?"
+
+                                             ­
+                                             ­
+                                             ­
+
+9
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Prompt to Claude Code CLI (Opus 4.6): "This algorithm is slow, can you find ways to speed it up?"
+   <1 hr: Suggested and implemented certain vectorization changes
+
+                                             ­
+                                             ­
+                                             ­
+
+9
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Prompt to Claude Code CLI (Opus 4.6): "This algorithm is slow, can you find ways to speed it up?"
+   <1 hr: Suggested and implemented certain vectorization changes
+   Initial testing:
+
+                                             ­
+                                             ­
+
+                                             ­
+
+9
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Prompt to Claude Code CLI (Opus 4.6): "This algorithm is slow, can you find ways to speed it up?"
+   <1 hr: Suggested and implemented certain vectorization changes
+   Initial testing:
+   ­ Results identical to prior code version
+
+                                             ­
+
+                                             ­
+
+9
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Prompt to Claude Code CLI (Opus 4.6): "This algorithm is slow, can you find ways to speed it up?"
+   <1 hr: Suggested and implemented certain vectorization changes
+   Initial testing:
+   ­ Results identical to prior code version
+   ­ 20x speedup: 8 hours -> 20 minutes for 60k participant dataset
+
+                                             ­
+
+9
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Prompt to Claude Code CLI (Opus 4.6): "This algorithm is slow, can you find ways to speed it up?"
+   <1 hr: Suggested and implemented certain vectorization changes
+   Initial testing:
+   ­ Results identical to prior code version
+   ­ 20x speedup: 8 hours -> 20 minutes for 60k participant dataset
+   Initial reaction (me):
+
+                                             ­
+
+9
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Prompt to Claude Code CLI (Opus 4.6): "This algorithm is slow, can you find ways to speed it up?"
+   <1 hr: Suggested and implemented certain vectorization changes
+   Initial testing:
+   ­ Results identical to prior code version
+   ­ 20x speedup: 8 hours -> 20 minutes for 60k participant dataset
+   Initial reaction (me):
+   ­ Fear
+
+9
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+                                             ­
+                                            ­
+
+                                             ­
+                                             ­
+                                             ­
+
+10
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Appropriately skeptical, we did more testing:
+
+                                             ­
+                                            ­
+
+                                             ­
+                                             ­
+                                             ­
+
+10
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Appropriately skeptical, we did more testing:
+   ­ Generated test suite for ~50 rare cases (AI was used for some of this, but for small tests it's trivial to
+
+       human-review its code
+
+                                            ­
+
+                                             ­
+                                             ­
+                                             ­
+
+10
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Appropriately skeptical, we did more testing:
+   ­ Generated test suite for ~50 rare cases (AI was used for some of this, but for small tests it's trivial to
+
+       human-review its code
+   ­ Found subtle errors in the refactored code where the old (slow) and new (fast) code were not
+
+       identical
+
+                                             ­
+                                             ­
+                                             ­
+
+10
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Appropriately skeptical, we did more testing:
+   ­ Generated test suite for ~50 rare cases (AI was used for some of this, but for small tests it's trivial to
+
+       human-review its code
+   ­ Found subtle errors in the refactored code where the old (slow) and new (fast) code were not
+
+       identical
+   Manual code review next ­ very challenging; original authors work elsewhere now
+
+                                             ­
+                                             ­
+                                             ­
+
+10
+Case study 1: Removing bottlenecks via AI coding tools:
+LtAtStructuR
+
+   Appropriately skeptical, we did more testing:
+   ­ Generated test suite for ~50 rare cases (AI was used for some of this, but for small tests it's trivial to
+
+       human-review its code
+   ­ Found subtle errors in the refactored code where the old (slow) and new (fast) code were not
+
+       identical
+   Manual code review next ­ very challenging; original authors work elsewhere now
+
+   Take-home message:
+   ­ Incredible potential
+   ­ Still needs laborious human checking
+   ­ Best practices for complex code review with AI still an open question
+
+10
+Case study 2: Rapid prototyping of software
+
+                                             ­
+                                             ­
+                                             ­
+
+11
+Case study 2: Rapid prototyping of software
+
+   Current causal inference software landscape in R has varied functionality...
+
+                                             ­
+                                             ­
+                                             ­
+
+11
+Case study 2: Rapid prototyping of software
+
+   Current causal inference software landscape in R has varied functionality...
+   ­ LTMLE: Can't handle different SuperLearner libraries for treatment / outcome estimation or pre-
+
+       generated estimates. Doesn't use cross-fitting. Does allow IPTW and g-comp estimation without
+       TMLE. Avoids Markov assumptions. Can't handle intermittently-observed outcomes.
+
+                                             ­
+                                             ­
+
+11
+Case study 2: Rapid prototyping of software
+
+   Current causal inference software landscape in R has varied functionality...
+   ­ LTMLE: Can't handle different SuperLearner libraries for treatment / outcome estimation or pre-
+
+       generated estimates. Doesn't use cross-fitting. Does allow IPTW and g-comp estimation without
+       TMLE. Avoids Markov assumptions. Can't handle intermittently-observed outcomes.
+   ­ LMTP: Supports continuous treatments, user-specified covariate lag for nuisance models. Supports
+       cross-fitting. Can't handle intermittently-observed outcomes.
+
+                                             ­
+
+11
+Case study 2: Rapid prototyping of software
+
+   Current causal inference software landscape in R has varied functionality...
+   ­ LTMLE: Can't handle different SuperLearner libraries for treatment / outcome estimation or pre-
+
+       generated estimates. Doesn't use cross-fitting. Does allow IPTW and g-comp estimation without
+       TMLE. Avoids Markov assumptions. Can't handle intermittently-observed outcomes.
+   ­ LMTP: Supports continuous treatments, user-specified covariate lag for nuisance models. Supports
+       cross-fitting. Can't handle intermittently-observed outcomes.
+   ­ stremr: Currently relies on Markov assumption. Can handle intermittently-observed outcomes.
+       Doesn't support cross-fitting.
+
+11
+Case study 2: Rapid prototyping of software
+
+   Current causal inference software landscape in R has varied functionality...
+   ­ LTMLE: Can't handle different SuperLearner libraries for treatment / outcome estimation or pre-
+
+       generated estimates. Doesn't use cross-fitting. Does allow IPTW and g-comp estimation without
+       TMLE. Avoids Markov assumptions. Can't handle intermittently-observed outcomes.
+   ­ LMTP: Supports continuous treatments, user-specified covariate lag for nuisance models. Supports
+       cross-fitting. Can't handle intermittently-observed outcomes.
+   ­ stremr: Currently relies on Markov assumption. Can handle intermittently-observed outcomes.
+       Doesn't support cross-fitting.
+   For an upcoming project, I wanted some custom code that combined aspects of each
+
+11
+Case study 2: Rapid prototyping
+of software
+
+                                             ­
+                                            ­
+                                            ­
+
+                                             ­
+                                             ­
+
+12
+Case study 2: Rapid prototyping
+of software
+
+   The Good:
+
+                                             ­
+
+                                            ­
+                                            ­
+
+                                             ­
+                                             ­
+
+12
+Case study 2: Rapid prototyping
+of software
+
+   The Good:
+   ­ Speeds up the boilerplate of a new
+
+       package: supporting files, documentation,
+       etc
+
+                                            ­
+                                            ­
+
+                                             ­
+                                             ­
+
+12
+Case study 2: Rapid prototyping
+of software
+
+   The Good:
+   ­ Speeds up the boilerplate of a new
+
+       package: supporting files, documentation,
+       etc
+   ­ Speeds up unit test development
+
+                                            ­
+
+                                             ­
+                                             ­
+
+12
+Case study 2: Rapid prototyping
+of software
+
+   The Good:
+   ­ Speeds up the boilerplate of a new
+
+       package: supporting files, documentation,
+       etc
+   ­ Speeds up unit test development
+   ­ Gets you 100% of the way there for the
+       easy parts and 90% of the way there for the
+       complex parts
+
+                                             ­
+                                             ­
+
+12
+Case study 2: Rapid prototyping
+of software
+
+   The Good:
+   ­ Speeds up the boilerplate of a new
+
+       package: supporting files, documentation,
+       etc
+   ­ Speeds up unit test development
+   ­ Gets you 100% of the way there for the
+       easy parts and 90% of the way there for the
+       complex parts
+   The Bad:
+
+                                             ­
+
+                                             ­
+
+12
+Case study 2: Rapid prototyping
+of software
+
+   The Good:
+   ­ Speeds up the boilerplate of a new
+
+       package: supporting files, documentation,
+       etc
+   ­ Speeds up unit test development
+   ­ Gets you 100% of the way there for the
+       easy parts and 90% of the way there for the
+       complex parts
+   The Bad:
+   ­ The last 10%
+
+                                             ­
+
+12
+Case study 2: Rapid prototyping
+of software
+
+   The Good:
+   ­ Speeds up the boilerplate of a new
+
+       package: supporting files, documentation,
+       etc
+   ­ Speeds up unit test development
+   ­ Gets you 100% of the way there for the
+       easy parts and 90% of the way there for the
+       complex parts
+   The Bad:
+   ­ The last 10%
+   ­ AI tends to be overconfident  very
+       dangerous if you don't know what you're
+       doing
+
+12
+Case study 2: Rapid prototyping of software
+
+                                             ­
+                                             ­
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+
+13
+Case study 2: Rapid prototyping of software
+
+   Current status of testing:
+
+                                             ­
+                                             ­
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+
+13
+Case study 2: Rapid prototyping of software
+
+   Current status of testing:
+   ­ Most code reviewed by hand, not complete yet
+
+                                             ­
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+
+13
+Case study 2: Rapid prototyping of software
+
+   Current status of testing:
+   ­ Most code reviewed by hand, not complete yet
+   ­ Tested against ground truth scenarios from simcausal package
+
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+
+13
+Case study 2: Rapid prototyping of software
+
+   Current status of testing:
+   ­ Most code reviewed by hand, not complete yet
+   ­ Tested against ground truth scenarios from simcausal package
+   ­ Tested against comparable software (where the goal can be mapped between them)
+
+                                             ­
+                                             ­
+                                             ­
+
+13
+Case study 2: Rapid prototyping of software
+
+   Current status of testing:
+   ­ Most code reviewed by hand, not complete yet
+   ­ Tested against ground truth scenarios from simcausal package
+   ­ Tested against comparable software (where the goal can be mapped between them)
+   Take-home message:
+
+                                             ­
+                                             ­
+                                             ­
+
+13
+Case study 2: Rapid prototyping of software
+
+   Current status of testing:
+   ­ Most code reviewed by hand, not complete yet
+   ­ Tested against ground truth scenarios from simcausal package
+   ­ Tested against comparable software (where the goal can be mapped between them)
+   Take-home message:
+   ­ Incredible potential
+
+                                             ­
+                                             ­
+
+13
+Case study 2: Rapid prototyping of software
+
+   Current status of testing:
+   ­ Most code reviewed by hand, not complete yet
+   ­ Tested against ground truth scenarios from simcausal package
+   ­ Tested against comparable software (where the goal can be mapped between them)
+
+   Take-home message:
+   ­ Incredible potential
+   ­ Still needs laborious human checking
+
+                                             ­
+
+13
+Case study 2: Rapid prototyping of software
+
+   Current status of testing:
+   ­ Most code reviewed by hand, not complete yet
+   ­ Tested against ground truth scenarios from simcausal package
+   ­ Tested against comparable software (where the goal can be mapped between them)
+
+   Take-home message:
+   ­ Incredible potential
+   ­ Still needs laborious human checking
+   ­ Best practices for complex code review with AI still an open question
+
+13
+Case study 3: Speed-running analyses
+
+14
+Case study 3: Speed-running analyses
+
+   "...We're already at the point where a paper can trivially become an interactive interface­give it to
+   Claude Code and ask it to replicate the analyses." - Jessica Hullman, 12 Feb 2026
+   https://statmodeling.stat.columbia.edu/2026/02/12/what-a-multiverse-good-for-anyway/
+
+14
+Case study 3: Speed-running analyses
+
+   "...We're already at the point where a paper can trivially become an interactive interface­give it to
+   Claude Code and ask it to replicate the analyses." - Jessica Hullman, 12 Feb 2026
+   https://statmodeling.stat.columbia.edu/2026/02/12/what-a-multiverse-good-for-anyway/
+   For routine tasks with easily-checkable output (generating code for sensitivity analyses, under different
+   missingness assumptions, etc), AI coding tools speed up programmer/analyst work.
+
+14
+Case study 3: Speed-running analyses
+
+                                             ­
+                                             ­
+                                             ­
+
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+
+                                             ­
+                                             ­
+                                             ­
+
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+   ­ KP decided to field a team as an educational opportunity for our analysts
+
+                                             ­
+                                             ­
+
+                                             ­
+
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+   ­ KP decided to field a team as an educational opportunity for our analysts
+   ­ Many meetings, several weeks, probably ~100 person-hours total
+
+                                             ­
+
+                                             ­
+
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+   ­ KP decided to field a team as an educational opportunity for our analysts
+   ­ Many meetings, several weeks, probably ~100 person-hours total
+   ­ End result: TBD! Hoping to be finished soon.
+
+                                             ­
+
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+   ­ KP decided to field a team as an educational opportunity for our analysts
+   ­ Many meetings, several weeks, probably ~100 person-hours total
+   ­ End result: TBD! Hoping to be finished soon.
+   As a side project, asked Claude Code to "compete" as well. Three levels of prompt (low/medium/high
+   guidance), no further input.
+
+                                             ­
+
+                                             ­
+
+                                             ­
+                                             ­
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+   ­ KP decided to field a team as an educational opportunity for our analysts
+   ­ Many meetings, several weeks, probably ~100 person-hours total
+   ­ End result: TBD! Hoping to be finished soon.
+   As a side project, asked Claude Code to "compete" as well. Three levels of prompt (low/medium/high
+   guidance), no further input.
+   ­ Low guidance prompt: Instructions from ACIC, description of resources at its disposal and the goal:
+
+       "Analyze the challenge requirements, explore the data structure, select appropriate causal inference
+       methods, and produce a complete submission for all 9,000 datasets."
+
+                                             ­
+
+                                             ­
+
+                                             ­
+
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+   ­ KP decided to field a team as an educational opportunity for our analysts
+   ­ Many meetings, several weeks, probably ~100 person-hours total
+   ­ End result: TBD! Hoping to be finished soon.
+   As a side project, asked Claude Code to "compete" as well. Three levels of prompt (low/medium/high
+   guidance), no further input.
+   ­ Low guidance prompt: Instructions from ACIC, description of resources at its disposal and the goal:
+
+       "Analyze the challenge requirements, explore the data structure, select appropriate causal inference
+       methods, and produce a complete submission for all 9,000 datasets."
+   ­ Medium/high guidance prompts: Additional suggestions on how to increase thoroughness / effort
+       (plasmode simulations, data augmentation, etc)
+
+                                             ­
+
+                                             ­
+
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+   ­ KP decided to field a team as an educational opportunity for our analysts
+   ­ Many meetings, several weeks, probably ~100 person-hours total
+   ­ End result: TBD! Hoping to be finished soon.
+   As a side project, asked Claude Code to "compete" as well. Three levels of prompt (low/medium/high
+   guidance), no further input.
+   ­ Low guidance prompt: Instructions from ACIC, description of resources at its disposal and the goal:
+
+       "Analyze the challenge requirements, explore the data structure, select appropriate causal inference
+       methods, and produce a complete submission for all 9,000 datasets."
+   ­ Medium/high guidance prompts: Additional suggestions on how to increase thoroughness / effort
+       (plasmode simulations, data augmentation, etc)
+   ­ Research / code-generation phase done in ~1-2 hours for all prompts
+
+                                             ­
+
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+   ­ KP decided to field a team as an educational opportunity for our analysts
+   ­ Many meetings, several weeks, probably ~100 person-hours total
+   ­ End result: TBD! Hoping to be finished soon.
+   As a side project, asked Claude Code to "compete" as well. Three levels of prompt (low/medium/high
+   guidance), no further input.
+   ­ Low guidance prompt: Instructions from ACIC, description of resources at its disposal and the goal:
+
+       "Analyze the challenge requirements, explore the data structure, select appropriate causal inference
+       methods, and produce a complete submission for all 9,000 datasets."
+   ­ Medium/high guidance prompts: Additional suggestions on how to increase thoroughness / effort
+       (plasmode simulations, data augmentation, etc)
+   ­ Research / code-generation phase done in ~1-2 hours for all prompts
+   ­ Hand-review of code showed no notable errors
+
+                                             ­
+
+15
+Case study 3: Speed-running analyses
+
+   Example: ACIC 2026 Data Challenge
+   ­ KP decided to field a team as an educational opportunity for our analysts
+   ­ Many meetings, several weeks, probably ~100 person-hours total
+   ­ End result: TBD! Hoping to be finished soon.
+   As a side project, asked Claude Code to "compete" as well. Three levels of prompt (low/medium/high
+   guidance), no further input.
+   ­ Low guidance prompt: Instructions from ACIC, description of resources at its disposal and the goal:
+
+       "Analyze the challenge requirements, explore the data structure, select appropriate causal inference
+       methods, and produce a complete submission for all 9,000 datasets."
+   ­ Medium/high guidance prompts: Additional suggestions on how to increase thoroughness / effort
+       (plasmode simulations, data augmentation, etc)
+   ­ Research / code-generation phase done in ~1-2 hours for all prompts
+   ­ Hand-review of code showed no notable errors
+   ­ End result: TBD! We'll see what the score is.
+
+15
+Case study 3: Speed-running analyses
+
+                                             ­
+                                             ­
+                                             ­
+
+16
+Case study 3: Speed-running analyses
+
+   Take-home message:
+
+                                             ­
+                                             ­
+                                             ­
+
+16
+Case study 3: Speed-running analyses
+
+   Take-home message:
+   ­ Incredible potential
+
+                                             ­
+                                             ­
+
+16
+Case study 3: Speed-running analyses
+
+   Take-home message:
+   ­ Incredible potential
+   ­ Easier to check and verify work than in software development
+
+                                             ­
+
+16
+Case study 3: Speed-running analyses
+
+   Take-home message:
+   ­ Incredible potential
+   ­ Easier to check and verify work than in software development
+   ­ Speeds up the workflow of programmers
+
+16
+Closing thoughts
+
+17
+Closing thoughts
+
+   Applied practitioners are typically consumers of software rather than authors
+
+17
+Closing thoughts
+
+   Applied practitioners are typically consumers of software rather than authors
+   Authors of `research code' may not be trained to optimize that code: We are statisticians, not computer
+   scientists
+
+17
+Closing thoughts
+
+   Applied practitioners are typically consumers of software rather than authors
+   Authors of `research code' may not be trained to optimize that code: We are statisticians, not computer
+   scientists
+   AI shows great promise to speed up some workflows, but for high-level tasks it's not ready to be
+   autonomous
+   When something is at or below your expertise, code-checking typically easy and fast. When it's slightly
+   above or outside your expertise, can be tempting to trust it  big danger
+
+17
+Closing thoughts
+
+   Applied practitioners are typically consumers of software rather than authors
+   Authors of `research code' may not be trained to optimize that code: We are statisticians, not computer
+   scientists
+   AI shows great promise to speed up some workflows, but for high-level tasks it's not ready to be
+   autonomous
+   When something is at or below your expertise, code-checking typically easy and fast. When it's slightly
+   above or outside your expertise, can be tempting to trust it  big danger
+
+   Resources still needed to develop, test, and maintain software
+
+17
+Closing thoughts
+
+   Applied practitioners are typically consumers of software rather than authors
+   Authors of `research code' may not be trained to optimize that code: We are statisticians, not computer
+   scientists
+   AI shows great promise to speed up some workflows, but for high-level tasks it's not ready to be
+   autonomous
+   When something is at or below your expertise, code-checking typically easy and fast. When it's slightly
+   above or outside your expertise, can be tempting to trust it  big danger
+
+   Resources still needed to develop, test, and maintain software
+   ?? University programs should integrate more software engineering skills: test development, code
+   review ??
+
+17
+                                                 Thank you!
+
+18
+                                              Thank you for
+                                           a great discussion.
+
+4TH ANNUAL                                 Up next, please welcome
+                                                Sjoerd Beenjtes.
+FIORDvvJ, Focom oo the lotegcatloo of                                CTML
+            fA                       f}J"
+Observational and Randomized Data                                    CENTER FOR TARGETED MACHINE
+                                                                    LEARNING AND CAUSAL INFERENCE
+Does health technology assessment guidance support next
+generation causal analytics?
+
+Sjoerd Beentjes and Ava Khamseh (University of Edinburgh)
+
+On behalf of joint collaboration with:
+
+Stephen Duf eld and Leonardo Koeser (NICE)
+
+                                                                                       FIORD 2026
+
+if
+Collaborators
+
+Sjoerd Beentjes (School of Mathematics, UoE)
+Ava Khamseh (School of Informatics, UoE)
+
+Stephen Duf eld (Associate Director of RWE (2025), NICE)
+Leonardo Koeser (Scienti c Advisor, NICE)
+
+Alina Kumukova (IGC and School of Informatics)
+Hugh Warden (IGC and School of Mathematics)
+
+Mark van der Laan (School of Public Health, UC Berkeley)
+Susan Gruber (TL Revolution)
+
+if if
+Key take-away messages
+
+Growing recognition of the importance of well-de ned research questions
+Causal frameworks such as Target Trial Emulation (TTE) are increasingly
+referenced in output from decision makers [Sarri 2024].
+Guidance documents use causal language (confounding, bias, comparability) and
+encourage "trial-like" thinking; only a minority structure advice around them.
+
+Guidance typically blurs:
+· Causal estimand (the target of the investigation),
+· Statistical estimand and its identi cation assumptions,
+· Statistical model (set of mathematical assumptions about the underlying
+
+   process that generated the data, e.g., linearity of relationships), and
+· Statistical estimator (the algorithm or formula applied to a sample to produce
+
+   the "estimate", and approach used to de ne uncertainty e.g. the error bars).
+
+if if if
+Key take-away messages
+
+Real-World Evidence (RWE) guideline landscape shows under-speci cation of the
+analytical estimation step
+
+While agencies routinely ask for `appropriate methods' to be used and justi ed,
+how this can be done may remain unclear to evidence developers
+
+We recommend a pragmatic but more detailed next phase of guidance that
+· Elevates the importance of the estimation step,
+· Anchors estimation in a clear causal framework, and
+· Speci es estimator-linked diagnostics and outcome-blind stress tests.
+
+Additionally, recommendations should be updated to clarify the role of newer
+approaches such as doubly robust (DR) and ML-enabled procedures so that
+methods are not chosen on the basis of precedent.
+
+if if if
+NICE/MHRA Guideline De nitions
+
+"Real-world data (RWD) is data relating to patient health or experience or care
+delivery collected outside the context of a highly controlled clinical trial."
+
+"Real-world evidence (RWE) is evidence generated from the analysis of real-
+
+world data."                    NICE RWE framework: corporate
+                                     document (23 June 2022)
+
+RCT may not be possible/applicable due to:
+· Ethical/feasibility considerations, cost, small number of eligible patients
+· Comparators not applicable to standard of care in the NHS
+· Limited follow up
+· Difference in population
+
+Examples of scenarios where RWD is used (given appropriate data quality):
+
+· Clinical trials with RWD as external control
+
+· Pragmatic trial embedded in routine practice using EHR
+
+                                                                                                                                                                         NICE RWE framework: corporate document (23 June 2022)
+                                                                                                                                                                          MHRA guidelines on RCTs using RWD (16 December 2021)
+
+              if
+Background
+
+HTA bodies have increasingly issued guidance on RWE, aiming to build trust
+through strengthening causal inference in non-randomised studies.
+
+`Next generation' causal analytics, characterised by
+· Explicit causal estimands,
+· data-driven modelling, and
+· modern inference strategies,
+places a greater focus on the statistical estimation step:
+
+         "How is the target causal quantity estimated from observed data?"
+
+and use of coherent causal frameworks to structure design, identi cation,
+estimation, diagnostic testing, and interpretation.
+
+if
+Objectives
+
+To assess the extent to which current international HTA and regulatory RWE
+guidance support:
+
+(i) the estimation step as a distinct and consequential component of causal
+analyses,
+
+(ii) the framing of recommendations within articulated causal frameworks.
+
+Also to consider whether more recent developments in estimation, namely,
+doubly robust methods and machine learning are re ected in existing guidance.
+
+lf
+Having in mind: The Causal Roadmap
+
+Compatible with Target Trial Emulation Protocol
+
+     1. Define: Causal    2. Model-independent     3. Observed Data       4. Causal identifiability
+question, causal model &      definition of the
+
+    target population       (causal) parameter
+
+8. Interpretation         7. Sensitivity analysis  6. Statistical model   5. Model-independent
+                                                      and estimator        statistical estimand
+
+                                                   Including AI/ML and
+                                                   double robust methods
+
+                          Deng LE, Gruber S, Lee H et al (2023), Journal of Clinical and Translation Science,
+                                 A causal roadmap for generating high-quality real-world evidence
+Reviewed documents
+
+Targeted searches of HTA body websites: methods guidance pages, frameworks
+and technical support documents. Referenced or linked within included
+documents through citation searching.
+
+· Regulatory organisation: FDA, EMA, MHRA, Health Canada, PMDA, NMPA/
+   CDE
+
+· HTA bodies: NICE, CDA-AMC, HAS, IQWiG, ICER, PBAC
+· RWE methods standards produced by organisations such as EU HTA CG, ICH,
+
+   ENCePP, and ISPOR/ISPE
+
+Included: Publicly available documents, produced or endorsed by these bodies,
+relevant to causal inference using RWD/RWE for comparative effectiveness
+
+Excluded: Purely procedural and/or purely focused on economic modelling
+A Focused Review of HTA guidance on RWE and causal inference
+
+We considered recommendations around:
+
+1. Articulation of causal questions and estimands
+2. Clear separation of identi cation assumptions from estimation choices
+3. Selection of estimation approaches
+4. Expectations for diagnostics and sensitivity analyses
+5. Whether and how causal frameworks (e.g., target trial emulation, causal
+
+    roadmap) are used or referenced to organise guidance
+
+if
+1. Estimands
+
+Estimands, as described in ICH E9(R1) guidance, were acknowledged but rarely
+presented explicitly.
+
+Most documents anchored the causal question using PICO/PICOTS framing
+(population, intervention, comparator, outcomes, timing, setting)
+without recommending to systematically and fully specify estimand attributes
+
+Some are slightly more speci c, e.g.:
+MHRA guideline requires explicit estimand alignment between external control
+arms and the trial using the ICH E9(R1) attributes
+
+if
+2. Separation of causal identi ability and statistical estimation
+
+Most frameworks: A design- rst posture, emphasising protocol or SAP pre-
+speci cation, identifying bias or confounding threats, and overall transparency
+without clearly structuring recommendations into:
+1. The identi cation assumptions required for causal interpretation,
+2. The statistical inference choices that follow.
+i.e, without providing a formal identi cation­estimation work ow.
+
+Examples of aspects mentioned:
+· Exchangeability and positivity as prerequisites for nonrandomised comparisons
+· Causal models, e.g. directed acyclic graphs (DAGs)) for identi ability
+
+   considerations [NICE 2022, CADTH 2023, IQWIG 2020].
+· Speci c methods focus, e.g., NICE DSU TSD 17.
+
+lf if if if if if i i f f
+3. Estimator selection
+
+More detailed estimator guidance from technical and synthesis-focused
+documents, e.g., estimator families (regression, propensity-score methods, IV,
+quasi-experimental approaches) and their assumptions/practical implementations
+in NICE DSU TSD 17. This document is now over a decade old.
+
+HAS (2021) and IQWiG (A19-43; General Methods) primarily offered a list of
+potential causal estimators, though without clear assistance for selection
+between them [HAS 2021, IQWIG 2020].
+
+Advanced estimation approaches were rarely considered in depth, remained
+either method-agnostic (`use appropriate methods'), or explicitly kept statistical-
+method choice out of scope [PBAC 2016, CADTH 2023].
+3. Estimator selection
+
+NICE's DSU TSD 17, included a dedicated discussion of "doubly robust methods"
+(combining outcome regression and weighting/propensity models)
+
+The EU HTA CG Practical Guideline also explicitly noted doubly robust method
+(e.g., augmented IPW) as an option to reduce bias after matching/weighting when
+some imbalance remains [EU HTA CG 2024b].
+
+Most other HTA guidance (e.g., NICE's RWE framework, HAS 2021, IQWiG
+documents) focus on more traditional estimator families (regression, propensity
+scores, MSM/IPW, IV, DiD/RDD) either mentioning the option of DR estimators,
+or not explicitly mentioning them [NICE 2022, HAS 2021, IQWIG 2020]].
+
+No identi ed guidance documents described Super Learner approaches or
+ensemble nuisance estimation.
+
+if
+4. Diagnostic tests
+
+Documents asked for "robustness checks," sensitivity analyses, and transparency
+about assumptions, but did not specify:
+
+· Which diagnostics should be run
+· How to interpret them
+· How diagnostic failures should change the analytic plan
+
+Where diagnostic guidance is provided, e.g., NICE DSU TSD 17, EU HTA CG,
+IQWiG, HAS, the focus is mostly on propensity score overlap/balance/distribution
+to judge feasibility of PS methods.
+5. Use of causal frameworks
+
+Where mentioned, target trial emulation (TTE) was the most common [Hernan 2016].
+
+· IQWiG explicitly recommended considering target trial emulation for comparative
+   routine data studies [IQWIG 2020]
+
+· ENCePP and NICE's RWE Framework go further by presenting target trial
+   emulation as a more concrete organising principle [NICE 2022, ENCePP 2023].
+
+· NICE DSU TSD 17 uses counterfactual (Rubin) causal model framing to distinguish
+   causal from associational comparisons and to motivate adjustment strategies [Faria
+   2015].
+
+· EU HTA CG 2024b] describes causal assumptions such as exchangeability, similarity,
+   homogeneity, and consistency that need to be met prior to use of certain analytical
+   approaches.
+Key take-away messages
+
+Growing recognition of the importance of well-de ned research questions
+Causal frameworks such as Target Trial Emulation (TTE) are increasingly
+referenced in output from decision makers [Sarri 2024].
+Guidance documents use causal language (confounding, bias, comparability) and
+encourage "trial-like" thinking; only a minority structure advice around them.
+
+Guidance typically blurs:
+· Causal estimand (the target of the investigation),
+· Statistical estimand and its identi cation assumptions,
+· Statistical model (set of mathematical assumptions about the underlying
+
+   process that generated the data, e.g., linearity of relationships), and
+· Statistical estimator (the algorithm or formula applied to a sample to produce
+
+   the "estimate", and approach used to de ne uncertainty e.g. the error bars).
+
+if if if
+Key take-away messages
+
+RWE guideline landscape shows under-speci cation of the analytical estimation
+step
+
+While agencies routinely ask for `appropriate methods' to be used and justi ed,
+how this can be done may remain unclear to evidence developers
+
+We recommend a pragmatic but more detailed next phase of guidance that
+· Elevates the importance of the estimation step,
+· Anchors estimation in a clear causal framework, and
+· Speci es estimator-linked diagnostics and outcome-blind stress tests.
+
+Additionally, recommendations should be updated to clarify the role of newer
+approaches such as doubly robust (DR) and ML-enabled procedures so that
+methods are not chosen on the basis of precedent.
+
+if if if
+Does health technology assessment guidance support next
+generation causal analytics?
+
+Sjoerd Beentjes and Ava Khamseh (UoE)
+
+On behalf of joint collaboration with:
+
+Stephen Duf eld and Leonardo Koeser (NICE)
+
+                                                                                       FIORD 2026
+
+if
+Having in mind: (2) Assumption-lean estimation methods
+
+Including machine learning (recently AI!) whilst ensuring robust estimation
+and uncertainty quanti cation (e.g., double-robust methods).
+
+if
+                                           Thank you
+
+                                           Up next, please welcome
+                                                   Shirley Wang.
+
+4TH ANNUAL
+
+FIORDvvJ, Focom oo the lotegcatloo offAf}J"                          CTML
+
+Observational and Randomized Data                                    CENTER FOR TARGETED MACHINE
+                                                                    LEARNING AND CAUSAL INFERENCE
+  Lessons learned from RCT-DUPLICATE
+
+     Shirley V Wang PhD
+     Division of Pharmacoepidemiology and Pharmacoeconomics
+     Department of Medicine, Brigham and Women's Hospital,
+     Harvard Medical School, Boston
+
+1
+is a better approach needed?
+
+   Poor quality studies
+    Conflicting results
+
+              Decisions made on flawed evidence
+                 Public health does not improve
+
+           Credibility of RWE (and science) suffers
+   A Demonstration Project
+
+        A family of studies aimed to understand and improve the validity of RWE studies for decision making
+
+                                                                                                             AETION
+
+         1                           2                                           3
+
+   Emulate 30 RCTs             Test a process with                          Factors that predict
+   and predict 7 RCTs          FDA to evaluate                              replication success,
+   considered by FDA           RWE studies                                  causal estimates
+
+   Learnings:                  Learnings:                                   Learnings:
+   Had there been a similarly  How to conduct                               Identify factors that
+   designed RWE study          transparent, reproducible                    predictably increase
+   instead of an RCT would     RWE studies and enable                       validity of RWE studies.
+   we have come to the same    regulators to re-analyze
+   decision?                   data?
+
+3  Franklin, Pawar, Martin, Glynn, Levenson, Temple, Schneeweiss. CPT 2020  2022 Harvard Medical / Brigham Division of Pharmacoepidemiology
+   Target Trial Emulation vs Reference Trial Emulation
+
+   (hypothetical)  (actual)
+
+                   ?
+
+4
+   Emulation Process
+
+        Design:
+        · Active Comparator New User (ACNU)
+
+        Data sources:
+        · Optum Clinformatics
+        · MarketScan
+        · Medicare
+
+        Software:
+        · Aetion Platform
+        ·R
+        · SAS
+        · STATA
+
+5
+   Emulation Process
+
+       PDaertsiciigpann:t flow
+        · Active Comparator New User (ACNU)
+
+        Data sources:
+        · Optum Clinformatics
+        · MarketScan
+        · Medicare
+
+        Software:
+        · Aetion Platform
+        ·R
+        · SAS
+        · STATA
+
+6
+   Emulation Process
+
+       PDaertsiciigpann:t flow
+        · Active Comparator New User (ACNU)
+
+        Data sources:
+        · Optum Clinformatics
+        · MarketSTacbalen1
+        · Medicare
+
+        Software:
+        · Aetion Platform
+        ·R
+        · SAS
+        · STATA
+
+7
+   Emulation Process
+
+   PDaertsiciigpann:t flow
+   · Active Comparator New User (ACNU)
+
+   Data sources:
+
+   · Optum Clinformatics
+   · MarketSTacbalen1
+
+   · Medicare         PS distribution
+
+   Software:
+   · Aetion Platform
+   ·R
+   · SAS
+   · STATA
+
+8
+   Emulation Process
+
+   PDaertsiciigpann:t flow
+   · Active Comparator New User (ACNU)
+
+   Data sources:
+
+   · Optum Clinformatics
+   · MarketSTacbalen1
+
+   · Medicare         PS distribution
+
+   Software:              Power
+   · Aetion Platform
+   ·R
+   · SAS
+   · STATA
+
+9
+    Emulation Process
+
+    PDaertsiciigpann:t flow
+
+                                                         Data checks done without
+
+    · Active Comparator New User (AloCokNinUg)at outcomes stratified
+
+                                        by exposure!
+
+    Data sources:
+
+    · Optum Clinformatics
+    · MarketSTacbalen1
+
+    · Medicare         PS distribution
+
+    Software:              Power
+    · Aetion Platform
+    ·R
+    · SAS
+    · STATA
+
+10
+    Emulation Process
+
+    PDaertsiciigpann:t flow
+
+                                                         Data checks done without
+
+    · Active Comparator New User (AloCokNinUg)at outcomes stratified
+
+                                        by exposure!
+
+    Data sources:
+
+    · Optum Clinformatics
+    · MarketSTacbalen1
+
+    · Medicare         PS distribution
+
+    Software:              Power
+    · Aetion Platform
+    ·R
+    · SAS
+    · STATA
+
+11
+    Emulation Process
+
+    PDaertsiciigpann:t flow
+
+                                                         Data checks done without
+
+    · Active Comparator New User (AloCokNinUg)at outcomes stratified
+
+                                        by exposure!
+
+    Data sources:
+
+    · Optum Clinformatics
+    · MarketSTacbalen1
+
+    · Medicare         PS distribution
+
+    Software:              Power
+    · Aetion Platform
+    ·R
+    · SAS
+    · STATA
+
+12
+   Bias vs Design Emulation Differences
+
+    Expected to shift the target question for RWE study vs RCT?
+
+          a) Start of follow up in hospital (hospital Rx data not available in claims, but may be
+                available in linked data)
+
+          b) Run-in that selects responders to one treatment arm
+          c) Mixing effect of randomization and discontinuation of baseline maintenance therapy
+          d) Delayed effect over long follow up
+          e) Differences in population distribution coupled with effect modification
+          f) Inadequate emulation of the exposure or outcome
+
+        Few design emulation differences = None of { a, b, c, d } AND comparator and
+
+          outcome emulation are at least moderate, with >1 classified as good
+
+        More design emulation differences = a OR b OR c OR d OR poor comparator
+
+          emulation OR neither comparator and outcome emulation are classified as good
+
+13
+    All trials r = 0.80 (0.63-0.90)
+    Closely emulated trials r = 0.94 (0.80-0.98)
+
+                                                  RCT (lnHR, 95% CI)
+
+    Fewer design emulation differences
+
+    (n=16)
+
+    More design emulation differences
+
+    (n=16)
+
+14  Wang SV, Schneeweiss S, et al. JAMA 2023                          RCT emulation (lnHR, 95% CI)
+    All trials r = 0.80 (0.63-0.90)
+    Closely emulated trials r = 0.94 (0.80-0.98)
+
+                                                  RCT (lnHR, 95% CI)
+
+    Fewer design emulation differences
+
+    (n=16)
+
+    More design emulation differences
+
+    (n=16)
+
+15  Wang SV, Schneeweiss S, et al. JAMA 2023                          RCT emulation (lnHR, 95% CI)
+    All trials r = 0.80 (0.63-0.90)
+    Closely emulated trials r = 0.94 (0.80-0.98)
+
+                                                  RCT (lnHR, 95% CI)
+
+    Fewer design emulation differences
+
+    (n=16)
+
+    More design emulation differences
+
+    (n=16)
+
+16  Wang SV, Schneeweiss S, et al. JAMA 2023                          RCT emulation (lnHR, 95% CI)
+    All trials r = 0.80 (0.63-0.90)
+    Closely emulated trials r = 0.94 (0.80-0.98)
+
+                                                  RCT (lnHR, 95% CI)
+
+    Fewer design emulation differences
+
+    (n=16)
+
+    More design emulation differences
+
+    (n=16)
+
+17  Wang SV, Schneeweiss S, et al. JAMA 2023                          RCT emulation (lnHR, 95% CI)
+    All trials r = 0.80 (0.63-0.90)
+    Closely emulated trials r = 0.94 (0.80-0.98)
+
+                                                  RCT (lnHR, 95% CI)
+
+    Fewer design emulation differences
+
+    (n=16)
+
+    More design emulation differences
+
+    (n=16)
+
+18  Wang SV, Schneeweiss S, et al. JAMA 2023                          RCT emulation (lnHR, 95% CI)
+    Shallow dive
+
+     · Treatment starts in hospital
+     · Poor adherence in clinical practice
+     · Data quality
+     · Chance
+
+19
+    Shallow dive                            TRITON-TIMI
+                                           RCT-DUPLICATE
+    · Treatment starts in hospital
+    · Poor adherence in clinical practice
+    · Data quality
+    · Chance
+
+20                                         Wang SV, Schneeweiss S, et al. JAMA 2023
+    Shallow dive                           HORIZON-PIVOTAL
+                                           RCT-DUPLICATE
+    · Treatment starts in hospital
+    · Poor adherence in clinical practice
+    · Data quality
+    · Chance
+
+                                           Aligned follow up
+                                           RCT HR = 0.75
+                                           RWE HR = 0.75
+
+21                                         D'Andrea, et al. Arth & Rheum 2025
+    Shallow dive
+
+    · Treatment starts in hospital
+
+    · Poor adherence in clinical practice
+
+    · Data quality                                      FLAURA (reference RCT*)
+    · Chance                                            HR 95% CI 0.80 (0.64, 1.00)
+
+                                                        Primary analysis
+                                                        Database passed quality/feasibility checks
+
+                                                        Sensitivity analysis
+                                                        Databases did not pass quality/feasibility checks
+
+                                                        Too small, residual imbalance
+                                                        Immortal time for initiators before 2018
+
+    *osimertinib vs older EGFR-TKI gefitinib/erlotinib
+
+22  in non-small cell lung cancer
+    Shallow dive
+
+    · Treatment starts in hospital
+
+    · Poor adherence in clinical practice
+
+    · Data quality                                      FLAURA (reference RCT*)
+    · Chance                                            HR 95% CI 0.80 (0.64, 1.00)
+
+                                                        Primary analysis
+                                                        Database passed quality/feasibility checks
+                                                        HR 95% CI 0.78 (0.71, 0.85)
+
+                                                        Sensitivity analysis
+                                                        Databases did not pass quality/feasibility checks
+                                                        HR 95% CI 0.97 (0.51, 1.85)
+                                                        HR 95% CI 2.93 (2.11, 4.07)
+
+    *osimertinib vs older EGFR-TKI gefitinib/erlotinib
+
+23  in non-small cell lung cancer
+    Shallow dive                           EINSTEIN-PE
+
+    · Treatment starts in hospital
+    · Poor adherence in clinical practice
+    · Data quality
+    · Chance
+
+24                                         Wang SV, Schneeweiss S, et al. JAMA 2023
+    Shallow dive                           EINSTEIN-PE
+                                                               EINSTEIN-DVT
+    · Treatment starts in hospital
+    · Poor adherence in clinical practice
+    · Data quality
+    · Chance
+
+25                                         Wang SV, Schneeweiss S, et al. JAMA 2023
+    Benchmarking against reference trials...
+
+       1. Is a humbling experience
+       2. Teaches a lot about:
+
+         · data and designing better studies on treatment effects
+         · limitations, what you can and cannot study w/ RWD
+       3. Encourages deeper thinking, self-critical assessment approach
+
+    In practice...how to use it?
+
+       · Don't need to re-generate evidence that is already provided by trials.
+       · Benchmarking to evaluate fitness of data, design, and analytics infrastructure
+
+                  expanded question (new population, comparator, end point)
+                  calibration sensitivity analyses
+
+26                                                                                       Wang SV, et al., CPT 2025
+                WHY is a better approach needed?
+                HOW do we do better?
+
+27
+               Hot Topic!
+
+Semaglutide vs tirzepatide for CV outcomes?
+
+Post-hoc analysis of SURMOUNT-5,          1:1 propensity score matched cohort study using Komodo data
+N=751, 72-week, primary outcome:  weight
+
+Same session at European Society Cardiology + World Congress Cardiology in Madrid 2025
+               Hot Topic!
+
+Semaglutide vs tirzepatide for CV outcomes?
+
+  Tirzepatide superior to semaglutide!
+
+   (an Eli Lilly study)
+
+Post-hoc analysis of SURMOUNT-5,          1:1 propensity score matched cohort study using Komodo data
+N=751, 72-week, primary outcome:  weight
+
+Same session at European Society Cardiology + World Congress Cardiology in Madrid 2025
+               Hot Topic!
+
+Semaglutide vs tirzepatide for CV outcomes?
+
+Tirzepatide superior to semaglutide!      Semaglutide superior to tirzepatide!
+
+(an Eli Lilly study)                      (a Novo Nordisc study)
+
+Post-hoc analysis of SURMOUNT-5,          1:1 propensity score matched cohort study using Komodo data
+N=751, 72-week, primary outcome:  weight
+
+Same session at European Society Cardiology + World Congress Cardiology in Madrid 2025
+Step 1. Benchmark against reference RCTs
+Step 2. Expand populations
+Step 3. Head-to-head comparison
+           Benchmarking
+
+         Similar results as reference RCTs*
+
+(both semaglutide and tirzepatide strongly protective compared to placebo-proxy)
+
+   Head-to-head comparison
+
+        Similar effect for semaglutide and tirzepatide
+
+        * Reference RCTs: STEP-HFpEF, SUMMIT
+          Trial emulations were propensity score adjusted cohort studies using Medicare, Optum Clinformatics, MarketScan data
+What to do in the face of conflicting results?
+            How do we differentiate?
+
+     How do we understand differences?
+What to do in the face of conflicting results?
+            How do we differentiate?
+
+     How do we understand differences?
+
+          Transparency
+
+                        (from protocol to publication)
+
+ Gives us the means to constructively discuss and interpret differences between studies
+Study Transparency  Study Validity
+
+                       Study Validity
+
+                       High  Low
+
+Study            High
+   Transparency
+                 Low
+    Take-home points
+
+     1. Evaluation of the replicability of RCT with RWE requires nuance
+
+                · Residual bias, random error
+                · Efficacy vs effectiveness
+                · Single trial as reference standard
+
+         If you ask different questions, you may get different answers
+             · What question do you want to answer?
+
+              With appropriate guard rails, RWE can provide timely,
+              complementary insights to RCTs
+
+36
+                                              Thank you for
+                                           a great discussion.
+
+4TH ANNUAL
+
+FIORDvvJ, Focom oo the lotegcatloo offAf}J"                      CTML
+
+Observational and Randomized Data                                CENTER FOR TARGETED MACHINE
+                                                                LEARNING AND CAUSAL INFERENCE
+Generating RWE In Practice
+
+            Panel Discussion
+
+                Weili He, AbbVie
+                   FIORD 2026
+Disclaimer
+
+The comments provided here are solely those of the presenters and
+are not necessarily reflective of the positions, policies or practices of
+presenters' employers.
+Generating RWE in Practice
+
+· The article by Muntner et al. established a robust framework to promote transparency and
+   mitigate bias in comparative analyses of real-world data (RWD).
+
+· Wang et al. provided guidance for using real-world evidence (RWE) to emulate randomized
+   controlled trials (RCTs) and highlighted important challenges to successful emulation,
+   including incomplete capture of confounding factors, insufficient details on
+   inclusion/exclusion criteria, lack of accurate measurement for exposures and outcomes, and
+   issues with missing data. Additional barriers cited by the authors were differences in patient
+   populations, variations in treatment definitions, and practical difficulties in replicating trial
+   protocols--such as randomization, timing, and follow-up.
+
+· The recent FDA position paper on single clinical trials further expands the opportunities for
+   utilizing RWE/RWD in clinical development.
+Generating RWE in Practice (Cont'd)
+
+· Implementation challenges remain
+
+   Establish a comprehensive infrastructure for leveraging innovative study designs, advanced
+      analytics, and use cases. AbbVie is actively developing this infrastructure to enhance capabilities
+      in generating real-world evidence.
+
+   Develop standardized approaches and checklists to assess the suitability and regulatory-grade
+      quality of real-world data (RWD).
+
+   Create and maintain a global RWD catalogue capturing available data sources worldwide.
+
+   Collect and document use cases in study design, advanced analytics, best practices, and lessons
+      learned to foster continued improvement.
+
+   Emphasize education as a critical driver for successful implementation and sustainability.
+                                           Day 1 Wrap-Up
+
+                                             Maya Petersen, MD, PhD
+                                              Mark van der Laan PhD
+
+4TH ANNUAL
+
+FIORDvvJ, Focom oo the lotegcatloo offAf}J"                           CTML
+
+Observational and Randomized Data                                     CENTER FOR TARGETED MACHINE
+                                                                     LEARNING AND CAUSAL INFERENCE
+                                            Thank you
+
+                                             This concludes Day 1.
+                                           Please join us downstairs
+                                           for the FIORD reception.
+
+4TH ANNUAL
+
+FIORDvvJ, Focom oo the lotegcatloo offAf}J"                            CTML
+
+Observational and Randomized Data                                      CENTER FOR TARGETED MACHINE
+                                                                      LEARNING AND CAUSAL INFERENCE
+

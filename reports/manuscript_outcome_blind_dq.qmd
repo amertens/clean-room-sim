@@ -245,8 +245,11 @@ EMA, and ICH expectation.
 
 The simulation, vignette, and case study in this paper run on a
 **binary point exposure**, a **binary outcome**, the **marginal
-risk-difference** estimand, and **MCAR** outcome missingness handled
-by IPCW. Within that scope, the package exposes the full
+risk-difference** estimand, and outcome missingness handled through
+**complete-case** and **IPCW** sensitivity paths under prespecified
+missingness assumptions (a complete-case path that is unbiased under
+MCAR, and an IPCW path that is unbiased under conditional
+independent censoring given measured covariates and treatment). Within that scope, the package exposes the full
 estimator spectrum: IPTW with stabilised weights
 (`estimate_ipwrisk()`), parametric g-computation
 (`estimate_gcomprisk()`), augmented IPW (`estimate_aipwrisk()`),
@@ -1333,7 +1336,9 @@ nuisance fit.
 competing event, censoring, treatment discontinuation or switching,
 transfer-driven exclusions, and administrative end of follow-up,
 and check component-vs-composite coherence so that follow-up
-accounting is explicit rather than implicit.
+accounting is explicit rather than implicit. These helpers record
+and check event-process structure; v0.1 does not yet estimate
+native competing-risk cumulative-incidence estimands.
 
 *Hazard-ratio de-emphasis.* Cumulative risks, risk differences,
 and risk ratios at clinically meaningful time points are more
@@ -1928,14 +1933,14 @@ thresholds, and the candidate estimator-estimand pairs.
 quantity in the cohort as outcome, censoring, missingness,
 intercurrent event, exclusion, or administrative end of follow-up:
 
-| Event-like quantity                       | Class                          | Handling                                              |
-|-------------------------------------------|--------------------------------|-------------------------------------------------------|
-| GOSE > 4 at 6 months                      | Event of interest (outcome)    | Estimand: marginal RD on this binary outcome          |
-| GOSE missing at 6 months                  | Missingness                    | IPCW under MCAR; documented in missing-data plan       |
-| In-hospital death before 6-month GOSE     | Competing event (rare)         | Coded as GOSE = 1 ("worst") per SAP; recorded         |
-| Inter-facility transfer at index event    | Exclusion                      | Excluded from analytic cohort at Stage 1b              |
-| Treatment switching / crossover           | Not applicable                 | Point exposure at scene; no time-varying treatment    |
-| 6-month follow-up window end              | Administrative end of FU       | Fixed at 6 months; no admin censoring before that      |
+| Event-like quantity                       | Class                                      | Handling                                                                          |
+|-------------------------------------------|--------------------------------------------|-----------------------------------------------------------------------------------|
+| GOSE > 4 at 6 months                      | Event of interest (outcome)                | Estimand: marginal RD on this binary outcome                                      |
+| GOSE missing at 6 months                  | Missingness                                | Primary: complete-outcome analysis; IPCW sensitivity under a conditional missingness model |
+| In-hospital death before 6-month GOSE     | Outcome component / intercurrent event     | Coded as GOSE = 1 under a composite or worst-rank strategy; recorded               |
+| Inter-facility transfer at index event    | Exclusion                                  | Excluded from analytic cohort at Stage 1b                                          |
+| Treatment switching / crossover           | Not applicable                             | Point exposure at scene; no time-varying treatment                                |
+| 6-month follow-up window end              | Administrative end of FU                   | Fixed at 6 months; no admin censoring before that                                  |
 
 **Target-population table.** Different candidate procedures
 correspond to different target populations:
@@ -1965,7 +1970,7 @@ paired estimator-and-estimand object:
 |----------------------------|--------------------------|-----------:|--------------|-------------------------------------------------------------------------------|-------------------------|
 | Crude                      | n/a                      |        n/a | Complete case| Marginal contrast in complete-outcome subset                                  | Reference comparator    |
 | PS matching                | GLM PS                   |        n/a | Complete case| ATE in matched overlap subset                                                 | Secondary               |
-| IPTW (stabilised)          | GLM PS                   |       0.01 | Complete case| ATE in full eligible cohort under PS-truncated model                          | Secondary               |
+| IPTW (stabilised)          | GLM PS                   |       0.01 | Complete case| Full-cohort marginal contrast estimated with stabilised, truncated treatment weights; truncation may approximate the practical estimand and should be reported | Secondary |
 | Full-cohort TMLE           | SL ensemble              |       0.01 | Complete case| ATE in full eligible cohort under prespecified locked SL library              | **Primary**             |
 | Matched-cohort TMLE        | SL ensemble (matched)    |        n/a | Complete case| ATE in matched overlap subset                                                 | Sensitivity (target pop)|
 | Complete-outcome TMLE w/ IPCW | SL ensemble + SL IPCW  |       0.01 | IPCW         | ATE in full eligible cohort under the locked missingness model                | Sensitivity (missingness)|
@@ -1994,7 +1999,23 @@ Both candidates pass the prespecified decision targets
 `se_sd_window = (0.8, 1.2)`); the two truncation thresholds
 produce indistinguishable performance because the propensity
 scores stay well inside the [0.01, 0.99] bounds (range
-0.21--0.81). The Stage 2c DQ stress test sweeps the four threats
+0.21--0.81).
+
+```{r casestudy-ps-overlap, eval = file.exists("../rescueCo/results/love_plot.png"), echo = FALSE, fig.cap = "Rescue.Co Stage 2a balance. Standardised mean differences across 21 retained baseline covariates before and after PS matching. PS propensity scores stay inside [0.01, 0.99] (range 0.21 to 0.81), and SMDs after matching are within the prespecified 0.10 envelope for the matched-cohort target population."}
+knitr::include_graphics("../rescueCo/results/love_plot.png")
+```
+
+```{r casestudy-weighted-love, eval = file.exists("../rescueCo/results/weighted_love_plot.png"), echo = FALSE, fig.cap = "Rescue.Co Stage 2a three-way Love plot: standardised mean differences before any adjustment (unweighted), after PS matching, and after stabilised IPTW. The three-way view documents which covariates remain imbalanced under each weighting strategy and clarifies that the matched-cohort target population is not the same as the full-cohort target population recovered by IPTW or full-cohort TMLE."}
+knitr::include_graphics("../rescueCo/results/weighted_love_plot.png")
+```
+
+The treatment- and IPCW-weight distributions are reported as
+diagnostic objects: mean, SD, 99th percentile, maximum, and Kish
+ESS for each weight type, with the prespecified instability flags
+in the weight-diagnostics table above. The stabilised treatment
+weights do not exceed the prespecified maximum (10) and combined
+treatment-times-IPCW weights remain within the (15, 30 % ESS)
+envelope for the IPCW row. The Stage 2c DQ stress test sweeps the four threats
 over four candidates; the minimax rule locks `glm_t01` as the
 primary specification. [NOTE: the bundled
 `config/clean_room_config.yml` sets `simulation.n_sims = 3`. The
@@ -2011,6 +2032,20 @@ Negative controls run at Stage 3 on the locked PS:
 | household urban        | −0.00077 | 0.0071  |   0.91  |  ✓   |
 
 : Stage 3 negative-control TMLE results.
+
+```{mermaid}
+%%| fig-cap: "Negative-control attrition. Five negative-control endpoints were prespecified in the SAP. Three were dropped at the data-sanitisation step because they failed near-zero-variance (NZV) filtering on the locked cohort. The two surviving NCs (chronic_hypertension, household_urban) carried enough variation to fit a stable PS-adjusted model and both passed. The residual-confounding probe therefore rests on a narrower NC panel than originally specified; the audit log records the drops."
+flowchart LR
+    A["5 prespecified NCs<br/>chronic_hypertension, chronic_diabetes_insulin,<br/>chronic_hiv_art, household_urban, fuel_wood"]
+    B["NZV filter at data-sanitisation step"]
+    C["3 dropped:<br/>chronic_diabetes_insulin,<br/>chronic_hiv_art, fuel_wood"]
+    D["2 analysed:<br/>chronic_hypertension,<br/>household_urban"]
+    E["Both pass NC checks"]
+    A --> B
+    B --> C
+    B --> D
+    D --> E
+```
 
 At the pre-outcome decision point (`authorize_outcome_analysis()`),
 the two passing negative controls and the plasmode metrics support

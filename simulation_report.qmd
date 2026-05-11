@@ -1,0 +1,295 @@
+---
+title: "Clean-Room TMLE Simulation Study: Results"
+subtitle: "Comparing Estimators Under Good and Marginal PS Overlap"
+author: "cleanTMLE Authors"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    self-contained: true
+    fig-width: 8
+    fig-height: 5
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  warning   = FALSE,
+  message   = FALSE
+)
+library(ggplot2)
+```
+
+## Overview
+
+This document presents the results of a Monte Carlo simulation study
+evaluating five estimators for the average treatment effect (ATE) on
+the risk-difference scale under two overlap scenarios.
+The study uses the **cleanTMLE** package's staged clean-room workflow,
+including outcome-blind plasmode simulation for TMLE specification
+selection.
+
+```{r load-results}
+res <- readRDS("results/simulation_results.rds")
+cfg <- res$config
+
+cat(sprintf("Sample size per replicate: %d\n", cfg$n_obs))
+cat(sprintf("Monte Carlo replicates:    %d\n", cfg$n_reps))
+cat(sprintf("Plasmode replicates:       %d\n", cfg$plasmode_reps))
+cat(sprintf("SL library:                %s\n", paste(cfg$sl_library, collapse = ", ")))
+cat(sprintf("Cross-fitting folds:       %d\n", cfg$n_folds))
+cat(sprintf("Total runtime:             %.0f minutes\n", res$runtime_minutes))
+```
+
+
+## Data-Generating Process
+
+The DGP simulates a pharmacoepidemiology setting with 5 baseline
+covariates (age, sex, biomarker, comorbidity, CKD), a binary
+treatment with confounded assignment, and a binary outcome at 24
+months with a true protective treatment effect.
+
+The `overlap_strength` parameter controls the degree of confounding
+and PS separation:
+
+- **Scenario A (Good Overlap):** `overlap_strength = 0.5` — moderate
+  confounding, PS concentrated in [0.2, 0.8].
+- **Scenario B (Marginal Overlap):** `overlap_strength = 1.5` — strong
+  confounding, PS extending to [0.04, 0.99].
+
+```{r truths}
+for (sc in names(res$truths)) {
+  t <- res$truths[[sc]]
+  cat(sprintf("%s: Risk(1)=%.4f, Risk(0)=%.4f, True RD=%.5f\n",
+              res$scenarios[[sc]]$label, t$risk_1, t$risk_0, t$RD))
+}
+```
+
+
+## Plasmode Candidate Selection
+
+Before accessing the real outcome, cleanTMLE evaluates prespecified
+TMLE candidates on plasmode-simulated data.  Each candidate specifies
+a SuperLearner library and PS truncation threshold.  The candidate
+with minimum RMSE is selected and locked.
+
+```{r plasmode-tables}
+for (sc in names(res$meta)) {
+  meta <- res$meta[[sc]]
+  cat(sprintf("\n### %s\n\n", meta$label))
+  cat(sprintf("- PS range: [%.3f, %.3f]\n", meta$ps_range[1], meta$ps_range[2]))
+  cat(sprintf("- ESS: %.1f%%\n", meta$ess_pct))
+  cat(sprintf("- **Selected candidate: `%s`**\n", meta$selected))
+  cat(sprintf("- Gate decision: **%s**\n\n", meta$gate))
+
+  plas <- meta$plasmode
+  knitr::kable(plas, digits = c(2, NA, 5, 5, 3, 5, 5, 0, 3),
+               caption = sprintf("Plasmode metrics: %s", meta$label)) |>
+    print()
+  cat("\n")
+}
+```
+
+
+## Monte Carlo Results
+
+### Summary Tables
+
+```{r summary-tables}
+for (sc in names(res$summaries)) {
+  truth <- res$truths[[sc]]$RD
+  label <- res$scenarios[[sc]]$label
+  cat(sprintf("\n#### %s (true RD = %.5f)\n\n", label, truth))
+  knitr::kable(res$summaries[[sc]],
+               digits = c(NA, 0, 5, 5, 5, 5, 5, 3, 5, 3, 5),
+               caption = label) |>
+    print()
+  cat("\n")
+}
+```
+
+### Key Findings
+
+```{r findings}
+sa <- res$summaries$good_overlap
+sb <- res$summaries$marginal_overlap
+
+crude_a_cov <- sa$coverage[sa$method == "Crude"]
+tmle_a_cov  <- sa$coverage[sa$method == "TMLE"]
+crude_b_cov <- sb$coverage[sb$method == "Crude"]
+tmle_b_cov  <- sb$coverage[sb$method == "TMLE"]
+tmle_b_bias <- sb$bias[sb$method == "TMLE"]
+crude_b_bias <- sb$bias[sb$method == "Crude"]
+```
+
+1. **Crude estimation is biased in both scenarios** — coverage
+   `r sprintf("%.1f%%", 100*crude_a_cov)` (A) and
+   `r sprintf("%.1f%%", 100*crude_b_cov)` (B), far below the nominal 95%.
+
+2. **TMLE achieves near-nominal coverage** in both scenarios:
+   `r sprintf("%.1f%%", 100*tmle_a_cov)` (A) and
+   `r sprintf("%.1f%%", 100*tmle_b_cov)` (B).
+
+3. **Under marginal overlap, crude bias is
+   `r sprintf("%.0f", abs(crude_b_bias/tmle_b_bias))`x larger than TMLE bias.**
+
+4. **SE/SD ratios are near 1.0** for all adjusted methods, confirming
+   that influence-curve standard errors are well-calibrated.
+
+5. **Cross-fitted TMLE (TMLE_CF)** performs comparably to standard TMLE,
+   with marginally lower bias.
+
+6. **Matched-cohort TMLE (Match_TMLE)** combines the bias reduction of
+   matching with the double robustness of TMLE, at the cost of wider
+   CIs due to reduced sample size.
+
+7. **Plasmode selection correctly adapted:** `glm_t01` (minimal truncation)
+   for good overlap, `glm_t05` (more truncation) for marginal overlap.
+
+
+## Visualisations
+
+### Bias Comparison
+
+```{r bias-plot, fig.cap = "Bias by method and scenario."}
+plot_data <- do.call(rbind, lapply(names(res$summaries), function(sc) {
+  df <- res$summaries[[sc]]
+  df$scenario <- res$scenarios[[sc]]$label
+  df
+}))
+
+ggplot(plot_data, aes(x = reorder(method, abs(bias)), y = bias,
+                       fill = scenario)) +
+  geom_col(position = "dodge", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  coord_flip() +
+  labs(x = NULL, y = "Bias (estimate - truth)",
+       title = "Estimator Bias by Scenario",
+       fill = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+### Coverage Comparison
+
+```{r coverage-plot, fig.cap = "95% CI coverage by method and scenario."}
+ggplot(plot_data, aes(x = reorder(method, coverage), y = coverage,
+                       fill = scenario)) +
+  geom_col(position = "dodge", alpha = 0.8) +
+  geom_hline(yintercept = 0.95, linetype = "dashed", colour = "red") +
+  geom_hline(yintercept = c(0.936, 0.964), linetype = "dotted",
+             colour = "grey50") +
+  coord_flip() +
+  scale_y_continuous(limits = c(0.3, 1.0), labels = scales::percent) +
+  labs(x = NULL, y = "Coverage",
+       title = "95% CI Coverage by Scenario",
+       subtitle = "Dashed red = nominal 95%; dotted = Monte Carlo simulation interval (depends on rep count)",
+       fill = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+### RMSE Comparison
+
+```{r rmse-plot, fig.cap = "RMSE by method and scenario."}
+ggplot(plot_data, aes(x = reorder(method, -rmse), y = rmse,
+                       fill = scenario)) +
+  geom_col(position = "dodge", alpha = 0.8) +
+  coord_flip() +
+  labs(x = NULL, y = "Root Mean Squared Error",
+       title = "RMSE by Scenario",
+       fill = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+### SE Calibration
+
+```{r se-sd-plot, fig.cap = "SE/SD ratio by method and scenario. Values near 1.0 indicate well-calibrated standard errors."}
+ggplot(plot_data, aes(x = method, y = se_sd_ratio, colour = scenario,
+                       shape = scenario)) +
+  geom_point(size = 4) +
+  geom_hline(yintercept = 1.0, linetype = "dashed") +
+  geom_hline(yintercept = c(0.9, 1.1), linetype = "dotted", colour = "grey50") +
+  scale_y_continuous(limits = c(0.8, 1.15)) +
+  labs(x = NULL, y = "Mean SE / Empirical SD",
+       title = "Standard Error Calibration",
+       subtitle = "Values near 1.0 = well-calibrated; <1 = anti-conservative",
+       colour = NULL, shape = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+### Sampling Distribution of Estimates
+
+```{r boxplots, fig.height = 7, fig.cap = "Distribution of point estimates across Monte Carlo replicates (count specified in the configuration table)."}
+raw_data <- do.call(rbind, lapply(names(res$results), function(sc) {
+  df <- as.data.frame(res$results[[sc]])
+  df$scenario <- res$scenarios[[sc]]$label
+  df$truth    <- res$truths[[sc]]$RD
+  df
+}))
+
+ggplot(raw_data, aes(x = method, y = estimate, fill = method)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 0.5) +
+  geom_hline(aes(yintercept = truth), linetype = "dashed", colour = "red") +
+  facet_wrap(~ scenario, scales = "free_y") +
+  labs(x = NULL, y = "Point Estimate (Risk Difference)",
+       title = "Sampling Distribution of ATE Estimates",
+       subtitle = "Dashed red = true RD") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+
+## Simulation Configuration
+
+```{r config}
+cat("n_obs:          ", cfg$n_obs, "\n")
+cat("n_reps:         ", cfg$n_reps, "\n")
+cat("n_truth:        ", cfg$n_truth, "\n")
+cat("plasmode_reps:  ", cfg$plasmode_reps, "\n")
+cat("sl_library:     ", paste(cfg$sl_library, collapse = ", "), "\n")
+cat("n_folds:        ", cfg$n_folds, "\n")
+cat("seed:           ", cfg$seed, "\n")
+cat("runtime:        ", round(res$runtime_minutes, 1), "minutes\n")
+```
+
+
+## Conclusions
+
+The simulation confirms that the cleanTMLE staged workflow produces
+valid inference under both good and marginal propensity score overlap:
+
+1. **TMLE is approximately unbiased** with near-nominal 95% coverage
+   in both scenarios, while crude estimation suffers severe bias and
+   undercoverage when confounding is strong.
+
+2. **Influence-curve standard errors are well-calibrated** (SE/SD
+   ratios within 3% of 1.0), supporting the use of Wald-type
+   confidence intervals without bootstrap.
+
+3. **Outcome-blind plasmode candidate selection** correctly adapts
+   the TMLE specification to the data structure, choosing minimal
+   truncation under good overlap and increased truncation under
+   marginal overlap.
+
+4. **Cross-fitted TMLE** provides comparable or slightly improved
+   performance, guarding against overfitting of nuisance parameters.
+
+5. **Matched-cohort TMLE** combines matching's covariate pruning with
+   TMLE's double robustness, offering a middle ground between
+   full-cohort TMLE (most efficient) and PS matching (most
+   interpretable to clinicians).
+
+6. Under marginal overlap, **PS matching** shows early signs of
+   degradation (lower ESS, marginally wider CIs), while **IPTW**
+   and **TMLE** remain stable.
+
+```{r session-info}
+sessionInfo()
+```

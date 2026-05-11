@@ -298,7 +298,7 @@ The claim is integration and auditability, not a new estimator.
 ## Limitations
 
 - Synthetic-outcome mechanism may not rank estimators the same way as the realized outcome process
-- v0.1 scope: binary point exposure, binary outcome, marginal RD, MCAR outcome missingness handled by IPCW
+- v0.1 scope: binary point exposure, binary outcome, marginal RD; outcome missingness handled through complete-case and IPCW sensitivity paths under prespecified missingness assumptions
 - DQ stress testing is not formal causal sensitivity analysis
 - Software cannot replace role separation or source-data validation
 - Severity ranges require external justification (validation studies, profiling, expert elicitation)
