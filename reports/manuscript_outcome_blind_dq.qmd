@@ -1013,6 +1013,26 @@ estimand drift induced by truncation is scored on the same RMSE
 and coverage metrics as everything else rather than chosen
 post-hoc on the realised data.
 
+### When STOP motivates estimand revision, not just estimator
+swapping
+
+A STOP or FLAG decision from the pre-outcome rule is not always a
+signal to *change the estimator*; sometimes it is a signal to
+*change the estimand* itself. The targeted-learning RWE roadmap
+[@dang2023roadmap; @petersen2014roadmap] makes this explicit: if
+the simulation reveals that no prespecified candidate can recover
+the original target estimand under plausible threats, the honest
+moves include narrowing the target population to where positivity
+is supported, revising the treatment strategy to one whose
+counterfactual is identifiable from the data, changing the
+follow-up window, switching from a marginal to a matched or
+overlap-restricted target, or changing the missingness strategy.
+Each of these is an *estimand revision*, recorded in the analysis
+lock and decision log alongside the estimator changes that
+prompted it. Reporting the revised estimand transparently is
+preferable to reporting the original estimand with a documented
+override.
+
 ## Threat-to-assumption matrix: what each scenario probes (and what it does not) {#sec-threat-matrix}
 
 Each DQ scenario is best understood as an *engineering
@@ -1559,8 +1579,23 @@ for (sc in names(res$summaries)) {
 
 The simulation illustrates three intended uses of the staged
 workflow: confirming acceptable finite-sample behaviour, detecting
-instability under marginal overlap, and stopping when an
-identification failure is built into the data-generating process.
+instability under marginal overlap, and stopping under a
+prespecified data-generating process that encodes an identification
+failure.
+
+It is worth being explicit about what the workflow is and is not
+showing. A STOP decision is **a failure of prespecified
+operating-characteristic thresholds under the simulated DGP**, not
+**detected real-data bias**. The clarity of the STOP decision in
+Scenario C depends on the analyst having anticipated the threat
+(unmeasured confounding) and having encoded a corresponding latent
+$U$ scenario in the locked DGP; the package does not infer the
+threat from the realised data, and a STOP under a stress scenario
+that the analyst chose to include is a different claim from "this
+study has unmeasured confounding". The same distinction applies in
+reverse: a GO decision does not imply that the realised data are
+free of the threat, only that, under the prespecified DGP and the
+locked thresholds, the candidate estimator does not fail.
 The printed tables include the Monte Carlo standard error of the
 coverage estimate so the reader can judge which differences exceed
 Monte Carlo noise.
@@ -2099,7 +2134,7 @@ package evaluates automatically) or rests on reviewer judgment.
 | Stage 1b cohort adequacy and event counts | `checkpoint_cohort_adequacy()` output, attrition table | `min_n_per_arm` = 200, `min_events` = 50 | GO | Adequate cohort for the prespecified estimand | Software-enforced |
 | Stage 2a overlap, balance, ESS, weight stability | `compute_ps_diagnostics()`, `love_plot_threeway()`, `clean_weight_diagnostics()` | PS in [0.01, 0.99]; max-SMD <= 0.10 after weighting; max weight <= 10 | GO | Positivity and balance acceptable for full-cohort target | Software-enforced |
 | Stage 2b baseline plasmode | `run_plasmode_feasibility()` bias 0.001, coverage 0.94 | bias <= 0.01, coverage >= 0.90, SE/SD in (0.8, 1.2) | GO | Candidate operates within prespecified envelope | Software-enforced |
-| Stage 2c DQ stress test | `run_plasmode_dq_stress()` minimax rule | Each scenario within thresholds across severities | GO | Selected candidate is stable across prespecified threats | Software-enforced |
+| Stage 2c DQ stress test | `run_plasmode_dq_stress()` minimax rule | Each scenario within thresholds across severities | **FLAG** unless the $n_{\text{reps}} = 200$ DQ run is used (bundled $n_{\text{reps}} = 3$ is a workflow-demo only); GO for workflow execution | Selected candidate is stable across prespecified threats *as evaluated*; inferential interpretation requires the higher-replicate run | Software-enforced |
 | Stage 3 negative controls | `run_residual_confounding_stage()` (2 of 5 NCs survived NZV; both pass) | All analysed NCs pass at $\alpha$ = 0.05 | GO with FLAG | Narrower NC panel than SAP; residual-confounding probe partial | Reviewer-judgment |
 | Gate authorisation | `authorize_outcome_analysis()` returns GO | All preceding checkpoints GO or documented FLAG | GO | Proceed to locked primary analysis | Software-enforced |
 
@@ -2476,9 +2511,28 @@ that no amount of replication can correct.
 
 ## Other limitations
 
-The current implementation has six additional limitations the
-analyst should keep in mind, grouped into model assumptions,
-computational cost, and estimand scope.
+The current implementation has additional limitations the
+analyst should keep in mind, grouped into the candidate-selection
+rule, model assumptions, computational cost, and estimand scope.
+
+### Candidate-selection rule (FIORD alignment)
+
+cleanTMLE 0.1 implements a **single-step** candidate-selection rule
+(`select_tmle_candidate(rule = "min_rmse")`, optionally augmented to
+`"min_max_rmse"` over the DQ stress scenarios) that simultaneously
+weighs point-estimator behaviour and variance-method behaviour
+through a single RMSE / coverage / SE-window decision. The FIORD
+outcome-blind simulation guidance [@nance2026fiord] argues that
+these are distinct tasks and should be handled in two stages: first
+screen point estimators by oracle coverage (a CI built from the
+Monte Carlo empirical SE) and pick the lowest-variance survivor;
+then select the variance method on the locked point estimator using
+nominal CI coverage. **The current cleanTMLE rule is FIORD-inspired
+but not FIORD-compliant.** The `rule = "fiord_two_stage"` selector
+is planned for cleanTMLE 0.2; users who need full FIORD alignment
+today should run the FIORD selector externally on the candidate
+output of `run_plasmode_feasibility()`. This limitation affects the
+main contribution and is not just a future-feature item.
 
 ### Model assumptions
 

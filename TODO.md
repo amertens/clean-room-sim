@@ -74,6 +74,20 @@ These require new R code and tests, and rerun no existing simulation.
 - Wrap `ltmle` so the same lock + plasmode + DQ + gate machinery works for time-varying treatments with censoring.
 - This is the FIORD case-study setting and the main next-step extension Carrie / Zhiwei flagged.
 
+### A.14 Estimand-revision hook after STOP
+- When `gate_all()` returns STOP, surface a structured list of estimand-revision options the analyst can record in the decision log: "revise target population", "revise treatment strategy", "revise follow-up window", "switch to a matched / overlap-restricted target", "change missingness strategy", "stop before outcome access".
+- Each revision becomes a logged decision rather than a silent override.
+- Cite: targeted-learning RWE roadmap; the manuscript's new "estimand revision after STOP" subsection in §6.
+
+### A.15 Automatic FLAG on low-replicate examples
+- When `run_plasmode_feasibility()` or `run_plasmode_dq_stress()` are called with `reps`/`n_reps` below a threshold (e.g. < 50), tag the result object with class `cleantmle_workflow_demo` and force `gate_all()` to return FLAG with the rationale "workflow-demo-only replicate count".
+- Prevents low-replicate bundled examples from being mistaken for inferential simulations.
+
+### A.16 Structured negative-control attrition in the audit log
+- When a prespecified negative-control endpoint is dropped at the data-sanitisation step (e.g. NZV filter), record the drop as a structured `decision_log` entry rather than only printing a console message.
+- Capture: NC name, filter that fired (NZV / collinearity / other), prevalence in the cohort, the SAP rationale for including the NC, and the impact ("narrower NC panel; residual-confounding probe partial").
+- Closes the gap the rescueCo case study identified.
+
 ---
 
 ## B. Documentation, governance, and operational
