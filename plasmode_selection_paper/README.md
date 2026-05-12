@@ -87,7 +87,7 @@ Bias, RMSE, 95% CI coverage (with MC SE), empirical SD, mean SE, SE/SD ratio, an
 
 ## Replicate budget and Monte Carlo standard errors
 
-- **Pilot (`scripts/run_pilot.R`):** 40 outer replicates per DGP, 20 inner. Coverage MC SE ≈ 0.034. Used to populate placeholders and smoke-test the pipeline. **Not inferentially defensible.**
+- **Pilot (`scripts/run_pilot.R`):** 10 outer replicates per DGP, 10 inner, n = 500. Coverage MC SE ≈ 0.07. Used to populate placeholders and end-to-end sanity-check the pipeline; takes roughly 5–7 hours on a single workstation. **Not inferentially defensible.**
 - **Full (`scripts/run_full.R`):** 500 outer replicates per DGP, 50 inner. Coverage MC SE ≈ 0.010. Paper-quality.
 
 ## Dependencies

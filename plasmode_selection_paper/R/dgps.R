@@ -84,8 +84,11 @@ make_data <- function(n, dgp = c("linear", "nonlinear_smooth",
         0.30 * bmi_z * smoke
     },
     sparse = {
-      # Only biomarker matters; analyst includes all 6 covariates
-      -2.0 + 1.2 * biomarker
+      # Only biomarker matters; analyst includes all 6 covariates.
+      # Intercept and slope tuned so the p_Y1 = p_Y0 + true_RD clamp
+      # at 0.01 fires for < 5 percent of observations, keeping the
+      # true marginal causal RD within 0.001 of the target.
+      -1.2 + 0.6 * biomarker
     },
     high_dim_noise = {
       # Linear in the 6 real covariates; analyst also adjusts for noise_p extra noise covariates

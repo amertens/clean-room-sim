@@ -85,7 +85,7 @@ We compare three workflows. Each takes a simulated dataset and returns a point e
 - **Fixed-rich TMLE.** SuperLearner library = `(SL.glm, SL.glmnet, SL.gam, SL.ranger, SL.mean)`, truncation = 0.01. Represents an analyst who has read the workshop guidance and uses a rich library a priori without further tuning.
 - **Plasmode-selected TMLE.** The cleanTMLE candidate grid (`build_candidate_grid()`) contains six candidates: a parametric tier, a parametric+glmnet tier, a rich tier at two truncation levels, and a rich+corP-screener tier at two truncation levels. For each simulated outer dataset we run a 50-replicate inner plasmode at effect size −0.05, pick the candidate with the smallest mean RMSE on the inner plasmode (the *min-RMSE* rule), and fit that candidate on the outer real outcome. We also report a second selector — the FIORD two-stage rule that screens candidates on oracle coverage before picking the smallest mean SE — for sensitivity.
 
-The propensity-score model is fit with the same rich library across all three workflows; only the candidate selection for the outcome model and the truncation level varies.
+Each workflow uses its own library and truncation throughout — so the fixed-parametric workflow fits both the propensity score and the outcome model with `(SL.glm, SL.mean)`, the fixed-rich workflow fits both with the rich library, and the plasmode workflow fits both nuisance functions with the library prescribed by the candidate it selected on the inner plasmode loop. Truncation likewise follows the locked candidate. The inner plasmode loop itself uses a baseline GLM Q0 (covariates only, outcome-blind) regardless of the candidate grid; only the inner candidate fits use the candidate-specific libraries.
 
 ## Performance metrics
 
@@ -214,7 +214,7 @@ knitr::kable(fiord_compare, digits = 4,
 # Limitations
 
 - Single sample size per DGP (`n_per_rep = 1000`) in the headline results. A secondary analysis varying n would strengthen the conclusions but doubles compute.
-- The PS model is held fixed at "rich library" across all three workflows; a fully prespecified pipeline would also vary the g-library, which we do not exercise here.
+- Plasmode candidate selection is driven by the outcome model's RMSE on the inner loop, but a candidate's PS library and truncation are taken along with the Q library as a single bundle. A separable selection (different rules for the g and Q libraries) is a natural extension we do not exercise here.
 - The DGPs span library-friendliness but not positivity strain. A positivity-strained sixth DGP is a natural extension; we excluded it to keep the focus on outcome-model mis-specification.
 - The inner plasmode generator uses cleanTMLE's hybrid DGP (empirical W + A, parametric outcome). A structural-equation or parametric-bootstrap inner DGP could change selection frequencies and is on the cleanTMLE 0.3 roadmap.
 - Variance is computed with IF-based SEs throughout. A bootstrap-variance comparison is the natural next paper.
