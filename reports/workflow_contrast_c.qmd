@@ -149,11 +149,14 @@ fit_plasmode <- function(data) {
   )
   selected_id <- if (!is.null(plas) && !is.null(plas$metrics)) {
     agg <- aggregate(rmse ~ candidate, data = plas$metrics, FUN = mean)
-    agg$candidate[which.min(agg$rmse)]
+    as.character(agg$candidate[which.min(agg$rmse)])
   } else "glmnet_t01"
+  selected_id <- as.character(selected_id)[1L]
 
-  selected <- candidates[[which(vapply(
-    candidates, function(c) c$candidate_id, character(1)) == selected_id)]]
+  cand_ids <- vapply(candidates, function(c) c$candidate_id, character(1))
+  match_i  <- which(cand_ids == selected_id)
+  if (length(match_i) == 0L) match_i <- 1L
+  selected <- candidates[[match_i[1L]]]
   lock <- lock_primary_tmle_spec(lock, selected)
   ps   <- fit_ps_superlearner(lock)
   g    <- fit_tmle_treatment_mechanism(lock, ps)
@@ -168,20 +171,34 @@ fit_plasmode <- function(data) {
 # Run the simulation
 
 ```{r run-sim, cache = TRUE}
+# Local null-coalescing helper (cleanTMLE's `%||%` is internal-only).
+`%||%` <- function(a, b) if (is.null(a) || length(a) == 0L) b else a
+
+# extract_tmle_estimate() returns $estimates$ATE$estimate etc., not top-level.
+get_est <- function(fit) {
+  if (is.null(fit) || is.null(fit$estimates) ||
+      is.null(fit$estimates$ATE)) return(c(NA_real_, NA_real_))
+  c(fit$estimates$ATE$estimate, fit$estimates$ATE$se)
+}
+
 run_one <- function(rep_i, dgp) {
   set.seed(2026 + 1000L * match(dgp, c("linear","nonlinear","sparse")) + rep_i)
   d <- make_data(n_per_rep, dgp = dgp, true_RD = true_RD)
   fix <- tryCatch(fit_fixed(d), error = function(e) NULL)
   pls <- tryCatch(fit_plasmode(d), error = function(e) NULL)
+  fix_es <- get_est(fix); pls_es <- get_est(pls)
   data.frame(
     dgp           = dgp,
     rep           = rep_i,
-    fixed_est     = if (!is.null(fix)) fix$estimate else NA_real_,
-    fixed_se      = if (!is.null(fix)) fix$se       else NA_real_,
-    plasmode_est  = if (!is.null(pls)) pls$estimate else NA_real_,
-    plasmode_se   = if (!is.null(pls)) pls$se       else NA_real_,
-    plasmode_pick = if (!is.null(pls)) attr(pls, "selected_candidate") %||% NA_character_
-                    else NA_character_,
+    fixed_est     = fix_es[1],
+    fixed_se      = fix_es[2],
+    plasmode_est  = pls_es[1],
+    plasmode_se   = pls_es[2],
+    plasmode_pick = if (!is.null(pls)) {
+                      v <- attr(pls, "selected_candidate")
+                      if (is.null(v) || length(v) == 0L) NA_character_
+                      else as.character(v)[1L]
+                    } else NA_character_,
     stringsAsFactors = FALSE
   )
 }
