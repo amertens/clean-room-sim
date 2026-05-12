@@ -150,17 +150,28 @@ knitr::kable(
 ## Candidate-selection frequencies
 
 ```{r selection-table, eval = has_sim, results = "asis"}
+all_cands <- c("param_t01", "paramplus_t01",
+               "rich_t01", "rich_t05",
+               "rich_screener_t01", "rich_screener_t05")
 pick <- sim |>
   filter(workflow == "plasmode_min_rmse") |>
-  group_by(dgp, selected_candidate) |>
+  # strip the *_FALLBACK suffix so fallbacks are counted as the
+  # underlying candidate (with a separate column for transparency)
+  mutate(
+    fallback = grepl("_FALLBACK$", selected_candidate),
+    sel      = factor(sub("_FALLBACK$", "", selected_candidate),
+                      levels = all_cands)
+  ) |>
+  group_by(dgp, sel) |>
   summarise(n = n(), .groups = "drop") |>
-  tidyr::pivot_wider(names_from = selected_candidate, values_from = n,
-                     values_fill = 0L)
+  tidyr::pivot_wider(names_from = sel, values_from = n,
+                     values_fill = 0L, names_expand = TRUE)
 knitr::kable(
   pick,
   caption = paste0("Empirical candidate-selection frequencies by DGP ",
                     "under the min-RMSE plasmode rule. Rows are DGPs; ",
-                    "columns are candidates. ", sim_label_caption)
+                    "columns are the six candidates in the grid. ",
+                    sim_label_caption)
 )
 ```
 
