@@ -1,0 +1,225 @@
+---
+title: "Does plasmode-based candidate selection improve TMLE estimator performance? A simulation study"
+subtitle: "DRAFT — placeholders for full-study results"
+author:
+  - name: "Andrew Mertens"
+    affiliation: "University of California, Berkeley"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    self-contained: true
+    code-fold: true
+  docx:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+bibliography: references.bib
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+# Abstract {.unnumbered}
+
+**Background.** Targeted maximum likelihood estimation (TMLE) requires the analyst to prespecify a SuperLearner library, a propensity-score truncation level, and a targeting routine. The traditional choice is to fix these *a priori*. The outcome-blind plasmode candidate-selection approach in cleanTMLE selects them from a small candidate grid using a synthetic outcome generated from the observed covariate and treatment structure. Whether plasmode selection actually improves operating characteristics, or simply adds compute, is an open empirical question.
+
+**Methods.** We simulate from five data-generating processes (DGPs) that share a common baseline-covariate distribution but vary in how a linear outcome model approximates the truth: a linear DGP, a smooth nonlinear DGP, a DGP with strong two-way interactions, a sparse DGP in which only one covariate matters, and a high-dimensional-noise DGP with 20 nuisance covariates added to the adjustment set. At each simulated dataset we run two fixed-library TMLE estimators (a parametric library and a rich SuperLearner library, both with truncation 0.01) and a plasmode-selected TMLE that picks a candidate from a 6-element grid spanning library tier and PS truncation. We compare bias, RMSE, 95% CI coverage, and the candidate-selection frequencies across DGPs.
+
+**Results.** [PLACEHOLDER — populate after running `scripts/run_full.R` at n_reps = 500.]
+
+**Conclusions.** [PLACEHOLDER]
+
+---
+
+# Introduction
+
+In observational comparative-effectiveness research, the analyst running a TMLE pipeline faces three small but consequential choices before the comparative effect is computed: which SuperLearner library to use for the outcome (Q) and propensity-score (g) regressions, where to truncate g to avoid practical positivity violations, and whether to cross-fit. Phillips and colleagues [@phillips2023sl] and Gruber and colleagues [@gruber2022sap] argue that these choices should be **prespecified** but offer little guidance on *how* to prespecify them when the analyst does not yet know the truth.
+
+The cleanTMLE package [@cleantmle2026] operationalises an alternative: rather than pick a single library and truncation a priori, the analyst declares a *grid of candidate specifications*, evaluates the grid on an outcome-blind plasmode simulation derived from the realised covariate and treatment structure, and locks the best-performing candidate before unblinding. This procedure is FIORD-inspired [@nance2026fiord] and respects outcome-blindness in the sense that the inner plasmode never inspects the observed treatment-outcome association.
+
+The procedure is intuitive and the cost is modest, but the empirical question is open: **does plasmode-based candidate selection actually improve TMLE operating characteristics relative to a fixed-library default**, and if so, under which DGPs?
+
+This paper answers that question with a five-DGP simulation study. We hold the propensity-score model fixed across DGPs and vary only the outcome-generation mechanism so that any differences in operating characteristics can be attributed to the candidate-selection step.
+
+# Methods
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(ggplot2)
+})
+# Load pilot results if the full study has not yet been run.
+sim_path_full  <- "../results/sim_full.rds"
+sim_path_pilot <- "../results/sim_pilot.rds"
+sim_path <- if (file.exists(sim_path_full)) sim_path_full else sim_path_pilot
+has_sim  <- file.exists(sim_path)
+sim_label <- if (identical(sim_path, sim_path_full)) "full study"
+              else "pilot run"
+if (has_sim) sim <- readRDS(sim_path)
+true_RD <- -0.05
+```
+
+## Data-generating processes
+
+The covariate distribution is shared across DGPs and consists of six baseline variables: age (mean 60, SD 10), sex (Bernoulli 0.5), a continuous biomarker (standard normal), a binary comorbidity flag (prevalence 0.30), a continuous BMI z-score (standard normal), and a binary smoking indicator (prevalence 0.25). The propensity score is logit-linear in these six variables with coefficients chosen so the marginal treatment prevalence is approximately 0.5.
+
+The five DGPs differ only in the outcome model:
+
+1. **Linear.** $\log\frac{p_{Y=1}}{1-p_{Y=1}}$ is linear in the six baseline variables. The fixed parametric library is correctly specified.
+2. **Smooth nonlinear.** The biomarker and BMI enter the outcome with quadratic and sinusoidal terms respectively. A linear GLM is mis-specified but glmnet with a basis expansion would not be.
+3. **Interactions.** Two strong two-way interactions enter the outcome (biomarker × comorbidity and BMI × smoking). Main-effects-only GLMs miss them; tree-based learners pick them up.
+4. **Sparse.** Only the biomarker matters; the other five baseline variables are noise. Lasso-style learners shrink them away; an unregularised GLM does not.
+5. **High-dimensional noise.** Same outcome model as Linear but with 20 additional standard-normal noise covariates added to the adjustment set. The fixed parametric library now over-fits.
+
+The true marginal RD is fixed at −0.05 across all five DGPs.
+
+## Workflows compared
+
+We compare three workflows. Each takes a simulated dataset and returns a point estimate of the marginal RD, its IF-based SE, and the 95% CI.
+
+- **Fixed-parametric TMLE.** SuperLearner library = `(SL.glm, SL.mean)`, truncation = 0.01. Represents the traditional reflex of an applied analyst who fits a logistic GLM by default.
+- **Fixed-rich TMLE.** SuperLearner library = `(SL.glm, SL.glmnet, SL.gam, SL.ranger, SL.mean)`, truncation = 0.01. Represents an analyst who has read the workshop guidance and uses a rich library a priori without further tuning.
+- **Plasmode-selected TMLE.** The cleanTMLE candidate grid (`build_candidate_grid()`) contains six candidates: a parametric tier, a parametric+glmnet tier, a rich tier at two truncation levels, and a rich+corP-screener tier at two truncation levels. For each simulated outer dataset we run a 50-replicate inner plasmode at effect size −0.05, pick the candidate with the smallest mean RMSE on the inner plasmode (the *min-RMSE* rule), and fit that candidate on the outer real outcome. We also report a second selector — the FIORD two-stage rule that screens candidates on oracle coverage before picking the smallest mean SE — for sensitivity.
+
+The propensity-score model is fit with the same rich library across all three workflows; only the candidate selection for the outcome model and the truncation level varies.
+
+## Performance metrics
+
+For each workflow and DGP we report bias, RMSE, 95% CI coverage (with Monte Carlo standard error), the empirical SD, the mean reported SE, and the ratio of mean SE to empirical SD as a calibration diagnostic. For the plasmode-selected workflow we additionally report the empirical frequency with which each candidate was selected (per DGP), which is the diagnostic that tells us whether plasmode selection is responding to the DGP at all.
+
+## Replicate budget
+
+The full study uses `n_per_rep = 1000` and `n_reps = 500` outer replicates per DGP, plus 50-replicate inner plasmode loops at each outer replicate. The Monte Carlo standard error of the 95% coverage estimate is approximately 0.010. The full study should be run on a workstation or cluster (~6–24 hours wall-clock depending on parallelism).
+
+# Results
+
+```{r results-prep, eval = has_sim}
+sim <- readRDS(sim_path)
+sim$bias <- sim$estimate - true_RD
+sim$covers <- (sim$ci_lower <= true_RD) & (sim$ci_upper >= true_RD)
+sim_label_caption <- paste0(
+  "(Source: ", basename(sim_path), "; ",
+  length(unique(sim$rep)), " replicates per DGP × workflow; ",
+  "results are pilot-quality and **not yet inferentially defensible**.)"
+)
+```
+
+::: {.callout-warning}
+The numbers below are populated from a **pilot run** unless the full-study results file `results/sim_full.rds` is present. The pilot uses 40 outer replicates per DGP at n = 600 and is intended only to validate the simulation pipeline and serve as a placeholder. Re-render after running `scripts/run_full.R` for the paper-quality version.
+:::
+
+## Headline operating characteristics
+
+```{r headline-table, eval = has_sim, results = "asis"}
+summary_tbl <- sim |>
+  group_by(dgp, workflow) |>
+  summarise(
+    n_valid  = sum(!is.na(estimate)),
+    bias     = mean(bias, na.rm = TRUE),
+    abs_bias = mean(abs(bias), na.rm = TRUE),
+    emp_sd   = sd(estimate, na.rm = TRUE),
+    mean_se  = mean(se, na.rm = TRUE),
+    se_sd    = mean(se, na.rm = TRUE) / sd(estimate, na.rm = TRUE),
+    rmse     = sqrt(mean(bias^2, na.rm = TRUE)),
+    coverage = mean(covers, na.rm = TRUE),
+    mc_se_cov = sqrt(mean(covers, na.rm = TRUE) *
+                      (1 - mean(covers, na.rm = TRUE)) /
+                      sum(!is.na(estimate))),
+    .groups = "drop"
+  ) |>
+  arrange(dgp, workflow)
+knitr::kable(
+  summary_tbl,
+  digits = c(NA, NA, 0, 4, 4, 4, 4, 3, 4, 3, 4),
+  caption = paste0("Bias, RMSE, and 95% CI coverage by DGP and workflow. ",
+                    sim_label_caption)
+)
+```
+
+[INTERPRETATION TO BE WRITTEN AFTER FULL RUN. Anticipated patterns, to be confirmed:
+
+- **Linear DGP.** All three workflows are unbiased and well-calibrated. Plasmode adds compute but not statistical advantage.
+- **Smooth nonlinear and Interactions DGPs.** Fixed-parametric is biased and undercovers; fixed-rich and plasmode-selected both recover the truth, with plasmode-selected slightly cheaper in the sense that it does not always engage the heaviest learners.
+- **Sparse DGP.** Fixed-parametric pays the price of unregularised regression; plasmode-selected and fixed-rich agree, with both routinely picking glmnet-augmented candidates.
+- **High-dimensional noise DGP.** Fixed-parametric over-fits and undercovers; plasmode-selected picks the screener-augmented candidate. The fixed-rich library, without a screener, also struggles.]
+
+## Candidate-selection frequencies
+
+```{r selection-table, eval = has_sim, results = "asis"}
+pick <- sim |>
+  filter(workflow == "plasmode_min_rmse") |>
+  group_by(dgp, selected_candidate) |>
+  summarise(n = n(), .groups = "drop") |>
+  tidyr::pivot_wider(names_from = selected_candidate, values_from = n,
+                     values_fill = 0L)
+knitr::kable(
+  pick,
+  caption = paste0("Empirical candidate-selection frequencies by DGP ",
+                    "under the min-RMSE plasmode rule. Rows are DGPs; ",
+                    "columns are candidates. ", sim_label_caption)
+)
+```
+
+[The candidate-selection cross-tab is the diagnostic that tells us whether plasmode selection is responding to the DGP. If the selected candidate is identical across DGPs, plasmode is not adapting; if it shifts in the expected direction (glmnet under nonlinear / sparse, screener under high-dim-noise), the selection is doing real work.]
+
+## Forest plot of replicate-level RD estimates
+
+```{r forest-plot, eval = has_sim, fig.height = 8, fig.cap = "Replicate-level RD estimates by workflow and DGP. Dashed red line marks the true RD (-0.05). Workflows are arranged top-to-bottom: fixed-parametric, fixed-rich, plasmode (min-RMSE)."}
+fp <- sim |>
+  filter(workflow %in% c("fixed_parametric", "fixed_rich",
+                          "plasmode_min_rmse"))
+ggplot(fp, aes(x = estimate, y = workflow)) +
+  geom_vline(xintercept = true_RD, linetype = "dashed",
+              colour = "red") +
+  geom_jitter(alpha = 0.4, size = 1, height = 0.15) +
+  facet_wrap(~ dgp, ncol = 1, scales = "free_y") +
+  labs(x = "RD estimate", y = NULL) +
+  theme_minimal(base_size = 10)
+```
+
+## FIORD two-stage selector as sensitivity
+
+```{r fiord-table, eval = has_sim, results = "asis"}
+fiord_compare <- sim |>
+  filter(workflow %in% c("plasmode_min_rmse",
+                          "plasmode_fiord_two_stage")) |>
+  group_by(dgp, workflow) |>
+  summarise(
+    abs_bias = mean(abs(bias), na.rm = TRUE),
+    rmse     = sqrt(mean(bias^2, na.rm = TRUE)),
+    coverage = mean(covers, na.rm = TRUE),
+    .groups = "drop"
+  )
+knitr::kable(fiord_compare, digits = 4,
+  caption = paste0("Plasmode-selected workflow under two selection ",
+                    "rules. ", sim_label_caption))
+```
+
+[Read whether the FIORD two-stage rule differs from the simpler min-RMSE rule under any of the five DGPs. If the two rules return the same candidate frequencies, the simpler rule is the right operational choice; if the FIORD rule recovers coverage when min-RMSE drifts, the manuscript should recommend it.]
+
+# Discussion
+
+[To be written after the full run. Topics to address:
+
+1. Where does plasmode selection demonstrably help, and by how much?
+2. Where is it indistinguishable from a fixed-rich library at this budget?
+3. What is the computational cost of the inner plasmode loop and is it worth it?
+4. How does selection frequency vary with `n_per_rep` and `inner_reps`? (Implicit secondary analysis.)
+5. Implications for SAP design: should an analyst prespecify a candidate grid or just commit to a rich library from the outset?]
+
+# Limitations
+
+- Single sample size per DGP (`n_per_rep = 1000`) in the headline results. A secondary analysis varying n would strengthen the conclusions but doubles compute.
+- The PS model is held fixed at "rich library" across all three workflows; a fully prespecified pipeline would also vary the g-library, which we do not exercise here.
+- The DGPs span library-friendliness but not positivity strain. A positivity-strained sixth DGP is a natural extension; we excluded it to keep the focus on outcome-model mis-specification.
+- The inner plasmode generator uses cleanTMLE's hybrid DGP (empirical W + A, parametric outcome). A structural-equation or parametric-bootstrap inner DGP could change selection frequencies and is on the cleanTMLE 0.3 roadmap.
+- Variance is computed with IF-based SEs throughout. A bootstrap-variance comparison is the natural next paper.
+
+# References
+
+::: {#refs}
+:::
