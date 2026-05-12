@@ -1,11 +1,12 @@
 # Full study run. Designed for an inferentially-defensible budget.
 #
-# Run time on a typical workstation: many hours to ~1 day.
-# Recommended: run on a cluster or overnight.
-#
-# The budget below is the conservative paper-quality default. Adjust
-# n_reps downward to 200 if the wall-clock budget is tight; coverage
-# Monte Carlo standard error at n_reps = 200 is ~0.015.
+# Realistic wall-clock at this budget on a single workstation, from
+# the smoke benchmarks: ~5000 CPU-hours (5 DGPs x 500 reps x ~2 hours
+# per rep at n=1000 / 50 inner). This MUST be run on a multi-core
+# cluster or with parallelism added to run_simulation; do not start
+# it on a laptop. A worthwhile interim target is n_reps = 100 and
+# inner_reps = 25 (~125 CPU-hours), which still gives coverage MC SE
+# around 0.02.
 
 setwd(here::here("plasmode_selection_paper"))
 source("R/run_simulation.R")
