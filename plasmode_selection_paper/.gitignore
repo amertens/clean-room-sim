@@ -1,2 +1,7 @@
 results/*.rds
 results/_*.txt
+# Override the top-level results/ ignore for human-readable summaries
+!results/
+results/*
+!results/sim_pilot_summary.txt
+!results/sim_full_summary.txt

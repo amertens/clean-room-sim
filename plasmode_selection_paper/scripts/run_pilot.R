@@ -18,6 +18,9 @@ sim <- run_simulation(
   n_reps     = 10L,        # pilot budget; MC SE of coverage ~0.07
   inner_reps = 10L,
   out_path   = "results/sim_pilot.rds",
+  checkpoint_every = 1L,    # save after every rep; the long-running
+                            # process can be killed aggressively by
+                            # the host shell, so don't accumulate.
   log_progress = TRUE
 )
 cat("Pilot finished in",
