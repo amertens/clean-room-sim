@@ -141,13 +141,11 @@ fit_plasmode <- function(data, covariates, candidates,
   selected <- candidates[[selected_id]]
   lock <- lock_primary_tmle_spec(lock, selected)
 
-  # fit_ps_superlearner uses lock$sl_library directly (it does not
-  # honor the locked candidate's g_library). Override the lock's
-  # library so the outer PS fit actually matches the selected
-  # candidate. Truncation is honored by fit_tmle_treatment_mechanism
-  # via the locked spec.
-  lock$sl_library <- selected$g_library
-
+  # Post-fix (cleanTMLE >= 0.2.1) fit_ps_superlearner picks up
+  # `primary_tmle_spec$g_library` from the lock, so the explicit
+  # override that earlier versions needed is no longer required.
+  # We still pass `truncate` defensively so the PS fit reflects the
+  # locked candidate's truncation even if the spec is later swapped.
   ps   <- fit_ps_superlearner(lock, truncate = selected$truncation)
   g    <- fit_tmle_treatment_mechanism(lock, ps)
   Qf   <- fit_tmle_outcome_mechanism(lock, g)

@@ -2619,6 +2619,16 @@ and the synthetic effect is constant on the risk-difference scale
 modification, time-varying treatment, and competing risks would
 need a richer DGP. The package architecture permits these
 extensions; the simulation reported here does not exercise them.
+cleanTMLE 0.2.1 adds a `q0_library` argument to
+`run_plasmode_feasibility()` so the analyst can fit Q0 with a
+SuperLearner library rather than the default logistic GLM; this
+relaxes the bias of candidate selection toward linear-in-logit
+learners when the underlying outcome surface is nonlinear. A
+companion pilot simulation (`plasmode_selection_paper/`) provides
+the empirical motivation: at n = 500, a logistic-GLM Q0 yields
+no detectable separation between fixed-library and plasmode-
+selected TMLE workflows because both inherit the same linearity
+bias.
 
 The plausible degradation ranges have to come from external
 evidence. The software cannot decide whether 5 % or 20 %

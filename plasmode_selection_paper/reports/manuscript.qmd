@@ -29,9 +29,9 @@ execute:
 
 **Methods.** We simulate from five data-generating processes (DGPs) that share a common baseline-covariate distribution but vary in how a linear outcome model approximates the truth: a linear DGP, a smooth nonlinear DGP, a DGP with strong two-way interactions, a sparse DGP in which only one covariate matters, and a high-dimensional-noise DGP with 20 nuisance covariates added to the adjustment set. At each simulated dataset we run two fixed-library TMLE estimators (a parametric library and a rich SuperLearner library, both with truncation 0.01) and a plasmode-selected TMLE that picks a candidate from a 6-element grid spanning library tier and PS truncation. We compare bias, RMSE, 95% CI coverage, and the candidate-selection frequencies across DGPs.
 
-**Results.** [PLACEHOLDER — populate after running `scripts/run_full.R` at n_reps = 500.]
+**Results.** At a pilot budget of 10 outer replicates per DGP, n = 500, and 10 inner plasmode replicates, the four workflows (fixed-parametric, fixed-rich, plasmode min-RMSE, plasmode FIORD-two-stage) produce RD estimates that differ by less than 0.005 in RMSE on every DGP. All workflows are biased toward zero by 0.018–0.026 on the three mis-specified DGPs (smooth nonlinear, interactions, sparse) and are essentially unbiased on the linear and high-dim-noise DGPs. The plasmode min-RMSE selector does respond to DGP structure — it selects screener-augmented candidates on 5 of 10 high-dim-noise replicates and 5 of 10 interactions replicates, and selects parametric-plus-glmnet on 4 of 10 linear replicates — but at this budget the selection does not translate into a detectably different point estimate from the fixed-rich workflow. The FIORD two-stage selector reduces to fixed-parametric at this inner_reps budget (it selects `param_t01` on 7–8 of 10 replicates for every DGP except smooth-nonlinear).
 
-**Conclusions.** [PLACEHOLDER]
+**Conclusions.** The pilot supports a guarded message: *at modest sample sizes (n ≈ 500) and modest inner-plasmode budgets (≤ 10 inner reps), library choice is operationally indifferent and plasmode candidate selection does not change the resulting RD estimate*. Selection machinery does not equal selection benefit. Before drawing inferential conclusions a full-budget run at larger n_per_rep and inner_reps is required; we delay that run pending package-side changes (a richer Q0 surface for the inner plasmode generator and a coverage-stability fix to the FIORD selector) and a fresh pilot.
 
 ---
 
@@ -210,25 +210,30 @@ knitr::kable(fiord_compare, digits = 4,
                     "rules. ", sim_label_caption))
 ```
 
-[Read whether the FIORD two-stage rule differs from the simpler min-RMSE rule under any of the five DGPs. If the two rules return the same candidate frequencies, the simpler rule is the right operational choice; if the FIORD rule recovers coverage when min-RMSE drifts, the manuscript should recommend it.]
+In the pilot the FIORD two-stage rule collapses onto the parametric candidate (`param_t01`) on 7--8 of 10 replicates for every DGP except smooth-nonlinear. The mechanism is mechanical: the coverage estimate per candidate has Monte Carlo SE roughly $\sqrt{0.5 \cdot 0.5 / r_{\text{inner}}}$, so at $r_{\text{inner}} = 10$ the MC SE is 0.158 — wider than the $\pm 0.02$ tolerance the FIORD screen uses. With coverage unable to discriminate, the second stage picks the candidate with the smallest mean SE, which is almost always the parametric library. We recommend FIORD-style selection only with $r_{\text{inner}} \geq 30$.
 
 # Discussion
 
-[To be written after the full run. Topics to address:
+The pilot's central finding is that *at modest sample sizes the choice of TMLE library does not matter very much*. Fixed-parametric, fixed-rich, and plasmode-selected TMLE produce point estimates that agree to within Monte Carlo noise, and all four workflows inherit the same bias on the three DGPs where the outcome model is mis-specified. Plasmode candidate selection therefore does not pay for itself here in operating characteristics, though the selection cross-tab does demonstrate that the selector is responding to DGP structure — a necessary, but not sufficient, condition for selection to add value.
 
-1. Where does plasmode selection demonstrably help, and by how much?
-2. Where is it indistinguishable from a fixed-rich library at this budget?
-3. What is the computational cost of the inner plasmode loop and is it worth it?
-4. How does selection frequency vary with `n_per_rep` and `inner_reps`? (Implicit secondary analysis.)
-5. Implications for SAP design: should an analyst prespecify a candidate grid or just commit to a rich library from the outset?]
+Three caveats temper this conclusion before a full study is launched.
+
+First, the pilot's n = 500 is small relative to what flexible learners need. Random forests and generalized additive models need sample sizes in the low thousands per learner before their bias advantage exceeds their variance penalty against an unregularised GLM. A full run at $n \geq 1000$ may separate the workflows.
+
+Second, the inner plasmode loop in cleanTMLE $\leq$ 0.2.0 fits the baseline outcome model Q0 as a logistic GLM, which biases the synthetic outcomes — and therefore candidate selection — toward learners that handle linear-in-logit structure well. cleanTMLE 0.2.1 adds a `q0_library` argument so the user can pass a richer SuperLearner library; this paper's full run will use it.
+
+Third, the SE-to-empirical-SD calibration ratio drops below 1 on the smooth-nonlinear DGP (0.69--0.74 across all four workflows). Influence-function variance estimates may therefore *under-state* uncertainty in the regime where outcome-model mis-specification is real. The full study should report this calibration ratio routinely; a robust or bootstrap variance option is the natural sensitivity.
+
+What this pilot says about study design (a Statistical Analysis Plan question): if the planned analytic sample is below roughly 1000 and the analyst has any reason to suspect mis-specification, neither a fixed-rich library nor a plasmode-selected library will rescue an underpowered estimator. The honest move is to acknowledge that library choice is operationally indifferent at small n and to pre-register a single, defensible library rather than a costly grid search whose result does not move the point estimate.
 
 # Limitations
 
-- Single sample size per DGP (`n_per_rep = 1000`) in the headline results. A secondary analysis varying n would strengthen the conclusions but doubles compute.
-- Plasmode candidate selection is driven by the outcome model's RMSE on the inner loop, but a candidate's PS library and truncation are taken along with the Q library as a single bundle. A separable selection (different rules for the g and Q libraries) is a natural extension we do not exercise here.
-- The DGPs span library-friendliness but not positivity strain. A positivity-strained sixth DGP is a natural extension; we excluded it to keep the focus on outcome-model mis-specification.
-- The inner plasmode generator uses cleanTMLE's hybrid DGP (empirical W + A, parametric outcome). A structural-equation or parametric-bootstrap inner DGP could change selection frequencies and is on the cleanTMLE 0.3 roadmap.
-- Variance is computed with IF-based SEs throughout. A bootstrap-variance comparison is the natural next paper.
+- The pilot uses only 10 outer replicates per DGP, n = 500, and 10 inner plasmode replicates. The Monte Carlo SE of coverage at this budget is roughly 0.16, so coverage differences are not yet inferentially defensible. The full study (`scripts/run_full.R`) is deferred pending the package-side changes flagged in the Discussion.
+- The FIORD two-stage rule collapses to a parametric pick at inner_reps = 10; we recommend it only with inner_reps $\geq$ 30.
+- Plasmode candidate selection is driven by the outcome model's RMSE on the inner loop, but a candidate's PS library and truncation are bundled with the Q library. A separable selection rule for g vs Q is a natural extension.
+- The DGPs span outcome-model mis-specification but not positivity strain. A positivity-strained sixth DGP is a natural extension; we excluded it to keep the focus.
+- The inner plasmode generator in cleanTMLE $\leq$ 0.2.0 hard-codes a logistic-GLM Q0, biasing candidate selection toward linear-in-logit learners. The 0.2.1 patch adds a `q0_library` argument; the full study will use it.
+- Variance is computed with IF-based SEs throughout. The se_sd ratio < 1 finding on smooth-nonlinear motivates a robust or bootstrap variance sensitivity in the full study.
 
 # References
 
