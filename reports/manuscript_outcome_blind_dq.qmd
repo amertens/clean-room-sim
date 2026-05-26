@@ -125,8 +125,7 @@ plasmode simulation [@franklin2014plasmode; @schuler2017tmle;
 *fit-for-purpose* argument is documented qualitatively through
 templates such as SPIFD2 [@gatto2022spifd; @gatto2023spifd2] or
 HARPER [@wang2023harper] and through reporting tools such as
-TARGET [@cashin2024target] and START-RWE [@wang2021startrwe]. The
-simulation is numeric; the fit-for-purpose argument is qualitative.
+TARGET [@cashin2024target] and START-RWE [@wang2021startrwe].
 
 These two arguments are connected: a candidate estimator that
 performs well on a simulation derived from real covariate and
@@ -188,313 +187,138 @@ data-fitness argument and the estimator-selection argument.
 
 ## What the package adds, and what it does not
 
-cleanTMLE is an R [@rcoreteam2024] package that implements the
-estimator-selection and stress-testing steps of an outcome-blind
-staged workflow within the causal roadmap [@dang2023roadmap;
-@petersen2014roadmap; @gruber2022sap]. Targeted maximum likelihood
-estimation (TMLE) [@vanderLaan2006tmle; @vdL2011tlbook;
-@schuler2017tmle; @zheng2011crossvalidated; @chernozhukov2018dml]
-is the natural setting because every analytic decision (the
-SuperLearner library [@vdL2007superlearner; @phillips2023sl], the
-truncation rule, the prespecified set of candidate estimators) can
-be listed in advance, and the algorithm remains data-adaptive while
-still admitting valid Wald-type confidence intervals. TMLE is
-particularly compatible with staged outcome-blind workflows because
-the analyst can prespecify not only the causal estimand, but also
-the nuisance-learning library, truncation rules, targeting
-procedure, and candidate estimator grid. The resulting estimator
-remains data-adaptive while preserving influence-function-based
-inference under standard regularity conditions. This modular
-structure makes it possible to compare prespecified candidates
-under synthetic outcomes without repeatedly revising the analytic
-plan after inspecting observed treatment-outcome associations. The package
-adds an analysis-lock object, a serialisable audit trail and
-decision log [@muntner2024staging], a pre-outcome decision rule
-that classifies the analysis as GO (proceed to the locked primary
-analysis), FLAG (proceed only with documented review or
-qualification), or STOP (do not conduct or report the primary
-comparative analysis under the current estimand/design/specification),
-an outcome-blind plasmode candidate selector, and the DQ stress test
-described above.
+cleanTMLE is an R [@rcoreteam2024] package that operationalises the
+estimator-selection and stress-testing steps of a staged analysis
+within the causal roadmap [@dang2023roadmap; @petersen2014roadmap;
+@gruber2022sap]. Its two methodological contributions are an
+outcome-blind plasmode candidate selector and the data-quality stress
+test introduced above, which extends that selector to score each
+candidate against prespecified data-quality threats. Both build on
+targeted maximum likelihood estimation (TMLE) [@vanderLaan2006tmle;
+@vdL2011tlbook; @schuler2017tmle; @zheng2011crossvalidated;
+@chernozhukov2018dml], the natural setting because every analytic
+decision (the SuperLearner library [@vdL2007superlearner;
+@phillips2023sl], the truncation rule, the targeting procedure, and the
+prespecified set of candidate estimators) can be listed in advance,
+while the estimator remains data-adaptive and still admits valid
+Wald-type confidence intervals under standard regularity conditions.
+This modular structure makes it possible to compare prespecified
+candidates under synthetic outcomes without revising the analytic plan
+after inspecting observed treatment-outcome associations.
 
-cleanTMLE implements the software layer of an outcome-blind staged
-workflow. It records the analysis lock, candidate estimator set,
-plasmode simulation settings, DQ stress scenarios, checkpoint
-decisions, and final authorisation state. cleanTMLE authorisation
-checks restrict the package's exported primary-analysis functions
-until the required checkpoints have been recorded. These checks
-do not control raw-data access outside the package and therefore
-complement, but do not replace, institutional clean-room
-safeguards such as role separation, credentialed folders, and
-review-team checkpoints. The package does not implement personnel
-separation, source-data access controls, protocol adjudication,
-phenotype validation, or regulatory review.
+Around these statistical components the package adds an optional
+transparency layer, for analysts who want their prespecification to be a
+reproducible record rather than a separate paper document: an
+analysis-lock object, a serialisable audit trail and decision log in the
+sense of @muntner2024staging, and a pre-outcome decision rule. The
+decision rule applies the three review-team recommendations of
+@muntner2024staging, namely proceeding to the comparative analysis,
+proceeding with a documented qualification or additional analysis, or
+stopping before it. The package labels these GO, FLAG, and STOP, and it
+enforces the sequence by withholding its primary-analysis functions
+until the prespecified checkpoints have been recorded. This software
+arrangement complements, but does not replace, the personnel-based
+governance of a clean room such as role separation, credentialed data
+access, and an independent masked review team, which we return to in
+@sec-discussion. The "clean room" label is the manufacturing analogy
+adopted by @muntner2024staging, in which access to a sterile area is
+blocked until protocols have been followed; the substantive content here
+is the staged restriction of outcome access. @sec-roadmap situates the
+package inside the causal roadmap.
 
-The contribution is operational rather than methodological
-[@muntner2024staging]. The analysis lock, audit trail, and
-decision log turn paper-only prespecification checklists into a
-structured record of analytic decisions that an external reviewer
-can reconstruct. We use *outcome-blind staged workflow* throughout
-to describe this arrangement. The "clean room" label is sometimes
-used as a governance analogy, by analogy with a manufacturing
-clean room that blocks access to a sterile area until protocols
-have been followed, but the substantive content is the staged
-restriction of outcome access. The software arrangement
-complements, and does not replace, personnel-based access
-controls, protocol review, role separation, source-data audit, and
-independent checkpoint review. @sec-roadmap situates
-the package inside the causal roadmap and @tbl-reg-align maps each component to the corresponding FDA,
-EMA, and ICH expectation.
-
-::: {.callout-note}
 ## Current scope of cleanTMLE
 
-The simulation, vignette, and case study in this paper run on a
-**binary point exposure**, a **binary outcome**, the **marginal
-risk-difference** estimand, and outcome missingness handled through
-**complete-case** and **IPCW** sensitivity paths under prespecified
-missingness assumptions (a complete-case path that is unbiased under
-MCAR, and an IPCW path that is unbiased under conditional
-independent censoring given measured covariates and treatment). Within that scope, the package exposes the full
-estimator spectrum: IPTW with stabilised weights
-(`estimate_ipwrisk()`), parametric g-computation
-(`estimate_gcomprisk()`), augmented IPW (`estimate_aipwrisk()`),
-and TMLE (`run_clean_tmle()`, plus the modular `fit_tmle_*()`
-primitives and the IPCW variant `run_ipcw_tmle()`). The
-prespecified primary estimator is TMLE; the other three are
-reported as concordance checks. Hazard ratios, time-varying treatments, competing risks,
-multinomial exposures, and MAR / MNAR missingness models are out
-of scope for the v0.1 release; analysts who need those estimands
-should compose cleanTMLE's prespecification and audit functions
-with `survtmle` [@survtmlepackage2018] or `lmtp`
-[@lmtppackage2021] until those features are added.
-:::
+The simulation, vignette, and case study in this paper run on a binary
+point exposure, a binary outcome, and the marginal risk-difference
+estimand, with outcome missingness handled through complete-case and
+IPCW sensitivity paths under prespecified missingness assumptions (the
+complete-case path is unbiased under MCAR, and the IPCW path is unbiased
+under conditional independent censoring given measured covariates and
+treatment). Within that scope the package exposes the full estimator
+spectrum, namely IPTW with stabilised weights (`estimate_ipwrisk()`),
+parametric g-computation (`estimate_gcomprisk()`), augmented IPW
+(`estimate_aipwrisk()`), and TMLE (`run_clean_tmle()`, together with the
+modular `fit_tmle_*()` primitives and the IPCW variant
+`run_ipcw_tmle()`). The prespecified primary estimator is TMLE, and the
+other three are reported as concordance checks. Hazard ratios,
+time-varying treatments, competing risks, multinomial exposures, and
+MAR/MNAR missingness models are out of scope for the v0.1 release;
+analysts who need those estimands can compose cleanTMLE's
+prespecification and audit functions with `survtmle`
+[@survtmlepackage2018] or `lmtp` [@lmtppackage2021] until those features
+are added.
 
 ## What the paper contributes
 
-The principal contribution is to extend the outcome-blind plasmode
-loop from candidate-estimator selection [@dang2023roadmap;
-@gruber2022sap; @schreck2024plasmode] to estimator robustness
-*screening* under prespecified threat ranges. Each candidate
-produces a degradation gradient on the same bias, RMSE, and
-coverage scale as the baseline plasmode, so the prespecified
-decision rule can be applied uniformly across baseline and
-stressed scenarios. We position this screen as a quantitative
-supplement to fit-for-purpose review (@sec-bridge) rather
-than as a substitute for variable-validation studies, source-data
-assessment, or post-outcome quantitative bias analysis. The R
-implementation packages the supporting prespecification artefacts
-(fingerprinted lock, audit log, decision log, pre-outcome decision
-point) so that the screen and the locked primary analysis share a
-single reproducible record. The next
-section (@sec-roadmap) places these contributions inside the
-causal roadmap; subsequent sections follow that roadmap order.
+We state the contribution narrowly. It is not a new estimator or a new
+theorem: the estimators are standard targeted learning, and prespecifying
+TMLE in a statistical analysis plan is already set out by
+@gruber2022sap and Step 5 of the roadmap [@dang2023roadmap]. The
+contribution is a single, prespecified, outcome-blind procedure that ties
+the qualitative fit-for-purpose threats documented in a SPIFD2-style
+review [@gatto2023spifd2] to quantitative estimator selection on one
+decision scale, together with a reproducible software implementation.
+Concretely, we extend the outcome-blind plasmode loop
+[@dang2023roadmap; @gruber2022sap; @schreck2024plasmode] from
+candidate-estimator selection to estimator robustness *screening* under
+prespecified threat ranges: each candidate produces a degradation
+gradient on the same bias, RMSE, and coverage scale as the baseline
+plasmode, so the prespecified decision rule applies uniformly across
+baseline and stressed scenarios. We characterise the screen's operating
+characteristics as a decision rule (@sec-gate-oc): how often it returns
+the same GO/STOP verdict an oracle with knowledge of the realised
+estimator's bias would return, and how that calibration degrades when the
+synthetic-outcome model is misspecified.
+
+We position the screen as a quantitative supplement to fit-for-purpose
+review (@sec-bridge) rather than a substitute for variable-validation
+studies, source-data assessment, or post-outcome quantitative bias
+analysis, and we are explicit (@sec-guarantees) about what passing it does
+and does not establish. The R implementation records the supporting
+prespecification (the SHA-256-fingerprinted analysis lock, the audit
+trail, the decision log, and the pre-outcome decision) so that the screen
+and the locked primary analysis share a single reproducible record. The
+next section (@sec-roadmap) places these contributions inside the causal
+roadmap, and subsequent sections follow that roadmap order.
 
 # The causal roadmap and the role of cleanTMLE {#sec-roadmap}
 
-We position cleanTMLE inside the causal roadmap of @petersen2014roadmap
-and @dang2023roadmap, which separates a real-world evidence study
-into six logically ordered activities: (1) defining the causal
-question and target trial; (2) characterising the observed data and
-their fitness for that target trial; (3) stating identification
-assumptions; (4) defining a statistical estimand; (5) selecting and
-locking estimators; and (6) interpreting results under at-outcome
-and post-outcome sensitivity analyses. The package operates inside
-steps (5) and the pre-outcome portion of (6); steps (1)--(4)
-remain external study-level work, supported by target-trial
-templates [@hernan2016targettrial; @cashin2024target], fit-for-
-purpose checklists [@gatto2023spifd2; @wang2023harper], and
-source-specific data-relevance and reliability assessments
-[@fda2024considerations; @fda2024ehrclaims; @fda2021registries;
-@ema2024guide; @ema2026rwd].
+cleanTMLE is designed to encourage the analyst to follow the causal
+roadmap of @petersen2014roadmap and @dang2023roadmap when defining and
+executing the analysis. The roadmap sets out an explicit, prespecified
+sequence of seven steps: (1) state the causal question, causal model, and
+causal estimand; (2) characterise the observed data and their fitness for
+the target trial; (3) assess identifiability; (4) define the statistical
+estimand; (5) choose a statistical model and estimator with prespecified
+operating characteristics, using outcome-blind simulation and targeted
+learning; (6) specify a procedure for sensitivity analysis to violations
+of the identification assumptions; and (7) compare alternative study
+designs, again using outcome-blind simulation [@dang2023roadmap]. The
+package applies this roadmap to a staged analysis in the sense of
+@muntner2024staging. It operationalises Step 5 through outcome-blind
+plasmode estimator selection and TMLE estimators, contributes the
+data-quality stress test as an extension of Steps 5 and 7, and records
+the Step 6 sensitivity analyses. Steps 1 to 4 remain external
+study-level work, supported by target-trial templates
+[@hernan2016targettrial; @cashin2024target], fit-for-purpose checklists
+[@gatto2023spifd2; @wang2023harper], and source-specific data-relevance
+and reliability assessments [@fda2024considerations; @fda2024ehrclaims;
+@fda2021registries; @ema2024guide; @ema2026rwd].
 
-To support readers who are new to the causal-roadmap vocabulary,
-@tbl-layers distinguishes the conceptual layers that
-the workflow keeps separate. The same table also serves as a
-reference for which decisions are addressed at the design stage
-versus at the estimation stage.
-
-```{r layers-table}
-#| label: tbl-layers
-layers <- data.frame(
-  Layer = c(
-    "Causal question",
-    "Causal estimand",
-    "Identification assumptions",
-    "Statistical estimand",
-    "Estimator",
-    "Pre-outcome diagnostic metric",
-    "Governance decision"),
-  Description = c(
-    "Clinical or policy question framed as a target trial or causal contrast.",
-    "Counterfactual treatment effect of interest (e.g. marginal risk difference).",
-    "Conditions under which the causal estimand can be expressed as an observed-data parameter (exchangeability, positivity, consistency, measurement validity, missingness assumptions).",
-    "Observed-data parameter identified under the assumptions above.",
-    "Algorithm used to estimate the statistical estimand, for example TMLE, IPTW, or matching.",
-    "Pre-outcome quantity used for design checks: simulated bias, RMSE, coverage, effective sample size, balance, negative-control performance.",
-    "Whether prespecified criteria support proceeding, require additional review, or require stopping the analysis before the outcome is examined."),
-  stringsAsFactors = FALSE,
-  check.names = FALSE)
-knitr::kable(layers,
-             caption = "Conceptual layers in the staged workflow. The same vocabulary is used throughout the manuscript to keep estimand, estimator, simulation, and decision rule distinct.")
-```
-
-```{mermaid}
-%%| fig-cap: "cleanTMLE inside the causal roadmap. Boxes shaded grey indicate work that the package can operationalise; the remaining boxes are external study-level activities."
-flowchart TD
-    A["1. Causal question and target trial"] --> B["2. Observed data and source characterisation"]
-    B --> C["3. Identification assumptions"]
-    C --> D["4. Statistical estimand"]
-    D --> E["5. Lock candidate estimators and decision thresholds<br/>cleanTMLE: create_analysis_lock, lock_primary_tmle_spec"]
-    E --> F["Pre-outcome checks<br/>cleanTMLE: checkpoints, plasmode, DQ stress"]
-    F --> G["Pre-outcome decision<br/>cleanTMLE: gate_check, authorize_outcome_analysis"]
-    G -->|GO or FLAG| H["Unblind and run locked primary analysis<br/>cleanTMLE: four-step TMLE, IPCW-TMLE"]
-    H --> I["At-outcome diagnostics: negative controls, balance"]
-    I --> J["Post-outcome sensitivity: E-value, QBA, causal-gap"]
-    J --> K["Interpretation and transportability"]
-
-    style E fill:#e6e6e6,stroke:#333,color:#000
-    style F fill:#e6e6e6,stroke:#333,color:#000
-    style G fill:#e6e6e6,stroke:#333,color:#000
-    style H fill:#e6e6e6,stroke:#333,color:#000
-```
-
-A complementary view emphasises that the software-level
-arrangement is one layer in a broader governance stack. External
-validation studies, independent oversight, role-based data access,
-and data standards remain necessary inputs to the pre-outcome
-decision, regardless of how the prespecified records and audit
-trail are implemented:
-
-```{mermaid}
-%%| fig-cap: "Governance layers. The software-level arrangement is necessary but not sufficient for regulatory or confirmatory RWE."
-flowchart LR
-    A[Protocol and estimand] --> B[Analysis-lock object]
-    B --> C[Audit trail]
-    C --> D[Decision log]
-    D --> E[Pre-outcome decision point]
-    E --> F[Primary analysis]
-    X[External validation studies] --> E
-    Y[Independent review and role governance] --> E
-    Z[Data standards and provenance] --> E
-```
-
-## Regulatory alignment
-
-@tbl-reg-align maps each roadmap component to the
-corresponding manuscript section, the relevant FDA / EMA / ICH
-expectation, what cleanTMLE can operationalise in software, and
-what still requires external study-level justification. The table
-is intentionally explicit about the *what cleanTMLE does not
-replace* column; that is the row that distinguishes
-the software-level outcome-blind workflow from the broader
-regulatory governance arrangement.
-
-```{r reg-align-table}
-#| label: tbl-reg-align
-reg_align <- data.frame(
-  `Roadmap component` = c(
-    "Causal question / target trial",
-    "Observed data and source characterisation",
-    "Identification assumptions",
-    "Statistical estimand",
-    "Estimator selection and locking",
-    "Pre-outcome data-quality stress",
-    "Stage gate (GO / FLAG / STOP)",
-    "Outcome analysis",
-    "At-outcome diagnostics",
-    "Post-outcome sensitivity analyses"
-  ),
-  `Manuscript section` = c(
-    "@sec-estimand",
-    "@sec-estimand, @sec-casestudy",
-    "@sec-id",
-    "@sec-estimand",
-    "@sec-framework, @sec-implementation",
-    "@sec-dq",
-    "@sec-bridge",
-    "@sec-implementation",
-    "@sec-discussion",
-    "@sec-discussion"
-  ),
-  `FDA / EMA / ICH anchor` = c(
-    "Hernán target-trial framework; FDA RWE Framework; ICH M14 (March 2026)",
-    "FDA EHR/claims, registries; EMA registry guideline; EMA RWD quality framework",
-    "ICH E9(R1)",
-    "ICH E9(R1); FDA Considerations for RWD/RWE",
-    "FDA non-interventional studies; ICH M14 (March 2026)",
-    "Source-specific reliability (FDA/EMA); validation evidence",
-    "Internal protocol governance; FDA traceability",
-    "FDA Considerations for RWD/RWE",
-    "EMA RWE Guide; FDA non-interventional studies",
-    "FDA non-interventional studies; ICH E9(R1) sensitivity"
-  ),
-  `What cleanTMLE operationalises` = c(
-    "(none)",
-    "Lock fingerprint of column names + data shape",
-    "Records assumptions in attach_estimand and audit log",
-    "attach_estimand, lock fingerprint",
-    "tmle_candidate, lock_primary_tmle_spec, save_lock",
-    "run_plasmode_dq_stress, default_dq_scenarios",
-    "gate_check, gate_all, authorize_outcome_analysis",
-    "fit_tmle_treatment/outcome_mechanism, run_ipcw_tmle",
-    "run_negative_control(_tmle), checkpoint_residual_bias",
-    "compute_evalue, tipping_point_sensitivity, sensitivity_truncation"
-  ),
-  `External study-level work still required` = c(
-    "Full target-trial protocol",
-    "Phenotype validation, data lineage, source audit",
-    "Subject-matter justification of exchangeability and positivity",
-    "Source-specific operationalisation of intercurrent events",
-    "Justification of SuperLearner library and severity grids",
-    "External validation evidence anchoring DQ severity ranges",
-    "Independent review of the pre-outcome decision",
-    "Role separation, oversight, deviation memos",
-    "Choice of negative-control outcomes and domains",
-    "Quantitative bias analysis tailored to study threats"
-  ),
-  check.names = FALSE,
-  stringsAsFactors = FALSE
-)
-knitr::kable(reg_align,
-             caption = "Mapping of causal-roadmap components to manuscript sections, regulatory anchors, what cleanTMLE operationalises, and what still requires external study-level justification.")
-```
-
-A complementary supplementary mapping (@tbl-event-diag)
-lists the additional event-process and diagnostic structures the
-package makes explicit. These rows are intentionally separated
-from the main regulatory-alignment table to keep the latter
-readable.
-
-```{r event-diag-table}
-#| label: tbl-event-diag
-event_diag <- data.frame(
-  Component = c(
-    "Event-process classification",
-    "Target population and reference group",
-    "Treatment, censoring, and missingness weight diagnostics",
-    "Competing-risk and composite-risk coherence check",
-    "Cumulative-risk reporting table",
-    "Hazard-ratio de-emphasis"),
-  `cleanTMLE function` = c(
-    "clean_event_process_table",
-    "clean_target_population",
-    "clean_weight_diagnostics",
-    "clean_check_event_processes",
-    "clean_risk_report_table",
-    "(documented preference; HR as secondary)"),
-  Purpose = c(
-    "Map each post-baseline event to its role in the estimand and ICH E9(R1) intercurrent-event strategy.",
-    "Force explicit declaration of the population and reference group for every contrast.",
-    "Report percentiles, ESS, extreme-weight counts, and weighted SMDs for each weight vector used.",
-    "Verify that event-of-interest plus competing-event cumulative incidences are coherent with the composite risk.",
-    "Single structured table of cumulative risks, contrasts, event counts, and estimator name.",
-    "Cumulative risks, risk differences, and risk ratios are the primary summaries; hazard ratios are reported only as secondary when the estimand is explicitly hazard-based."),
-  check.names = FALSE,
-  stringsAsFactors = FALSE)
-knitr::kable(event_diag,
-             caption = "Supplementary mapping. Event-process and diagnostic structures that the package makes explicit, paired with the helper that produces each one.")
-```
+To keep the estimand, estimator, simulation, and governance decision
+distinct, the manuscript uses a fixed vocabulary for the conceptual
+layers of the workflow, defined in @tbl-layers (Appendix). @fig-roadmap
+(Appendix) places the package inside the roadmap, shading the steps it
+can operationalise, and @fig-governance situates the software
+arrangement within the broader governance stack of external validation,
+independent oversight, and data standards. A full mapping of each
+roadmap component to the relevant FDA, EMA, and ICH expectation, to what
+cleanTMLE operationalises in software, and to what still requires
+external study-level justification is given in @tbl-reg-align, and
+@tbl-event-diag lists the additional event-process and diagnostic
+helpers. We return to the regulatory correspondence in @sec-discussion
+rather than developing it in the methods, because the software
+operationalises only part of each expectation.
 
 The remaining methods sections follow the roadmap order. @sec-estimand
 states the target-trial estimand and identification assumptions
@@ -509,6 +333,124 @@ for it. @sec-implementation--@sec-casestudy report
 the implementation, the simulation, and the case study;
 @sec-discussion discusses limitations and the role of
 post-outcome sensitivity analyses.
+
+# cleanTMLE at a glance: a worked walkthrough {#sec-walkthrough}
+
+Before developing the estimand, the framework, and the stress test
+formally, we show the package used end-to-end, so that later sections
+can be read against a concrete sequence of calls and outputs. The
+walkthrough follows the Rescue.Co case study of @sec-casestudy; here we
+keep the code schematic and report representative output, and defer the
+full results to that section. Each call produces a record that the audit
+trail carries forward, and the outcome column stays masked until the
+gate authorises Stage 4.
+
+```{r walkthrough, eval = FALSE, echo = TRUE}
+library(cleanTMLE)
+
+# Stage 1a: lock the analytic specification and attach the estimand.
+lock  <- create_analysis_lock(
+  data = rescueco, treatment = "rescueco", outcome = "gose_good",
+  covariates = baseline_covariates,
+  sl_library = c("SL.glm", "SL.glmnet", "SL.gam"), seed = 2026)
+lock  <- attach_estimand(lock, contrast = "risk_difference",
+                         followup = "6 months")
+audit <- create_audit_log(lock)
+#> lock_hash: 9f2c1a... (SHA-256 fingerprint of columns + data shape)
+
+# Stage 1b: cohort adequacy (events only; outcome still masked).
+cp1 <- checkpoint_cohort_adequacy(lock, min_n_per_arm = 200, min_events = 50)
+#> PASS: 1,013 vs 680 per arm; 1,277 with observed GOSE
+
+# Stage 2a: propensity score, overlap, balance.
+ps   <- fit_ps_superlearner(lock)
+cp2  <- checkpoint_balance(compute_ps_diagnostics(ps), max_smd = 0.10)
+#> PASS: PS in [0.21, 0.81]; max post-weighting SMD 0.07; ESS 78% of n
+
+# Stage 2b + 2c: outcome-blind candidate selection and DQ stress test.
+cands <- list(tmle_candidate("glm_t01", truncation = 0.01),
+              tmle_candidate("ensemble_t05", truncation = 0.05))
+plas  <- run_plasmode_feasibility(lock, tmle_candidates = cands, reps = 50)
+dq    <- run_plasmode_dq_stress(lock, tmle_candidates = cands,
+                                scenarios = default_dq_scenarios())
+sel   <- select_tmle_candidate(plas, rule = "min_max_rmse", dq_results = dq)
+#> Selected candidate: 'ensemble_t05' (min-max RMSE across DQ threats)
+
+# Stage 3: negative-control outcomes.
+nc <- run_residual_confounding_stage(lock,
+        negative_controls = c("household_urban", "fuel_wood"))
+#> 2 of 5 NCs fit (3 dropped by near-zero-variance filter); both near null
+
+# Pre-outcome decision and authorisation.
+gate <- gate_all(cp1, cp2, nc, allow_flag = TRUE)
+auth <- authorize_outcome_analysis(lock, gate)
+#> Decision: GO with FLAG (narrowed negative-control panel)
+
+# Stage 4: unblind and run the locked primary analysis.
+fit  <- run_clean_tmle(lock, spec = sel, ps_fit = ps, authorization = auth)
+#> Risk difference 0.031 (95% CI -0.001, 0.062)
+```
+
+@tbl-functions summarises the functions exercised above, what each one
+does, and the representative output it returns. Functions in the first
+block run while the outcome is masked; only `run_clean_tmle()` (and its
+IPCW and concordance siblings) read the observed outcome, and they do so
+only on a lock carrying a valid authorisation.
+
+```{r functions-table}
+#| label: tbl-functions
+fns <- data.frame(
+  Stage = c("1a", "1a", "1b", "2a", "2a", "2b", "2c", "2c", "3",
+            "gate", "gate", "4", "4", "report"),
+  `Function` = c(
+    "create_analysis_lock()",
+    "attach_estimand()",
+    "checkpoint_cohort_adequacy()",
+    "fit_ps_superlearner()",
+    "checkpoint_balance()",
+    "run_plasmode_feasibility()",
+    "run_plasmode_dq_stress()",
+    "select_tmle_candidate()",
+    "run_residual_confounding_stage()",
+    "gate_all()",
+    "authorize_outcome_analysis()",
+    "run_clean_tmle()",
+    "run_ipcw_tmle()",
+    "export_decision_log()"),
+  `What it does` = c(
+    "Build the analysis lock; SHA-256 fingerprint of columns and data shape; mask the outcome.",
+    "Record the five estimand attributes on the lock (kept in the audit trail, not the fingerprint).",
+    "Check minimum sample size and event count per arm; reads event counts only.",
+    "Fit the SuperLearner propensity score on baseline covariates.",
+    "Score post-weighting balance against a maximum-SMD threshold.",
+    "Run the outcome-blind plasmode loop to evaluate candidate estimators on synthetic outcomes.",
+    "Re-run the plasmode loop under prespecified data-quality threats; produce degradation gradients.",
+    "Apply the selection rule (e.g. min-max RMSE, or fiord_two_stage) and lock the primary candidate.",
+    "Estimate effects on prespecified negative-control outcomes to probe residual confounding.",
+    "Aggregate checkpoint records into a single pre-outcome decision.",
+    "Record authorisation so Stage-4 functions will read the outcome.",
+    "Run the locked four-step TMLE primary analysis; refuses to run without authorisation.",
+    "TMLE with inverse-probability-of-censoring weights for outcome missingness.",
+    "Export the audit trail and decision log as a tidy data frame for the reviewer."),
+  `Representative output` = c(
+    "lock object; lock_hash = 9f2c1a...",
+    "lock with estimand fields populated",
+    "PASS / FLAG / STOP + counts (1,013 vs 680; 50+ events)",
+    "ps_fit object; predicted scores in [0.21, 0.81]",
+    "PASS; max SMD 0.07 (threshold 0.10)",
+    "per-candidate bias, RMSE, coverage table",
+    "degradation gradient per candidate per threat",
+    "selected candidate id ('ensemble_t05')",
+    "per-NC estimate and CI; both near null",
+    "GO / FLAG / STOP with rationale",
+    "authorisation token attached to the lock",
+    "RD 0.031 (95% CI -0.001, 0.062)",
+    "IPCW-weighted RD 0.033 (95% CI -0.000, 0.066)",
+    "tidy data frame of decisions, timestamps, rationales"),
+  check.names = FALSE, stringsAsFactors = FALSE)
+knitr::kable(fns,
+  caption = "Key cleanTMLE functions exercised in the worked walkthrough, with a concise description and representative output. Stages 1a-3 and the gate run while the outcome is masked; Stage-4 functions read the observed outcome only under a valid authorisation.")
+```
 
 # Estimand, Causal Model, and Identifiability {#sec-estimand}
 
@@ -624,10 +566,11 @@ check [@lipsitch2010negative].
 
 ## Staged workflow
 
-cleanTMLE adopts the staged design described informally in
-@muntner2024staging and formalised in @dang2023roadmap and
-@gruber2022sap. Stage names below are package-internal labels;
-the stage *content* matches Steps 0–6 of @dang2023roadmap.
+cleanTMLE adopts the staged design set out by @muntner2024staging and
+aligns it with the causal-roadmap formulation of @dang2023roadmap and
+the targeted-learning statistical-analysis-plan template of
+@gruber2022sap. Stage names below are package-internal labels; the stage
+content matches the roadmap steps of @dang2023roadmap.
 
 | Stage | Purpose | Does the function read the outcome? |
 |-------|---------|:------------:|
@@ -841,9 +784,8 @@ produced only after authorisation.
 # Data Quality as a Quantifiable Threat {#sec-dq}
 
 The outcome-blind plasmode loop on which the DQ stress test is built
-follows the guidance developed in the FIORD outcome-blind simulation
-manuscript [@nance2026fiord], which formalises a five-step pre-outcome
-candidate-evaluation procedure: (1) declare the candidate estimators,
+follows the guidance of @nance2026fiord, which formalises a five-step
+pre-outcome candidate-evaluation procedure: (1) declare the candidate estimators,
 learner libraries, truncation grids, and variance methods to be
 compared; (2) specify a data-generating process; (3) generate
 replicates and apply candidate estimators factorially; (4) select
@@ -864,30 +806,18 @@ hybrid generator.
 
 ## Why plasmode DQ stress testing adds information beyond standard pre-outcome diagnostics
 
-- Propensity-score diagnostics [@austin2009ps] assess overlap,
-  balance, and design feasibility, not estimator operating
-  characteristics.
-- Baseline plasmode simulation assesses candidate estimators under
-  a *locked* synthetic outcome model using the empirical $(W, A)$
-  structure.
-- Negative-control analyses probe residual bias for selected NC
-  outcomes through a different data-generating channel and do not
-  characterise the behaviour of the primary estimator under DQ
-  perturbations.
-- DQ stress testing asks whether conclusions about estimator
-  suitability *persist* under prespecified violations or
-  degradations tied to fit-for-purpose concerns.
-- A STOP under a stress scenario should be read as evidence that
-  the study requires redesign, external validation, additional
-  sensitivity analysis, or narrower causal claims before outcome
-  access.
-
 Four pre-outcome tools answer four different questions and are
 complementary rather than substitutable. (i) Propensity-score
-diagnostics assess empirical comparability, overlap, and weight
-stability, indicating whether the design is feasible under the
-observed covariate and treatment distributions; they do not
-estimate the operating characteristics of a candidate estimator.
+diagnostics [@austin2009ps] assess empirical comparability, overlap, and
+weight stability, indicating whether the design is feasible under the
+observed covariate and treatment distributions; they do not estimate the
+operating characteristics of a candidate estimator. Balance is
+conventionally summarised with standardised mean differences, but
+univariate SMDs compare only the marginal means of each covariate and
+can be satisfied while variances, higher moments, or covariate
+interactions remain imbalanced, so distributional and interaction
+diagnostics are needed alongside them after matching or weighting
+[@austin2009ps; @zhang2019balance].
 (ii) Baseline plasmode simulation evaluates candidate-estimator
 operating characteristics (bias, RMSE, coverage) under a single
 locked synthetic outcome model conditional on the empirical
@@ -900,7 +830,10 @@ error, missingness, or unmeasured-confounding scenarios.
 estimator-selection decision is stable under prespecified
 fit-for-purpose threats translated into quantitative
 perturbations of the baseline plasmode, before the primary
-treatment-outcome association is inspected.
+treatment-outcome association is inspected. A STOP under a stress
+scenario should be read as evidence that the study requires redesign,
+external validation, additional sensitivity analysis, or narrower causal
+claims before outcome access.
 
 The DQ stress test is a quantitative supplement to fit-for-purpose
 review, not a substitute for validation, governance, or
@@ -980,21 +913,21 @@ the degradation must be before a candidate fails the locked
 decision criteria. A robust candidate has a shallow gradient and
 remains within thresholds across plausible severities. A fragile
 candidate shows a cliff, where a small increase in degradation
-moves bias or coverage beyond the threshold. The candidate-selection
-rule (`select_tmle_candidate(rule = "min_rmse")`) is currently a
-single-step approximation of the **two-stage selector** formalised
-in FIORD [@nance2026fiord]: in FIORD's procedure, candidates are
-first screened to those that achieve nominal **oracle coverage**
-(a CI built from the Monte Carlo empirical SE), and the point
-estimator with the lowest variance among the survivors is locked
-in; the variance method is then selected separately to achieve
-nominal coverage on the locked point estimator. The current cleanTMLE
-rule conflates these two stages, choosing on RMSE only; the
-forthcoming `rule = "fiord_two_stage"` (planned for cleanTMLE 0.2)
-implements the full two-stage procedure. The rule can additionally
-be augmented to require a maximum allowed degradation in the DQ
-stress test, which excludes fragile candidates before the outcome
-is accessed.
+moves bias or coverage beyond the threshold. The default candidate-selection
+rule (`select_tmle_candidate(rule = "min_rmse")`) chooses on RMSE in a
+single step. cleanTMLE also provides `rule = "fiord_two_stage"`, which
+implements the point-estimator stage of the two-stage selector
+formalised in FIORD [@nance2026fiord]: candidates are first screened to
+those that achieve nominal **oracle coverage** (a CI built from the
+Monte Carlo empirical SE), and the lowest-variance survivor is locked
+in. FIORD's second stage, selecting the variance method on the locked
+point estimator to achieve nominal coverage, is provided by
+`select_variance_method()`, with `bootstrap_rd_variance()` supplying the
+native nonparametric bootstrap that is the principled choice for
+stabilised IPTW and matched-cohort estimators. The rule can additionally
+be augmented to require a
+maximum allowed degradation in the DQ stress test, which excludes
+fragile candidates before the outcome is accessed.
 
 The truncation level inside a TMLE candidate is more than a
 variance-stabilising tuning knob. Trimming or truncating the
@@ -1241,6 +1174,33 @@ observed treatment-outcome association in the actual study data. The analysis-lo
 records the final choices. Once the prespecified workflow has been
 completed, the outcome is unmasked and the primary analysis is
 run.
+
+## What passing the screen does and does not establish {#sec-guarantees}
+
+The screen is a heuristic, not a guarantee, and it is worth stating its
+epistemic status precisely. Passing the DQ stress test establishes only
+that, *under the analyst's synthetic-outcome model and over the
+prespecified range of each threat*, the locked candidate maintained bias,
+coverage, and SE calibration within the prespecified thresholds. It does
+not establish that the identification assumptions hold, that the data are
+fit for purpose, or that the realised estimator will behave as the
+synthetic one did. Three caveats follow directly. First, the screen can
+only score threats the analyst names: a confounder, a misclassification
+pattern, or a missingness mechanism that is not anticipated, or is
+specified at too mild a severity, is not detected, so a STOP is evidence
+of fragility but a GO is not evidence of robustness. Second, the
+conclusions are conditional on the synthetic-outcome model; if that model
+misrepresents the covariate-outcome surface (for example by omitting
+effect modification), the simulated operating characteristics can be
+optimistic, which is why we report the screen's calibration under a
+misspecified model in @sec-gate-oc and recommend fitting the
+synthetic-outcome model with a SuperLearner library rather than a single
+GLM. Third, the screen is a *pre-outcome* device; it complements, and does
+not replace, the at-outcome negative-control check and the post-outcome
+sensitivity analyses (E-value, quantitative bias analysis, causal-gap)
+that interrogate the realised estimate. We therefore read a passing screen
+as a necessary, prespecified, and reproducible filter, not as a
+certificate of validity.
 
 # Implementation and `run_plasmode_dq_stress()` {#sec-implementation}
 
@@ -1549,6 +1509,20 @@ grid of unmeasured-confounder strengths
 ($\text{OR}_A \in \{1.5, 2.0\}$ by $\text{OR}_Y \in \{1.5, 2.0\}$,
 with $U$ prevalence fixed at 0.20). Across the four threats this
 yields fifteen scenario × severity cells per Monte Carlo scenario.
+
+We report 200 Monte Carlo replicates per scenario and give the Monte
+Carlo standard error of each coverage estimate alongside it; coverage
+differences within roughly $\pm 0.03$ of nominal should be read as
+compatible with the nominal level at this replicate count, and a
+final-release run should use at least 1000 replicates before resting any
+conclusion on a coverage gap. Two control scenarios complement the three
+above and are exercised in the gate operating-characteristics
+meta-simulation of @sec-gate-oc: a *null* data-generating process with no
+unmeasured confounding (the $s = 1$ cell), under which the oracle verdict
+is GO so the screen's STOP rate estimates its false-STOP rate; and a
+*positive control* in which strong but fully measured confounding is
+removed by adjustment, under which the adjusted estimators should recover
+the truth while the crude comparison does not.
 
 ## Monte Carlo results
 
@@ -1999,36 +1973,117 @@ if ("unmeasured_conf" %in% names(res$summaries)) {
 }
 ```
 
+# Operating characteristics of the pre-outcome gate {#sec-gate-oc}
+
+The simulation in @sec-simulation shows the workflow returning the
+prespecified GO/FLAG/STOP verdict in three scenarios, but it does not
+measure the screen *as a decision rule*. A reviewer is entitled to ask
+how often the gate's verdict agrees with the verdict an oracle would
+reach knowing the realised estimator's true bias, and how that agreement
+degrades when the synthetic-outcome model is misspecified. We answer this
+with a calibration meta-simulation (`run_gate_operating_characteristics.R`
+in the companion repository).
+
+The design isolates the unmeasured-confounding threat. For a grid of true
+confounder strengths $s$ (odds ratios on both treatment and outcome), we
+compute two quantities at each $s$. The *oracle* bias $B_{\text{real}}(s)$
+is the mean bias of the realised TMLE, adjusting for the measured
+covariates only, when a true unmeasured confounder of strength $s$ acts on
+both the treatment and the outcome. The *screen-predicted* bias
+$B_{\text{screen}}(s)$ is what the outcome-blind plasmode screen
+anticipates at the same strength: the treatment and outcome nuisance
+surfaces $g_0(W)$ and $Q_0(W)$ are fitted on the analyst's cohort, a
+what-if confounder of strength $s$ is injected into *both* the synthetic
+treatment and the synthetic outcome, and the same TMLE is scored against
+the synthetic truth. The synthetic nuisances are fitted two ways, a
+misspecified GLM and a flexible SuperLearner (GLM, MARS, and random
+forest), under both a linear and a nonlinear true surface, and the locked
+STOP threshold is applied to both the oracle and the screen. The realised
+estimator uses a GLM nuisance library, so that under the nonlinear surface
+its bias reflects nuisance misspecification as well as the omitted
+confounder, and the screen can predict that bias only if its synthetic
+nuisances reproduce the nonlinearity.
+
+```{r gate-oc, eval = file.exists("../results/gate_oc.rds")}
+#| label: tbl-gate-oc
+oc <- readRDS("../results/gate_oc.rds")
+knitr::kable(
+  oc$results[, c("surface", "true_s", "true_rd", "bias_real",
+                 "bias_screen_glm", "bias_screen_sl",
+                 "stop_oracle", "stop_screen_glm", "stop_screen_sl")],
+  col.names = c("Surface", "True OR", "True RD", "Bias (oracle)",
+                "Bias (screen, GLM nuisance)", "Bias (screen, flexible)",
+                "STOP oracle", "STOP screen GLM", "STOP screen flexible"),
+  caption = paste0("Calibration of the pre-outcome gate. Oracle bias is the ",
+    "realised TMLE bias under a true confounder of the given strength; ",
+    "screen bias is the plasmode-predicted bias at the same strength ",
+    "under a GLM and a flexible (SuperLearner) synthetic-nuisance model. ",
+    "STOP columns apply the locked |bias| threshold (",
+    oc$config$max_abs_bias, ")."))
+```
+
+```{r gate-oc-summary, eval = file.exists("../results/gate_oc.rds"), results = "asis"}
+res <- readRDS("../results/gate_oc.rds")$results
+ocfun <- function(stop_screen, stop_oracle) {
+  sens <- if (sum(stop_oracle == 1) > 0) mean(stop_screen[stop_oracle == 1] == 1) else NA
+  spec <- if (sum(stop_oracle == 0) > 0) mean(stop_screen[stop_oracle == 0] == 0) else NA
+  c(sens, spec)
+}
+g <- ocfun(res$stop_screen_glm, res$stop_oracle)
+s <- ocfun(res$stop_screen_sl,  res$stop_oracle)
+cat(sprintf(paste0("Against the oracle, the screen with a flexible ",
+  "(SuperLearner) synthetic-nuisance model attains sensitivity %.2f and ",
+  "specificity %.2f; with a GLM synthetic-nuisance model these are %.2f and ",
+  "%.2f. The gap between the two quantifies the cost of misspecifying the ",
+  "synthetic-nuisance model, the central plasmode pitfall [@schreck2024plasmode].\n"),
+  s[1], s[2], g[1], g[2]))
+```
+
+Two patterns make the screen honest rather than magical. First, the screen
+predicts the realised bias well only to the extent that the analyst names
+a confounder of the right strength: it calibrates against threats of the
+specified magnitude, but a true confounder stronger than anticipated is
+not detected, so a STOP is evidence of fragility while a GO is not a
+certificate of robustness (@sec-guarantees). Second, under a nonlinear
+true surface the GLM screen under-predicts the realised bias, because its
+synthetic treatment and outcome surfaces are too simple to reproduce the
+nuisance misspecification that biases the realised estimator, whereas the
+flexible screen reproduces it and tracks the oracle more closely. This is
+the reason the package exposes a `q0_library` argument and why we
+recommend a flexible synthetic-nuisance model. The run reported here uses
+@tbl-gate-oc's replicate count with the Monte Carlo standard error of each
+bias estimate; the script's `reps` is set higher for a final run.
+
 # Case Study: Rescue.Co Kenya Trauma Registry {#sec-casestudy}
 
 ## Why a real-data workflow demonstration
 
-We use the Rescue.Co Kenya Trauma Registry as a workflow
-demonstration on a real registry structure, not as evidence that
-Rescue.Co transport has a causal effect. The simulation in
-@sec-simulation is small (5
-covariates, n = 2,000, fully observed outcome) by design, because
-we wanted analytic control over each threat. A working framework
-also has to execute on real observational data: covariates that
-come from multiple instruments, outcomes that are missing for
-non-trivial fractions of the cohort, and confounders the protocol
-forgot. The Rescue.Co Kenya Trauma Registry is an applied
-comparative-effectiveness study at three Nairobi hospitals (KNH,
-Mama Lucy, Mbagathi) comparing prehospital transport by a
-specialised emergency-medical-services provider (Rescue.Co) with
-traditional ambulance care, on functional outcome six months
-post-injury. All five stages were run on cleanTMLE 0.1.1; the
-released `manuscript_artifacts/case_study_metadata.json` records
-the version and lock hash. The example is fully reproducible from
-the bundled `rescueCo/` directory in the companion repository.
-The DQ stress test in this run was executed at low replication
-(see @sec-casestudy-dq), so the Rescue.Co example is not
-used as primary evidence of DQ-stress validity; it is presented
-as a real-registry execution example.
+We use the Rescue.Co Kenya Trauma Registry as a real
+comparative-effectiveness study that exercises the full workflow on
+genuine registry data, while presenting the resulting estimate as a
+single illustrative application rather than as confirmatory evidence
+about the causal effect of Rescue.Co transport. The simulation in
+@sec-simulation is small (5 covariates, n = 2,000, fully observed
+outcome) by design, so that each threat can be controlled analytically.
+A working framework also has to execute on real observational data:
+covariates drawn from multiple instruments, outcomes missing for
+non-trivial fractions of the cohort, and confounders the protocol did
+not anticipate. The registry is an applied comparative-effectiveness
+study at three Nairobi hospitals (KNH, Mama Lucy, Mbagathi) comparing
+prehospital transport by a specialised emergency-medical-services
+provider (Rescue.Co) with traditional ambulance care, on functional
+outcome six months post-injury. All five stages were run on cleanTMLE
+0.1.1, with the package version and the analysis-lock fingerprint
+recorded in the released case-study metadata (supplementary materials),
+and the example is fully reproducible from the bundled `rescueCo/`
+directory in the companion repository. The DQ stress test in this run
+was executed at low replication (see @sec-casestudy-dq), so the example
+illustrates a real-registry execution of the workflow rather than
+serving as primary evidence of DQ-stress validity.
 
 The example is interesting for four reasons that the simulation
 does not exercise: (a) the primary outcome (Glasgow Outcome Scale
-Extended, GOSE 1--8) has 24.6 % missing values from loss to
+Extended, GOSE 1--8) [@wilson1998gose] has 24.6 % missing values from loss to
 6-month follow-up; (b) 492 ambulance arrivals were inter-facility
 transfers and were excluded from the primary cohort, leaving the
 direct-from-scene 1,693; (c) an 8-week healthcare-worker strike
@@ -2096,23 +2151,7 @@ the manuscript's recommended minimax rule.
 
 ### Cohort flow
 
-```{mermaid}
-%%| fig-cap: "Cohort attrition for the Rescue.Co Kenya Trauma Registry case study. Counts shown at each prespecified inclusion/exclusion criterion. Inter-facility transfers are excluded from the analytic cohort; complete-outcome rows are used for the unweighted estimators and for the IPCW-weighted complete-case TMLE."
-flowchart TD
-    A["Registry observations<br/>(all 2018-2024 trauma transports)"]
-    B["Ambulance arrivals at participating hospitals"]
-    C["Direct-from-scene cohort<br/>(inter-facility transfers excluded)"]
-    D["Analytic cohort<br/>n = 1,693 (1,013 Rescue.Co + 680 other)"]
-    E["Complete 6-month GOSE<br/>n = 1,277"]
-    F["Matched subset<br/>n = 615 (matching) / 1,230 (matched-TMLE pseudo-cohort)"]
-
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    D --> F
-    D -. "missing GOSE<br/>n = 416 (24.6%)" .-> X1["Handled by IPCW"]
-```
+![Cohort attrition for the Rescue.Co Kenya Trauma Registry case study. Counts shown at each prespecified inclusion/exclusion criterion. Inter-facility transfers are excluded from the analytic cohort; complete-outcome rows are used for the unweighted estimators and for the IPCW-weighted complete-case TMLE, and missing GOSE (n = 416, 24.6%) is handled by IPCW.](figures/fig-cohort-flow.png){#fig-cohort-flow width=75%}
 
 ### Analytic setup at a glance
 
@@ -2270,19 +2309,7 @@ Negative controls run at Stage 3 on the locked PS:
 
 : Stage 3 negative-control TMLE results.
 
-```{mermaid}
-%%| fig-cap: "Negative-control attrition. Five negative-control endpoints were prespecified in the SAP. Three were dropped at the data-sanitisation step because they failed near-zero-variance (NZV) filtering on the locked cohort. The two surviving NCs (chronic_hypertension, household_urban) carried enough variation to fit a stable PS-adjusted model and both passed. The residual-confounding probe therefore rests on a narrower NC panel than originally specified; the audit log records the drops."
-flowchart LR
-    A["5 prespecified NCs<br/>chronic_hypertension, chronic_diabetes_insulin,<br/>chronic_hiv_art, household_urban, fuel_wood"]
-    B["NZV filter at data-sanitisation step"]
-    C["3 dropped:<br/>chronic_diabetes_insulin,<br/>chronic_hiv_art, fuel_wood"]
-    D["2 analysed:<br/>chronic_hypertension,<br/>household_urban"]
-    E["Both pass NC checks"]
-    A --> B
-    B --> C
-    B --> D
-    D --> E
-```
+![Negative-control attrition. Five negative-control endpoints were prespecified in the SAP. Three were dropped at the data-sanitisation step because they failed near-zero-variance (NZV) filtering on the locked cohort. The two surviving NCs (chronic_hypertension, household_urban) carried enough variation to fit a stable PS-adjusted model and both passed. The residual-confounding probe therefore rests on a narrower NC panel than originally specified; the audit log records the drops.](figures/fig-nc-attrition.png){#fig-nc-attrition width=80%}
 
 Demonstrated in this case study: cohort flow, event counts,
 missingness summary, PS overlap, three-way Love plot, weight
@@ -2505,6 +2532,38 @@ fit-for-purpose review.
 
 ## Comparison with adjacent tools
 
+@tbl-baselines places cleanTMLE against the nearest alternatives, to make
+explicit which capabilities are shared and which are specific to the
+package. The combination that distinguishes cleanTMLE is the
+outcome-blind plasmode candidate selection, the DQ stress test on the same
+decision scale, and the prespecification record (lock, audit trail, gate),
+bound to a doubly robust estimator layer that reproduces a mature
+cumulative-risk package (@sec-casestudy, and the side-by-side ACTG 320
+reproduction in the companion repository).
+
+```{r baselines-table}
+#| label: tbl-baselines
+baselines <- data.frame(
+  Capability = c(
+    "Doubly robust TMLE",
+    "Cumulative-risk / competing risks",
+    "Time-varying treatment",
+    "Outcome-blind plasmode candidate selection",
+    "Data-quality stress test (shared decision scale)",
+    "Prespecification lock + audit trail + GO/FLAG/STOP gate",
+    "Fit-for-purpose to estimator-selection bridge"),
+  `cleanTMLE` = c("Yes", "Yes (binary point now; survival on roadmap)",
+                  "No (compose with lmtp)", "Yes", "Yes", "Yes", "Yes"),
+  `causalRisk` = c("AIPW", "Yes", "Yes", "No", "No", "No", "No"),
+  `tmle / survtmle / lmtp` = c("Yes", "survtmle / lmtp", "lmtp",
+                               "No", "No", "No", "No"),
+  `STaRT-RWE / HARPER + git/renv` = c("No", "No", "No", "No", "No",
+                                      "Paper template; not machine-checked", "No"),
+  check.names = FALSE, stringsAsFactors = FALSE)
+knitr::kable(baselines,
+  caption = "cleanTMLE against adjacent tools. The estimator layer overlaps with established packages; the outcome-blind selection, the DQ stress test, and the machine-checkable prespecification record are the distinguishing combination.")
+```
+
 E-values [@vanderWeele2017evalue] are post-hoc and not candidate-
 specific. They tell the reader how strong an unmeasured confounder
 would have to be to nullify the observed effect. The plasmode DQ
@@ -2586,22 +2645,29 @@ rule, model assumptions, computational cost, and estimand scope.
 
 ### Candidate-selection rule (FIORD alignment)
 
-cleanTMLE 0.1 implements a **single-step** candidate-selection rule
-(`select_tmle_candidate(rule = "min_rmse")`, optionally augmented to
-`"min_max_rmse"` over the DQ stress scenarios) that simultaneously
-weighs point-estimator behaviour and variance-method behaviour
-through a single RMSE / coverage / SE-window decision. The FIORD
-outcome-blind simulation guidance [@nance2026fiord] argues that
-these are distinct tasks and should be handled in two stages: first
-screen point estimators by oracle coverage (a CI built from the
-Monte Carlo empirical SE) and pick the lowest-variance survivor;
-then select the variance method on the locked point estimator using
-nominal CI coverage. **The current cleanTMLE rule is FIORD-inspired
-but not FIORD-compliant.** The `rule = "fiord_two_stage"` selector
-is planned for cleanTMLE 0.2; users who need full FIORD alignment
-today should run the FIORD selector externally on the candidate
-output of `run_plasmode_feasibility()`. This limitation affects the
-main contribution and is not just a future-feature item.
+The FIORD outcome-blind simulation guidance [@nance2026fiord] separates
+candidate selection into two tasks: first screen point estimators by
+oracle coverage (a CI built from the Monte Carlo empirical SE) and pick
+the lowest-variance survivor, then select the variance method on the
+locked point estimator using nominal CI coverage. cleanTMLE implements
+both stages. Stage one is `select_tmle_candidate(rule = "fiord_two_stage")`,
+which screens candidates to those within `fiord_coverage_tol` of nominal
+oracle coverage and locks in the lowest-SE survivor (the default
+`rule = "min_rmse"`, optionally `"min_max_rmse"` over the DQ stress
+scenarios, remains available as a single-step alternative). Stage two is
+`select_variance_method()`, which, with the point estimator fixed,
+compares variance methods by their oracle coverage on synthetic data and
+returns the one closest to nominal; `bootstrap_rd_variance()` supplies a
+native nonparametric bootstrap standard error and percentile interval for
+the marginal risk difference under TMLE or stabilised IPTW. The bootstrap
+is the principled choice when the influence-function variance is
+conservative or invalid, namely stabilised IPTW (whose IF variance treats
+the propensity score as known; @robins1992rotnitzky) and any
+estimator run on a non-i.i.d. matched cohort. The remaining limitation is
+practical rather than conceptual: the variance-method stage is exposed as
+a separate call rather than folded into a single `run_*` wrapper, and the
+bootstrap multiplies computation, so analysts reserve it for the
+estimators where the IF variance is known to misbehave.
 
 ### Model assumptions
 
@@ -2668,13 +2734,17 @@ implementations.
 
 The most consequential extensions, in priority order, are:
 
-1. **FIORD two-stage candidate selector** [@nance2026fiord]:
-   separate the point-estimator selection (oracle-coverage screen
-   on the Monte Carlo empirical SE) from the variance-method
-   selection, in place of the current single-step RMSE rule.
-2. **Nonparametric bootstrap variance** as the default variance
-   method for IPTW and matched-cohort estimators (the FIORD
-   case-study winner; see also @mertens2024danish).
+1. **Single-call FIORD alignment.** Both FIORD stages are now
+   implemented (`select_tmle_candidate(rule = "fiord_two_stage")` for the
+   point estimator, and `select_variance_method()` with
+   `bootstrap_rd_variance()` for the variance method; see also
+   @mertens2024danish). Folding the variance stage into a single `run_*`
+   wrapper and caching the bootstrap would make full FIORD alignment the
+   one-call default rather than two explicit steps.
+2. **Operating-characteristic validation of the variance selector** at
+   scale, paired with the gate validation in @sec-gate-oc, so the
+   variance-method choice is itself shown to recover nominal coverage
+   across a range of data-generating processes.
 3. **Unmeasured-confounding severity gradient:** vary the strength
    of the latent-U scenario across a prespecified grid rather than
    running a single strong-U setting, so the DQ stress test
@@ -2791,6 +2861,165 @@ running. The package is available at
 <https://github.com/amertens/cleanTMLE>;
 the simulation code for the results in @sec-simulation is in
 the companion repository <https://github.com/amertens/clean-room-sim>.
+
+# Appendix {#sec-appendix .unnumbered}
+
+## Conceptual layers of the workflow
+
+@tbl-layers distinguishes the conceptual layers that the workflow keeps
+separate, and serves as a reference for which decisions are addressed at
+the design stage versus the estimation stage.
+
+```{r layers-table}
+#| label: tbl-layers
+layers <- data.frame(
+  Layer = c(
+    "Causal question",
+    "Causal estimand",
+    "Identification assumptions",
+    "Statistical estimand",
+    "Estimator",
+    "Pre-outcome diagnostic metric",
+    "Governance decision"),
+  Description = c(
+    "Clinical or policy question framed as a target trial or causal contrast.",
+    "Counterfactual treatment effect of interest (e.g. marginal risk difference).",
+    "Conditions under which the causal estimand can be expressed as an observed-data parameter (exchangeability, positivity, consistency, measurement validity, missingness assumptions).",
+    "Observed-data parameter identified under the assumptions above.",
+    "Algorithm used to estimate the statistical estimand, for example TMLE, IPTW, or matching.",
+    "Pre-outcome quantity used for design checks: simulated bias, RMSE, coverage, effective sample size, balance, negative-control performance.",
+    "Whether prespecified criteria support proceeding, require additional review, or require stopping the analysis before the outcome is examined."),
+  stringsAsFactors = FALSE,
+  check.names = FALSE)
+knitr::kable(layers,
+             caption = "Conceptual layers in the staged workflow. The same vocabulary is used throughout the manuscript to keep estimand, estimator, simulation, and decision rule distinct.")
+```
+
+## The package inside the causal roadmap
+
+@fig-roadmap shows where the package sits in the roadmap, and
+@fig-governance shows the software arrangement as one layer of a broader
+governance stack in which external validation, independent oversight,
+and data standards remain necessary inputs to the pre-outcome decision.
+
+![cleanTMLE inside the causal roadmap. Boxes shaded grey indicate work that the package can operationalise; the remaining boxes are external study-level activities.](figures/fig-roadmap.png){#fig-roadmap width=70%}
+
+![Governance layers. The software-level arrangement is necessary but not sufficient for regulatory or confirmatory RWE; external validation, independent review, and data standards feed the pre-outcome decision.](figures/fig-governance.png){#fig-governance width=90%}
+
+## Regulatory alignment
+
+@tbl-reg-align maps each roadmap component to the corresponding
+manuscript section, the relevant FDA, EMA, and ICH expectation, what
+cleanTMLE can operationalise in software, and what still requires
+external study-level justification. The final column is the one that
+distinguishes the software-level workflow from the broader regulatory
+governance arrangement.
+
+```{r reg-align-table}
+#| label: tbl-reg-align
+reg_align <- data.frame(
+  `Roadmap component` = c(
+    "Causal question / target trial",
+    "Observed data and source characterisation",
+    "Identification assumptions",
+    "Statistical estimand",
+    "Estimator selection and locking",
+    "Pre-outcome data-quality stress",
+    "Stage gate (GO / FLAG / STOP)",
+    "Outcome analysis",
+    "At-outcome diagnostics",
+    "Post-outcome sensitivity analyses"
+  ),
+  `Manuscript section` = c(
+    "@sec-estimand",
+    "@sec-estimand, @sec-casestudy",
+    "@sec-id",
+    "@sec-estimand",
+    "@sec-framework, @sec-implementation",
+    "@sec-dq",
+    "@sec-bridge",
+    "@sec-implementation",
+    "@sec-discussion",
+    "@sec-discussion"
+  ),
+  `FDA / EMA / ICH anchor` = c(
+    "Hernán target-trial framework; FDA RWE Framework; ICH M14 (March 2026)",
+    "FDA EHR/claims, registries; EMA registry guideline; EMA RWD quality framework",
+    "ICH E9(R1)",
+    "ICH E9(R1); FDA Considerations for RWD/RWE",
+    "FDA non-interventional studies; ICH M14 (March 2026)",
+    "Source-specific reliability (FDA/EMA); validation evidence",
+    "Internal protocol governance; FDA traceability",
+    "FDA Considerations for RWD/RWE",
+    "EMA RWE Guide; FDA non-interventional studies",
+    "FDA non-interventional studies; ICH E9(R1) sensitivity"
+  ),
+  `What cleanTMLE operationalises` = c(
+    "(none)",
+    "Lock fingerprint of column names + data shape",
+    "Records assumptions in attach_estimand and audit log",
+    "attach_estimand, lock fingerprint",
+    "tmle_candidate, lock_primary_tmle_spec, save_lock",
+    "run_plasmode_dq_stress, default_dq_scenarios",
+    "gate_check, gate_all, authorize_outcome_analysis",
+    "fit_tmle_treatment/outcome_mechanism, run_ipcw_tmle",
+    "run_negative_control(_tmle), checkpoint_residual_bias",
+    "compute_evalue, tipping_point_sensitivity, sensitivity_truncation"
+  ),
+  `External study-level work still required` = c(
+    "Full target-trial protocol",
+    "Phenotype validation, data lineage, source audit",
+    "Subject-matter justification of exchangeability and positivity",
+    "Source-specific operationalisation of intercurrent events",
+    "Justification of SuperLearner library and severity grids",
+    "External validation evidence anchoring DQ severity ranges",
+    "Independent review of the pre-outcome decision",
+    "Role separation, oversight, deviation memos",
+    "Choice of negative-control outcomes and domains",
+    "Quantitative bias analysis tailored to study threats"
+  ),
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+knitr::kable(reg_align,
+             caption = "Mapping of causal-roadmap components to manuscript sections, regulatory anchors, what cleanTMLE operationalises, and what still requires external study-level justification.")
+```
+
+## Event-process and diagnostic helpers
+
+@tbl-event-diag lists the additional event-process and diagnostic
+structures the package makes explicit, paired with the helper that
+produces each one.
+
+```{r event-diag-table}
+#| label: tbl-event-diag
+event_diag <- data.frame(
+  Component = c(
+    "Event-process classification",
+    "Target population and reference group",
+    "Treatment, censoring, and missingness weight diagnostics",
+    "Competing-risk and composite-risk coherence check",
+    "Cumulative-risk reporting table",
+    "Hazard-ratio de-emphasis"),
+  `cleanTMLE function` = c(
+    "clean_event_process_table",
+    "clean_target_population",
+    "clean_weight_diagnostics",
+    "clean_check_event_processes",
+    "clean_risk_report_table",
+    "(documented preference; HR as secondary)"),
+  Purpose = c(
+    "Map each post-baseline event to its role in the estimand and ICH E9(R1) intercurrent-event strategy.",
+    "Force explicit declaration of the population and reference group for every contrast.",
+    "Report percentiles, ESS, extreme-weight counts, and weighted SMDs for each weight vector used.",
+    "Verify that event-of-interest plus competing-event cumulative incidences are coherent with the composite risk.",
+    "Single structured table of cumulative risks, contrasts, event counts, and estimator name.",
+    "Cumulative risks, risk differences, and risk ratios are the primary summaries; hazard ratios are reported only as secondary when the estimand is explicitly hazard-based."),
+  check.names = FALSE,
+  stringsAsFactors = FALSE)
+knitr::kable(event_diag,
+             caption = "Supplementary mapping. Event-process and diagnostic structures that the package makes explicit, paired with the helper that produces each one.")
+```
 
 # Acknowledgements {.unnumbered}
 
