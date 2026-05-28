@@ -74,7 +74,7 @@ config <- list(
     se_sd_high   = 1.3
   ),
 
-  results_dir = "results",
+  results_dir = "results_new",
   seed        = 2026L
 )
 
@@ -415,6 +415,28 @@ t_start_global <- Sys.time()
 for (sc_name in names(scenarios)) {
   sc       <- scenarios[[sc_name]]
   truth_rd <- truths[[sc_name]]$RD
+
+  # ── Resume guard: skip scenarios already completed in a prior (crashed) run.
+  # A scenario is "done" when its lock RDS exists and its interim has all reps.
+  # Only fires on restart against a partially populated results_dir; on a fresh
+  # run no markers exist so this is a no-op. Reconstructs the in-memory state
+  # (all_results/summaries/meta/audit) the final assembly needs.
+  .lock_file <- file.path(config$results_dir, sprintf("lock_%s.rds", sc_name))
+  .intr_file <- interim_path(sc_name)
+  if (file.exists(.lock_file) && file.exists(.intr_file)) {
+    .intr <- readRDS(.intr_file)
+    if (isTRUE(!is.null(.intr$n_done) && !is.null(.intr$n_total) &&
+               .intr$n_done == .intr$n_total)) {
+      cat(sprintf("\n=== %s: already complete (%d/%d reps) — resuming, skip ===\n",
+                  sc$label, .intr$n_done, .intr$n_total)); .flush()
+      all_results[[sc_name]]   <- .intr$results
+      all_summaries[[sc_name]] <- build_summary_table(.intr$results, truth_rd)
+      all_meta[[sc_name]]      <- .intr$meta
+      .audit_file <- file.path(config$results_dir, sprintf("audit_%s.rds", sc_name))
+      if (file.exists(.audit_file)) all_audit[[sc_name]] <- readRDS(.audit_file)
+      next
+    }
+  }
 
   cat(sprintf("\n=== %s ===\n", sc$label))
   cat(sprintf("  %s\n", sc$description))
