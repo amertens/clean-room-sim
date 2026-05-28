@@ -1563,7 +1563,7 @@ the truth while the crude comparison does not.
 ## Monte Carlo results
 
 ```{r load-mc-results}
-res_path <- file.path("..", "results", "simulation_results.rds")
+res_path <- file.path("..", "results_new", "simulation_results.rds")
 if (file.exists(res_path)) {
   res <- readRDS(res_path)
   has_mc <- TRUE
@@ -1821,7 +1821,7 @@ A note on what the simulation does **not** show: it does not compare a "traditio
 ## Plasmode DQ stress-test results
 
 ```{r load-dq-results}
-dq_files <- list.files(file.path("..", "results"), pattern = "^dq_stress_",
+dq_files <- list.files(file.path("..", "results_new"), pattern = "^dq_stress_",
                         full.names = TRUE)
 has_dq <- length(dq_files) > 0
 
@@ -1960,7 +1960,7 @@ Applied to the cached `plasmode_*.csv` candidate-evaluation tables, the FIORD tw
 ```{r fiord-two-stage-comparison, eval = has_mc, results = "asis"}
 fiord_compare <- list()
 for (sc in c("good_overlap", "marginal_overlap", "unmeasured_conf")) {
-  pf <- sprintf("../results/plasmode_%s.csv", sc)
+  pf <- sprintf("../results_new/plasmode_%s.csv", sc)
   if (!file.exists(pf)) next
   plas <- read.csv(pf)
   # collapse over effect_size: pick the candidate with the lowest RMSE
@@ -2090,9 +2090,9 @@ its bias reflects nuisance misspecification as well as the omitted
 confounder, and the screen can predict that bias only if its synthetic
 nuisances reproduce the nonlinearity.
 
-```{r gate-oc, eval = file.exists("../results/gate_oc.rds")}
+```{r gate-oc, eval = file.exists("../results_new/gate_oc.rds")}
 #| label: tbl-gate-oc
-oc <- readRDS("../results/gate_oc.rds")
+oc <- readRDS("../results_new/gate_oc.rds")
 knitr::kable(
   oc$results[, c("surface", "true_s", "true_rd", "bias_real",
                  "bias_screen_glm", "bias_screen_sl",
@@ -2108,8 +2108,8 @@ knitr::kable(
     oc$config$max_abs_bias, ")."))
 ```
 
-```{r gate-oc-summary, eval = file.exists("../results/gate_oc.rds"), results = "asis"}
-res <- readRDS("../results/gate_oc.rds")$results
+```{r gate-oc-summary, eval = file.exists("../results_new/gate_oc.rds"), results = "asis"}
+res <- readRDS("../results_new/gate_oc.rds")$results
 ocfun <- function(stop_screen, stop_oracle) {
   sens <- if (sum(stop_oracle == 1) > 0) mean(stop_screen[stop_oracle == 1] == 1) else NA
   spec <- if (sum(stop_oracle == 0) > 0) mean(stop_screen[stop_oracle == 0] == 0) else NA
