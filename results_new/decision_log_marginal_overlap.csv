@@ -1,0 +1,6 @@
+"stage","decision_type","description","rationale","timestamp"
+"Stage 1a","lock","Lock dee8f4943046fba7a8c937f6a15ca2557104ae252bd7abf8b27b2d6040a2f12d for Scenario B: Marginal Overlap","Pre-outcome lock before any estimation.","2026-05-27 12:53:28"
+"Stage 1b","design_precision","Design-precision estimate computed","Pre-outcome MDD diagnostic.","2026-05-27 12:53:28"
+"Stage 2b","candidate_selection","Selected glm_t05 by min_rmse","Plasmode-selected TMLE specification.","2026-05-27 12:53:31"
+"Stage 2b*","dq_stress","Plasmode DQ stress test executed.","Quantitative SPIFD2 mapping check.","2026-05-27 12:53:49"
+"Gate","authorize","Outcome unblinding authorised by gate.","All required checkpoints passed.","2026-05-27 12:53:49"
