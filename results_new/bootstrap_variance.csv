@@ -1,0 +1,5 @@
+"scenario","method","n_reps","bias","emp_sd","mean_se_if","se_sd_ratio_if","coverage_if","mean_se_boot","se_sd_ratio_boot","coverage_boot"
+"A: Good Overlap","IPTW",100,0.00126,0.0143,0.0138,0.966,0.94,0.0137,0.959,0.93
+"A: Good Overlap","Match_TMLE",100,0.00075,0.016,0.0148,0.925,0.89,0.0151,0.94,0.95
+"B: Marginal Overlap","IPTW",100,0.00167,0.0149,0.0184,1.229,0.98,0.0182,1.22,0.99
+"B: Marginal Overlap","Match_TMLE",100,0.00363,0.0165,0.0172,1.041,0.97,0.0174,1.053,0.99
