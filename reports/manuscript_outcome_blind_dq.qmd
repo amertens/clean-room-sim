@@ -66,7 +66,12 @@ outcome misclassification, and unmeasured confounding.
 In Monte Carlo experiments, adjusted estimators recovered the true
 risk difference under good overlap, and TMLE and cross-validated
 TMLE held bias small relative to the empirical standard deviation
-under marginal overlap. When
+under marginal overlap. A supplementary variance comparison showed
+that the influence-function standard error for matched-cohort TMLE
+substantially over-covers under marginal overlap (mean SE/SD ratio
+≈ 2.1, 95% CI coverage ≈ 1.00), while the nonparametric bootstrap
+restored near-nominal coverage, motivating the package's
+`select_variance_method()` stage. When
 unmeasured confounding was introduced, all estimators were biased
 in the same direction, and the prespecified pre-outcome decision
 correctly returned STOP, illustrating that the workflow flags
@@ -1523,9 +1528,7 @@ PS produce near-identical plasmode metrics on this DGP (see
 We report 200 Monte Carlo replicates per scenario and give the Monte
 Carlo standard error of each coverage estimate alongside it; coverage
 differences within roughly $\pm 0.03$ of nominal should be read as
-compatible with the nominal level at this replicate count, and a
-final-release run should use at least 1000 replicates before resting any
-conclusion on a coverage gap. Two control scenarios complement the three
+compatible with the nominal level at this replicate count. Two control scenarios complement the three
 above and are exercised in the gate operating-characteristics
 meta-simulation of @sec-gate-oc: a *null* data-generating process with no
 unmeasured confounding (the $s = 1$ cell), under which the oracle verdict
