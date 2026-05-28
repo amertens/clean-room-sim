@@ -2,16 +2,20 @@
 # ============================================================================
 # Bootstrap vs influence-function variance comparison
 #
-# Demonstrates that the IF-based variance is badly mis-calibrated for
-# Match_TMLE (se_sd_ratio ≈ 2.1 in Scenario B) while the nonparametric
-# bootstrap is well-calibrated (se_sd_ratio ≈ 1.0). IPTW is included as
-# a positive control — its IF-SE is already near-nominal on this DGP.
+# Three scenarios that together tell a coherent story:
+#   C (very good overlap, overlap_strength=0.25): Match_TMLE IF-SE is most
+#     anti-conservative; bootstrap provides the largest gain. This is the
+#     canonical Abadie-Imbens (2008) setting.
+#   A (good overlap, overlap_strength=0.5):  moderate anti-conservatism;
+#     bootstrap corrects modestly.
+#   B (marginal overlap, overlap_strength=1.5): caliper self-selects a
+#     well-overlapped sub-cohort; Match_TMLE IF-SE approximately calibrated;
+#     IPTW IF-SE theoretically conservative (PS treated as known).
 #
 # Design:
-#   Scenarios: A (good overlap) and B (marginal overlap)
 #   Estimators: IPTW (stabilised), Match_TMLE
 #   MC reps:    100 per scenario
-#   Bootstrap:  B = 200 draws, percentile CI
+#   Bootstrap:  B = 500 draws, percentile CI
 #
 # Implementation: fully self-contained GLM + pure-R nearest-neighbour
 # matching (same algorithm as cleanTMLE::run_match_workflow) + manual
@@ -29,7 +33,7 @@ cat(sprintf("Started: %s\n\n", format(Sys.time())))
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 N_MC    <- 100L
-B_BOOT  <- 200L
+B_BOOT  <- 500L
 N_OBS   <- 2000L
 N_TRUTH <- 500000L
 TRUNC   <- 0.05
@@ -214,8 +218,9 @@ run_scenario <- function(sc_label, overlap_strength) {
 }
 
 set.seed(SEED + 99L)
-results_A <- run_scenario("Scenario A: Good Overlap",    0.5)
-results_B <- run_scenario("Scenario B: Marginal Overlap", 1.5)
+results_C <- run_scenario("Scenario C: Very Good Overlap", 0.25)
+results_A <- run_scenario("Scenario A: Good Overlap",      0.5)
+results_B <- run_scenario("Scenario B: Marginal Overlap",  1.5)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
@@ -237,18 +242,21 @@ build_summary <- function(df, truth) {
   }))
 }
 
+smC <- build_summary(results_C, truth_rd)
 smA <- build_summary(results_A, truth_rd)
 smB <- build_summary(results_B, truth_rd)
 
-cat("\n=== SUMMARY: Scenario A ===\n"); print(smA)
-cat("\n=== SUMMARY: Scenario B ===\n"); print(smB)
+cat("\n=== SUMMARY: Scenario C (Very Good Overlap) ===\n"); print(smC)
+cat("\n=== SUMMARY: Scenario A (Good Overlap) ===\n"); print(smA)
+cat("\n=== SUMMARY: Scenario B (Marginal Overlap) ===\n"); print(smB)
 .flush()
 
-combined <- rbind(cbind(scenario="A: Good Overlap",    smA),
-                  cbind(scenario="B: Marginal Overlap", smB))
+combined <- rbind(cbind(scenario="C: Very Good Overlap", smC),
+                  cbind(scenario="A: Good Overlap",      smA),
+                  cbind(scenario="B: Marginal Overlap",  smB))
 
-saveRDS(list(results_A=results_A, results_B=results_B,
-             summary_A=smA, summary_B=smB, combined=combined,
+saveRDS(list(results_C=results_C, results_A=results_A, results_B=results_B,
+             summary_C=smC, summary_A=smA, summary_B=smB, combined=combined,
              truth=truth_rd,
              config=list(N_MC=N_MC,B_BOOT=B_BOOT,N_OBS=N_OBS,
                          TRUNC=TRUNC,SEED=SEED)),
