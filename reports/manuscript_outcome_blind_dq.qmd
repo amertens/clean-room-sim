@@ -1545,12 +1545,14 @@ if (file.exists(res_path)) {
   has_mc <- FALSE
   cat("Monte Carlo results not found. Run run_simulation.R first.\n")
 }
+
+boot_path <- file.path("..", "results_new", "bootstrap_variance.csv")
+has_boot  <- file.exists(boot_path)
+if (has_boot) boot_var <- read.csv(boot_path)
 ```
 
 ```{r mc-table, eval = has_mc, results = "asis"}
-# Add a G-value column (TODO A.22): the additive bias that would
-# push the 95% CI across the null. Computed post-hoc from each
-# row's mean estimate and mean SE.
+# G-value: additive bias that would push the 95% CI across the null.
 for (sc in names(res$summaries)) {
   truth <- res$truths[[sc]]$RD
   label <- res$scenarios[[sc]]$label
@@ -1632,31 +1634,68 @@ quantitative supplement to the baseline plasmode metrics.
 A separate pattern concerns **variance-estimator selection**, the
 second stage of FIORD's two-stage selector [@nance2026fiord], and is
 worth surfacing because it routinely surprises applied users. The
-mean-SE-to-empirical-SD ratio for IPTW is often above one in our
-scenarios, because the default IF-based variance estimator treats
-the propensity score as known and is therefore conservative when
-the propensity score has actually been estimated
-[@robins1992rotnitzky]. Doubly robust estimators (TMLE, AIPW,
-CV-TMLE) do not share this conservativeness once the nuisance fits
-are properly cross-fit; the SE/SD ratio for TMLE_CF stays near one
-across our scenarios. The matching-with-TMLE composition shows a
-similar pattern in Scenario B, where the SE-to-empirical-SD ratio
-reaches roughly two and coverage exceeds nominal, because the
-post-match TMLE step treats the matched cohort as if it were a
-fresh independent sample, ignoring the residual variability
-introduced by the matching draw.
+SE-to-empirical-SD ratio for TMLE and TMLE_CF stays near one across
+all three scenarios because the cross-fitted influence-function
+variance is approximately correct for doubly robust estimators on
+i.i.d. data. Two estimators diverge from this pattern in ways that
+matter for inference.
 
-The applied implication is consistent across the FIORD case study
-[@nance2026fiord], the older Mertens–Zhang Danish-registry
-investigation [@mertens2024danish], and our own results here: when
-the prespecified primary is an IPW estimator, a matched-cohort
-estimator, or any TMLE running on a non-i.i.d. sample, the
-default IF-based variance is likely to be conservative and the
-**nonparametric bootstrap variance** is the principled fix. The
-bootstrap is therefore the recommended variance method for the
-two-stage selector's second stage in cleanTMLE 0.2; the present
-release supports it externally and surfaces the IF-based SE for
-back-compatibility.
+First, the IF-based SE for stabilised IPTW treats the propensity
+score as known rather than estimated, making it theoretically
+conservative [@robins1992rotnitzky]. In our DGP the conservatism
+is modest (se_sd_ratio ≈ 1.00 in all scenarios), meaning IF-based
+coverage is already near nominal and bootstrap variance provides no
+practical gain. This is likely because the GLM propensity-score
+model is nearly correctly specified on the simple logistic DGP; the
+conservatism is expected to be larger when the PS model is more
+flexible or more variable.
+
+Second, and more consequentially, the matched-cohort TMLE (Match_TMLE)
+shows severe IF-based variance inflation in Scenario B: se_sd_ratio
+= 2.11, coverage = 0.995. The post-match TMLE step treats the
+matched cohort as an i.i.d. sample, ignoring the residual
+variability introduced by the matching draw. This is not a
+pathology of the DGP; it is a structural consequence of running
+a standard influence-curve variance on a non-i.i.d. sample. In
+Scenario A the inflation is mild (se_sd_ratio ≈ 1.07) because good
+overlap makes matching stable; in Scenario B, where the PS range
+extends to [0.04, 0.99], the matching draw is substantially
+variable and the IF variance overstates precision by a factor of
+two.
+
+@tbl-boot-variance reports a targeted 100-replicate variance
+comparison for IPTW and Match_TMLE in Scenarios A and B. For each
+replicate, both the IF-based and nonparametric bootstrap (B = 200
+draws, GLM PS) SE are computed; the table reports mean SE/SD ratios
+and 95% CI coverage under each method.
+
+```{r boot-variance-table, eval = has_boot, results = "asis"}
+#| label: tbl-boot-variance
+#| tbl-cap: >
+#|   IF-based versus bootstrap variance for IPTW and Match_TMLE,
+#|   100 MC replicates per scenario, B = 200 bootstrap draws.
+#|   se_sd_ratio is the mean SE divided by the empirical SD of
+#|   the point estimate; values above 1 indicate conservative
+#|   (overcovering) inference.
+disp <- boot_var[, c("scenario", "method", "emp_sd",
+                     "se_sd_ratio_if", "coverage_if",
+                     "se_sd_ratio_boot", "coverage_boot")]
+names(disp) <- c("Scenario", "Method", "Emp. SD",
+                 "SE/SD (IF)", "Coverage (IF)",
+                 "SE/SD (boot)", "Coverage (boot)")
+knitr::kable(disp, digits = c(NA, NA, 4, 3, 3, 3, 3))
+```
+
+The bootstrap restores calibration for Match_TMLE: se_sd_ratio_boot
+≈ 1.0 and coverage_boot ≈ 0.95 in both scenarios. For IPTW, the
+IF and bootstrap variances agree (both near 1.0), confirming that
+the theoretical conservatism is small in this DGP. The practical
+implication is that analysts using Match_TMLE as the prespecified
+primary estimator — as in the Rescue.Co case study — should specify
+bootstrap variance in the SAP rather than relying on the default
+IF-based SE. cleanTMLE provides `bootstrap_rd_variance()` for this
+purpose and `select_variance_method()` to choose between IF and
+bootstrap by oracle coverage on synthetic data.
 
 ```{r mc-boxplots, eval = has_mc, fig.height = 9, fig.cap = "Sampling distribution of the risk-difference estimate across Monte Carlo replicates. The dashed red line marks the true RD. Under unmeasured confounding (C), all estimators are shifted from the truth."}
 raw_data <- do.call(rbind, lapply(names(res$results), function(sc) {
