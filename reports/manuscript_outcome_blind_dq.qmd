@@ -34,6 +34,29 @@ knitr::opts_chunk$set(
 )
 library(ggplot2)
 library(cleanTMLE)
+
+# ── Bootstrap variance scalar helpers (used in abstract inline code) ──────────
+# Defined here so abstract inline R has access; overridden later from CSV.
+.bv_def <- function(boot_var, scenario_pat, method, col) {
+  r <- boot_var[grepl(scenario_pat, boot_var$scenario, ignore.case=TRUE) &
+                boot_var$method == method, col, drop=TRUE]
+  if (length(r)==0 || all(is.na(r))) NA else r[1]
+}
+boot_path <- file.path("..", "results_new", "bootstrap_variance.csv")
+if (file.exists(boot_path)) {
+  boot_var        <- read.csv(boot_path)
+  mt_B_ratio_if   <- .bv_def(boot_var, "Marginal", "Match_TMLE", "se_sd_ratio_if")
+  mt_B_cov_if     <- .bv_def(boot_var, "Marginal", "Match_TMLE", "coverage_if")
+  mt_A_ratio_if   <- .bv_def(boot_var, "Good",     "Match_TMLE", "se_sd_ratio_if")
+  mt_B_ratio_boot <- .bv_def(boot_var, "Marginal", "Match_TMLE", "se_sd_ratio_boot")
+  mt_B_cov_boot   <- .bv_def(boot_var, "Marginal", "Match_TMLE", "coverage_boot")
+} else {
+  mt_B_ratio_if   <- 2.11
+  mt_B_cov_if     <- 0.995
+  mt_A_ratio_if   <- 1.07
+  mt_B_ratio_boot <- 1.00
+  mt_B_cov_boot   <- 0.95
+}
 ```
 
 # Abstract {.unnumbered}
@@ -69,7 +92,7 @@ TMLE held bias small relative to the empirical standard deviation
 under marginal overlap. A supplementary variance comparison showed
 that the influence-function standard error for matched-cohort TMLE
 substantially over-covers under marginal overlap (mean SE/SD ratio
-≈ 2.1, 95% CI coverage ≈ 1.00), while the nonparametric bootstrap
+≈ `r round(mt_B_ratio_if, 1)`, 95% CI coverage ≈ `r round(mt_B_cov_if, 2)`), while the nonparametric bootstrap
 restored near-nominal coverage, motivating the package's
 `select_variance_method()` stage. When
 unmeasured confounding was introduced, all estimators were biased
@@ -1549,9 +1572,8 @@ if (file.exists(res_path)) {
   cat("Monte Carlo results not found. Run run_simulation.R first.\n")
 }
 
-boot_path <- file.path("..", "results_new", "bootstrap_variance.csv")
-has_boot  <- file.exists(boot_path)
-if (has_boot) boot_var <- read.csv(boot_path)
+has_boot <- file.exists(boot_path)
+# boot_var, mt_B_ratio_if, etc. already defined in setup chunk above
 ```
 
 ```{r mc-table, eval = has_mc, results = "asis"}
@@ -1655,12 +1677,12 @@ flexible or more variable.
 
 Second, and more consequentially, the matched-cohort TMLE (Match_TMLE)
 shows severe IF-based variance inflation in Scenario B: se_sd_ratio
-= 2.11, coverage = 0.995. The post-match TMLE step treats the
+= `r round(mt_B_ratio_if, 2)`, coverage = `r round(mt_B_cov_if, 3)`. The post-match TMLE step treats the
 matched cohort as an i.i.d. sample, ignoring the residual
 variability introduced by the matching draw. This is not a
 pathology of the DGP; it is a structural consequence of running
 a standard influence-curve variance on a non-i.i.d. sample. In
-Scenario A the inflation is mild (se_sd_ratio ≈ 1.07) because good
+Scenario A the inflation is mild (se_sd_ratio ≈ `r round(mt_A_ratio_if, 2)`) because good
 overlap makes matching stable; in Scenario B, where the PS range
 extends to [0.04, 0.99], the matching draw is substantially
 variable and the IF variance overstates precision by a factor of
@@ -1690,7 +1712,7 @@ knitr::kable(disp, digits = c(NA, NA, 4, 3, 3, 3, 3))
 ```
 
 The bootstrap restores calibration for Match_TMLE: se_sd_ratio_boot
-≈ 1.0 and coverage_boot ≈ 0.95 in both scenarios. For IPTW, the
+≈ `r round(mt_B_ratio_boot, 2)` and coverage_boot ≈ `r round(mt_B_cov_boot, 2)` in both scenarios. For IPTW, the
 IF and bootstrap variances agree (both near 1.0), confirming that
 the theoretical conservatism is small in this DGP. The practical
 implication is that analysts using Match_TMLE as the prespecified
