@@ -11,18 +11,15 @@
 #   Scenarios: A (good overlap) and B (marginal overlap)
 #   Estimators: IPTW (stabilised), Match_TMLE
 #   MC reps:    100 per scenario
-#   Bootstrap:  B = 200 draws, GLM-only, percentile CI
+#   Bootstrap:  B = 200 draws, percentile CI
 #
-# Implementation: self-contained GLM + manual TMLE (no tmle:: package calls
-# in the bootstrap loop; avoids subprocess issues on Windows). The manual
-# TMLE targeting step closely replicates the tmle-package influence-function
-# variance, allowing a fair IF vs bootstrap comparison.
+# Implementation: fully self-contained GLM + pure-R nearest-neighbour
+# matching (same algorithm as cleanTMLE::run_match_workflow) + manual
+# TMLE targeting step. No subprocess-prone packages inside any loop.
 #
 # Output: results_new/bootstrap_variance.rds
 #         results_new/bootstrap_variance.csv
 # ============================================================================
-
-suppressMessages(library(MatchIt))
 
 .flush <- function() if (!interactive()) flush(stdout())
 cat("Bootstrap variance comparison\n")
@@ -46,15 +43,14 @@ if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
 # ── DGP ───────────────────────────────────────────────────────────────────────
 
-generate_data <- function(n, overlap_strength = 0.5, seed = NULL) {
-  if (!is.null(seed)) set.seed(seed)
+generate_data <- function(n, overlap_strength = 0.5) {
   age         <- rnorm(n, 55, 10)
   sex         <- rbinom(n, 1, 0.55)
   biomarker   <- rnorm(n)
   comorbidity <- sample(0:2, n, TRUE, c(0.5, 0.3, 0.2))
   ckd         <- rbinom(n, 1, 0.12)
-  lp_trt <- -0.5 + overlap_strength * (0.03*(age-55) + 0.8*sex +
-               0.6*biomarker + 0.5*ckd + 0.3*comorbidity)
+  lp_trt <- -0.5 + overlap_strength *
+    (0.03*(age-55) + 0.8*sex + 0.6*biomarker + 0.5*ckd + 0.3*comorbidity)
   treatment  <- rbinom(n, 1, plogis(lp_trt))
   lp_out <- -2.5 + 0.015*(age-55) + 0.3*sex + 0.2*biomarker +
     0.6*ckd + 0.25*comorbidity + (-0.05/0.15)*treatment
@@ -64,7 +60,8 @@ generate_data <- function(n, overlap_strength = 0.5, seed = NULL) {
              event_24=event_24, stringsAsFactors=FALSE)
 }
 
-compute_truth <- function(n, overlap_strength) {
+# True marginal RD (does not depend on overlap_strength — only outcome model)
+compute_truth <- function(n) {
   set.seed(SEED)
   age <- rnorm(n,55,10); sex <- rbinom(n,1,.55)
   bio <- rnorm(n); com <- sample(0:2,n,T,c(.5,.3,.2)); ckd <- rbinom(n,1,.12)
@@ -73,145 +70,141 @@ compute_truth <- function(n, overlap_strength) {
 }
 
 cat("Computing ground truth...\n"); .flush()
-truth_A <- compute_truth(N_TRUTH, 0.5)
-truth_B <- compute_truth(N_TRUTH, 1.5)
-cat(sprintf("  Scenario A true RD = %.5f\n", truth_A))
-cat(sprintf("  Scenario B true RD = %.5f\n\n", truth_B))
+truth_rd <- compute_truth(N_TRUTH)
+cat(sprintf("  true RD = %.5f  (same for A and B by DGP)\n\n", truth_rd))
 .flush()
 
-# ── Lightweight TMLE helpers (no tmle:: package) ───────────────────────────────
+# ── Pure-R 1:1 nearest-neighbour matching on logit-PS ────────────────────────
+# Algorithm mirrors cleanTMLE::run_match_workflow exactly.
 
-# Manual TMLE: Q-fit, clever covariate, targeting step, ATE + IF SE.
+.match_nn <- function(A, logit_ps, caliper = NULL) {
+  if (is.null(caliper)) caliper <- 0.2 * sd(logit_ps)
+  treated_idx  <- which(A == 1)
+  control_idx  <- which(A == 0)
+  n_treated    <- length(treated_idx)
+  used_ctrl    <- logical(length(control_idx))
+  matched_ctrl <- integer(n_treated)
+
+  for (i in seq_len(n_treated)) {
+    dists <- abs(logit_ps[treated_idx[i]] - logit_ps[control_idx])
+    dists[used_ctrl] <- Inf
+    best <- which.min(dists)
+    if (dists[best] <= caliper) {
+      matched_ctrl[i] <- control_idx[best]
+      used_ctrl[best] <- TRUE
+    } else {
+      matched_ctrl[i] <- NA_integer_
+    }
+  }
+  valid <- !is.na(matched_ctrl)
+  c(treated_idx[valid], matched_ctrl[valid])
+}
+
+# ── Manual TMLE (GLM only, no packages) ──────────────────────────────────────
 # Returns list(estimate, se, ci_lower, ci_upper).
-.tmle_manual <- function(Y, A, W, truncate = TRUNC) {
-  Wdf  <- as.data.frame(W)
-  n    <- length(Y)
-  covs <- names(Wdf)
 
-  # g-model (treatment mechanism)
-  g_df  <- cbind(A = A, Wdf)
-  g_mod <- glm(A ~ ., data = g_df, family = binomial())
-  g     <- pmin(pmax(predict(g_mod, type = "response"), truncate), 1 - truncate)
+.tmle_glm <- function(Y, A, W, truncate = TRUNC) {
+  Wdf <- as.data.frame(W)
+  n   <- length(Y)
 
-  # Q-model (outcome mechanism)
-  q_df  <- cbind(Y = Y, A = A, Wdf)
-  q_mod <- glm(Y ~ ., data = q_df, family = binomial())
-  Q1    <- predict(q_mod, newdata = cbind(A = 1, Wdf), type = "response")
-  Q0    <- predict(q_mod, newdata = cbind(A = 0, Wdf), type = "response")
-  Q_AW  <- A * Q1 + (1 - A) * Q0   # initial prediction at observed A
+  g_mod <- glm(A ~ ., data = cbind(A=A, Wdf), family = binomial())
+  g     <- pmin(pmax(predict(g_mod, type="response"), truncate), 1-truncate)
 
-  # Clever covariate and targeting step
-  H  <- A / g - (1 - A) / (1 - g)
-  Q_AW_cl <- pmin(pmax(Q_AW, 1e-6), 1 - 1e-6)
+  q_mod <- glm(Y ~ ., data = cbind(Y=Y, A=A, Wdf), family = binomial())
+  Q1    <- predict(q_mod, newdata = cbind(A=1, Wdf), type="response")
+  Q0    <- predict(q_mod, newdata = cbind(A=0, Wdf), type="response")
+  Q_AW  <- pmin(pmax(A*Q1 + (1-A)*Q0, 1e-6), 1-1e-6)
+
+  H   <- A/g - (1-A)/(1-g)
   eps <- tryCatch(
-    coef(glm(Y ~ H + offset(qlogis(Q_AW_cl)), family = binomial()))["H"],
+    coef(glm(Y ~ H + offset(qlogis(Q_AW)), family=binomial()))["H"],
     error = function(e) 0
   )
 
-  # Targeted predictions
-  Q1_star <- plogis(qlogis(pmin(pmax(Q1, 1e-6), 1-1e-6)) + eps / g)
-  Q0_star <- plogis(qlogis(pmin(pmax(Q0, 1e-6), 1-1e-6)) - eps / (1 - g))
-  ate     <- mean(Q1_star) - mean(Q0_star)
+  Q1s <- plogis(qlogis(pmin(pmax(Q1,1e-6),1-1e-6)) + eps/g)
+  Q0s <- plogis(qlogis(pmin(pmax(Q0,1e-6),1-1e-6)) - eps/(1-g))
+  ate <- mean(Q1s) - mean(Q0s)
 
-  # Influence-function SE
-  eif <- (A / g - (1 - A) / (1 - g)) * (Y - Q_AW_cl) +
-         (Q1_star - Q0_star) - ate
+  eif <- (A/g - (1-A)/(1-g)) * (Y - Q_AW) + (Q1s - Q0s) - ate
   se  <- sqrt(var(eif) / n)
-
-  list(estimate = ate, se = se,
-       ci_lower = ate - 1.96 * se,
-       ci_upper = ate + 1.96 * se)
+  list(estimate=ate, se=se, ci_lower=ate-1.96*se, ci_upper=ate+1.96*se)
 }
 
 # ── Estimator fits ────────────────────────────────────────────────────────────
 
-# IPTW: stabilised HT, IF-SE.
 .iptw_fit <- function(dat) {
-  A <- dat[[TREAT]]; Y <- dat[[OUTC]]
-  W <- dat[, COVARS, drop = FALSE]
-  g_mod <- glm(reformulate(COVARS, TREAT), data = dat, family = binomial())
-  ps <- pmin(pmax(predict(g_mod, type = "response"), TRUNC), 1 - TRUNC)
+  A <- dat[[TREAT]]; Y <- dat[[OUTC]]; W <- dat[,COVARS,drop=FALSE]
+  g_mod <- glm(reformulate(COVARS, TREAT), data=dat, family=binomial())
+  ps <- pmin(pmax(predict(g_mod, type="response"), TRUNC), 1-TRUNC)
   pA <- mean(A)
-  w  <- ifelse(A == 1, pA / ps, (1 - pA) / (1 - ps))
-  mu1 <- weighted.mean(Y[A == 1], w[A == 1])
-  mu0 <- weighted.mean(Y[A == 0], w[A == 0])
+  w  <- ifelse(A==1, pA/ps, (1-pA)/(1-ps))
+  mu1 <- weighted.mean(Y[A==1], w[A==1])
+  mu0 <- weighted.mean(Y[A==0], w[A==0])
   est <- mu1 - mu0
-  eif <- (A / ps - (1 - A) / (1 - ps)) * (Y - ifelse(A == 1, mu1, mu0)) +
-         (mu1 - mu0) - est
-  se  <- sqrt(var(eif) / nrow(dat))
-  list(estimate = est, se = se,
-       ci_lower = est - 1.96 * se, ci_upper = est + 1.96 * se)
+  eif <- (A/ps-(1-A)/(1-ps))*(Y-ifelse(A==1,mu1,mu0)) + (mu1-mu0) - est
+  se  <- sqrt(var(eif)/nrow(dat))
+  list(estimate=est, se=se, ci_lower=est-1.96*se, ci_upper=est+1.96*se)
 }
 
-# Match + TMLE: 1:1 NN matching on logit-PS, then manual TMLE on matched data.
 .match_tmle_fit <- function(dat) {
-  fml <- reformulate(COVARS, TREAT)
-  g_mod <- glm(fml, data = dat, family = binomial())
-  ps    <- pmin(pmax(predict(g_mod, type = "response"), TRUNC), 1 - TRUNC)
-  suppressWarnings(
-    m.out <- matchit(fml, data = dat, method = "nearest", ratio = 1,
-                     distance = qlogis(ps))
-  )
-  m.dat <- match.data(m.out)
-  .tmle_manual(m.dat[[OUTC]], m.dat[[TREAT]],
-               m.dat[, COVARS, drop = FALSE])
+  A <- dat[[TREAT]]; Y <- dat[[OUTC]]; W <- dat[,COVARS,drop=FALSE]
+  g_mod <- glm(reformulate(COVARS, TREAT), data=dat, family=binomial())
+  ps    <- pmin(pmax(predict(g_mod, type="response"), TRUNC), 1-TRUNC)
+  idx   <- .match_nn(A, qlogis(ps))
+  if (length(idx) < 10) stop("Too few matched pairs")
+  m     <- dat[idx, ]
+  .tmle_glm(m[[OUTC]], m[[TREAT]], m[,COVARS,drop=FALSE])
 }
 
-# Bootstrap for either estimator (estimator_fn takes a data frame, returns list).
-.bootstrap_se <- function(dat, estimator_fn, B = B_BOOT, seed = 1L) {
+# Generic bootstrap SE wrapper
+.boot_se <- function(dat, fn, B=B_BOOT, seed=1L) {
   set.seed(seed)
   n <- nrow(dat)
   boots <- vapply(seq_len(B), function(b) {
-    idx <- sample.int(n, n, replace = TRUE)
-    tryCatch(estimator_fn(dat[idx, , drop = FALSE])$estimate,
-             error = function(e) NA_real_)
+    idx <- sample.int(n, n, replace=TRUE)
+    tryCatch(fn(dat[idx,,drop=FALSE])$estimate, error=function(e) NA_real_)
   }, numeric(1))
   boots <- boots[is.finite(boots)]
-  if (length(boots) < 10L) return(list(se = NA_real_, ci = c(NA, NA)))
-  list(se = sd(boots),
-       ci = unname(quantile(boots, c(0.025, 0.975))))
+  if (length(boots) < 10L) return(list(se=NA_real_, ci=c(NA_real_, NA_real_)))
+  list(se=sd(boots), ci=unname(quantile(boots, c(0.025, 0.975))))
 }
 
 # ── MC loop ───────────────────────────────────────────────────────────────────
 
-run_scenario <- function(sc_label, overlap_strength, truth_rd) {
-  cat(sprintf("=== %s (true RD = %.5f) ===\n", sc_label, truth_rd)); .flush()
-  t0 <- Sys.time()
+run_scenario <- function(sc_label, overlap_strength) {
+  cat(sprintf("=== %s ===\n", sc_label)); .flush()
+  t0   <- Sys.time()
   rows <- vector("list", N_MC)
 
   for (i in seq_len(N_MC)) {
     dat <- generate_data(N_OBS, overlap_strength)
 
-    iptw_if   <- tryCatch(.iptw_fit(dat),       error = function(e) NULL)
-    iptw_boot <- tryCatch(.bootstrap_se(dat, .iptw_fit, seed = i),
-                          error = function(e) NULL)
-
-    mt_if   <- tryCatch(.match_tmle_fit(dat),   error = function(e) NULL)
-    mt_boot <- tryCatch(.bootstrap_se(dat, .match_tmle_fit, seed = i),
-                        error = function(e) NULL)
+    iptw_if   <- tryCatch(.iptw_fit(dat),         error=function(e) NULL)
+    iptw_boot <- tryCatch(.boot_se(dat,.iptw_fit,seed=i), error=function(e) NULL)
+    mt_if     <- tryCatch(.match_tmle_fit(dat),   error=function(e) NULL)
+    mt_boot   <- tryCatch(.boot_se(dat,.match_tmle_fit,seed=i), error=function(e) NULL)
 
     make_row <- function(method, if_fit, boot_fit) {
       if (is.null(if_fit)) return(NULL)
-      covers_if   <- as.integer(!is.na(if_fit$ci_lower) &&
-                                  if_fit$ci_lower <= truth_rd &&
-                                  truth_rd <= if_fit$ci_upper)
-      covers_boot <- if (!is.null(boot_fit) && all(is.finite(boot_fit$ci)))
+      cov_if   <- as.integer(!is.na(if_fit$ci_lower) &&
+                               if_fit$ci_lower <= truth_rd &&
+                               truth_rd <= if_fit$ci_upper)
+      cov_boot <- if (!is.null(boot_fit) && all(is.finite(boot_fit$ci)))
         as.integer(boot_fit$ci[1] <= truth_rd && truth_rd <= boot_fit$ci[2])
       else NA_integer_
-      data.frame(rep = i, method = method,
-                 estimate = if_fit$estimate,
-                 se_if = if_fit$se,
-                 se_boot = if (!is.null(boot_fit)) boot_fit$se else NA_real_,
-                 covers_if = covers_if, covers_boot = covers_boot,
-                 stringsAsFactors = FALSE)
+      data.frame(rep=i, method=method,
+                 estimate=if_fit$estimate, se_if=if_fit$se,
+                 se_boot=if(!is.null(boot_fit)) boot_fit$se else NA_real_,
+                 covers_if=cov_if, covers_boot=cov_boot,
+                 stringsAsFactors=FALSE)
     }
 
     rows[[i]] <- rbind(make_row("IPTW",       iptw_if, iptw_boot),
                        make_row("Match_TMLE", mt_if,   mt_boot))
 
     if (i %% 10 == 0) {
-      el  <- as.numeric(difftime(Sys.time(), t0, units = "mins"))
-      rem <- if (i > 1) el / i * (N_MC - i) else NA
+      el  <- as.numeric(difftime(Sys.time(), t0, units="mins"))
+      rem <- if (i>1) el/i*(N_MC-i) else NA
       cat(sprintf("  rep %d/%d  (%.1f min", i, N_MC, el))
       if (!is.na(rem)) cat(sprintf(", ~%.0f min remaining", rem))
       cat(")\n"); .flush()
@@ -221,57 +214,46 @@ run_scenario <- function(sc_label, overlap_strength, truth_rd) {
 }
 
 set.seed(SEED + 99L)
-
-results_A <- run_scenario("Scenario A: Good Overlap",     0.5, truth_A)
-results_B <- run_scenario("Scenario B: Marginal Overlap",  1.5, truth_B)
+results_A <- run_scenario("Scenario A: Good Overlap",    0.5)
+results_B <- run_scenario("Scenario B: Marginal Overlap", 1.5)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
-build_summary <- function(df, truth_rd) {
+build_summary <- function(df, truth) {
   do.call(rbind, lapply(unique(df$method), function(m) {
-    d  <- df[df$method == m & !is.na(df$estimate), ]
-    if (nrow(d) == 0) return(NULL)
-    emp_sd    <- sd(d$estimate)
-    mse_if    <- mean(d$se_if,   na.rm = TRUE)
-    mse_boot  <- mean(d$se_boot, na.rm = TRUE)
-    data.frame(
-      method           = m,
-      n_reps           = nrow(d),
-      bias             = round(mean(d$estimate) - truth_rd, 5),
-      emp_sd           = round(emp_sd,   5),
-      mean_se_if       = round(mse_if,   5),
-      se_sd_ratio_if   = round(mse_if  / emp_sd, 3),
-      coverage_if      = round(mean(d$covers_if,   na.rm = TRUE), 3),
-      mean_se_boot     = round(mse_boot, 5),
-      se_sd_ratio_boot = round(mse_boot / emp_sd, 3),
-      coverage_boot    = round(mean(d$covers_boot, na.rm = TRUE), 3),
-      stringsAsFactors = FALSE
-    )
+    d  <- df[df$method==m & !is.na(df$estimate), ]
+    if (nrow(d)==0) return(NULL)
+    emp <- sd(d$estimate)
+    mif  <- mean(d$se_if,   na.rm=TRUE)
+    mbt  <- mean(d$se_boot, na.rm=TRUE)
+    data.frame(method=m, n_reps=nrow(d),
+               bias=round(mean(d$estimate)-truth, 5),
+               emp_sd=round(emp,4),
+               mean_se_if=round(mif,4),  se_sd_ratio_if=round(mif/emp,3),
+               coverage_if=round(mean(d$covers_if,na.rm=TRUE),3),
+               mean_se_boot=round(mbt,4), se_sd_ratio_boot=round(mbt/emp,3),
+               coverage_boot=round(mean(d$covers_boot,na.rm=TRUE),3),
+               stringsAsFactors=FALSE)
   }))
 }
 
-summary_A <- build_summary(results_A, truth_A)
-summary_B <- build_summary(results_B, truth_B)
+smA <- build_summary(results_A, truth_rd)
+smB <- build_summary(results_B, truth_rd)
 
-cat("\n=== SUMMARY: Scenario A ===\n"); print(summary_A)
-cat("\n=== SUMMARY: Scenario B ===\n"); print(summary_B)
+cat("\n=== SUMMARY: Scenario A ===\n"); print(smA)
+cat("\n=== SUMMARY: Scenario B ===\n"); print(smB)
 .flush()
 
-combined <- rbind(cbind(scenario = "A: Good Overlap",    summary_A),
-                  cbind(scenario = "B: Marginal Overlap", summary_B))
+combined <- rbind(cbind(scenario="A: Good Overlap",    smA),
+                  cbind(scenario="B: Marginal Overlap", smB))
 
-saveRDS(list(results_A = results_A, results_B = results_B,
-             summary_A = summary_A, summary_B = summary_B,
-             combined  = combined,
-             config    = list(N_MC=N_MC, B_BOOT=B_BOOT, N_OBS=N_OBS,
-                              TRUNC=TRUNC, SEED=SEED),
-             truth     = list(A=truth_A, B=truth_B)),
+saveRDS(list(results_A=results_A, results_B=results_B,
+             summary_A=smA, summary_B=smB, combined=combined,
+             truth=truth_rd,
+             config=list(N_MC=N_MC,B_BOOT=B_BOOT,N_OBS=N_OBS,
+                         TRUNC=TRUNC,SEED=SEED)),
         file.path(out_dir, "bootstrap_variance.rds"))
-
-write.csv(combined, file.path(out_dir, "bootstrap_variance.csv"),
-          row.names = FALSE)
+write.csv(combined, file.path(out_dir, "bootstrap_variance.csv"), row.names=FALSE)
 
 cat(sprintf("\nCOMPLETED: %s\n", format(Sys.time())))
-cat("Output: results_new/bootstrap_variance.rds\n")
-cat("Output: results_new/bootstrap_variance.csv\n")
-cat("\nBOOTSTRAP_VARIANCE_DONE\n")
+cat("BOOTSTRAP_VARIANCE_DONE\n")
