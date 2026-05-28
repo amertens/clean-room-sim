@@ -1116,9 +1116,12 @@ This shifts the pre-outcome decision in three ways. First, the
 data-fitness argument becomes numeric and candidate-specific:
 instead of a prose claim that "the outcome ascertainment algorithm
 has reported sensitivity 0.90," the analyst sees that at
-sensitivity = 0.90 and specificity = 0.95 the bias of candidate
-`tmle_glmnet_t05` rises from 0.001 to 0.014, exceeding the
-prespecified threshold of 0.010. Second, the default
+sensitivity = 0.90 and specificity = 0.95 the bias of the selected
+candidate rises from near zero to 0.004, still within the
+prespecified threshold of 0.010. The steeper threat is unmeasured
+confounding: at OR$_A$ = OR$_Y$ = 2.0 the same candidate's bias
+reaches 0.010, touching the threshold, and RMSE rises by 9 %
+relative to the baseline plasmode. Second, the default
 `select_tmle_candidate()` rule, which picks the RMSE-minimiser on
 the baseline plasmode, gains the option `rule = "min_max_rmse"`,
 which selects the candidate with the lowest worst-case RMSE across
@@ -1254,15 +1257,16 @@ cp2     <- checkpoint_balance(ps_diag, max_smd = 0.10,
 audit   <- record_checkpoint(audit, cp2)
 
 # Stage 2b plasmode candidate selection + Stage 2c DQ stress test
+# Candidate grid: GLM PS only (trunc = 0.01 and 0.05).
+# SL.glmnet is excluded from the PS candidate grid because it
+# produces runaway computation on the near-positivity-violation
+# synthetic designs that the DQ stress test generates; GLM and
+# regularised PS are near-equivalent on this DGP (@sec-simulation).
 candidates <- list(
-  tmle_candidate("glm_t01",   "GLM PS, trunc=0.01",
-                 g_library = "SL.glm",     truncation = 0.01),
-  tmle_candidate("glm_t05",   "GLM PS, trunc=0.05",
-                 g_library = "SL.glm",     truncation = 0.05),
-  tmle_candidate("glmnet_t01","glmnet PS, trunc=0.01",
-                 g_library = "SL.glmnet",  truncation = 0.01),
-  tmle_candidate("glmnet_t05","glmnet PS, trunc=0.05",
-                 g_library = "SL.glmnet",  truncation = 0.05)
+  tmle_candidate("glm_t01", "GLM PS, trunc=0.01",
+                 g_library = "SL.glm", truncation = 0.01),
+  tmle_candidate("glm_t05", "GLM PS, trunc=0.05",
+                 g_library = "SL.glm", truncation = 0.05)
 )
 plas <- run_plasmode_feasibility(lock,
                                  tmle_candidates = candidates,
@@ -1501,14 +1505,20 @@ Three scenarios are run:
   and $Y$. The analyst's covariate set excludes $U$.
 
 For each scenario the DQ stress test is run on three covariate-
-missingness fractions (0.05, 0.10, 0.20); a $2 \times 2$ grid of
-treatment-ascertainment sensitivity (0.95, 0.90) by specificity
-(0.99, 0.95), giving four asymmetric (sens, spec) cells; the same
-$2 \times 2$ grid for outcome ascertainment; and a $2 \times 2$
-grid of unmeasured-confounder strengths
-($\text{OR}_A \in \{1.5, 2.0\}$ by $\text{OR}_Y \in \{1.5, 2.0\}$,
+missingness fractions (0.05, 0.10, 0.20); two paired
+treatment-ascertainment (sens, spec) cells (0.95, 0.99) and
+(0.90, 0.95); the same two paired cells for outcome ascertainment;
+and two paired unmeasured-confounder strengths
+($(\text{OR}_A, \text{OR}_Y) \in \{(1.5, 1.5),\, (2.0, 2.0)\}$
 with $U$ prevalence fixed at 0.20). Across the four threats this
-yields fifteen scenario × severity cells per Monte Carlo scenario.
+yields nine severity cells per Monte Carlo scenario. The PS candidate
+grid comprises two GLM-based specifications varying the truncation
+threshold ($t \in \{0.01, 0.05\}$); regularised-learner PS
+candidates are excluded from the stress-test grid because
+SL.glmnet produces runaway computation on the near-positivity-
+violation designs generated for Scenario B, and GLM and regularised
+PS produce near-identical plasmode metrics on this DGP (see
+@sec-limitations).
 
 We report 200 Monte Carlo replicates per scenario and give the Monte
 Carlo standard error of each coverage estimate alongside it; coverage
@@ -1917,7 +1927,19 @@ if (length(fiord_compare) > 0L) {
 }
 ```
 
-The case-study `glm_t01` and `glm_t05` candidates differ by < 0.001 on the simulation DGP because the propensity-score density never approaches 0 or 1, so both selectors typically agree. The contrast becomes informative when overlap is strained, when the candidate libraries differ in flexibility, or when severity ranges in the DQ stress test push some candidates off-coverage.
+With the two-candidate GLM-only grid used in @sec-simulation, the
+`glm_t01` and `glm_t05` candidates differ by less than 0.001 in
+RMSE across scenarios, so both selectors land on the same candidate
+in every case. The FIORD coverage screen is still informative as a
+diagnostic: under marginal overlap (Scenario B) neither candidate
+achieves oracle coverage within the 0.02 tolerance of nominal,
+which the table flags as "no candidate within tol". This reflects
+an inherent challenge of the near-positivity DGP rather than a
+failure of the GLM library. The selector contrast becomes
+substantively informative when the grid mixes learner libraries of
+different flexibility, when the outcome surface is nonlinear, or
+when severity ranges in the DQ stress test push some candidates
+off-coverage.
 
 ## Comparison with E-value-based sensitivity
 
@@ -2702,15 +2724,37 @@ covariate missingness is realistic for a given data source; the
 analyst has to cite a profiling or validation study. SPIFD2 makes
 the same demand qualitatively, and the DQ stress test inherits it.
 
+### PS candidate grid and learner stability
+
+The DQ stress test generates synthetic outcomes under degraded
+covariate, treatment, and confounder distributions, and then re-fits
+every candidate PS model on each synthetic dataset. The synthetic
+designs for Scenario B (marginal overlap, PS range 0.037--0.990)
+produced numerical instability in regularised learners: SL.glmnet
+ran away on computation with no convergence signal, inflating wall
+time by more than an order of magnitude relative to GLM. The
+simulation in @sec-simulation therefore uses a two-candidate GLM PS
+grid ($t \in \{0.01, 0.05\}$) for the DQ stress test; SL.glmnet is
+retained in the SuperLearner library for the cross-fitted TMLE
+nuisance fits, where it operates on the full (undegraded)
+observed-data sample. In practice, the GLM and regularised-learner
+PS produce near-identical plasmode metrics on the simple logistic DGP
+used here, so the omission does not change the candidate-selection
+outcome. Analysts with more complex DGPs or learner libraries that
+include tree-based or spline models should profile DQ-stress runtime
+on a small representative run before committing to a full grid.
+
 ### Computational cost
 
 Each scenario $\times$ severity adds a full set of plasmode
-replicates. With the configuration of @sec-simulation (50
-replicates per cell, fifteen scenario $\times$ severity cells, and
-four candidates) the test fits 3,000 TMLE models per Monte Carlo
-scenario. The default settings already use fewer replicates than
-the baseline plasmode (50 versus 200); for larger candidate grids,
-parallelising the outer loop over scenarios is the right next step.
+replicates. With the configuration of @sec-simulation (30
+replicates per cell, nine degraded severity cells plus one
+undegraded baseline, and two PS candidates) the test fits 600
+TMLE models per Monte Carlo scenario. For the three simulation
+scenarios combined, this totals 1,800 models, which completes
+in roughly three hours on a modern laptop. Larger candidate grids
+or higher replicate counts scale linearly; parallelising over
+severity cells is the most direct route for interactive use.
 
 ### Estimand scope
 
