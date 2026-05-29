@@ -3019,6 +3019,43 @@ running. The package is available at
 the simulation code for the results in @sec-simulation is in
 the companion repository <https://github.com/amertens/clean-room-sim>.
 
+# Reproducibility {#sec-reproducibility}
+
+The cleanTMLE package ships 17 testthat test files covering the core
+workflow: analysis-lock creation and validation, staged checkpoints and
+decision thresholds, DQ stress-test mechanics and degradation gradients,
+bootstrap and influence-function variance estimators (including the
+`"match_tmle"` estimator), event-process helpers, plasmode simulation,
+stage-gate authorisation, estimator ground-truth comparisons against
+`tmle::tmle()`, and reporting tables. Tests are run on every push via
+the repository's continuous-integration configuration
+(`cleanTMLE/tests/testthat/`). The experimental time-to-event estimators
+have separate test files and are tagged accordingly.
+
+The simulation results reported in this paper are produced by three
+scripts in the companion repository
+(<https://github.com/amertens/clean-room-sim>). Each script writes its
+output to the `results/` directory, which is tracked in the repository
+for the files listed below.
+
+| Script | Output file(s) | Figures / tables |
+|---|---|---|
+| `run_simulation.R` | `results/simulation_results.rds` | @tbl-mc-metrics, @fig-mc-boxplots, @fig-coverage-bar, @fig-se-calibration, @fig-mc-forest, @fig-dq-degradation |
+| `run_gate_operating_characteristics.R` | `results/gate_oc.rds` | @sec-gate-oc figures |
+| `_bootstrap_variance.R` | `results/bootstrap_variance.rds`, `results/bootstrap_variance.csv` | @tbl-boot-variance |
+| `inst/extdata/rescueco_dq_full.R` | `results/rescueco_dq_full.rds` | Case-study DQ subsection (@sec-casestudy-dq) |
+
+: Script-to-output map. Running all four scripts in order fully
+regenerates the tracked simulation outputs; rendering the `.qmd` then
+produces all figures and tables. The underscore-prefixed scripts
+(`dev/`) are diagnostic utilities not required for manuscript
+reproduction.
+
+The bundled configuration (`config/clean_room_config.yml`) runs
+Stage 2c at 3 replicates per threat-severity cell for fast
+reproducibility verification. The full 200-replicate run for the case
+study DQ results uses `inst/extdata/rescueco_dq_full.R`.
+
 # Appendix {#sec-appendix .unnumbered}
 
 ## Conceptual layers of the workflow
