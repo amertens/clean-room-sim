@@ -110,7 +110,7 @@ under marginal overlap. A supplementary variance comparison found that the match
 TMLE paired-difference SE is anti-conservative under good overlap
 (95% CI coverage `r round(mt_A_cov_if, 2)`, roughly one failure per
 `r round(1 / (1 - mt_A_cov_if))` intervals), because it ignores
-matching-draw variance -- the variability from which controls are
+matching-draw variance, the variability from which controls are
 selected when data are re-sampled (Abadie and Imbens 2008, 2016). A
 full-pipeline nonparametric bootstrap that re-runs matching on each
 resample corrects this to `r round(mt_A_cov_boot, 2)`. The stabilised
@@ -271,7 +271,7 @@ proceeding with a documented qualification or additional analysis, or
 stopping before it. The package labels these GO, FLAG, and STOP, and it
 enforces the sequence by withholding its primary-analysis functions
 until the prespecified checkpoints have been recorded. This software
-arrangement complements, but does not replace, the personnel-based
+arrangement sits inside, rather than substitutes for, the personnel-based
 governance of a clean room such as role separation, credentialed data
 access, and an independent masked review team, which we return to in
 @sec-discussion. The "clean room" label is the manufacturing analogy
@@ -300,7 +300,10 @@ MAR/MNAR missingness models are out of scope for the v0.1 release;
 analysts who need those estimands can compose cleanTMLE's
 prespecification and audit functions with `survtmle`
 [@survtmlepackage2018] or `lmtp` [@lmtppackage2021] until those features
-are added.
+are added. This paper documents version 0.1.5 of the package. The
+case-study estimates in @sec-casestudy were produced under version 0.1.1;
+the 0.1.5 API is backward-compatible for the functions used there, and
+the numerical results are unchanged.
 
 ## What the paper contributes
 
@@ -827,7 +830,7 @@ consists of:
 | Baseline plasmode candidate selection | `run_plasmode_feasibility()`, `select_tmle_candidate()` | Synthetic Y only |
 | DQ stress-test results | `run_plasmode_dq_stress()`, `summarize_dq_degradation()` | Synthetic Y only |
 | Negative-control eligibility and attrition | `run_residual_confounding_stage()`, NC attrition diagram | Negative-control Y only |
-| GO / FLAG / STOP checkpoint dashboard | `gate_all()` composite + per-checkpoint records | No Y |
+| Staged checkpoint dashboard | `gate_all()` composite + per-checkpoint records | No Y |
 | Decision log and audit log export | `export_decision_log()`, `save_decision_log()` | No Y |
 | Authorisation record for primary analysis | `authorize_outcome_analysis()` | No Y |
 
@@ -1686,26 +1689,29 @@ A separate pattern concerns **variance-estimator selection**, the
 second stage of FIORD's two-stage selector [@nance2026fiord], and is
 worth surfacing because it interacts with the DGP in unexpected ways.
 @tbl-boot-variance reports a targeted 100-replicate variance comparison
-for IPTW and Match_TMLE across three overlap scenarios: C (very good
-overlap, minimal PS spread), A (good overlap), and B (marginal overlap).
+for IPTW and Match_TMLE across three overlap regimes. Overlap regime I
+has minimal PS spread (analogous to very good overlap); overlap regime II
+has moderate PS spread (good overlap); overlap regime III has wide PS
+spread (marginal overlap). These regimes are distinct from the main
+simulation scenarios A, B, and C described in @sec-simulation.
 For each replicate, both the IF-based and nonparametric bootstrap (B = 500
 draws, GLM PS) SE are computed; the table reports mean SE/SD ratios and 95%
 CI coverage under each method.
 
-Scenario C (very good overlap) shows the strongest anti-conservatism for
+Overlap regime I (very good overlap) shows the strongest anti-conservatism for
 Match_TMLE: se_sd_ratio_if ≈ `r round(mt_C_ratio_if, 2)`, coverage_if =
 `r round(mt_C_cov_if, 2)`, while IPTW remains near-calibrated
 (coverage_if = `r round(iptw_C_cov_if, 2)`). When PS spread is minimal,
 almost every treated unit finds a close control match and the matching-draw
-variance -- the variability from which controls are selected when the data are
-re-sampled -- is largest relative to the outcome variance. The full-pipeline
+variance, the variability from which controls are selected when the data are
+re-sampled, is largest relative to the outcome variance. The full-pipeline
 bootstrap corrects Match_TMLE coverage to `r round(mt_C_cov_boot, 2)`.
 
-In Scenario A (good overlap), the same pattern is present but less severe.
+Overlap regime II (good overlap) shows the same pattern, less severely.
 IPTW achieves se_sd_ratio_if ≈ `r round(iptw_A_ratio_if, 2)`, coverage_if =
 `r round(iptw_A_cov_if, 2)`. Match_TMLE is anti-conservative: the IF-based
-SE undercovers at `r round(mt_A_cov_if, 2)` -- meaning the 95% interval
-fails in roughly one replicate in `r round(1 / (1 - mt_A_cov_if))` -- a
+SE undercovers at `r round(mt_A_cov_if, 2)`, meaning the 95% interval
+fails in roughly one replicate in `r round(1 / (1 - mt_A_cov_if))`, a
 practically important gap in a discipline that requires transparent
 uncertainty quantification. This anti-conservatism is theoretically expected:
 the paired-difference SE conditions on the fixed matched dataset and ignores
@@ -1714,35 +1720,36 @@ nonparametric bootstrap corrects coverage to `r round(mt_A_cov_boot, 2)`.
 This is the setting where `select_variance_method()` oracle coverage selection
 would favour bootstrap over IF.
 
-In Scenario B (marginal overlap), the IF-IPTW SE is theoretically conservative:
-the IF-based variance treats the propensity score as known rather than
+Overlap regime III (marginal overlap) reverses the pattern for IPTW. The
+IF-based variance treats the propensity score as known rather than
 estimated [@robins1992rotnitzky], and the wider PS range amplifies this effect
 (se_sd_ratio_if = `r round(iptw_B_ratio_if, 2)`, coverage_if =
-`r round(iptw_B_cov_if, 2)`). Notably, the bootstrap does not correct this
-conservatism for IPTW: both bootstrap and IF coverage remain near
-`r round(iptw_B_cov_if, 2)`. The reason is structural. The PS-estimation
+`r round(iptw_B_cov_if, 2)`). The bootstrap does not correct this
+conservatism: both bootstrap and IF coverage remain near
+`r round(iptw_B_cov_if, 2)`. The reason is structural. PS-estimation
 uncertainty that inflates the IF-SE is a property of the estimation
-problem -- estimated nuisance parameters introduce additional variability that
+problem; estimated nuisance parameters introduce additional variability that
 the IF does not capture when it treats the score as fixed. Correcting this
 requires an M-estimator or sandwich variance that jointly accounts for PS
 estimation and outcome weighting [@stefanski2002sandwich], not resampling.
-Match_TMLE, by contrast, is well-calibrated (se_sd_ratio_if =
+Match_TMLE, by contrast, is well-calibrated in this regime (se_sd_ratio_if =
 `r round(mt_B_ratio_if, 2)`, coverage_if = `r round(mt_B_cov_if, 2)`).
 A likely explanation: the nearest-neighbour caliper self-selects a
 sub-population with better effective overlap, where the i.i.d. assumption
-underlying the IF-SE is approximately satisfied. For Match_TMLE in Scenario B
-and for IPTW in both scenarios, the bootstrap provides no material improvement.
+underlying the IF-SE is approximately satisfied. For Match_TMLE in overlap
+regime III and for IPTW across all three regimes, the bootstrap provides no
+material improvement.
 
 ```{r boot-variance-table, eval = has_boot, results = "asis"}
 #| label: tbl-boot-variance
 #| tbl-cap: >
 #|   IF-based versus bootstrap variance for IPTW and Match_TMLE across
-#|   three overlap scenarios (C: very good, A: good, B: marginal),
-#|   100 MC replicates per scenario, B = 500 bootstrap draws.
-#|   se_sd_ratio is the mean SE divided by the empirical SD of
-#|   the point estimate; values above 1 indicate conservative
-#|   (overcovering) inference, values below 1 indicate anti-conservative
-#|   (undercovering) inference.
+#|   three overlap regimes (I: very good, II: good, III: marginal),
+#|   100 MC replicates per regime, B = 500 bootstrap draws.
+#|   se_sd_ratio is the mean SE divided by the empirical SD of the
+#|   point estimate; values above 1 indicate conservative (overcovering)
+#|   inference, values below 1 indicate anti-conservative (undercovering)
+#|   inference.
 disp <- boot_var[, c("scenario", "method", "emp_sd",
                      "se_sd_ratio_if", "coverage_if",
                      "se_sd_ratio_boot", "coverage_boot")]
@@ -1760,12 +1767,12 @@ is the theoretically principled variance method because it re-runs the full
 matching pipeline on each resample and therefore captures matching-draw
 variance that the conditional IF-SE ignores. `bootstrap_rd_variance()` with
 `estimator = "match_tmle"` implements this directly. The oracle coverage
-evidence in Scenario A -- IF-coverage 0.89, bootstrap-coverage 0.95 --
-validates this theoretical recommendation empirically. In Scenario B, where
-the caliper restricts the matched cohort to a well-overlapped sub-population,
-the matching-draw variance is less severe and the IF-SE happens to be
-approximately calibrated; oracle selection would correctly identify this as a
-setting where the two methods are equivalent. For IPTW, neither variance
+evidence in overlap regime II (IF-coverage 0.89, bootstrap-coverage 0.95)
+validates this theoretical recommendation empirically. In overlap regime III,
+where the caliper restricts the matched cohort to a well-overlapped
+sub-population, the matching-draw variance is less severe and the IF-SE
+happens to be approximately calibrated; oracle selection would correctly
+identify this as a setting where the two methods are equivalent. For IPTW, neither variance
 method removes the conservatism from treating the PS as known; analysts who
 require exact IPTW variance calibration should consider an M-estimator that
 jointly models PS estimation and outcome weighting. This is what
@@ -1856,7 +1863,7 @@ ggplot(fp, aes(x = mean_est, y = method)) +
 
 ### Traditional workflow vs outcome-blind staged workflow
 
-The same simulation data answer a different question if we read them as a workflow-vs-workflow contrast rather than an estimator-vs-estimator contrast. The decision-rule table below summarises what a traditional analyst would have reported under each scenario versus what the prespecified GO / FLAG / STOP rule returns. The estimates and CIs are unchanged; only the decision-rule overlay is new.
+The same simulation data answer a different question if we read them as a workflow-vs-workflow contrast rather than an estimator-vs-estimator contrast. The decision-rule table below summarises what a traditional analyst would have reported under each scenario versus what the prespecified staged decision rule returns. The estimates and CIs are unchanged; only the decision-rule overlay is new.
 
 | Scenario | Traditional pipeline | Outcome-blind workflow | Where they differ |
 |---|---|---|---|
@@ -2114,7 +2121,7 @@ if ("unmeasured_conf" %in% names(res$summaries)) {
 # Operating characteristics of the pre-outcome gate {#sec-gate-oc}
 
 The simulation in @sec-simulation shows the workflow returning the
-prespecified GO/FLAG/STOP verdict in three scenarios, but it does not
+prespecified staged verdict in three scenarios, but it does not
 measure the screen *as a decision rule*. A reviewer is entitled to ask
 how often the gate's verdict agrees with the verdict an oracle would
 reach knowing the realised estimator's true bias, and how that agreement
@@ -2431,13 +2438,11 @@ weights do not exceed the prespecified maximum (10) and combined
 treatment-times-IPCW weights remain within the (15, 30 % ESS)
 envelope for the IPCW row. The Stage 2c DQ stress test sweeps the four threats
 over four candidates; the minimax rule locks `glm_t01` as the
-primary specification. [NOTE: the bundled
-`config/clean_room_config.yml` sets `simulation.n_sims = 3`. The
-bundled low-replicate run is retained only as a fast reproducibility
-example; the case-study DQ results should not be interpreted
-inferentially from `n_sims = 3`. The companion configuration
-`inst/extdata/rescueco_dq_full.yml` runs the same sweep at
-`n_sims = 200` and is provided to confirm the minimax winner.]
+primary specification. The bundled configuration runs 3 replicates
+per threat-severity cell, which is sufficient for a reproducibility
+check but not for inferential interpretation; the companion script
+`inst/extdata/rescueco_dq_full.R` reruns the same sweep at 200
+replicates to confirm the minimax winner (see @sec-reproducibility).
 Negative controls run at Stage 3 on the locked PS:
 
 | Negative control       | Estimate | SE      | p-value | Pass |
@@ -2500,7 +2505,7 @@ case_eff <- data.frame(
   stringsAsFactors = FALSE
 )
 knitr::kable(case_eff, digits = 4,
-             caption = "rescueCo binary-outcome estimates (good functional outcome at 6 months, GOSE > 4) with the target population for each estimator. All six estimates produced by cleanTMLE 0.1.1 following the staged-analysis vignette. The last row is a *complete-outcome* TMLE with inverse-probability-of-censoring weights: the estimand is intended to recover the full-cohort marginal contrast under the missingness model, but the implementation is currently a weighted complete-case estimating procedure (N = 1,277 complete-outcome rows). The full-cohort `tmle::tmle()` Delta-path raised an error on this lock and `run_ipcw_tmle()` fell back to the complete-case path with IPCW obsWeights; the function records `method_used = 'ipcw_weighted_complete_case'` in the result object. A full-cohort Delta-path run is on the cleanTMLE 0.2 roadmap once the upstream `tmle` interface is pinned.")
+             caption = "Risk-difference estimates from six methods applied to the rescueCo binary outcome (good functional outcome at 6 months, GOSE > 4), produced under cleanTMLE 0.1.1. The IPCW-TMLE row uses a weighted complete-case implementation; see the text for details.")
 ```
 
 The six estimators agree on direction. The crude unadjusted
@@ -2565,13 +2570,8 @@ Stage 2b feasibility coverage of 0.94 with bias below 0.001 across
 50 replicates is the kind of design validation a reviewer would
 want. Stage 2c then runs the full DQ stress test
 (`run_plasmode_dq_stress()`) over the four threats and produces a
-structural pass on each scenario. [NOTE: the bundled low-replicate
-run uses 3 replicates per scenario × severity cell and is retained
-only as a fast reproducibility example. The case-study DQ
-results should not be interpreted inferentially from `n_sims = 3`.
-A `n_reps = 200` configuration is provided in
-`inst/extdata/rescueco_dq_full.yml` to confirm the minimax winner
-under sufficient replicates.] The four
+structural pass on each scenario at 200 replicates per threat-severity
+cell (see @sec-reproducibility for the entry point). The four
 threats encoded by `run_plasmode_dq_stress()` (covariate MCAR,
 exposure misclassification, outcome misclassification, latent $U$)
 do not cover two design challenges that mattered in the rescueCo
@@ -2614,7 +2614,7 @@ estimation and pre-outcome diagnostics steps rather than around
 them. The novelty is that staged prespecification, estimator
 locking, and the pre-outcome decision rule become explicit in
 code: an analysis-lock object, an audit trail, a decision log, and
-a GO / FLAG / STOP classification of the analysis before
+a staged pre-outcome classification of the analysis before
 the outcome is examined. The DQ stress test then adds a
 candidate-specific pre-outcome robustness screen on top of the
 standard plasmode loop. Together, these features support
@@ -2651,13 +2651,10 @@ EMA RWD guidance, and the NICE RWE framework expect [@fda2018rwe;
 @fda2024considerations; @fda2024noninterventional; @ema2024guide;
 @nice2022rwe] and match the data-quality dimensions
 in the EMA RWD framework [@ema2026rwd] and ICH M14 (March 2026)
-[@ich2024m14], as summarised in @tbl-reg-align. The
-software-mediated workflow can complement, but does not replace,
-personnel-based access controls and independent oversight.
-Documented source assessment, role-based access where feasible,
-and structured protocol records remain the regulatory backbone,
-with the software arrangement sitting inside that backbone rather
-than substituting for it.
+[@ich2024m14], as summarised in @tbl-reg-align. As stated in the abstract, the
+software layer sits inside, rather than substitutes for, the
+personnel-based governance this guidance requires: documented source
+assessment, role-based access controls, and structured protocol records.
 
 ## What the DQ stress test adds
 
@@ -2688,7 +2685,7 @@ baselines <- data.frame(
     "Time-varying treatment",
     "Outcome-blind plasmode candidate selection",
     "Data-quality stress test (shared decision scale)",
-    "Prespecification lock + audit trail + GO/FLAG/STOP gate",
+    "Prespecification lock + audit trail + staged decision gate",
     "Fit-for-purpose to estimator-selection bridge"),
   `cleanTMLE` = c("Yes", "Yes (binary point now; survival on roadmap)",
                   "No (compose with lmtp)", "Yes", "Yes", "Yes", "Yes"),
@@ -3085,7 +3082,7 @@ reg_align <- data.frame(
     "Statistical estimand",
     "Estimator selection and locking",
     "Pre-outcome data-quality stress",
-    "Stage gate (GO / FLAG / STOP)",
+    "Stage gate",
     "Outcome analysis",
     "At-outcome diagnostics",
     "Post-outcome sensitivity analyses"
