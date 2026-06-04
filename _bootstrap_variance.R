@@ -33,7 +33,8 @@ cat(sprintf("Started: %s\n\n", format(Sys.time())))
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 N_MC    <- 100L
-B_BOOT  <- 500L
+B_BOOT  <- 200L   # reduced from 500 for tractable runtime; 200 draws suffice
+                  # for a percentile interval and a coverage estimate
 N_OBS   <- 2000L
 N_TRUTH <- 500000L
 TRUNC   <- 0.05

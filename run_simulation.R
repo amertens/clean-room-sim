@@ -56,7 +56,9 @@ config <- list(
   dq_reps         = 30L,     # plasmode reps per DQ scenario level
 
   # SuperLearner library used for: per-replicate TMLE_CF, plasmode-Q, etc.
-  sl_library      = c("SL.glm", "SL.glmnet", "SL.mean"),
+  # SL.glmnet.bounded is the run-away-safe regularised learner (bounded lambda
+  # path, folds, and iterations) shipped by cleanTMLE.
+  sl_library      = c("SL.glm", "SL.glmnet.bounded", "SL.mean"),
 
   # Cross-fitting folds for TMLE_CF
   n_folds         = 2L,
@@ -74,7 +76,7 @@ config <- list(
     se_sd_high   = 1.3
   ),
 
-  results_dir = "results",
+  results_dir = "results_new",
   seed        = 2026L
 )
 
@@ -221,15 +223,23 @@ cat("\n"); .flush()
 # "all candidates produce identical metrics" tiebreak we observed when the
 # grid varied truncation alone.
 
-# NOTE: glmnet candidates dropped. SL.glmnet runs away (CPU/memory spin) on the
-# near-positivity-violation marginal-overlap synthetic designs in the DQ stress
-# test; glm and glmnet are near-equivalent on this DGP (see manuscript
-# Sec. plasmode), and GLM PS gives bounded, stable fits.
+# Candidate grid: three truncation levels that separate under the DQ sweep.
+# Truncation is the lever that trades baseline efficiency against fragility:
+# the heaviest truncation minimises baseline RMSE (lowest IPW variance) but is
+# the most exposed to unmeasured confounding, the lightest is destroyed by the
+# near-positivity threat, and the intermediate hedges. This is the grid that
+# exhibits the min_rmse versus min_max_rmse divergence (@sec-divergence).
+# SL.glmnet was previously dropped because it ran away on near-positivity
+# designs; the package now ships SL.glmnet.bounded (bounded lambda path, folds,
+# and iterations) which cannot run away and is used for the cross-fitted TMLE
+# nuisance library below.
 tmle_candidates <- list(
-  tmle_candidate("glm_t01",    "GLM PS, trunc=0.01",
-                 g_library = "SL.glm",     truncation = 0.01),
-  tmle_candidate("glm_t05",    "GLM PS, trunc=0.05",
-                 g_library = "SL.glm",     truncation = 0.05)
+  tmle_candidate("aggressive", "GLM PS, trunc=0.001",
+                 g_library = "SL.glm",     truncation = 0.001),
+  tmle_candidate("middle",     "GLM PS, trunc=0.025",
+                 g_library = "SL.glm",     truncation = 0.025),
+  tmle_candidate("robust",     "GLM PS, trunc=0.20",
+                 g_library = "SL.glm",     truncation = 0.20)
 )
 
 
@@ -238,6 +248,9 @@ tmle_candidates <- list(
 # misclassification, plus a per-arm differential outcome scenario.
 
 dq_spec <- list(
+  near_positivity = list(
+    slopes = c(2.0, 3.0, 4.0)   # amplify covariate->treatment slopes (PS -> 0/1)
+  ),
   covariate_missingness = list(
     fractions = c(0.05, 0.10, 0.20),
     variables = NULL    # all covariates
@@ -252,8 +265,8 @@ dq_spec <- list(
   ),
   unmeasured_confounding = list(
     U_prevalence   = 0.20,
-    U_treatment_OR = c(1.5, 2.0),
-    U_outcome_OR   = c(1.5, 2.0)
+    U_treatment_OR = c(2.0, 3.0, 4.0, 6.0, 8.0),
+    U_outcome_OR   = c(2.0, 3.0, 4.0, 6.0, 8.0)
   )
 )
 
@@ -302,7 +315,7 @@ run_one_replicate <- function(dat, lock, ps_fit, truth_rd, n_folds = 1L) {
         treatment  = lock$treatment,
         outcome    = lock$outcome,
         covariates = covariates,
-        sl_library = c("SL.glm", "SL.glmnet", "SL.mean"),
+        sl_library = c("SL.glm", "SL.glmnet.bounded", "SL.mean"),
         truncate   = if (!is.null(lock$primary_tmle_spec))
                        lock$primary_tmle_spec$truncation else 0.01,
         n_folds    = n_folds
