@@ -80,6 +80,18 @@ config <- list(
   seed        = 2026L
 )
 
+# Environment-variable overrides for high-rep and sample-size-sweep runs, e.g.
+#   SIM_REPS=1000 SIM_NOBS=5000 SIM_RESULTS=results_n5000 Rscript run_simulation.R
+# Defaults reproduce the standard run. SIM_RESULTS lets an N-sweep write each
+# sample size to its own directory without overwriting.
+.envint <- function(name, default) {
+  v <- Sys.getenv(name); if (nzchar(v)) as.integer(v) else default
+}
+config$n_reps   <- .envint("SIM_REPS",   config$n_reps)
+config$n_obs    <- .envint("SIM_NOBS",   config$n_obs)
+config$dq_reps  <- .envint("SIM_DQREPS", config$dq_reps)
+if (nzchar(Sys.getenv("SIM_RESULTS"))) config$results_dir <- Sys.getenv("SIM_RESULTS")
+
 if (!dir.exists(config$results_dir)) dir.create(config$results_dir, recursive = TRUE)
 
 cat("============================================================\n")
@@ -96,7 +108,8 @@ cat("============================================================\n\n")
 
 generate_data <- function(n, overlap_strength = 0.5, effect_size = -0.05,
                           seed = NULL,
-                          U_prevalence = 0, U_trt_OR = 1, U_out_OR = 1) {
+                          U_prevalence = 0, U_trt_OR = 1, U_out_OR = 1,
+                          misspec = FALSE) {
   if (!is.null(seed)) set.seed(seed)
 
   age         <- rnorm(n, mean = 55, sd = 10)
@@ -108,24 +121,41 @@ generate_data <- function(n, overlap_strength = 0.5, effect_size = -0.05,
   # Unmeasured confounder (not returned in the data frame the analyst sees).
   U <- if (U_prevalence > 0) rbinom(n, 1, U_prevalence) else rep(0L, n)
 
-  lp_trt <- -0.5 +
-    overlap_strength * (0.03 * (age - 55) +
-                        0.8 * sex +
-                        0.6 * biomarker +
-                        0.5 * ckd +
-                        0.3 * comorbidity) +
-    log(U_trt_OR) * U
-  ps_true <- plogis(lp_trt)
-  treatment <- rbinom(n, 1, ps_true)
-
-  lp_out <- -2.5 +
-    0.015 * (age - 55) +
-    0.3 * sex +
-    0.2 * biomarker +
-    0.6 * ckd +
-    0.25 * comorbidity +
-    effect_size / 0.15 * treatment +
-    log(U_out_OR) * U
+  if (misspec) {
+    # Misspecified-surface DGP (Scenario D). Both nuisances are nonlinear:
+    # a quadratic in (standardised) age and a sex x biomarker interaction, and
+    # the treatment effect is modified by sex. A main-effects GLM is therefore
+    # wrong for BOTH the PS and the outcome, so double robustness cannot rescue
+    # it, while a flexible learner (gam + interactions) can. The PS nonlinearity
+    # is the symmetric interaction, which does not pile the PS at 0/1.
+    a <- (age - 55) / 10
+    lp_trt <- -0.1 + 0.5 * a + 1.0 * sex * biomarker + 0.5 * ckd +
+      0.2 * comorbidity + log(U_trt_OR) * U
+    ps_true <- plogis(lp_trt)
+    treatment <- rbinom(n, 1, ps_true)
+    lp_out <- -0.6 + 0.4 * a + 0.7 * a^2 + 1.0 * sex * biomarker +
+      0.6 * ckd + 0.3 * comorbidity +
+      effect_size / 0.15 * treatment * (1 + 0.4 * sex) +
+      log(U_out_OR) * U
+  } else {
+    lp_trt <- -0.5 +
+      overlap_strength * (0.03 * (age - 55) +
+                          0.8 * sex +
+                          0.6 * biomarker +
+                          0.5 * ckd +
+                          0.3 * comorbidity) +
+      log(U_trt_OR) * U
+    ps_true <- plogis(lp_trt)
+    treatment <- rbinom(n, 1, ps_true)
+    lp_out <- -2.5 +
+      0.015 * (age - 55) +
+      0.3 * sex +
+      0.2 * biomarker +
+      0.6 * ckd +
+      0.25 * comorbidity +
+      effect_size / 0.15 * treatment +
+      log(U_out_OR) * U
+  }
 
   event_24 <- rbinom(n, 1, plogis(lp_out))
 
@@ -148,7 +178,7 @@ generate_data <- function(n, overlap_strength = 0.5, effect_size = -0.05,
 
 
 compute_truth <- function(n_truth, overlap_strength, effect_size, seed,
-                          U_prevalence = 0, U_out_OR = 1) {
+                          U_prevalence = 0, U_out_OR = 1, misspec = FALSE) {
   set.seed(seed)
   age         <- rnorm(n_truth, mean = 55, sd = 10)
   sex         <- rbinom(n_truth, 1, 0.55)
@@ -156,6 +186,18 @@ compute_truth <- function(n_truth, overlap_strength, effect_size, seed,
   comorbidity <- sample(0:2, n_truth, replace = TRUE, prob = c(0.5, 0.3, 0.2))
   ckd         <- rbinom(n_truth, 1, 0.12)
   U           <- if (U_prevalence > 0) rbinom(n_truth, 1, U_prevalence) else rep(0L, n_truth)
+
+  coef_trt <- effect_size / 0.15
+  if (misspec) {
+    a <- (age - 55) / 10
+    lp_out_base <- -0.6 + 0.4 * a + 0.7 * a^2 + 1.0 * sex * biomarker +
+      0.6 * ckd + 0.3 * comorbidity + log(U_out_OR) * U
+    # Treatment effect is modified by sex, so the marginal contrast integrates
+    # the arm-specific coefficient over the covariate distribution.
+    risk_1 <- mean(plogis(lp_out_base + coef_trt * (1 + 0.4 * sex)))
+    risk_0 <- mean(plogis(lp_out_base))
+    return(list(risk_1 = risk_1, risk_0 = risk_0, RD = risk_1 - risk_0))
+  }
 
   lp_out_base <- -2.5 +
     0.015 * (age - 55) +
@@ -165,7 +207,6 @@ compute_truth <- function(n_truth, overlap_strength, effect_size, seed,
     0.25 * comorbidity +
     log(U_out_OR) * U
 
-  coef_trt <- effect_size / 0.15
   risk_1 <- mean(plogis(lp_out_base + coef_trt))
   risk_0 <- mean(plogis(lp_out_base))
 
@@ -196,6 +237,16 @@ scenarios <- list(
     U_trt_OR         = 2.0,
     U_out_OR         = 2.0,
     description      = "Good measured overlap, but binary U (prev=0.20, OR=2.0) confounds A and Y."
+  ),
+  misspecified = list(
+    label            = "Scenario D: Misspecified Surface",
+    overlap_strength = 0.5,        # unused under misspec (kept for signature)
+    effect_size      = -0.05,
+    misspec          = TRUE,
+    # Scenario-specific flexible library so the cross-fitted TMLE can adapt to
+    # the nonlinear surface; the linear scenarios keep the default library.
+    sl_library       = c("SL.glm", "SL.gam", "SL.glm.interaction", "SL.mean"),
+    description      = "Nonlinear PS and outcome (quadratic age, sex-by-biomarker interaction) with sex effect modification; a main-effects GLM is misspecified for both nuisances."
   )
 )
 
@@ -209,7 +260,8 @@ truths <- lapply(scenarios, function(sc) {
   compute_truth(config$n_truth, sc$overlap_strength, sc$effect_size,
                 seed = config$seed,
                 U_prevalence = sc$U_prevalence %||% 0,
-                U_out_OR     = sc$U_out_OR %||% 1)
+                U_out_OR     = sc$U_out_OR %||% 1,
+                misspec      = sc$misspec %||% FALSE)
 })
 for (nm in names(truths)) {
   cat(sprintf("  %s: true RD = %.5f\n", scenarios[[nm]]$label, truths[[nm]]$RD))
@@ -251,9 +303,19 @@ dq_spec <- list(
   near_positivity = list(
     slopes = c(2.0, 3.0, 4.0)   # amplify covariate->treatment slopes (PS -> 0/1)
   ),
-  covariate_missingness = list(
+  covariate_missingness = list(       # MCAR + median impute (unbiased under MCAR)
     fractions = c(0.05, 0.10, 0.20),
     variables = NULL    # all covariates
+  ),
+  covariate_missingness_mar = list(   # MAR (treatment-dependent) + median impute
+    fractions   = c(0.10, 0.20),
+    treatment_OR = 3,
+    variables   = NULL
+  ),
+  covariate_missingness_mnar = list(  # MNAR (value-dependent) + median impute
+    fractions = c(0.10, 0.20),
+    strength  = 1.5,
+    variables = NULL
   ),
   treatment_misclass = list(
     sensitivity = c(0.95, 0.90),
@@ -275,7 +337,8 @@ dq_spec <- list(
 # Receives the unmasked lock for Stage 4 estimation. Each estimator is
 # wrapped in tryCatch so a single failure does not abort the rep.
 
-run_one_replicate <- function(dat, lock, ps_fit, truth_rd, n_folds = 1L) {
+run_one_replicate <- function(dat, lock, ps_fit, truth_rd, n_folds = 1L,
+                              sl_library = c("SL.glm", "SL.glmnet.bounded", "SL.mean")) {
   covariates <- lock$covariates
 
   results <- list()
@@ -315,7 +378,7 @@ run_one_replicate <- function(dat, lock, ps_fit, truth_rd, n_folds = 1L) {
         treatment  = lock$treatment,
         outcome    = lock$outcome,
         covariates = covariates,
-        sl_library = c("SL.glm", "SL.glmnet.bounded", "SL.mean"),
+        sl_library = sl_library,
         truncate   = if (!is.null(lock$primary_tmle_spec))
                        lock$primary_tmle_spec$truncation else 0.01,
         n_folds    = n_folds
@@ -364,9 +427,9 @@ build_summary_table <- function(results_df, truth_rd) {
 
     if (n_ok == 0) {
       return(data.frame(
-        method = m, n_ok = 0, mean_est = NA, bias = NA, abs_bias = NA,
-        emp_sd = NA, mean_se = NA, se_sd_ratio = NA, rmse = NA,
-        coverage = NA, mc_se_cov = NA, ci_width = NA,
+        method = m, n_ok = 0, mean_est = NA, bias = NA, mc_se_bias = NA,
+        abs_bias = NA, emp_sd = NA, mean_se = NA, se_sd_ratio = NA, rmse = NA,
+        mc_se_rmse = NA, coverage = NA, mc_se_cov = NA, ci_width = NA,
         stringsAsFactors = FALSE
       ))
     }
@@ -378,16 +441,25 @@ build_summary_table <- function(results_df, truth_rd) {
     cov_p     <- mean(sub$covers[valid], na.rm = TRUE)
     mc_se_cov <- sqrt(cov_p * (1 - cov_p) / n_ok)
 
+    # Monte Carlo standard errors (Morris, White & Crowther 2019): MC SE of the
+    # bias is emp_sd / sqrt(reps); MC SE of the RMSE via the delta method.
+    mc_se_bias <- emp_sd / sqrt(n_ok)
+    sq_err     <- (ests - truth_rd)^2
+    rmse_val   <- sqrt(mean(sq_err))
+    mc_se_rmse <- if (rmse_val > 0) sd(sq_err) / (2 * rmse_val * sqrt(n_ok)) else NA
+
     data.frame(
       method      = m,
       n_ok        = n_ok,
       mean_est    = round(mean(ests), 5),
       bias        = round(bias_val, 5),
+      mc_se_bias  = round(mc_se_bias, 5),
       abs_bias    = round(abs(bias_val), 5),
       emp_sd      = round(emp_sd, 5),
       mean_se     = round(mean_se, 5),
       se_sd_ratio = round(se_sd_r, 3),
-      rmse        = round(sqrt(mean((ests - truth_rd)^2)), 5),
+      rmse        = round(rmse_val, 5),
+      mc_se_rmse  = round(mc_se_rmse, 5),
       coverage    = round(cov_p, 3),
       mc_se_cov   = round(mc_se_cov, 4),
       ci_width    = round(mean(sub$ci_upper[valid] - sub$ci_lower[valid],
@@ -441,14 +513,15 @@ for (sc_name in names(scenarios)) {
                            seed = config$seed,
                            U_prevalence = sc$U_prevalence %||% 0,
                            U_trt_OR     = sc$U_trt_OR %||% 1,
-                           U_out_OR     = sc$U_out_OR %||% 1)
+                           U_out_OR     = sc$U_out_OR %||% 1,
+                           misspec      = sc$misspec %||% FALSE)
 
   lock <- create_analysis_lock(
     data          = ref_dat,
     treatment     = "treatment",
     outcome       = "event_24",
     covariates    = c("age", "sex", "biomarker", "comorbidity", "ckd"),
-    sl_library    = config$sl_library,
+    sl_library    = sc$sl_library %||% config$sl_library,
     plasmode_reps = config$plasmode_reps,
     seed          = config$seed
   )
@@ -668,14 +741,15 @@ for (sc_name in names(scenarios)) {
                               sc$effect_size, seed = rep_seed,
                               U_prevalence = sc$U_prevalence %||% 0,
                               U_trt_OR     = sc$U_trt_OR %||% 1,
-                              U_out_OR     = sc$U_out_OR %||% 1)
+                              U_out_OR     = sc$U_out_OR %||% 1,
+                              misspec      = sc$misspec %||% FALSE)
 
     lock_rep <- create_analysis_lock(
       data          = dat_rep,
       treatment     = "treatment",
       outcome       = "event_24",
       covariates    = c("age", "sex", "biomarker", "comorbidity", "ckd"),
-      sl_library    = config$sl_library,
+      sl_library    = sc$sl_library %||% config$sl_library,
       plasmode_reps = config$plasmode_reps,
       seed          = config$seed
     )
@@ -684,7 +758,8 @@ for (sc_name in names(scenarios)) {
 
     rep_results[[rep_i]] <- tryCatch(
       run_one_replicate(dat_rep, lock_rep, ps_rep, truth_rd,
-                        n_folds = config$n_folds),
+                        n_folds = config$n_folds,
+                        sl_library = sc$sl_library %||% config$sl_library),
       error = function(e) {
         message("  Rep ", rep_i, " failed: ", e$message)
         NULL

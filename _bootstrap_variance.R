@@ -13,9 +13,13 @@
 #     IPTW IF-SE theoretically conservative (PS treated as known).
 #
 # Design:
-#   Estimators: IPTW (stabilised), Match_TMLE
+#   Estimators: IPTW (stabilised), TMLE, TMLE_CF (cross-fitted), Match_TMLE
 #   MC reps:    100 per scenario
 #   Bootstrap:  B = 500 draws, percentile CI
+#
+# TMLE and TMLE_CF are included because they are the estimators that are
+# anti-conservative under marginal overlap (influence-function SE/SD ~ 0.8);
+# the study tests whether the nonparametric bootstrap repairs their coverage.
 #
 # Implementation: fully self-contained GLM + pure-R nearest-neighbour
 # matching (same algorithm as cleanTMLE::run_match_workflow) + manual
@@ -161,6 +165,39 @@ cat(sprintf("  true RD = %.5f  (same for A and B by DGP)\n\n", truth_rd))
   .tmle_glm(m[[OUTC]], m[[TREAT]], m[,COVARS,drop=FALSE])
 }
 
+# Plain TMLE (GLM nuisances, full sample) — wraps the manual TMLE.
+.tmle_fit <- function(dat) {
+  .tmle_glm(dat[[OUTC]], dat[[TREAT]], dat[, COVARS, drop=FALSE])
+}
+
+# Cross-fitted TMLE (2-fold, GLM nuisances, pooled targeting). Added so the
+# variance study covers the estimators that are anti-conservative under
+# marginal overlap, not only IPTW and Match_TMLE.
+.tmle_cf_fit <- function(dat, V = 2L) {
+  Y <- dat[[OUTC]]; A <- dat[[TREAT]]; W <- dat[, COVARS, drop=FALSE]; n <- length(Y)
+  folds <- sample(rep(seq_len(V), length.out = n))
+  g <- Q1 <- Q0 <- numeric(n)
+  for (v in seq_len(V)) {
+    tr <- folds != v; te <- folds == v
+    gm <- glm(A ~ ., data = cbind(A=A, W)[tr, , drop=FALSE], family=binomial())
+    g[te]  <- predict(gm, newdata = W[te, , drop=FALSE], type="response")
+    qm <- glm(Y ~ ., data = cbind(Y=Y, A=A, W)[tr, , drop=FALSE], family=binomial())
+    Q1[te] <- predict(qm, newdata = cbind(A=1, W[te, , drop=FALSE]), type="response")
+    Q0[te] <- predict(qm, newdata = cbind(A=0, W[te, , drop=FALSE]), type="response")
+  }
+  g    <- pmin(pmax(g, TRUNC), 1-TRUNC)
+  Q_AW <- pmin(pmax(A*Q1 + (1-A)*Q0, 1e-6), 1-1e-6)
+  H    <- A/g - (1-A)/(1-g)
+  eps  <- tryCatch(coef(glm(Y ~ H + offset(qlogis(Q_AW)), family=binomial()))["H"],
+                   error = function(e) 0)
+  Q1s <- plogis(qlogis(pmin(pmax(Q1,1e-6),1-1e-6)) + eps/g)
+  Q0s <- plogis(qlogis(pmin(pmax(Q0,1e-6),1-1e-6)) - eps/(1-g))
+  ate <- mean(Q1s) - mean(Q0s)
+  eif <- H*(Y - Q_AW) + (Q1s - Q0s) - ate
+  se  <- sqrt(var(eif)/n)
+  list(estimate=ate, se=se, ci_lower=ate-1.96*se, ci_upper=ate+1.96*se)
+}
+
 # Generic bootstrap SE wrapper
 .boot_se <- function(dat, fn, B=B_BOOT, seed=1L) {
   set.seed(seed)
@@ -186,6 +223,10 @@ run_scenario <- function(sc_label, overlap_strength) {
 
     iptw_if   <- tryCatch(.iptw_fit(dat),         error=function(e) NULL)
     iptw_boot <- tryCatch(.boot_se(dat,.iptw_fit,seed=i), error=function(e) NULL)
+    tmle_if   <- tryCatch(.tmle_fit(dat),         error=function(e) NULL)
+    tmle_boot <- tryCatch(.boot_se(dat,.tmle_fit,seed=i), error=function(e) NULL)
+    tcf_if    <- tryCatch(.tmle_cf_fit(dat),      error=function(e) NULL)
+    tcf_boot  <- tryCatch(.boot_se(dat,.tmle_cf_fit,seed=i), error=function(e) NULL)
     mt_if     <- tryCatch(.match_tmle_fit(dat),   error=function(e) NULL)
     mt_boot   <- tryCatch(.boot_se(dat,.match_tmle_fit,seed=i), error=function(e) NULL)
 
@@ -205,6 +246,8 @@ run_scenario <- function(sc_label, overlap_strength) {
     }
 
     rows[[i]] <- rbind(make_row("IPTW",       iptw_if, iptw_boot),
+                       make_row("TMLE",       tmle_if, tmle_boot),
+                       make_row("TMLE_CF",    tcf_if,  tcf_boot),
                        make_row("Match_TMLE", mt_if,   mt_boot))
 
     if (i %% 10 == 0) {
