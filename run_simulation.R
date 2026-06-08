@@ -44,6 +44,17 @@ if (!requireNamespace("cleanTMLE", quietly = TRUE)) {
   }
 }
 library(cleanTMLE)
+# Eager-load the heavy nuisance packages BEFORE the MC loop. Lazy loading of
+# SuperLearner inside the first TMLE_CF call has caused silent R-process
+# crashes during package-loading contention (OneDrive / antivirus); loading
+# them up front means any such crash happens at script start, not after the
+# Stage 1-3 work is already done. Wrapped in suppressWarnings/Messages to keep
+# the log clean.
+suppressWarnings(suppressMessages({
+  library(SuperLearner)
+  library(nnls); library(gam); library(splines); library(foreach)
+  if (requireNamespace("glmnet", quietly = TRUE)) library(glmnet)
+}))
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
@@ -87,9 +98,10 @@ config <- list(
 .envint <- function(name, default) {
   v <- Sys.getenv(name); if (nzchar(v)) as.integer(v) else default
 }
-config$n_reps   <- .envint("SIM_REPS",   config$n_reps)
-config$n_obs    <- .envint("SIM_NOBS",   config$n_obs)
-config$dq_reps  <- .envint("SIM_DQREPS", config$dq_reps)
+config$n_reps        <- .envint("SIM_REPS",     config$n_reps)
+config$n_obs         <- .envint("SIM_NOBS",     config$n_obs)
+config$dq_reps       <- .envint("SIM_DQREPS",   config$dq_reps)
+config$plasmode_reps <- .envint("SIM_PLASREPS", config$plasmode_reps)
 if (nzchar(Sys.getenv("SIM_RESULTS"))) config$results_dir <- Sys.getenv("SIM_RESULTS")
 
 if (!dir.exists(config$results_dir)) dir.create(config$results_dir, recursive = TRUE)
@@ -476,15 +488,41 @@ interim_path <- function(sc_name) {
             sprintf("interim_%s.rds", sc_name))
 }
 
-save_interim <- function(sc_name, rep_results, scenario_meta) {
+save_interim <- function(sc_name, rep_results, scenario_meta, sc) {
   obj <- list(
-    results  = do.call(rbind, Filter(Negate(is.null), rep_results)),
-    meta     = scenario_meta,
-    n_done   = sum(!vapply(rep_results, is.null, logical(1))),
-    n_total  = length(rep_results),
-    saved_at = Sys.time()
+    results     = do.call(rbind, Filter(Negate(is.null), rep_results)),
+    rep_results = rep_results,           # keep the list so we can resume mid-scenario
+    meta        = scenario_meta,
+    n_done      = sum(!vapply(rep_results, is.null, logical(1))),
+    n_total     = length(rep_results),
+    # Config keys: a resume must match these or the interim is discarded.
+    n_reps      = length(rep_results),
+    n_obs       = config$n_obs,
+    misspec     = sc$misspec %||% FALSE,
+    seed        = config$seed,
+    saved_at    = Sys.time()
   )
   saveRDS(obj, interim_path(sc_name))
+}
+
+# Load interim if it matches the current scenario config; return rep_results
+# (a list of length n_reps with NULL for unfinished reps) or NULL if no match.
+load_interim_for_resume <- function(sc_name, sc) {
+  f <- interim_path(sc_name)
+  if (!file.exists(f)) return(NULL)
+  obj <- tryCatch(readRDS(f), error = function(e) NULL)
+  if (is.null(obj) || is.null(obj$rep_results)) return(NULL)
+  same <- isTRUE(obj$n_reps  == config$n_reps) &&
+          isTRUE(obj$n_obs   == config$n_obs)  &&
+          isTRUE(obj$misspec == (sc$misspec %||% FALSE)) &&
+          isTRUE(obj$seed    == config$seed)
+  if (!same) return(NULL)
+  obj$rep_results
+}
+
+# Per-scenario completion marker for crash-resilient resume.
+scenario_done_path <- function(sc_name) {
+  file.path(config$results_dir, sprintf("done_%s.rds", sc_name))
 }
 
 
@@ -500,6 +538,25 @@ t_start_global <- Sys.time()
 for (sc_name in names(scenarios)) {
   sc       <- scenarios[[sc_name]]
   truth_rd <- truths[[sc_name]]$RD
+
+  # Resume guard: if this scenario already completed at the current sample size
+  # and replicate count, reload it and skip recomputation. Lets a relaunch
+  # after a crash pick up where it left off instead of restarting at A.
+  .done_f <- scenario_done_path(sc_name)
+  if (file.exists(.done_f)) {
+    .d <- tryCatch(readRDS(.done_f), error = function(e) NULL)
+    if (!is.null(.d) && isTRUE(.d$n_reps == config$n_reps) &&
+        isTRUE(.d$n_obs == config$n_obs) &&
+        isTRUE(.d$misspec == (sc$misspec %||% FALSE))) {
+      cat(sprintf("\n=== %s ===\n  [resume] loading completed scenario (%d reps, n=%d); skipping\n",
+                  sc$label, config$n_reps, config$n_obs)); .flush()
+      all_results[[sc_name]]   <- .d$results
+      all_summaries[[sc_name]] <- .d$summary
+      all_meta[[sc_name]]      <- .d$meta
+      all_audit[[sc_name]]     <- .d$audit
+      next
+    }
+  }
 
   cat(sprintf("\n=== %s ===\n", sc$label))
   cat(sprintf("  %s\n", sc$description))
@@ -732,10 +789,22 @@ for (sc_name in names(scenarios)) {
 
   # ── Stage 4: Monte Carlo loop on the unmasked workflow ─────────────────
   cat(sprintf("\n  Running %d Monte Carlo replicates...\n", config$n_reps)); .flush()
-  rep_results <- vector("list", config$n_reps)
+  # Resume from interim if one matches this scenario config; otherwise start fresh.
+  rep_results <- load_interim_for_resume(sc_name, sc)
+  if (is.null(rep_results) || length(rep_results) != config$n_reps) {
+    rep_results <- vector("list", config$n_reps)
+  } else {
+    n_already <- sum(!vapply(rep_results, is.null, logical(1)))
+    cat(sprintf("    [resume] interim has %d/%d reps already; running the missing ones\n",
+                n_already, config$n_reps)); .flush()
+  }
   t_start <- Sys.time()
+  n_done_at_start <- sum(!vapply(rep_results, is.null, logical(1)))
 
   for (rep_i in seq_len(config$n_reps)) {
+    # Skip reps already completed in a prior (crashed) run.
+    if (!is.null(rep_results[[rep_i]])) next
+
     rep_seed <- config$seed + rep_i * 1000L + match(sc_name, names(scenarios))
     dat_rep  <- generate_data(config$n_obs, sc$overlap_strength,
                               sc$effect_size, seed = rep_seed,
@@ -766,13 +835,19 @@ for (sc_name in names(scenarios)) {
       }
     )
 
-    if (rep_i %% 10 == 0 || rep_i == config$n_reps) {
+    # Save after the FIRST completed rep (so even a crash early in the loop
+    # preserves something), then every 10 reps and at the end.
+    n_done_so_far <- sum(!vapply(rep_results, is.null, logical(1)))
+    if (n_done_so_far == n_done_at_start + 1L ||
+        rep_i %% 10 == 0 || rep_i == config$n_reps) {
       elapsed <- as.numeric(difftime(Sys.time(), t_start, units = "mins"))
-      rate    <- elapsed / rep_i
-      eta     <- rate * (config$n_reps - rep_i)
+      n_run_now  <- n_done_so_far - n_done_at_start
+      n_left     <- config$n_reps - n_done_so_far
+      eta <- if (n_run_now > 0) elapsed / n_run_now * n_left else NA
       cat(sprintf("    rep %d/%d  (%.1f min elapsed, ~%.1f min remaining)\n",
-                  rep_i, config$n_reps, elapsed, eta)); .flush()
-      save_interim(sc_name, rep_results, scenario_meta)
+                  rep_i, config$n_reps, elapsed,
+                  if (is.na(eta)) 0 else eta)); .flush()
+      save_interim(sc_name, rep_results, scenario_meta, sc)
     }
   }
 
@@ -800,6 +875,18 @@ for (sc_name in names(scenarios)) {
   saveRDS(unmasked_lock, file.path(config$results_dir,
                                     sprintf("lock_%s.rds", sc_name)))
   all_audit[[sc_name]] <- audit
+
+  # Per-scenario completion save: write this scenario's summary CSV now (not
+  # only at the end of the whole run) and a self-contained done_<sc>.rds, so a
+  # crash in a later scenario does not lose this one and a relaunch can resume.
+  write.csv(summary_df, file.path(config$results_dir,
+            sprintf("summary_%s.csv", sc_name)), row.names = FALSE)
+  saveRDS(list(results = results_df, summary = summary_df,
+               meta = all_meta[[sc_name]], audit = audit,
+               truth = truth_rd, n_reps = config$n_reps,
+               n_obs = config$n_obs, misspec = sc$misspec %||% FALSE,
+               saved_at = Sys.time()),
+          scenario_done_path(sc_name))
 }
 
 total_time <- as.numeric(difftime(Sys.time(), t_start_global, units = "mins"))

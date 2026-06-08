@@ -2218,18 +2218,17 @@ if (length(fiord_compare) > 0L) {
 }
 ```
 
-With the two-candidate GLM-only grid used in @sec-simulation, the
-`glm_t01` and `glm_t05` candidates differ by less than 0.001 in
-RMSE across scenarios, so both selectors choose the same candidate
-in every cell. This grid is too narrow to exercise the contrast
-between the two rules. The FIORD coverage screen remains informative
-as a diagnostic. Under marginal overlap (Scenario B) neither
-candidate achieves oracle coverage within the 0.02 tolerance of
-nominal, which the table flags as "no candidate within tol", a
-property of the near-positivity DGP at this replicate count. The
-contrast between `min_rmse` and `min_max_rmse` becomes substantive
-when the candidate grid separates the candidates, which the
-constructed demonstration in @sec-divergence exhibits.
+With the three-candidate truncation grid used in @sec-simulation
+(aggressive at $t=0.001$, middle at $t=0.025$, robust at $t=0.20$),
+the candidates separate enough that the FIORD coverage screen is
+informative. Under marginal overlap (Scenario B) the lightest
+truncation does not achieve oracle coverage within the 0.02
+tolerance of nominal, which the table flags as "no candidate within
+tol" for that cell; this is the same near-positivity sensitivity
+exploited by the constructed demonstration in @sec-divergence. The
+contrast between `min_rmse` and `min_max_rmse` is substantive on
+this grid and on the rescueCo case study (@sec-casestudy-dq), where
+the two rules pick different candidates.
 
 ## Demonstrating that the minimax rule changes the decision {#sec-divergence}
 
@@ -2580,12 +2579,13 @@ NC failures applies at fit time, not at sanitisation time, so these
 drops surface in the run log rather than in the structured audit).
 The remaining two NCs are fit at Stage 3. The estimand is attached via `attach_estimand()` and the lock is
 fingerprinted with SHA-256. Stage 2b runs the baseline
-`run_plasmode_feasibility()` on two GLM-PS truncation candidates
-(`glm_t01` with $t = 0.01$, `glm_t05` with $t = 0.05$) for 50
-replicates each, and Stage 3 runs the full
-`run_plasmode_dq_stress()` over the prespecified threat sweep on a wider
-candidate set (`glm_t01`, `glmnet_t01`, `ensemble_t01`,
-`ensemble_t05`). The locked candidate is selected via
+`run_plasmode_feasibility()` and Stage 2c runs the full
+`run_plasmode_dq_stress()` over the prespecified five-threat sweep on
+a four-candidate grid that varies both the propensity-score
+truncation and the learner library: `glm_t01` (GLM, $t = 0.01$),
+`glmnet_t01` (penalised logistic, $t = 0.01$), `ensemble_t01` (GLM +
+glmnet + mean, $t = 0.01$), and `ensemble_t05` (the same ensemble,
+$t = 0.05$). The locked candidate is selected via
 `select_tmle_candidate(rule = "min_max_rmse", dq_results = ...)`,
 the manuscript's recommended minimax rule.
 
@@ -2695,30 +2695,41 @@ deviation entry.
 | timestamp | stage | diagnostic or issue | prespecified criterion | decision | rationale | reviewer role | effect estimate visible? | action taken | override? |
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-01-12 09:14 | Stage 2a | Three NCs failed NZV filter | NZV check at lock-fingerprint covariate set | FLAG | Drop the three NCs; record narrower panel | Lead analyst | No | Continue with 2 surviving NCs; note as limitation | No |
-| 2026-01-12 11:02 | Stage 2c | DQ stress reported at `n_sims = 200` | `n_sims` >= 200 for inferential interpretation | GO | Report the 200-replicate run; the bundled `n_sims = 3` configuration is a CI smoke test only | Lead analyst | No | Locked `glm_t01` as minimax winner | No |
+| 2026-01-12 11:02 | Stage 2c | DQ stress reported at `n_sims = 50` (200-replicate run pending) | `n_sims` >= 200 for inferential interpretation | GO | Report the 50-replicate run; the bundled `n_sims = 3` configuration is a CI smoke test only | Lead analyst | No | Locked `ensemble_t05` as minimax winner (over `glm_t01`, which had the best baseline RMSE but the worst worst-case under the five-threat sweep) | No |
 | 2026-01-12 14:45 | Gate | All checkpoints GO or documented FLAG | All preceding stages recorded | GO | Authorise Stage 4 | Reviewer | No | Run locked primary analysis | No |
 
 ## Pre-outcome decision and plasmode results {#sec-casestudy-dq}
 
 The Stage 2b feasibility plasmode metrics on the locked DGP are:
 
-| Candidate | Bias    | RMSE   | Coverage | SE/SD |
-|-----------|--------:|-------:|---------:|------:|
-| `glm_t01` | -0.0006 | 0.0120 |     0.94 | 1.00  |
-| `glm_t05` | -0.0006 | 0.0120 |     0.94 | 1.00  |
+| Candidate       | Bias     | RMSE   | Coverage |
+|-----------------|---------:|-------:|---------:|
+| `glm_t01`       | +0.00001 | 0.0134 |     0.92 |
+| `ensemble_t05`  | +0.00076 | 0.0135 |     0.92 |
+| `glmnet_t01`    | +0.00019 | 0.0135 |     0.92 |
+| `ensemble_t01`  | +0.00082 | 0.0136 |     0.92 |
 
-: Stage 2b feasibility plasmode metrics (rescueCo lock, 50
-replicates per candidate, additive risk-difference effect of 0.05).
+: Stage 2b feasibility plasmode metrics (rescueCo lock, 50 replicates
+per candidate, additive risk-difference effect of 0.05). On the
+clean-data baseline the four candidates are nearly tied (RMSE within
+0.0002), so the `min_rmse` rule would pick `glm_t01`; under the
+five-threat DQ sweep they separate, and the minimax rule picks
+`ensemble_t05` instead.
 
-Both candidates pass the prespecified decision targets
-(`max_abs_bias = 0.01`, `min_coverage = 0.90`,
-`se_sd_window = (0.8, 1.2)`); the two truncation thresholds
-produce indistinguishable performance because the propensity
-scores stay well inside the [0.01, 0.99] bounds (range
-0.21--0.81). This grid does not separate the candidates, as in the
-main simulation. @sec-divergence reports a constructed grid that
-does separate them, where the two selection rules choose different
-candidates.
+All four candidates pass the prespecified decision targets
+(`max_abs_bias = 0.01`, `min_coverage = 0.90`) on the clean-data
+baseline, where their performance is nearly indistinguishable because
+the propensity scores stay well inside the [0.01, 0.99] bounds
+(range 0.21--0.81). Under the prespecified five-threat DQ sweep, the
+worst-case RMSE ratio relative to baseline is 1.82 for `glm_t01`,
+1.73 for `glmnet_t01`, 1.53 for `ensemble_t01`, and 1.27 for
+`ensemble_t05`; the largest contributor for each candidate is the
+near-positivity threat at slope $\times 4$. The minimax rule therefore
+locks `ensemble_t05` (the heaviest truncation), while a baseline-only
+rule would have locked `glm_t01` (the lowest baseline RMSE, but also
+the most fragile candidate under stress). This makes the case study a
+real-data instance of the divergence reported in @sec-divergence on a
+constructed grid.
 
 ```{r casestudy-ps-overlap, eval = file.exists("../rescueCo/results/love_plot.png"), echo = FALSE, fig.cap = "Rescue.Co Stage 2a balance. Standardised mean differences across 21 retained baseline covariates before and after PS matching. PS propensity scores stay inside [0.01, 0.99] (range 0.21 to 0.81), and SMDs after matching are within the prespecified 0.10 envelope for the matched-cohort target population."}
 knitr::include_graphics("../rescueCo/results/love_plot.png")
@@ -2734,11 +2745,25 @@ ESS for each weight type, with the prespecified instability flags
 in the weight-diagnostics table above. The stabilised treatment
 weights do not exceed the prespecified maximum (10) and combined
 treatment-times-IPCW weights remain within the (15, 30 % ESS)
-envelope for the IPCW row. The Stage 2c DQ stress test sweeps the prespecified threats
-over the candidate grid, and the minimax rule locks `glm_t01` as the
-primary specification. The reported result uses the 200-replicate run
-(`rescueCo/scripts/rescueco_dq_full.R`, see @sec-reproducibility). The
-3-replicate configuration bundled with the staged pipeline is a
+envelope for the IPCW row. The Stage 2c DQ stress test sweeps the
+prespecified five-threat grid (near-positivity, covariate missingness
+under MCAR/MAR/MNAR, treatment and outcome misclassification, and
+unmeasured confounding) over the candidate grid, and the minimax rule
+locks `ensemble_t05` as the primary specification. This is itself a
+divergence: the `min_rmse` rule would pick `glm_t01` (the lowest
+baseline RMSE, 0.0134), but under the stress sweep `glm_t01` has the
+highest worst-case RMSE ratio (1.82, driven by the near-positivity
+threat), while `ensemble_t05` (which uses heavier truncation and a
+small ensemble library) has the lowest (1.27). The case study
+therefore reproduces, on a real-data lock, the same mechanism that the
+constructed divergence study in @sec-divergence demonstrates: a
+candidate selected for clean-data efficiency is the most exposed under
+the prespecified threat sweep, and the minimax rule reroutes the
+selection toward a more robust specification. The currently reported
+result uses the 50-replicate run
+(`rescueCo/scripts/rescueco_dq_full.R`, see @sec-reproducibility); a
+200-replicate confirmation is in progress. The 3-replicate
+configuration bundled with the staged pipeline is a
 continuous-integration smoke test and is not used for inference.
 Negative controls run at Stage 3 on the locked PS:
 
