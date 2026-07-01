@@ -11,11 +11,20 @@
 # Number of always-present covariates (the analyst's adjustment set).
 .K_BASE <- 6L
 
+# Propensity-score log-odds multiplier for the positivity-strained DGP. A
+# value > 1 steepens the shared PS model so a subgroup approaches
+# deterministic treatment (estimated PS near 0 or 1), which is the regime in
+# which PS truncation (0.01 vs 0.05 in the candidate grid) actually bites.
+.PS_STRAIN_MULT <- 3.0
+
 #' Generate a Single Synthetic Dataset
 #'
 #' @param n integer; sample size.
 #' @param dgp one of "linear", "nonlinear_smooth", "interactions",
-#'   "sparse", "high_dim_noise".
+#'   "sparse", "high_dim_noise", "positivity_strain". The last strains
+#'   positivity (steep propensity model, near-deterministic treatment in a
+#'   subgroup) with a linear outcome, so the PS-truncation candidate axis is
+#'   identifiable.
 #' @param true_RD numeric; the constant marginal risk difference.
 #' @param noise_p integer; extra noise covariates for "high_dim_noise".
 #' @param seed integer or NULL.
@@ -25,7 +34,7 @@
 #'   (n01, n02, ...) when applicable.
 make_data <- function(n, dgp = c("linear", "nonlinear_smooth",
                                   "interactions", "sparse",
-                                  "high_dim_noise"),
+                                  "high_dim_noise", "positivity_strain"),
                       true_RD = -0.05,
                       noise_p = 20L,
                       seed    = NULL) {
@@ -47,6 +56,10 @@ make_data <- function(n, dgp = c("linear", "nonlinear_smooth",
            0.20 * bmi_z +
            0.40 * smoke +
            0.10 * sex
+  # Positivity strain: steepen the shared PS so a subgroup approaches
+  # deterministic treatment (estimated PS near 0/1), making PS truncation a
+  # live choice. All other DGPs leave the PS model unchanged (good overlap).
+  if (dgp == "positivity_strain") lp_A <- .PS_STRAIN_MULT * lp_A
   p_A  <- stats::plogis(lp_A)
   A    <- stats::rbinom(n, 1, p_A)
 
@@ -92,6 +105,18 @@ make_data <- function(n, dgp = c("linear", "nonlinear_smooth",
     },
     high_dim_noise = {
       # Linear in the 6 real covariates; analyst also adjusts for noise_p extra noise covariates
+      -2.0 +
+        0.03 * (age - 60) +
+        0.20 * sex +
+        0.40 * biomarker +
+        0.50 * comorbidity +
+        0.10 * bmi_z +
+        0.40 * smoke
+    },
+    positivity_strain = {
+      # Linear outcome; the challenge is on the overlap/PS side (see the
+      # .PS_STRAIN_MULT amplification above), not the outcome model. This
+      # isolates the value of the PS-truncation candidate axis.
       -2.0 +
         0.03 * (age - 60) +
         0.20 * sex +

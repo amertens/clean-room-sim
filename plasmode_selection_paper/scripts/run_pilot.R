@@ -13,9 +13,9 @@ source("R/run_simulation.R")
 t0 <- Sys.time()
 sim <- run_simulation(
   dgps       = c("linear", "nonlinear_smooth", "interactions",
-                 "sparse", "high_dim_noise"),
+                 "sparse", "high_dim_noise", "positivity_strain"),
   n_per_rep  = 500L,
-  n_reps     = 10L,        # pilot budget; MC SE of coverage ~0.07
+  n_reps     = 10L,        # pilot budget; MC SE of coverage ~0.16 near p=0.5
   inner_reps = 10L,
   out_path   = "results/sim_pilot.rds",
   checkpoint_every = 1L,    # save after every rep; the long-running

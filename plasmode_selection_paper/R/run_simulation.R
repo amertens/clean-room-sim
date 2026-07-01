@@ -14,7 +14,7 @@ source_here <- function(f) source(file.path("R", f))
 
 run_simulation <- function(
   dgps         = c("linear", "nonlinear_smooth", "interactions",
-                   "sparse", "high_dim_noise"),
+                   "sparse", "high_dim_noise", "positivity_strain"),
   n_per_rep    = 1000L,
   n_reps       = 500L,
   inner_reps   = 50L,
