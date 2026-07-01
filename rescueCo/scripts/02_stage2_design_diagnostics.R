@@ -250,7 +250,8 @@ cr_log("Fitting cleanTMLE SuperLearner PS (Stage 2 modular API)...")
 # unmask the lock (Stage 2 still doesn't access outcome; unmask_outcome
 # only restores the column for downstream stages that legitimately need it)
 lock_unmasked <- tryCatch(
-  cleanTMLE::unmask_outcome(lock, load_stage_output("stage1_lock_unmasked.rds")),
+  cleanTMLE::unmask_outcome(lock, load_stage_output("stage1_lock_unmasked.rds"),
+                            allow_unauthorized = TRUE),
   error = function(e) { cr_log(paste("unmask_outcome failed:", e$message)); NULL }
 )
 

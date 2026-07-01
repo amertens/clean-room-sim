@@ -66,7 +66,8 @@ cr_log("Running cleanTMLE negative control analysis...")
 
 # Unmask lock for NC analysis (NCs don't use primary outcome)
 lock_for_nc <- tryCatch(
-  cleanTMLE::unmask_outcome(lock, load_stage_output("stage1_lock_unmasked.rds")),
+  cleanTMLE::unmask_outcome(lock, load_stage_output("stage1_lock_unmasked.rds"),
+                            allow_unauthorized = TRUE),
   error = function(e) { cr_log(paste("unmask_outcome failed:", e$message)); NULL }
 )
 

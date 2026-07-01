@@ -35,7 +35,8 @@ lock        <- tryCatch(load_stage_output("stage2_lock.rds"),
 results_dir <- cfg$paths$results
 
 lock_for_plasmode <- tryCatch(
-  cleanTMLE::unmask_outcome(lock, load_stage_output("stage1_lock_unmasked.rds")),
+  cleanTMLE::unmask_outcome(lock, load_stage_output("stage1_lock_unmasked.rds"),
+                            allow_unauthorized = TRUE),
   error = function(e) lock)
 
 # Candidate grid: same truncation/library design as the staged pipeline, but

@@ -40,7 +40,8 @@ results_dir  <- cfg$paths$results
 # from a Q0 model fit on the real covariate distribution; it does NOT use
 # the real outcome column for selection)
 lock_for_plasmode <- tryCatch(
-  cleanTMLE::unmask_outcome(lock, load_stage_output("stage1_lock_unmasked.rds")),
+  cleanTMLE::unmask_outcome(lock, load_stage_output("stage1_lock_unmasked.rds"),
+                            allow_unauthorized = TRUE),
   error = function(e) lock)
 
 # ============================================================

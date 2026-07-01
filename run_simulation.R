@@ -771,7 +771,8 @@ for (sc_name in names(scenarios)) {
   }
 
   # ── Outcome unmasking (force, since this is a simulation study) ────────
-  unmasked_lock <- unmask_outcome(masked, original_lock)
+  unmasked_lock <- unmask_outcome(masked, original_lock,
+                                  allow_unauthorized = TRUE)
 
   scenario_meta <- list(
     label    = sc$label,
@@ -822,6 +823,11 @@ for (sc_name in names(scenarios)) {
       plasmode_reps = config$plasmode_reps,
       seed          = config$seed
     )
+    # Simulation replicate: authorise the estimation lock directly. The study
+    # force-unblinds (see the scenario-level unmask above); without this the
+    # Stage 4 estimators in run_one_replicate() would be refused by the outcome
+    # guard and every estimate would come back NA.
+    lock_rep$.outcome_authorized <- TRUE
     lock_rep <- lock_primary_tmle_spec(lock_rep, best)
     ps_rep   <- fit_ps_glm(lock_rep)
 

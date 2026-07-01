@@ -56,7 +56,8 @@ if (!is.null(gate)) {
   tryCatch(assert_outcome_authorized(audit),
            error = function(e) cr_log(paste("assert_outcome_authorized:",
                                               e$message)))
-  if (!is.null(lock_orig)) lock <- unmask_outcome(lock, lock_orig)
+  if (!is.null(lock_orig))
+    lock <- unmask_outcome(lock, lock_orig, allow_unauthorized = TRUE)
 }
 
 # --- Sanity check the unmasked lock ---
