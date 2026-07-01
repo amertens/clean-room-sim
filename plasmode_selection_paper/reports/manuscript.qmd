@@ -109,7 +109,7 @@ sim_label_caption <- paste0(
 ```
 
 ::: {.callout-warning}
-The numbers below are populated from a **pilot run** unless the full-study results file `results/sim_full.rds` is present. The pilot uses 40 outer replicates per DGP at n = 600 and is intended only to validate the simulation pipeline and serve as a placeholder. Re-render after running `scripts/run_full.R` for the paper-quality version.
+The numbers below are populated from a **pilot run** unless the full-study results file `results/sim_full.rds` is present. The pilot uses 10 outer replicates per DGP at n = 500 (with 10 inner plasmode replicates) and is intended only to validate the simulation pipeline and serve as a placeholder. Re-render after running `scripts/run_full.R` for the paper-quality version.
 :::
 
 ## Headline operating characteristics
@@ -220,7 +220,7 @@ Three caveats temper this conclusion before a full study is launched.
 
 First, the pilot's n = 500 is small relative to what flexible learners need. Random forests and generalized additive models need sample sizes in the low thousands per learner before their bias advantage exceeds their variance penalty against an unregularised GLM. A full run at $n \geq 1000$ may separate the workflows.
 
-Second, the inner plasmode loop in cleanTMLE $\leq$ 0.2.0 fits the baseline outcome model Q0 as a logistic GLM, which biases the synthetic outcomes — and therefore candidate selection — toward learners that handle linear-in-logit structure well. cleanTMLE 0.2.1 adds a `q0_library` argument so the user can pass a richer SuperLearner library; this paper's full run will use it.
+Second, the inner plasmode loop in cleanTMLE fits the baseline outcome model Q0 as a logistic GLM by default, which biases the synthetic outcomes — and therefore candidate selection — toward learners that handle linear-in-logit structure well. Since cleanTMLE 0.1.3 a `q0_library` argument lets the user pass a richer SuperLearner library; this paper's full run will use it.
 
 Third, the SE-to-empirical-SD calibration ratio drops below 1 on the smooth-nonlinear DGP (0.69--0.74 across all four workflows). Influence-function variance estimates may therefore *under-state* uncertainty in the regime where outcome-model mis-specification is real. The full study should report this calibration ratio routinely; a robust or bootstrap variance option is the natural sensitivity.
 
@@ -232,7 +232,7 @@ What this pilot says about study design (a Statistical Analysis Plan question): 
 - The FIORD two-stage rule collapses to a parametric pick at inner_reps = 10; we recommend it only with inner_reps $\geq$ 30.
 - Plasmode candidate selection is driven by the outcome model's RMSE on the inner loop, but a candidate's PS library and truncation are bundled with the Q library. A separable selection rule for g vs Q is a natural extension.
 - The DGPs span outcome-model mis-specification but not positivity strain. A positivity-strained sixth DGP is a natural extension; we excluded it to keep the focus.
-- The inner plasmode generator in cleanTMLE $\leq$ 0.2.0 hard-codes a logistic-GLM Q0, biasing candidate selection toward linear-in-logit learners. The 0.2.1 patch adds a `q0_library` argument; the full study will use it.
+- The inner plasmode generator in cleanTMLE uses a logistic-GLM Q0 by default, biasing candidate selection toward linear-in-logit learners. Since cleanTMLE 0.1.3 a `q0_library` argument accepts a richer SuperLearner library; the full study will use it (the pilot did not, so its selection inherits the linear-in-logit bias).
 - Variance is computed with IF-based SEs throughout. The se_sd ratio < 1 finding on smooth-nonlinear motivates a robust or bootstrap variance sensitivity in the full study.
 
 # References

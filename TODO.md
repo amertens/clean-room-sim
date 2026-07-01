@@ -6,6 +6,81 @@ Items shipped or merged into the manuscript/presentation/vignettes are marked **
 
 ---
 
+## Z. Five-reviewer audit action items (2026-07-01)
+
+From the independent five-reviewer audit (Muntner design, FDA regulatory, TL/R
+code, outcome-blind simulation, applied analyst) plus the consensus sign-off.
+Severity in brackets. Items checked off were fixed in the 2026-07-01 pass and
+verified; the rest are staged by the joint sign-off's four categories. Existing
+A-section items are cross-referenced where they overlap.
+
+### (a) Statistical / code correctness
+- [x] Expose model-based (TMLE plug-in) arm risks from `extract_tmle_estimate()`
+  as `estimates$risk_treated` / `estimates$risk_control`; switch the
+  staged-analysis vignette risk-report chunk off the `crude +/- ATE/2`
+  reconstruction. [important] — verified: `risk_treated - risk_control == ATE`.
+- [x] Fix the vignette E-value chunk to use the confounding-adjusted arm risks
+  instead of the crude control risk (`crude$r0`). [important]
+- [ ] Keep survival estimates strictly secondary and document that
+  `.surv_tmle_fallback` (`tmle.R:587-694`) excludes rather than IPCW-weights
+  early-censored subjects; scope a real discrete-time / IPCW survival TMLE.
+  [important] (rel. A.13)
+
+### (b) Clean-room / regulatory representation
+- [x] Correct the Muntner citation year 2020 -> 2024 in
+  `cleanTMLE-staged-analysis.qmd` (only surviving 2020 instance). [important]
+- [ ] Wire `assert_outcome_authorized()` into the Stage 4 estimators so the gate
+  enforces recorded authorization, not just outcome masking
+  (`.check_outcome_access`, `cleanroom.R`). Gate only when
+  `cleanroom_enabled = TRUE`; update the staged vignette and tests to authorize
+  first. [critical]
+- [ ] Soften the manuscript enforcement prose (`manuscript_outcome_blind_dq.qmd`
+  ~304-305, "withholding ... until checkpoints recorded") to match what the code
+  enforces. [important]
+- [ ] Re-document the RescueCo inter-facility-transfer exclusion as a dated,
+  pre-outcome protocol amendment with recorded rationale; acknowledge that
+  injury-to-arrival transport time is an outcome-adjacent (proxy) quantity; log
+  the CP1-STOP override that the primary analysis proceeded past. [critical]
+  (rel. A.12)
+- [ ] Regenerate `case_study_metadata.json` under 0.1.5 (records "0.1.1"); fix
+  provenance by re-running, not by hand-editing. [minor]
+
+### (c) Package scope / organization — consensus: TRIM now, SPLIT direction
+- [ ] Execute A.17 dead-export cleanup: internalise `expit`, `logit`,
+  `wrap_ps_fit` (and candidates); test or deprecate the rest. None of A.17 has
+  landed. [important] (rel. A.17)
+- [ ] Generate the missing `man/*.Rd` for `plot_dq_heatmap` (exported but
+  undocumented + untested). [important]
+- [ ] Add tests for the ~40 untested exports, or deprecate them. [important]
+- [ ] Decide TRIM vs SPLIT into an estimation package + a companion governance
+  package/`cleanroomGov` (move the note-taking metadata family to docs; keep the
+  real enforcers in code). See the audit's Reviewer 3 merge/internalise/remove
+  lists. (rel. B.2)
+
+### (d) Usefulness / adoption
+- [ ] Add a positivity-strained DGP (reuse the in-package `near_positivity`
+  mechanism) so the truncation-varying candidate grid is identifiable; the
+  current five DGPs omit positivity strain. [important]
+- [ ] Re-run the plasmode study at an inferential budget (outer >= 200,
+  n >= 1000, inner >= 200 if FIORD/coverage selection is retained) or drop FIORD
+  to a min-RMSE-only rule; the pilot cannot demonstrate value and FIORD collapses
+  to parametric at inner_reps = 10 (coverage MC SE ~0.16 >> the +/-0.02
+  tolerance). [important]
+- [ ] Report per-estimator / per-candidate Monte Carlo SEs. [important]
+  (rel. A.6)
+- [ ] Implement the A.15 low-replicate guard (`cleantmle_workflow_demo` class +
+  forced FLAG); currently prose-only. [important] (rel. A.15)
+- [ ] Wire the existing MAR/MNAR degraders into the default DQ preset and
+  exercise a candidate-side missingness handler (default is MCAR + median
+  imputation). [important] (rel. A.10)
+- [x] Manuscript factual fixes: pilot budget 40 reps/n=600 -> 10 reps/n=500;
+  q0_library version 0.2.1 -> 0.1.3 (0.2.x versions do not exist). [minor]
+- [ ] Revisit the manuscript's "FIORD only with inner_reps >= 30"
+  recommendation; the audit's MC-SE analysis puts the usable floor near 200 when
+  coverage drives selection. [minor]
+
+---
+
 ## A. Methodological extensions (cleanTMLE 0.2)
 
 These require new R code and tests, and rerun no existing simulation.
