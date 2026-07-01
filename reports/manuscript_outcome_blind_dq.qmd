@@ -76,6 +76,18 @@ if (file.exists(boot_path)) {
   mt_B_cov_boot     <- .bv_def(boot_var, "Marginal",  "Match_TMLE", "coverage_boot")
   iptw_B_ratio_if   <- .bv_def(boot_var, "Marginal",  "IPTW",       "se_sd_ratio_if")
   iptw_B_cov_if     <- .bv_def(boot_var, "Marginal",  "IPTW",       "coverage_if")
+  # TMLE and TMLE_CF under marginal overlap (variance sandbox, N_MC = 60, B = 200)
+  tmle_B_ratio_if   <- .bv_def(boot_var, "Marginal",  "TMLE",       "se_sd_ratio_if")
+  tmle_B_cov_if     <- .bv_def(boot_var, "Marginal",  "TMLE",       "coverage_if")
+  tmle_B_ratio_boot <- .bv_def(boot_var, "Marginal",  "TMLE",       "se_sd_ratio_boot")
+  tmle_B_cov_boot   <- .bv_def(boot_var, "Marginal",  "TMLE",       "coverage_boot")
+  tmle_cf_B_ratio_if   <- .bv_def(boot_var, "Marginal", "TMLE_CF",  "se_sd_ratio_if")
+  tmle_cf_B_cov_if     <- .bv_def(boot_var, "Marginal", "TMLE_CF",  "coverage_if")
+  tmle_cf_B_ratio_boot <- .bv_def(boot_var, "Marginal", "TMLE_CF",  "se_sd_ratio_boot")
+  tmle_cf_B_cov_boot   <- .bv_def(boot_var, "Marginal", "TMLE_CF",  "coverage_boot")
+  tmle_B_cov_if_se  <- .bv_cov_mcse(boot_var, "Marginal", "TMLE",   "coverage_if")
+  tmle_B_cov_boot_se <- .bv_cov_mcse(boot_var, "Marginal", "TMLE",  "coverage_boot")
+  tmle_cf_B_cov_if_se <- .bv_cov_mcse(boot_var, "Marginal", "TMLE_CF", "coverage_if")
 } else {
   # No silent fallback. The abstract and the variance section report these
   # numbers as results, so a missing results file must fail the render rather
@@ -145,13 +157,10 @@ prespecified unmeasured-confounding scenarios under which the
 planned analysis would no longer meet the locked
 operating-characteristic thresholds. The data-quality stress test further showed that
 outcome misclassification and unmeasured confounding produced the
-largest degradation in estimator performance. In a constructed
-demonstration with a propensity-score-truncation candidate grid and a
-prespecified threat sweep that includes a positivity violation, the
-worst-case selection rule (`min_max_rmse`) selected a different
-candidate from the baseline rule (`min_rmse`), which shows that
-screening candidates against their worst case across data-quality
-threats can change which estimator is locked.
+largest degradation in estimator performance. The package also ships a worst-case selection rule (`min_max_rmse`) that
+ranks candidates by their maximum RMSE across all declared threats;
+a companion vignette illustrates a setting where this rule locks a
+different candidate from the baseline `min_rmse` rule.
 
 We illustrate the workflow on the Rescue.Co Kenya Trauma Registry
 (n = 1,693; 24.6 % outcome missingness). Six estimators agreed on
@@ -1794,22 +1803,25 @@ quantitative supplement to the baseline plasmode metrics.
 
 Under the misspecified surface (Scenario D) the comparison is
 between estimators built on a main-effects GLM and a cross-fitted
-TMLE with a flexible library. Provisional results at smoke scale,
-to be confirmed at the full replicate count, show the crude
-estimator biased by roughly $+0.13$ on a true risk difference near
-$-0.08$, so it carries the wrong sign; the GLM-based TMLE removes
-much of the confounding but retains a bias near $+0.04$ with
-coverage about $0.67$; and the cross-fitted TMLE with a
-generalised-additive-model-plus-interaction library is
-approximately unbiased, with bias near $+0.01$ and coverage at the
-nominal level. This is the one scenario in which the flexibility of
-the nuisance learner, rather than the staging or the data-quality
-screen, is decisive. It answers the question a methods reviewer
-would press hardest, namely whether targeted learning with an
-adaptive library earns its place over a parametric adjustment on
-this class of problems; under a correctly specified linear model
-(Scenarios A to C) it does not need to, which is why that contrast
-requires a separate, deliberately nonlinear design.
+TMLE with a flexible library. The true risk difference is
+$-0.0797$. The crude estimator has bias $+0.120$ and coverage
+$0.000$, so it carries the wrong sign entirely. IPTW removes most
+of the confounding (bias $+0.044$) but coverage falls to $0.540$
+because the main-effects PS model does not capture the nonlinear
+surface. The GLM-based TMLE is similarly limited (bias $+0.045$,
+coverage $0.505$). PS-matched TMLE improves coverage to $0.675$
+through the caliper restriction but its bias remains near $+0.039$.
+Only the cross-fitted TMLE with a generalised-additive-model-plus-interaction
+library recovers the truth: bias $+0.007$ ($0.09$ SD) and coverage
+$0.920$, indistinguishable from nominal within Monte Carlo error.
+This is the one scenario in which the flexibility of the nuisance
+learner, rather than the staging or the data-quality screen, is
+decisive. It answers the question a methods reviewer would press
+hardest, namely whether targeted learning with an adaptive library
+earns its place over a parametric adjustment on this class of
+problems; under a correctly specified linear model (Scenarios A
+to C) it does not need to, which is why that contrast requires a
+separate, deliberately nonlinear design.
 
 A separate pattern concerns **variance-estimator selection**, the
 second stage of FIORD's two-stage selector [@nance2026fiord], which
@@ -1865,20 +1877,33 @@ overlap and for IPTW in both regimes, the bootstrap provides no material
 improvement.
 
 The two estimators most exposed under marginal overlap are plain TMLE and
-the cross-fitted TMLE, and they are included here because the main
-simulation showed them anti-conservative in that regime. Provisional
-results at smoke scale, to be confirmed at the full replicate count, show
-both with an influence-function SE/SD ratio near $0.85$ and coverage near
-$0.87$ under marginal overlap, and the nonparametric bootstrap does
-**not** repair them: bootstrap coverage stays near $0.87$ with an SE/SD
-ratio near $0.88$. The reason is that part of the shortfall is finite-sample
-bias toward larger effects near the positivity boundary, not variance
-understatement, and a percentile bootstrap centred on the point estimate
-cannot correct bias. The practical implication is that under marginal
-overlap the remedy is not a different variance estimator but a positivity
-diagnostic and, if warranted, heavier truncation or a restricted target
-population; this is the same lever the candidate-divergence analysis
-(@sec-divergence) selects on.
+the cross-fitted TMLE (TMLE\_CF), both included because the main simulation
+showed them anti-conservative in that regime. Under marginal overlap
+($N = 2000$, $B = 200$, $60$ Monte Carlo replicates), plain TMLE has an
+influence-function SE/SD ratio of `r round(tmle_B_ratio_if, 3)` and
+IF-based coverage of `r round(tmle_B_cov_if, 3)` (Monte Carlo SE
+`r round(tmle_B_cov_if_se, 3)`). The nonparametric full-pipeline bootstrap
+**does** repair this: bootstrap coverage rises to
+`r round(tmle_B_cov_boot, 3)` (SE/SD ratio `r round(tmle_B_ratio_boot, 3)`,
+Monte Carlo SE `r round(tmle_B_cov_boot_se, 3)`), reaching the nominal
+$0.95$. The reason the bootstrap succeeds for plain TMLE is that its
+undercoverage reflects in-sample Q-model overfitting: when the outcome
+model is re-fit on each bootstrap resample the overfitting shrinks, the
+targeting step corrects less, and the resulting CI is wider. The
+cross-fitted TMLE behaves differently: TMLE\_CF has an IF-based SE/SD
+ratio of `r round(tmle_cf_B_ratio_if, 3)` and coverage of
+`r round(tmle_cf_B_cov_if, 3)` (Monte Carlo SE
+`r round(tmle_cf_B_cov_if_se, 3)`), and the bootstrap provides **no**
+improvement: bootstrap coverage stays at `r round(tmle_cf_B_cov_boot, 3)`
+(SE/SD ratio `r round(tmle_cf_B_ratio_boot, 3)`). Cross-fitting already
+removes the in-sample overfitting bias, so the bootstrap has no residual
+Q-overfitting to correct. The remaining undercoverage reflects the
+influence-function's finite-sample approximation near the positivity
+boundary, which resampling cannot remedy. The practical implication is
+asymmetric: under marginal overlap, replacing the IF-SE with a
+full-pipeline bootstrap is worthwhile for plain TMLE but not for
+TMLE\_CF; the deeper remedy for TMLE\_CF undercoverage is positivity
+restriction or heavier truncation, not a different variance estimator.
 
 ```{r boot-variance-table, eval = has_boot, results = "asis"}
 #| label: tbl-boot-variance
@@ -2230,19 +2255,23 @@ contrast between `min_rmse` and `min_max_rmse` is substantive on
 this grid and on the rescueCo case study (@sec-casestudy-dq), where
 the two rules pick different candidates.
 
-## Demonstrating that the minimax rule changes the decision {#sec-divergence}
+## Package feature: worst-case candidate selection with `min_max_rmse` {#sec-divergence}
 
-The grid above does not separate the candidates, so it cannot show the
-`min_max_rmse` rule selecting a different candidate from `min_rmse`. We
-therefore report a constructed demonstration whose purpose is existence: it
-shows that realistic threat configurations exist under which the two rules
-diverge. The severities were chosen to exhibit the mechanism, so the
-demonstration establishes that divergence is possible rather than that it is
-generic. The whole sweep runs through the package functions
-`run_plasmode_feasibility()`, `run_plasmode_dq_stress()` (with
-`near_positivity` as a first-class threat), and `select_tmle_candidate()`, on
-the same `run_simulation.R` data-generating process. The driver and its results
-are in the companion repository (`sandbox/candidate_divergence/`).
+`select_tmle_candidate()` ships two selection rules. The default `min_rmse`
+ranks candidates by baseline RMSE on the undisturbed plasmode. An alternative,
+`min_max_rmse`, ranks by each candidate's worst-case RMSE across all declared
+data-quality threats, so the locked estimator minimises the maximum damage any
+prespecified threat can do. The simulation grid in @sec-simulation does not
+separate the candidates under this rule because the near-positivity threat at
+the severities tested does not push the aggressive candidate past its locked
+threshold. The following constructed illustration, shipped as a companion script
+in `sandbox/candidate_divergence/`, was designed specifically to exhibit the
+divergence: the threat severities were chosen to produce it, so the illustration
+establishes that divergence is possible under realistic configurations rather
+than claiming it is the common case. The full sweep runs through
+`run_plasmode_feasibility()`, `run_plasmode_dq_stress()` (with `near_positivity`
+as a first-class threat), and `select_tmle_candidate()`, on the same
+`run_simulation.R` data-generating process.
 
 ```{r divergence-load}
 div_path <- file.path("..", "sandbox", "candidate_divergence", "results",

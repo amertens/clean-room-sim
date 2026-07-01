@@ -44,3 +44,6 @@ renv/sandbox/
 # Office lockfiles
 ~$*
 *_old.docx
+
+# Claude Code worktrees
+.claude/worktrees/

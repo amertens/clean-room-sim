@@ -1,0 +1,15 @@
+quarto.exe : 
+At line:4 char:1
++ & $q render "cleanTMLE_vs_causalRisk_actg.qmd" --to docx 2>&1 | Out-F ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+processing file: cleanTMLE_vs_causalRisk_actg.qmd
+1/13                 
+2/13 [setup]         
+3/13                 
+4/13 [data]          
+5/13                 
+6/13 [cleantmle]     

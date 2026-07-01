@@ -1,0 +1,12 @@
+suppressMessages(library(cleanTMLE))
+set.seed(1)
+d <- data.frame(x = rnorm(5000), z = rnorm(5000))
+# MNAR: high x more likely missing -> median impute pulls mean DOWN (biased)
+o_mnar <- cleanTMLE:::.degrade_missingness_mnar(d, "x", base_fraction = 0.3, strength = 2)
+# MCAR for contrast: mean ~ unchanged
+o_mcar <- cleanTMLE:::.degrade_missingness(d, "x", fraction = 0.3)
+cat(sprintf("orig mean(x)      = %+.4f\n", mean(d$x)))
+cat(sprintf("MCAR-imputed mean = %+.4f  (should stay near 0)\n", mean(o_mcar$x)))
+cat(sprintf("MNAR-imputed mean = %+.4f  (should be biased < 0)\n", mean(o_mnar$x)))
+cat(sprintf("MNAR bias = %+.4f\n", mean(o_mnar$x) - mean(d$x)))
+cat("MNAR_CHECK_DONE\n")

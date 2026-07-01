@@ -1,0 +1,88 @@
+created_for: manuscript Section 9.4 realistic separating grid (Arm A only)
+n_obs: 4000
+effect_sizes: 0.05
+batches: 5
+reps: 500
+base_seed: 20260608
+seed_stride: 1000000
+batch_seeds:
+- 20260608
+- 21260608
+- 22260608
+- 23260608
+- 24260608
+covariates:
+- age
+- sex
+- biomarker
+- comorbidity
+- ckd
+treatment: treatment
+outcome: event_24
+truncations:
+- 0.005
+- 0.01
+- 0.025
+- 0.05
+- 0.1
+grid:
+- candidate_id: glm_t005
+  g_library: SL.glm
+  q_library: SL.glm
+  truncation: 0.005
+  cv_scheme: none
+- candidate_id: glm_t01
+  g_library: SL.glm
+  q_library: SL.glm
+  truncation: 0.01
+  cv_scheme: none
+- candidate_id: glm_t025
+  g_library: SL.glm
+  q_library: SL.glm
+  truncation: 0.025
+  cv_scheme: none
+- candidate_id: glm_t05
+  g_library: SL.glm
+  q_library: SL.glm
+  truncation: 0.05
+  cv_scheme: none
+- candidate_id: glm_t1
+  g_library: SL.glm
+  q_library: SL.glm
+  truncation: 0.1
+  cv_scheme: none
+arms:
+- arm: A
+  misspec: no
+  q0_library: ~
+  label: marginal overlap, linear surface (truncation lever)
+  nearpos_kept_slopes: []
+  nearpos_calibration:
+    slope:
+    - 1.5
+    - 2.0
+    q01:
+    - 0.0295
+    - 0.0078
+    q99:
+    - 0.9904
+    - 0.9975
+    min:
+    - 0.0014
+    - 0.0001
+    max:
+    - 0.9994
+    - 0.9999
+    keep:
+    - no
+    - no
+threat_preset: regulatory_standard
+thresholds:
+  max_abs_bias: 0.02
+  min_coverage: 0.85
+  max_rmse_ratio: 1.5
+rules:
+- min_rmse
+- min_max_rmse
+- fiord_two_stage
+fingerprint: d6b2bde2fb1b974598f8e460406e9694931e201395dad3075ea6e6802bc03d31

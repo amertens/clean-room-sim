@@ -1,0 +1,4 @@
+"source","RD","SE","diff_vs_tmle"
+"Analytic truth",-0.02974,NA,NA
+"tmle::tmle (GLM)",-0.02876,0.00658,0
+"cleanTMLE TMLE (GLM)",-0.02892,0.00657,-0.00016
