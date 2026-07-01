@@ -56,10 +56,19 @@ A-section items are cross-referenced where they overlap.
 - [ ] Generate the missing `man/*.Rd` for `plot_dq_heatmap` (exported but
   undocumented + untested). [important]
 - [ ] Add tests for the ~40 untested exports, or deprecate them. [important]
-- [ ] Decide TRIM vs SPLIT into an estimation package + a companion governance
-  package/`cleanroomGov` (move the note-taking metadata family to docs; keep the
-  real enforcers in code). See the audit's Reviewer 3 merge/internalise/remove
-  lists. (rel. B.2)
+- [x] Split, phase 1: created the `cleanroomGov` companion package and moved the
+  pure note-taking formatters (`clean_event_process_table`,
+  `clean_check_event_processes`, `clean_target_population`,
+  `clean_missing_data_plan`, `clean_risk_report_table` + their `print` methods)
+  out of cleanTMLE's public API. Vignette governance-demo chunks are gated on
+  `requireNamespace("cleanroomGov")`. cleanTMLE suite: 493 pass; cleanroomGov: 27
+  pass. (rel. B.2)
+- [ ] Split, publish: push `cleanroomGov` to its own repo, wire it back as a
+  submodule, and add it to `cleanTMLE`'s `Suggests`. (outward/infra step)
+- [ ] Split, phase 2: move the driver-coupled governance functions
+  (`attach_estimand`, `declare_sensitivity_plan`, the decision-log family,
+  `record_stage`) into `cleanroomGov`, migrating `run_simulation.R` and the
+  rescueCo scripts across the repo boundary.
 
 ### (d) Usefulness / adoption
 - [ ] Add a positivity-strained DGP (reuse the in-package `near_positivity`

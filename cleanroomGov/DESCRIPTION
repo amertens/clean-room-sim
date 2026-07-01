@@ -1,0 +1,22 @@
+Package: cleanroomGov
+Title: Clean-Room Governance and Estimand-Reporting Templates
+Version: 0.1.0
+Authors@R:
+    person("Andrew", "Mertens", email = "amertens@berkeley.edu",
+           role = c("aut", "cre"))
+Description: Structured note-taking and reporting helpers for the staged,
+    outcome-blind clean-room workflow: event-process classification aligned
+    with ICH E9(R1) intercurrent-event strategies, target-population and
+    missing-data declarations, cumulative-incidence coherence checks, and
+    cumulative-risk reporting tables. These helpers record and format the
+    analytic specification a clean-room review requires; they do not estimate
+    any causal quantity and have no dependency on the estimation engine. They
+    were split out of the 'cleanTMLE' package so that the estimation package
+    carries only estimators, diagnostics, and the enforcing gate.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = FALSE)
+RoxygenNote: 7.3.2
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
