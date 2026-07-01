@@ -29,11 +29,15 @@ A-section items are cross-referenced where they overlap.
 ### (b) Clean-room / regulatory representation
 - [x] Correct the Muntner citation year 2020 -> 2024 in
   `cleanTMLE-staged-analysis.qmd` (only surviving 2020 instance). [important]
-- [ ] Wire `assert_outcome_authorized()` into the Stage 4 estimators so the gate
-  enforces recorded authorization, not just outcome masking
-  (`.check_outcome_access`, `cleanroom.R`). Gate only when
-  `cleanroom_enabled = TRUE`; update the staged vignette and tests to authorize
-  first. [critical]
+- [x] Soft Stage-4 authorization guard (warn-only): `unmask_outcome(audit=)`
+  checks the pre-outcome gate and warns (not blocks) when it does not authorize
+  or when no audit is passed, stamping `.outcome_authorized`;
+  `.check_outcome_access()` warns once per session when a cleanroom lock reaches
+  Stage 4 with no recorded authorization (closes the unmasked/never-masked
+  hole). `cleanroom_enabled = FALSE` locks are exempt. [critical, soft]
+- [ ] (Optional) Hard enforcement: make the above `stop()` instead of `warning()`
+  and migrate the staged vignette, `test-cleanroom.R`/`test-stages.R`,
+  `run_simulation.R`, and the rescueCo scripts to authorize before Stage 4.
 - [ ] Soften the manuscript enforcement prose (`manuscript_outcome_blind_dq.qmd`
   ~304-305, "withholding ... until checkpoints recorded") to match what the code
   enforces. [important]
