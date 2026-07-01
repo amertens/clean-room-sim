@@ -589,7 +589,7 @@ lock <- cleanTMLE::create_analysis_lock(
 )
 
 # 3) Attach estimand metadata
-lock <- cleanTMLE::attach_estimand(lock,
+lock <- cleanroomGov::attach_estimand(lock,
   description          = "Effect of Rescue.Co EMS transport on good functional outcome",
   population           = "Trauma patients arriving by ambulance, excluding interfacility transfers",
   treatment_strategies = c("Rescue.Co EMS", "Other ambulance"),
@@ -600,12 +600,12 @@ lock <- cleanTMLE::attach_estimand(lock,
 )
 
 # 4) Pre-register sensitivity plans (PS truncation + transfer inclusion)
-lock <- cleanTMLE::declare_sensitivity_plan(lock,
+lock <- cleanroomGov::declare_sensitivity_plan(lock,
   label       = "ps_truncation_grid",
   description = "Re-estimate IPTW under alternative PS truncation thresholds",
   settings    = list(truncation = c(0.01, 0.025, 0.05, 0.10))
 )
-lock <- cleanTMLE::declare_sensitivity_plan(lock,
+lock <- cleanroomGov::declare_sensitivity_plan(lock,
   label       = "include_transfers",
   description = "Sensitivity: include interfacility transfers with `is_transfer` covariate",
   settings    = list(include_transfers = TRUE)

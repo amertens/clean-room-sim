@@ -44,6 +44,8 @@ if (!requireNamespace("cleanTMLE", quietly = TRUE)) {
   }
 }
 library(cleanTMLE)
+# Estimand / sensitivity-plan declarations live in the companion package.
+library(cleanroomGov)
 # Eager-load the heavy nuisance packages BEFORE the MC loop. Lazy loading of
 # SuperLearner inside the first TMLE_CF call has caused silent R-process
 # crashes during package-loading contention (OneDrive / antivirus); loading

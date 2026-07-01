@@ -65,10 +65,15 @@ A-section items are cross-referenced where they overlap.
   pass. (rel. B.2)
 - [ ] Split, publish: push `cleanroomGov` to its own repo, wire it back as a
   submodule, and add it to `cleanTMLE`'s `Suggests`. (outward/infra step)
-- [ ] Split, phase 2: move the driver-coupled governance functions
-  (`attach_estimand`, `declare_sensitivity_plan`, the decision-log family,
-  `record_stage`) into `cleanroomGov`, migrating `run_simulation.R` and the
-  rescueCo scripts across the repo boundary.
+- [~] Split, phase 2 (in progress): moved `attach_estimand` and
+  `declare_sensitivity_plan` into `cleanroomGov` and migrated `run_simulation.R`
+  (adds `library(cleanroomGov)`) and the rescueCo stage-1 script
+  (`cleanroomGov::`). Both suites pass (cleanTMLE 484, cleanroomGov 34) and the
+  vignette knits with cross-package resolution (estimand/sensitivity attached by
+  cleanroomGov, printed by cleanTMLE). Remaining phase-2 candidates:
+  `build_stage_manifest`, `summarize_stage_path` (pure, 0-core), and the
+  audit-write / decision-log machinery (`record_stage`, the decision-log family)
+  — the latter are gate-coupled (1 core caller each) and need care.
 
 ### (d) Usefulness / adoption
 - [ ] Add a positivity-strained DGP (reuse the in-package `near_positivity`
