@@ -1,9 +1,0 @@
-"meeting_id","date_time","stage","model_component","decision","justification","triggered_by","outcome_blind_confirm","approver","protocol_version"
-"MTG-20260304104546-7466","2026-03-04 10:45:46","stage1","Cohort","Cohort built and feasibility assessed","N = 7274 ; events = 2407 ; event rate = 0.3309","pre-specified protocol",TRUE,"analyst",1
-"MTG-20260304104549-1434","2026-03-04 10:45:49","stage2","PS","PS model fitted with SL.glm, SL.mean","Pre-specified SL library from config","pre-specified",TRUE,"analyst",1
-"MTG-20260304104549-1434","2026-03-04 10:45:49","stage2","PS","Truncation at [ 0.01 , 0.99 ] ; truncated: 0 lower, 0 upper","Pre-specified truncation bounds from config","pre-specified",TRUE,"analyst",1
-"MTG-20260304104549-1434","2026-03-04 10:45:49","stage2","Balance","Max weighted SMD = 0.0022","Threshold = 0.25","SMD diagnostic",TRUE,"analyst",1
-"MTG-20260304110446-5702","2026-03-04 11:04:46","stage3","Q","Outcome model fitted with SL library: SL.glm, SL.mean","Pre-specified from config","pre-specified",TRUE,"analyst",1
-"MTG-20260304110446-5702","2026-03-04 11:04:46","stage3","Estimator","Primary estimand: Risk difference at t = 90, 180 days (PH-free)","Pre-specified in TL-SAP","pre-specified",TRUE,"analyst",1
-"MTG-20260304110446-5702","2026-03-04 11:04:46","stage3","Estimator","Secondary estimand: Cox PH hazard ratio (assumes PH)","Pre-specified in TL-SAP; PH test included as diagnostic","pre-specified",TRUE,"analyst",1
-"MTG-20260304110446-5702","2026-03-04 11:04:46","stage3","Inference","Bootstrap B = 500 ; IC-based SEs also reported for TMLE/IPTW","Bootstrap is primary inference for finite-sample stability with rare events","pre-specified",TRUE,"analyst",1
