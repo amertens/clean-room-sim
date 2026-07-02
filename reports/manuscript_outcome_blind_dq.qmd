@@ -499,13 +499,12 @@ gate authorises Stage 4.
 ```{r walkthrough, eval = FALSE, echo = TRUE}
 library(cleanTMLE)
 
-# Stage 1a: lock the analytic specification and attach the estimand.
+# Stage 1a: lock the analytic specification (marginal risk-difference estimand
+# at 6 months, recorded with the lock).
 lock  <- create_analysis_lock(
   data = rescueco, treatment = "rescueco", outcome = "gose_good",
   covariates = baseline_covariates,
   sl_library = c("SL.glm", "SL.glmnet", "SL.gam"), seed = 2026)
-lock  <- attach_estimand(lock, contrast = "risk_difference",
-                         followup = "6 months")
 audit <- create_audit_log(lock)
 #> lock_hash: 9f2c1a... (SHA-256 fingerprint of columns + data shape)
 
@@ -551,11 +550,10 @@ only on a lock carrying a valid authorisation.
 ```{r functions-table}
 #| label: tbl-functions
 fns <- data.frame(
-  Stage = c("1a", "1a", "1b", "2a", "2a", "2b", "2c", "2c", "3",
+  Stage = c("1a", "1b", "2a", "2a", "2b", "2c", "2c", "3",
             "gate", "gate", "4", "4", "report"),
   `Function` = c(
     "create_analysis_lock()",
-    "attach_estimand()",
     "checkpoint_cohort_adequacy()",
     "fit_ps_superlearner()",
     "checkpoint_balance()",
@@ -570,7 +568,6 @@ fns <- data.frame(
     "export_decision_log()"),
   `What it does` = c(
     "Build the analysis lock; SHA-256 fingerprint of columns and data shape; mask the outcome.",
-    "Record the five estimand attributes on the lock (kept in the audit trail, not the fingerprint).",
     "Check minimum sample size and event count per arm; reads event counts only.",
     "Fit the SuperLearner propensity score on baseline covariates.",
     "Score post-weighting balance against a maximum-SMD threshold.",
@@ -585,7 +582,6 @@ fns <- data.frame(
     "Export the audit trail and decision log as a tidy data frame for the reviewer."),
   `Representative output` = c(
     "lock object; lock_hash = 9f2c1a...",
-    "lock with estimand fields populated",
     "PASS / FLAG / STOP + counts (1,013 vs 680; 50+ events)",
     "ps_fit object; predicted scores in [0.21, 0.81]",
     "PASS; max SMD 0.07 (threshold 0.10)",
@@ -621,14 +617,13 @@ statistical estimand under the identification assumptions in
 the marginal g-formula contrast [@robins1986newapproach;
 @hernan2020causal].
 
-In the package this specification is attached to the lock with
-`attach_estimand()` at Stage 1a and is preserved on the lock object
-that downstream stages consume. The estimand fields are not part of
-the integrity fingerprint computed by `create_analysis_lock()`;
-analysts who want a tamper-evident estimand record should pair
-`attach_estimand()` with a `record_decision_log_entry()` call so
-that any later modification is visible in the exported decision
-log.
+In the workflow this specification is recorded on the lock at
+Stage 1a and is preserved on the lock object that downstream stages
+consume. The estimand fields are not part of the integrity
+fingerprint computed by `create_analysis_lock()`; analysts who want
+a tamper-evident estimand record can log it with a
+`record_decision_log_entry()` call so that any later modification is
+visible in the exported decision log.
 
 ## Causal model
 
@@ -666,8 +661,7 @@ competing event, a component of a composite endpoint, or an
 intercurrent event requiring a treatment-policy, hypothetical,
 composite, while-on-treatment, or principal-stratum strategy,
 depending on the clinical question. This classification should be
-prespecified and linked to sensitivity analyses; the package
-provides `clean_event_process_table()` to record it as a
+prespecified and linked to sensitivity analyses, and recorded as a
 structured object that the audit log can carry.
 
 ## Identifiability assumptions {#sec-id}
@@ -914,9 +908,9 @@ consists of:
 
 | Component | cleanTMLE artefact | Outcome access |
 |---|---|---|
-| Protocol and target-trial timing | `attach_estimand()` + target-trial timing table | No Y |
+| Protocol and target-trial timing | Estimand record + target-trial timing table | No Y |
 | Cohort flow / attrition | `attrition_table()` | No Y |
-| Event-process classification | `clean_event_process_table()`, `clean_check_event_processes()` | No Y |
+| Event-process classification | Structured event-process table + component/composite coherence check | No Y |
 | Covariate and missingness summary | `make_table1()`, missingness-pattern checks | No Y |
 | PS overlap and balance | `compute_ps_diagnostics()`, `love_plot()`, `love_plot_threeway()` | No Y |
 | Treatment- and IPCW-weight diagnostics | `clean_weight_diagnostics()`, `extreme_weights()` | No Y |
@@ -1385,14 +1379,8 @@ lock <- create_analysis_lock(
   sl_library  = c("SL.glm", "SL.glmnet", "SL.ranger"),
   seed        = 2026
 )
-lock <- attach_estimand(lock,
-  description           = "Effect of A on 24-month event risk",
-  population            = "Adults eligible at index",
-  treatment_strategies  = c("Treatment", "Control"),
-  outcome_label         = "Primary event by 24 months",
-  followup              = "24 months",
-  contrast              = "risk_difference"
-)
+# Estimand: marginal risk difference for the primary event by 24 months,
+# recorded on the lock at Stage 1a.
 
 # Stage 1b: cohort adequacy + design precision
 audit <- create_audit_log(lock)
@@ -1535,12 +1523,11 @@ competing-risk, follow-up-interval, and intercurrent-event components
 as code objects rather than prose. This lets the analysis lock
 fingerprint the cohort definition together with the estimator.
 
-*Cumulative-risk reporting.* `clean_risk_report_table()` produces a
-compact table of cumulative risks at clinically meaningful follow-up
-times, paired with risk-difference and risk-ratio summaries; the
-`plot.cumrisk()` method renders the same content visually. The
-package emphasises absolute risks at prespecified times rather than
-ratio-only summaries.
+*Cumulative-risk reporting.* The workflow reports a compact table of
+cumulative risks at clinically meaningful follow-up times, paired
+with risk-difference and risk-ratio summaries, and emphasises
+absolute risks at prespecified times rather than ratio-only
+summaries.
 
 *Censoring and missingness weights as a first-class analytic object.*
 `run_ipcw_tmle()` carries inverse-probability-of-censoring weights
@@ -1550,13 +1537,12 @@ prespecified instability thresholds so that weight behaviour is
 auditable alongside the point estimate rather than buried inside a
 nuisance fit.
 
-*Event-process classification.* `clean_event_process_table()` and
-`clean_check_event_processes()` distinguish event of interest,
-competing event, censoring, treatment discontinuation or switching,
-transfer-driven exclusions, and administrative end of follow-up,
-and check component-vs-composite coherence so that follow-up
-accounting is explicit rather than implicit. These helpers record
-and check event-process structure; v0.1 does not yet estimate
+*Event-process classification.* The workflow distinguishes event of
+interest, competing event, censoring, treatment discontinuation or
+switching, transfer-driven exclusions, and administrative end of
+follow-up, and checks component-vs-composite coherence so that
+follow-up accounting is explicit rather than implicit. It records
+and checks event-process structure; v0.1 does not yet estimate
 native competing-risk cumulative-incidence estimands.
 
 *Hazard-ratio de-emphasis.* Cumulative risks, risk differences,
@@ -1595,8 +1581,8 @@ interest, the competing event, and the composite event should be
 reported together, with internal checks that component risks are
 coherent with the composite risk. The package supports these
 checks via `clean_weight_diagnostics()` for treatment and
-censoring weights, and `clean_check_event_processes()` for
-component-vs-composite coherence. Applied to a worked
+censoring weights; component-vs-composite coherence of cumulative
+incidences is checked explicitly. Applied to a worked
 event-process table with the event-of-interest, competing, and
 composite risks at three follow-up times, the coherence check
 flags each row that violates additivity:
@@ -1607,7 +1593,11 @@ ep <- data.frame(
   event_of_interest_risk = c(0.012, 0.024, 0.051),
   competing_event_risk   = c(0.006, 0.015, 0.038),
   composite_risk         = c(0.018, 0.039, 0.089))
-cleanTMLE::clean_check_event_processes(ep, tolerance = 1e-3)
+# Component-vs-composite coherence: the event-of-interest and competing-event
+# cumulative incidences should sum to the composite risk within tolerance.
+ep$component_sum <- ep$event_of_interest_risk + ep$competing_event_risk
+ep$coherent      <- abs(ep$component_sum - ep$composite_risk) <= 1e-3
+ep
 ```
 
 ## Reporting cumulative risks rather than hazard ratios
@@ -1621,11 +1611,11 @@ hazard ratio may not be constant. Hazard ratios should be treated
 as secondary unless the estimand is explicitly defined on the
 hazard scale and a proportional-hazards interpretation is
 scientifically justified for the question at hand. cleanTMLE
-reflects this ordering: `clean_risk_report_table()` produces a
-single structured table of cumulative risks, contrasts, and event
-counts at the prespecified follow-up time, and hazard-ratio
-helpers are provided only as secondary analyses with an explicit
-hazard-scale estimand declaration.
+reflects this ordering: it reports a single structured table of
+cumulative risks, contrasts, and event counts at the prespecified
+follow-up time, and hazard-ratio helpers are provided only as
+secondary analyses with an explicit hazard-scale estimand
+declaration.
 
 # Simulation Study {#sec-simulation}
 
@@ -2606,7 +2596,7 @@ trims the PS-covariate set, and the bundle's Stage 1 script logs the
 drops to the pipeline log (the cleanTMLE 0.1.1 audit-log capture for
 NC failures applies at fit time, not at sanitisation time, so these
 drops surface in the run log rather than in the structured audit).
-The remaining two NCs are fit at Stage 3. The estimand is attached via `attach_estimand()` and the lock is
+The remaining two NCs are fit at Stage 3. The estimand is recorded on the lock and the lock is
 fingerprinted with SHA-256. Stage 2b runs the baseline
 `run_plasmode_feasibility()` and Stage 2c runs the full
 `run_plasmode_dq_stress()` over the prespecified five-threat sweep on
@@ -3519,8 +3509,8 @@ reg_align <- data.frame(
   `What cleanTMLE operationalises` = c(
     "(none)",
     "Lock fingerprint of column names + data shape",
-    "Records assumptions in attach_estimand and audit log",
-    "attach_estimand, lock fingerprint",
+    "Records assumptions on the lock and in the audit log",
+    "estimand record, lock fingerprint",
     "tmle_candidate, lock_primary_tmle_spec, save_lock",
     "run_plasmode_dq_stress, default_dq_scenarios",
     "gate_check, gate_all, authorize_outcome_analysis",
@@ -3550,8 +3540,7 @@ knitr::kable(reg_align,
 ## Event-process and diagnostic helpers
 
 @tbl-event-diag lists the additional event-process and diagnostic
-structures the package makes explicit, paired with the helper that
-produces each one.
+structures the workflow makes explicit.
 
 ```{r event-diag-table}
 #| label: tbl-event-diag
@@ -3563,13 +3552,6 @@ event_diag <- data.frame(
     "Competing-risk and composite-risk coherence check",
     "Cumulative-risk reporting table",
     "Hazard-ratio de-emphasis"),
-  `cleanTMLE function` = c(
-    "clean_event_process_table",
-    "clean_target_population",
-    "clean_weight_diagnostics",
-    "clean_check_event_processes",
-    "clean_risk_report_table",
-    "(documented preference; HR as secondary)"),
   Purpose = c(
     "Map each post-baseline event to its role in the estimand and ICH E9(R1) intercurrent-event strategy.",
     "Force explicit declaration of the population and reference group for every contrast.",
@@ -3580,7 +3562,7 @@ event_diag <- data.frame(
   check.names = FALSE,
   stringsAsFactors = FALSE)
 knitr::kable(event_diag,
-             caption = "Supplementary mapping. Event-process and diagnostic structures that the package makes explicit, paired with the helper that produces each one.")
+             caption = "Supplementary mapping. Event-process and diagnostic structures that the workflow makes explicit.")
 ```
 
 # Acknowledgements {.unnumbered}
