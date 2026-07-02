@@ -65,7 +65,7 @@ if (!is.null(audit)) {
               row.names = FALSE)
     cr_log(paste("cleanTMLE decision log:", nrow(audit_dlog), "entries"))
   }
-  tryCatch(cleanTMLE::build_stage_manifest(audit),
+  tryCatch(cleanroomGov::build_stage_manifest(audit),
            error = function(e) cr_log(paste("Stage manifest failed:", e$message)))
 }
 
