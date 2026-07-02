@@ -65,16 +65,24 @@ A-section items are cross-referenced where they overlap.
   pass. (rel. B.2)
 - [ ] Split, publish: push `cleanroomGov` to its own repo, wire it back as a
   submodule, and add it to `cleanTMLE`'s `Suggests`. (outward/infra step)
-- [~] Split, phase 2 (in progress): moved `attach_estimand`,
+- [x] Split, phase 2 (complete): moved `attach_estimand`,
   `declare_sensitivity_plan`, `build_stage_manifest`, and `summarize_stage_path`
   into `cleanroomGov` and migrated the drivers (`run_simulation.R` adds
   `library(cleanroomGov)`; rescueCo stage-1 and stage-6 scripts call
   `cleanroomGov::`). Both suites pass (cleanTMLE 480, cleanroomGov 42) and the
-  vignette knits with cross-package resolution. Remaining phase-2 candidate: the
-  audit-write / decision-log machinery (`record_stage`, the decision-log family)
-  — gate-coupled (1 core caller each), so it either stays in cleanTMLE or needs a
-  careful interface split to avoid inverting the cleanTMLE->cleanroomGov
-  dependency.
+  vignette knits with cross-package resolution.
+- [x] **Deliberate stopping point for the split.** The audit-write /
+  decision-log machinery (`record_stage`, `create_audit_log`, `record_checkpoint`,
+  and the `init/log/record/save/export_decision_log` family) **stays in
+  cleanTMLE by design**: it is gate-coupled (the pre-outcome gate and
+  `authorize_outcome_analysis()` read what these write, and each has a caller in
+  the estimation core), so moving it would invert the cleanTMLE->cleanroomGov
+  dependency and break cleanTMLE's standalone installability. This matches
+  Reviewer 3's guidance to keep the enforcing audit/gate layer with the
+  estimator it guards. `cleanroomGov` is therefore a coherent
+  "declarations + reporting tables + path summaries" package (9 exports); the
+  enforcers and audit machinery remain in `cleanTMLE`. No further function moves
+  planned.
 
 ### (d) Usefulness / adoption
 - [ ] Add a positivity-strained DGP (reuse the in-package `near_positivity`
