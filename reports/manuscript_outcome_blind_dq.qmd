@@ -98,21 +98,38 @@ if (file.exists(boot_path)) {
     "before rendering. The manuscript will not render with placeholder numbers."
   )
 }
+
+# Scenario C (unmeasured confounding) primary-TMLE numbers, read once so the
+# prose stays in sync with the regenerated simulation results rather than being
+# hardcoded in several places.
+.simres_path <- file.path("..", "results_new", "simulation_results.rds")
+if (file.exists(.simres_path)) {
+  .sr   <- readRDS(.simres_path)
+  .scT  <- .sr$summaries$unmeasured_conf
+  .scT  <- .scT[.scT$method == "TMLE", ]
+  scC_bias  <- .scT$bias
+  scC_cov   <- .scT$coverage
+  scC_est   <- .scT$mean_est
+  scC_truth <- .sr$truths$unmeasured_conf$RD
+  .scRt     <- .sr$results$unmeasured_conf
+  .scRt     <- .scRt[.scRt$method == "TMLE", ]
+  scC_pct_excl0 <- mean(.scRt$ci_lower > 0 | .scRt$ci_upper < 0, na.rm = TRUE)
+} else {
+  scC_bias <- scC_cov <- scC_est <- scC_truth <- scC_pct_excl0 <- NA_real_
+}
 ```
 
 # Abstract {.unnumbered}
 
-Real-world evidence studies often require many analytic decisions
-before an effect estimate is produced: how to define the study
-population, how to handle limited overlap, which estimator to use,
-and how to assess whether the data are reliable enough for the
-question. In practice, these decisions are commonly documented in
-separate places. The causal question and target-trial design may
-be described in a protocol, data fitness may be assessed in a
-checklist, and estimator choice may be justified in a statistical
-analysis plan. This separation makes it difficult for reviewers to
-see how design assumptions, data limitations, and estimation
-choices are connected.
+A real-world evidence study reaches an effect estimate only after
+many analytic decisions: how to define the study population, how to
+handle limited overlap, which estimator to use, and whether the data
+are reliable enough to answer the question. These decisions are
+usually documented in separate places. The causal question and
+target-trial design go in a protocol, data fitness in a checklist,
+and estimator choice in a statistical analysis plan. A reviewer is
+then left to reconstruct how the design assumptions, the data
+limitations, and the estimation choices connect.
 
 cleanTMLE is an R package for staged, outcome-blind targeted
 learning on binary point-treatment studies. Working inside the
@@ -126,36 +143,32 @@ observed outcome given covariates, and the joint treatment-outcome
 association is never inspected before the pre-outcome decision. The
 package extends this loop with a plasmode data-quality stress test
 that generates synthetic outcomes from the empirical covariate and
-treatment structure and evaluates each candidate under prespecified
-threats, including covariate missingness, exposure misclassification,
-outcome misclassification, and unmeasured confounding.
+treatment structure and evaluates each candidate under five prespecified
+threat families: covariate missingness, exposure misclassification,
+outcome misclassification, near-positivity, and unmeasured confounding.
 
 In Monte Carlo experiments, adjusted estimators recovered the true
 risk difference under good overlap, and TMLE and cross-validated
 TMLE held bias small relative to the empirical standard deviation
-under marginal overlap. A supplementary variance comparison found that the matched-cohort
-TMLE paired-difference SE is anti-conservative under good overlap
-(95% CI coverage `r round(mt_A_cov_if, 2)`, Monte Carlo SE
-`r round(mt_A_cov_if_se, 2)`), because it ignores
-matching-draw variance, the variability from which controls are
-selected when data are re-sampled. The standard nonparametric
-bootstrap is not consistent for matching estimators (Abadie and
-Imbens 2008); a full-pipeline variant that re-runs matching on each
-resample raised coverage to `r round(mt_A_cov_boot, 2)` in this
-comparison, which we report as an empirical finding. The stabilised
-IPTW IF-SE is moderately conservative under marginal overlap (SE/SD
-ratio ≈ `r round(iptw_B_ratio_if, 2)`) because it treats the
-propensity score as known, and correcting this requires an
-M-estimator rather than resampling. `select_variance_method()` uses oracle coverage on
-plasmode-generated synthetic data to identify, for each
-estimator-scenario combination, which variance method achieves nominal
-coverage. When
+under marginal overlap. Under a deliberately misspecified outcome
+surface, cross-validated TMLE with a flexible library recovered the
+true risk difference, while the unadjusted crude estimator carried the
+wrong sign and the GLM-based adjusted estimators, though correctly
+signed, remained substantially biased. A supplementary variance comparison found that the
+matched-cohort TMLE paired-difference SE is anti-conservative under
+good overlap (95% CI coverage `r round(mt_A_cov_if, 2)`, Monte Carlo SE
+`r round(mt_A_cov_if_se, 2)`) because it ignores matching-draw variance,
+and a full-pipeline bootstrap that re-runs matching on each resample
+raised coverage to `r round(mt_A_cov_boot, 2)` [@abadie2008bootstrap].
+`select_variance_method()` uses oracle coverage on plasmode-generated
+synthetic data to identify, for each estimator-scenario combination,
+which variance method achieves nominal coverage. When
 unmeasured confounding was introduced, all estimators were biased
 in the same direction, and the prespecified pre-outcome decision
-correctly returned STOP, illustrating that the workflow flags
-prespecified unmeasured-confounding scenarios under which the
-planned analysis would no longer meet the locked
-operating-characteristic thresholds. The data-quality stress test further showed that
+correctly returned STOP: the workflow flags a prespecified
+unmeasured-confounding scenario under which the planned analysis
+would no longer meet the locked operating-characteristic
+thresholds. The data-quality stress test further showed that
 outcome misclassification and unmeasured confounding produced the
 largest degradation in estimator performance. The package also ships a worst-case selection rule (`min_max_rmse`) that
 ranks candidates by their maximum RMSE across all declared threats;
@@ -209,9 +222,13 @@ developed in parallel but reported separately. The
 plasmode simulation [@franklin2014plasmode; @schuler2017tmle;
 @dang2023roadmap; @gruber2022sap; @schreck2024plasmode]. The
 *fit-for-purpose* argument is documented qualitatively through
-templates such as SPIFD2 [@gatto2022spifd; @gatto2023spifd2] or
-HARPER [@wang2023harper] and through reporting tools such as
-TARGET [@cashin2024target] and START-RWE [@wang2021startrwe].
+templates such as SPIFD2, the Structured Process to Identify
+Fit-for-purpose study Design and Data [@gatto2022spifd; @gatto2023spifd2],
+or HARPER [@wang2023harper], and through reporting tools such as
+TARGET, the Target Trial reporting tool for observational studies
+[@cashin2024target], and STaRT-RWE, the Structured Template for
+Planning and Reporting on the Implementation of real-world evidence
+studies [@wang2021startrwe].
 
 These two arguments are connected: a candidate estimator that
 performs well on a simulation derived from real covariate and
@@ -268,7 +285,7 @@ compare estimators before outcome access, but it usually evaluates
 performance under one locked synthetic outcome mechanism. cleanTMLE
 extends that loop by stress-testing the selected estimator across
 prespecified data-quality threats derived from the fit-for-purpose
-review, creating a quantitative bridge between the qualitative
+review. This builds a quantitative bridge between the qualitative
 data-fitness argument and the estimator-selection argument.
 
 ## What the package adds, and what it does not
@@ -317,8 +334,10 @@ package inside the causal roadmap.
 The simulation, vignette, and case study in this paper run on a binary
 point exposure, a binary outcome, and the marginal risk-difference
 estimand, with outcome missingness handled through complete-case and
-IPCW sensitivity paths under prespecified missingness assumptions (the
-complete-case path is unbiased under MCAR, and the IPCW path is unbiased
+inverse-probability-of-censoring-weighted (IPCW)
+sensitivity paths under prespecified missingness assumptions (the
+complete-case path is unbiased under missingness completely at random
+(MCAR), and the IPCW path is unbiased
 under conditional independent censoring given measured covariates and
 treatment). Within that scope the package exposes the full estimator
 spectrum, namely IPTW with stabilised weights (`estimate_ipwrisk()`),
@@ -363,8 +382,9 @@ the same GO/STOP verdict an oracle with knowledge of the realised
 estimator's bias would return, and how that calibration degrades when the
 synthetic-outcome model is misspecified.
 
-The boundary with the FIORD framework is as follows. FIORD
-[@nance2026fiord; @kent2026fiord] supplies the outcome-blind
+The boundary with the FIORD framework is as follows. FIORD, the Forum
+on the Integration of Observational and Randomized Data
+[@nance2026fiord; @kent2026fiord], supplies the outcome-blind
 candidate-evaluation loop and the two-stage selector that first screens
 candidates on oracle coverage and then selects a variance method. This paper
 contributes the software implementation of that loop, the data-quality
@@ -404,10 +424,22 @@ marginal overlap the workflow flags the IPTW variance calibration before
 unblinding, where the conventional pipeline relies on a reviewer to
 notice it. Under unmeasured confounding of a prespecified strength the
 staged decision rule returns STOP and the locked primary analysis does
-not run, whereas the conventional pipeline reports a biased non-null
-estimate (mean bias 0.007) that would be published. The fits are
-identical under both pipelines; the difference is the prespecified
-decision applied before the outcome is read.
+not run, whereas the conventional pipeline reports an estimate biased
+toward the null (mean bias about `r round(scC_bias, 3)` toward zero,
+roughly twice the 0.02 threshold, so the realised risk difference of
+about `r round(scC_est, 3)` attenuates the true `r round(scC_truth, 3)`),
+with 95% CI coverage of the true effect near `r round(scC_cov, 2)` and
+only about `r round(100 * scC_pct_excl0)`% of replicate intervals
+excluding zero. A conventional analysis would therefore typically report
+no significant effect and publish a null that masks a real one. The contrast here is
+genuine rather than rhetorical: under this prespecified
+unmeasured-confounding scenario the realised measured-covariate analysis
+is materially biased and under-covering, so both a realised-bias oracle
+and the outcome-blind screen flag it (detection and fragility agree),
+and a conventional pipeline would publish a genuinely misleading null.
+The
+fits are identical under both pipelines; the difference is the
+prespecified decision applied before the outcome is read.
 
 ## Why targeted learning for an outcome-blind workflow
 
@@ -421,7 +453,11 @@ that can be learned by flexible, data-adaptive methods without changing the
 target. The targeting step then removes the plug-in bias of the initial
 outcome fit using the propensity score, so the bias of the final estimator
 does not depend on the quality of any single nuisance model in the way a
-plug-in or single-model estimator does. The candidate estimators are
+plug-in or single-model estimator does.
+<!-- TODO: add citation for AIPW / double robustness (Robins, Rotnitzky & Zhao 1994; Bang & Robins 2005); keys not yet in references.bib -->
+This double-robustness property, that a consistent estimate follows if
+either the propensity or the outcome model is correctly specified, is
+shared with augmented inverse-probability weighting. The candidate estimators are
 enumerable, which is what makes outcome-blind selection among them feasible:
 each candidate is a fixed choice of nuisance libraries, truncation, and
 cross-fitting, and the candidates can be ranked on synthetic data before the
@@ -528,7 +564,7 @@ sel   <- select_tmle_candidate(plas, rule = "min_max_rmse", dq_results = dq)
 
 # Stage 3: negative-control outcomes.
 nc <- run_residual_confounding_stage(lock,
-        negative_controls = c("household_urban", "fuel_wood"))
+        negative_controls = c("household_urban", "chronic_hypertension"))
 #> 2 of 5 NCs fit (3 dropped by near-zero-variance filter); both near null
 
 # Pre-outcome decision and authorisation.
@@ -666,11 +702,8 @@ structured object that the audit log can carry.
 
 ## Identifiability assumptions {#sec-id}
 
-Under this DAG, $\Psi$ is identified by the g-formula if the
-following six assumptions hold [@hernan2020causal]. We list each
-assumption together with the DQ stress-test scenario that probes
-it; this mapping is one of the main reasons the DQ stress test is
-useful.
+Under this DAG, $\Psi$ is identified by the g-formula if three
+identification assumptions hold [@hernan2020causal]:
 
 - *Conditional exchangeability*, $Y(a) \perp\!\!\!\perp A \mid W$.
   This holds in scenarios A and B by construction. It is violated
@@ -680,24 +713,39 @@ useful.
 - *Positivity*, $0 < \Pr(A = 1 \mid W) < 1$ for every $W$ in the
   support. Scenario A satisfies this comfortably. Scenario B
   pushes the propensity toward the boundary but does not violate
-  it in the limit. **Probed by:** the truncation level of each TMLE
-  candidate; near-positivity violations show up as inflated SE/SD
-  in the baseline plasmode metrics.
+  it in the limit. **Probed by:** the near-positivity scenario,
+  which amplifies the covariate-to-treatment association, and by the
+  truncation level of each TMLE candidate; near-positivity strain
+  shows up as inflated SE/SD in the baseline plasmode metrics.
 - *Consistency / SUTVA*, $Y = Y(A)$. **Probed by:** the treatment-
   misclassification scenario, which simulates a violation of
   consistency caused by exposure-algorithm error.
-- *No measurement error in the outcome*, $\tilde{Y} = Y$. **Probed
-  by:** the outcome-misclassification scenario, with optional
-  per-arm differential misclassification.
-- *Stratified MCAR for the covariates*, $W$ is missing completely
-  at random within strata of fully measured variables. **Probed
-  by:** the covariate-missingness scenario, which sets a fraction
-  of values to NA and imputes with the column median.
-- *Correctly specified nuisance models* for $g(W)$ and $E[Y \mid A,
-  W]$, including the SuperLearner library and the truncation rule.
-  **Probed by:** the standard plasmode candidate-selection metrics,
-  which compare candidates that vary the SuperLearner library and
-  the truncation rule.
+
+Identification of $\Psi$ requires only these three. It does not
+require that the nuisance models be correctly specified: that is the
+point of targeted learning, whose targeting step keeps the estimator
+consistent when the outcome model is misspecified but the propensity
+model is not, and vice versa. Two further conditions are needed for
+the estimate to be *trustworthy* rather than merely identified, and
+the DQ stress test probes them alongside the identification
+assumptions above. These are measurement and estimation conditions,
+not identification assumptions:
+
+- *No measurement error in the outcome*, $\tilde{Y} = Y$, and no
+  differential exposure or outcome misclassification. **Probed by:**
+  the outcome-misclassification scenario, with optional per-arm
+  differential misclassification.
+- *Covariate missingness that median imputation can absorb.* The
+  stress test degrades $W$ under MCAR, MAR, and MNAR masks
+  <!-- TODO: add citation for the MCAR/MAR/MNAR taxonomy (Rubin 1976; Little & Rubin); keys not yet in references.bib -->.
+  **Probed by:** the covariate-missingness scenario, which masks a
+  fraction of values and imputes with the column median.
+
+Estimation quality, the choice of SuperLearner library and truncation
+rule for $g(W)$ and $E[Y \mid A, W]$, is not an identification
+assumption either; it is exercised by the standard plasmode
+candidate-selection metrics, which compare candidates that vary the
+library and the truncation rule.
 
 The simulation thus contains one analytic challenge (marginal
 overlap, B) and one identifiability violation (unmeasured
@@ -729,17 +777,17 @@ content matches the roadmap steps of @dang2023roadmap.
 | Pre-outcome decision | GO/FLAG/STOP authorisation | No |
 | 4 | Primary comparative analysis | **Yes** |
 
-Stages 1–3 do not access the real outcome. The plasmode at Stage
+Stages 1 to 3 do not access the real outcome. The plasmode at Stage
 2b generates synthetic outcomes from a parametric model fitted to
 the real covariates and treatment, which is why it is a natural
 host for the DQ stress test we describe in @sec-dq.
 
 Within a staging-and-clean-room framework, the DQ stress test
-functions as a quantitative checkpoint. Rather than relying only
-on qualitative discussion of data-fitness concerns, the workflow
-evaluates whether candidate estimators continue to satisfy
-prespecified operating-characteristic thresholds under threat
-scenarios derived from the fit-for-purpose review.
+is a quantitative checkpoint. Instead of discussing data-fitness
+concerns only qualitatively, the workflow evaluates whether
+candidate estimators continue to satisfy prespecified
+operating-characteristic thresholds under threat scenarios derived
+from the fit-for-purpose review.
 
 Clean-room guidance addresses a limitation of preregistration:
 during RWE execution, investigators often encounter data
@@ -810,22 +858,21 @@ produced under that plan.
 Outcome-blind simulation addresses the same concern through a
 different mechanism. Candidate estimators, truncation rules, and
 data-quality scenarios may be evaluated using synthetic outcomes
-generated without using the observed treatment–outcome
+generated without using the observed treatment-outcome
 association. This allows investigators to compare estimators and
 revise prespecified simulation settings before unblinding while
 preserving separation from the observed comparative effect. The
 software-mediated workflow partially substitutes for
 personnel-based outcome separation by restricting outcome analysis
-until prespecified review steps have been completed. It should be
-viewed as complementary to, not a replacement for, the personnel-
-based governance arrangement. The audit and decision logs likewise
-complement, rather than replace, the timestamped paper plan and
-the data manager's role; reviewers see transparent documentation
-of every analytic decision alongside the institutional
-documentation that already exists.
+until prespecified review steps have been completed. It complements
+that arrangement rather than replacing it: the audit and decision
+logs sit alongside the timestamped paper plan and the data
+manager's role, so reviewers see transparent documentation of every
+analytic decision on top of the institutional documentation that
+already exists.
 
 The two arrangements address the same underlying concern, that
-analytic decisions made after seeing the treatment–outcome
+analytic decisions made after seeing the treatment-outcome
 association are not credible, but they differ in their residual
 risks. Personnel-based blinding requires an institutional
 commitment to the partition of duties and tolerates ad-hoc
@@ -835,25 +882,10 @@ personnel constraint but introduces a different residual risk: the
 investigator must defend the assumption that the synthetic-outcome
 mechanism is faithful enough to the real data-generating process
 that estimator selection on simulations generalises to the
-realised data. The arrangements are complementary, and a
-defensible RWE pipeline can use both, applying the simulation-based
-workflow inside an institutional partition of duties.
-
-### Personnel-based and simulation-mediated protections are complementary
-
-Personnel-based clean rooms protect against outcome-driven
-protocol drift through role separation, staged access, and audit
-of who can see what at each stage. Simulation-mediated blinding
-supports prespecified estimator selection and stress testing using
-synthetic outcomes generated from the empirical covariate and
-treatment structure. The two arrangements target overlapping but
-distinct residual risks: personnel-based workflows do not by
-themselves quantify estimator fragility under data-quality
-threats, while simulation-mediated workflows depend on the
-fidelity of the synthetic-outcome mechanism. High-stakes studies
-should consider using cleanTMLE inside a personnel-based
-clean-room arrangement so that institutional outcome separation
-and quantitative robustness screening apply together.
+realised data. A defensible RWE pipeline can therefore use both,
+running the simulation-based workflow inside an institutional
+partition of duties so that outcome separation and quantitative
+robustness screening apply together.
 
 ### Methodological tradeoffs
 
@@ -957,7 +989,7 @@ diagnostics [@austin2009ps] assess empirical comparability, overlap, and
 weight stability, indicating whether the design is feasible under the
 observed covariate and treatment distributions; they do not estimate the
 operating characteristics of a candidate estimator. Balance is
-conventionally summarised with standardised mean differences, but
+conventionally summarised with standardised mean differences (SMDs), but
 univariate SMDs compare only the marginal means of each covariate and
 can be satisfied while variances, higher moments, or covariate
 interactions remain imbalanced, so distributional and interaction
@@ -1003,6 +1035,8 @@ SPIFD2 design-element categories and the @kahn2016data dimensions
 to plasmode parameters as follows.
 
 ```{r spifd2-table}
+#| label: tbl-spifd2-map
+#| tbl-cap: "Mapping data-quality concerns to plasmode-parameter inputs of run_plasmode_dq_stress()."
 spifd2_map <- data.frame(
   `SPIFD2 / Kahn category` = c(
     "Covariate measurement / availability (Kahn: completeness)",
@@ -1035,10 +1069,7 @@ spifd2_map <- data.frame(
   check.names = FALSE,
   stringsAsFactors = FALSE
 )
-knitr::kable(
-  spifd2_map,
-  caption = "Table 1: Mapping data-quality concerns to plasmode-parameter inputs of run_plasmode_dq_stress()."
-)
+knitr::kable(spifd2_map)
 ```
 
 The mapping is deliberately one-to-many: a single SPIFD2 design
@@ -1071,8 +1102,7 @@ point estimator to achieve nominal coverage, is provided by
 full-pipeline nonparametric bootstrap that re-runs matching on each resample
 as one candidate variance method alongside the influence-function SE; the
 method achieving nominal oracle coverage is selected empirically (@sec-simulation).
-The rule can additionally
-be augmented to require a
+The rule can also require a
 maximum allowed degradation in the DQ stress test, which excludes
 fragile candidates before the outcome is accessed.
 
@@ -1121,7 +1151,7 @@ identification or measurement assumption nominally probed, the
 scenario operationalisation, and the threats the scenario *does
 not* probe. The reader should treat the table as a guide to
 interpreting `run_plasmode_dq_stress()` output rather than as a
-claim that the four scenarios constitute a complete
+claim that the five scenarios constitute a complete
 threat taxonomy.
 
 ```{r threat-matrix-table}
@@ -1130,23 +1160,27 @@ threat_mat <- data.frame(
   Scenario = c("Covariate missingness",
                "Treatment misclassification",
                "Outcome misclassification",
+               "Near-positivity",
                "Unmeasured confounding"),
   `Nominally probes` = c(
-    "Stratified MCAR for $W$; robustness of nuisance fits to imputation",
+    "Robustness of nuisance fits to missingness in $W$ and its imputation",
     "Consistency / SUTVA on $A$ when the treatment phenotype is imperfect",
     "Differential or non-differential outcome measurement error",
+    "Positivity: stability of the estimate as propensity weights grow heavy",
     "Conditional exchangeability when one or more confounders are unmeasured"
   ),
   Operationalisation = c(
     "MCAR, MAR, and MNAR masks of $W$, median imputation",
     "Sensitivity / specificity flips of $A$, optionally asymmetric",
     "Sensitivity / specificity flips of $Y$, optionally per arm",
+    "Amplifying the covariate-to-treatment association ($\\times 2 / \\times 3 / \\times 4$)",
     "Latent $U \\sim \\text{Bern}(p_U)$ with $\\text{OR}_A$, $\\text{OR}_Y$"
   ),
   `Does NOT probe` = c(
     "Missingness in $A$ or $Y$; non-median-imputation handling (MI, IPW)",
     "Time-varying treatment versions; per-arm differential exposure error",
     "Outcome measurement processes that depend on covariates other than $A$",
+    "Structural non-overlap (deterministic treatment assignment)",
     "Confounding by variables not exchangeable with the chosen latent $U$"
   ),
   check.names = FALSE,
@@ -1485,7 +1519,7 @@ for each (scenario, severity) in scenario grid:
     if scenario == outcome_misclass:
       apply (sens, spec) to Y, optionally by treatment arm
     if scenario == covariate_missingness:
-      set MCAR fraction of W to NA, impute with column median
+      mask fraction of W under MCAR/MAR/MNAR, impute with column median
     for each candidate:
       fit g, Q, targeting; record est, SE, CI
   aggregate over replicates: bias, RMSE, coverage, SE/SD
@@ -1532,7 +1566,7 @@ summaries.
 *Censoring and missingness weights as a first-class analytic object.*
 `run_ipcw_tmle()` carries inverse-probability-of-censoring weights
 through the targeting step, and `clean_weight_diagnostics()` exposes
-effective sample size, weight percentiles, the maximum weight, and
+effective sample size (ESS), weight percentiles, the maximum weight, and
 prespecified instability thresholds so that weight behaviour is
 auditable alongside the point estimate rather than buried inside a
 nuisance fit.
@@ -1726,7 +1760,7 @@ for (sc in names(res$summaries)) {
     caption = paste0(
       label,
       ". The g_value column is the additive bias that would push the ",
-      "95% CI across zero (Gruber 2023 RWE p.5); smaller values mean ",
+      "95% CI across zero [@gruber2023future, p.5]; smaller values mean ",
       "the conclusion is more easily flipped by a postulated bias.")
   ) |> print()
   cat("\n")
@@ -1759,6 +1793,15 @@ The printed tables include the Monte Carlo standard error of the
 coverage estimate so the reader can judge which differences exceed
 Monte Carlo noise.
 
+The simulation locks its decision thresholds at
+`max_abs_bias = 0.02` and `min_coverage = 0.90`, a deliberately looser
+bias bound than the `max_abs_bias = 0.01` package default used in the
+case study. The wider band is chosen so that the illustrative
+scenarios separate on a scale readable against the Monte Carlo noise at
+the replicate count used here; an analyst would lock the tighter
+default (or a study-specific value) in a real prespecification. All
+figures and interpretations in this section use the 0.02 bound.
+
 Under good overlap (Scenario A) all adjusted estimators
 recover the truth with bias well under the prespecified threshold
 of 0.02 and with confidence intervals that cover at the nominal
@@ -1773,23 +1816,25 @@ relative to their empirical standard deviation (the residual bias
 is statistically distinguishable from zero at the Monte Carlo
 sample size used, but is an order of magnitude smaller than the
 empirical SD). The plasmode-selected specification chooses
-a higher truncation level than under Scenario A, illustrating that
-the candidate selection adapts to the observed data structure.
+a higher truncation level than under Scenario A, so the candidate
+selection adapts to the observed data structure.
 
 Under unmeasured confounding (Scenario C) every estimator is
 biased in the same direction, because no method that adjusts only
 on $W$ can remove the contribution of $U$ to the treatment-outcome
 association. The bias is smallest for TMLE and largest for the
 crude estimator, but the difference is one of degree, not of kind.
-The pre-outcome decision returns STOP for Scenario C. Inspection of
-the per-component thresholds shows that the trigger is the
-unmeasured-confounding DQ row (estimated bias from the U-shift
-scenario exceeds the prespecified maximum), rather than the
-baseline plasmode coverage check: the baseline TMLE coverage in
-Scenario C is at the lower edge of the prespecified range, and the
-DQ supplement is what makes the failure unambiguous. This
-illustrates the intended role of the DQ stress test as a
-quantitative supplement to the baseline plasmode metrics.
+The pre-outcome decision returns STOP for Scenario C, and the
+failure is unambiguous on both the baseline and the supplementary
+metrics. The realised measured-covariate TMLE carries a mean bias of
+about `r round(scC_bias, 3)`, roughly twice the prespecified 0.02
+maximum, and its 95% CI coverage falls to about `r round(scC_cov, 2)`,
+materially below the prespecified 0.90 floor. The unmeasured-confounding DQ row (estimated bias from the
+U-shift scenario exceeds the prespecified maximum) breaches the
+threshold as well, so the realised-bias oracle and the outcome-blind
+screen agree that the analysis is fragile. This illustrates the
+intended role of the DQ stress test as a quantitative supplement that
+here corroborates, rather than rescues, the baseline plasmode metrics.
 
 Under the misspecified surface (Scenario D) the comparison is
 between estimators built on a main-effects GLM and a cross-fitted
@@ -1802,8 +1847,9 @@ surface. The GLM-based TMLE is similarly limited (bias $+0.045$,
 coverage $0.505$). PS-matched TMLE improves coverage to $0.675$
 through the caliper restriction but its bias remains near $+0.039$.
 Only the cross-fitted TMLE with a generalised-additive-model-plus-interaction
-library recovers the truth: bias $+0.007$ ($0.09$ SD) and coverage
-$0.920$, indistinguishable from nominal within Monte Carlo error.
+library recovers the truth: bias $+0.007$ (about $0.3$ of the
+empirical SD) and coverage $0.920$, indistinguishable from nominal
+within Monte Carlo error.
 This is the one scenario in which the flexibility of the nuisance
 learner, rather than the staging or the data-quality screen, is
 decisive. It answers the question a methods reviewer would press
@@ -1817,23 +1863,24 @@ A separate pattern concerns **variance-estimator selection**, the
 second stage of FIORD's two-stage selector [@nance2026fiord], which
 interacts with the DGP in ways that the point-estimator comparison
 does not reveal.
-@tbl-boot-variance reports a targeted 100-replicate variance comparison for
-IPTW, TMLE, cross-fitted TMLE, and Match_TMLE across three overlap regimes. Overlap regime C has minimal
-PS spread (very good overlap); overlap regime A has moderate PS spread (good
-overlap); overlap regime B has wide PS spread (marginal overlap). These regimes
-are distinct from the main simulation scenarios A, B, and C described in
-@sec-simulation. For each replicate both the IF-based and nonparametric
+@tbl-boot-variance reports a targeted variance comparison for
+IPTW, TMLE, cross-fitted TMLE, and Match_TMLE across three overlap tiers,
+coded VG, G, and M to keep them distinct from the main simulation scenarios
+A, B, and C described in @sec-simulation. Tier VG has minimal
+PS spread (very good overlap); tier G has moderate PS spread (good
+overlap); tier M has wide PS spread (marginal overlap). For each replicate
+both the IF-based and nonparametric
 bootstrap (B = 200 draws, GLM PS) SE are computed; the table reports mean
 SE/SD ratios and 95% CI coverage under each method.
 
-Under very good overlap (regime C), both IPTW and Match_TMLE are approximately
+Under very good overlap (tier VG), both IPTW and Match_TMLE are approximately
 calibrated (`r round(mt_C_cov_if, 2)` IF-coverage for Match_TMLE, Monte Carlo
 SE `r round(mt_C_cov_if_se, 2)`), and the bootstrap does not improve either.
 When PS spread is minimal the matching-draw variance is smaller relative to the
 outcome variance, so the IF-SE is adequate. This is the setting where oracle
 selection would identify the two methods as equivalent.
 
-Under good overlap (regime A), IPTW achieves se_sd_ratio_if ≈
+Under good overlap (tier G), IPTW achieves se_sd_ratio_if ≈
 `r round(iptw_A_ratio_if, 2)`, coverage_if =
 `r round(iptw_A_cov_if, 2)`. Match_TMLE is anti-conservative: the IF-based
 SE undercovers at `r round(mt_A_cov_if, 2)` (Monte Carlo SE
@@ -1900,28 +1947,40 @@ restriction or heavier truncation, not a different variance estimator.
 #| tbl-cap: >
 #|   IF-based versus bootstrap variance for IPTW, TMLE, cross-fitted TMLE,
 #|   and Match_TMLE across
-#|   three overlap regimes (C: very good, A: good, B: marginal),
-#|   100 MC replicates per regime, B = 200 bootstrap draws.
-#|   se_sd_ratio is the mean SE divided by the empirical SD of the
+#|   three overlap tiers (VG: very good, G: good, M: marginal), labelled
+#|   with tier codes to avoid collision with the main scenarios A/B/C,
+#|   B = 200 bootstrap draws. The IPTW and Match_TMLE rows rest on 100
+#|   Monte Carlo replicates; the TMLE and cross-fitted TMLE rows rest on 60
+#|   (see the n_reps column). se_sd_ratio is the mean SE divided by the
+#|   empirical SD of the
 #|   point estimate; values above 1 indicate conservative (overcovering)
 #|   inference, values below 1 indicate anti-conservative (undercovering)
 #|   inference. Coverage cells report the proportion with its binomial
-#|   Monte Carlo standard error in parentheses; at 100 replicates this
+#|   Monte Carlo standard error in parentheses; at 60 to 100 replicates this
 #|   standard error is about 0.02 to 0.03, so coverage differences smaller
 #|   than roughly 0.05 are compatible with no difference.
 # Binomial Monte Carlo SE of each coverage proportion, sqrt(p(1-p)/n_reps).
 cov_if_mcse   <- sqrt(boot_var$coverage_if   * (1 - boot_var$coverage_if)   / boot_var$n_reps)
 cov_boot_mcse <- sqrt(boot_var$coverage_boot * (1 - boot_var$coverage_boot) / boot_var$n_reps)
+# Relabel the overlap regimes to tier codes (VG/G/M) so their letters do not
+# collide with the main simulation scenarios A/B/C. Display only; the inline
+# statistics above still key off the raw scenario strings.
+.overlap_tier <- c("C: Very Good Overlap" = "VG: Very good overlap",
+                   "A: Good Overlap"      = "G: Good overlap",
+                   "B: Marginal Overlap"  = "M: Marginal overlap")
+.tier_lab <- .overlap_tier[boot_var$scenario]
+.tier_lab[is.na(.tier_lab)] <- boot_var$scenario[is.na(.tier_lab)]
 disp <- data.frame(
-  Scenario        = boot_var$scenario,
+  Regime          = unname(.tier_lab),
   Method          = boot_var$method,
+  `n_reps`        = boot_var$n_reps,
   `Emp. SD`       = boot_var$emp_sd,
   `SE/SD (IF)`    = boot_var$se_sd_ratio_if,
   `Coverage (IF)` = sprintf("%.2f (%.2f)", boot_var$coverage_if,   cov_if_mcse),
   `SE/SD (boot)`  = boot_var$se_sd_ratio_boot,
   `Coverage (boot)` = sprintf("%.2f (%.2f)", boot_var$coverage_boot, cov_boot_mcse),
   check.names = FALSE, stringsAsFactors = FALSE)
-knitr::kable(disp, digits = c(NA, NA, 4, 3, NA, 3, NA),
+knitr::kable(disp, digits = c(NA, NA, 0, 4, 3, NA, 3, NA),
              caption = NULL)
 ```
 
@@ -2011,8 +2070,8 @@ fp <- do.call(rbind, lapply(names(res$summaries), function(sc) {
   df$truth    <- res$truths[[sc]]$RD
   df
 }))
-fp$lo <- fp$mean_est - 1.96 * fp$mc_se
-fp$hi <- fp$mean_est + 1.96 * fp$mc_se
+fp$lo <- fp$mean_est - 1.96 * fp$mc_se_bias
+fp$hi <- fp$mean_est + 1.96 * fp$mc_se_bias
 
 ggplot(fp, aes(x = mean_est, y = method)) +
   geom_vline(aes(xintercept = truth), linetype = "dashed",
@@ -2038,13 +2097,13 @@ The same simulation data answer a different question if we read them as a workfl
 |---|---|---|---|
 | **A. Good overlap** | Run prespecified TMLE; report a non-null effect; SE / SD ratio near 1; coverage at nominal 95 % | **GO**; same point estimate and CI as the traditional pipeline | No practical difference |
 | **B. Marginal overlap** | Run prespecified TMLE; report. IPTW IF-SE is conservative (SE/SD ≈ 1.23) because the PS is treated as known; matched-TMLE IF-SE is approximately calibrated (SE/SD ≈ 1.04) in this scenario. Many reviewers will not catch the IPTW over-coverage | **GO with FLAG** on IPTW variance calibration; the workflow surfaces this before unblinding and reports the matched-TMLE bootstrap coverage alongside the influence-function coverage so the better-calibrated method is chosen empirically | The workflow surfaces the variance calibration issue as part of the dossier; the traditional pipeline relies on the reviewer to catch it |
-| **C. Unmeasured confounding** | Run prespecified TMLE; report a biased non-null estimate (mean bias 0.007, coverage 0.93). Without an external probe, this estimate would be published | **STOP** under the prespecified unmeasured-U DQ scenario; the locked analysis does not run as planned | The workflow blocks publication of the biased estimate; the traditional pipeline does not |
+| **C. Unmeasured confounding** | Run prespecified TMLE; report an estimate biased toward the null (mean bias about `r round(scC_bias, 3)` toward zero, realised RD about `r round(scC_est, 3)` vs truth `r round(scC_truth, 3)`, coverage about `r round(scC_cov, 2)`), typically not significant. Without an external probe, this null that masks a real effect would be published | **STOP** under the prespecified unmeasured-U DQ scenario; the locked analysis does not run as planned | The workflow blocks publication of the misleading null; the traditional pipeline does not |
 
 : Decision-rule overlay on the three simulation scenarios. The estimator fits are held fixed; only the prespecified decision applied before outcome access differs. {#tbl-workflow-contrast}
 
 The contrast is clearest in Scenario C: both pipelines have identical fits because the same nuisance models are used, but the workflow's prespecified rule refuses to authorise the Stage 4 analysis once the unmeasured-U row of the DQ stress test exceeds the locked bias threshold. The traditional pipeline has no equivalent block.
 
-The workflow does *not* invent free bias reduction. In Scenario C the TMLE bias is the same under both pipelines (0.007); the workflow's contribution is the decision rule, not a different estimator.
+The workflow does *not* invent free bias reduction. In Scenario C the TMLE bias is the same under both pipelines (about `r round(scC_bias, 3)`, with coverage well below the 0.90 floor); the workflow's contribution is the decision rule, not a different estimator.
 
 A note on what the simulation does **not** show: it does not compare a "traditional" fixed-library TMLE against a *plasmode-selected* TMLE under varied DGPs (the workflow-contrast-C question). That comparison is reported in a standalone analysis (see `reports/workflow_contrast_c.qmd` in the project repository).
 
@@ -2289,7 +2348,7 @@ treatment and the estimated propensity score reaches the boundary. The second
 is unmeasured confounding with a latent binary factor shifting treatment and
 outcome on the odds scale across odds ratios from 3 to 8. The third is
 covariate missingness completely at random with median imputation. Decision
-thresholds were locked before the sweep, allowing at most a doubling of root
+thresholds were locked before the sweep, at most a doubling of root
 mean squared error relative to a candidate's own baseline. The study uses 200
 synthetic replicates per cell and five independent batches, and reports Monte
 Carlo standard errors from the between-batch spread.
@@ -2486,14 +2545,21 @@ ocfun <- function(stop_screen, stop_oracle) {
   spec <- if (sum(stop_oracle == 0) > 0) mean(stop_screen[stop_oracle == 0] == 0) else NA
   c(sens, spec)
 }
-g <- ocfun(res$stop_screen_glm, res$stop_oracle)
-s <- ocfun(res$stop_screen_sl,  res$stop_oracle)
-cat(sprintf(paste0("Against the oracle, the screen with a flexible ",
-  "(SuperLearner) synthetic-nuisance model attains sensitivity %.2f and ",
-  "specificity %.2f; with a GLM synthetic-nuisance model these are %.2f and ",
-  "%.2f. The gap between the two quantifies the cost of misspecifying the ",
+g  <- ocfun(res$stop_screen_glm, res$stop_oracle)
+s  <- ocfun(res$stop_screen_sl,  res$stop_oracle)
+rl <- res[res$surface == "linear", ]; rn <- res[res$surface == "nonlinear", ]
+g_lin <- ocfun(rl$stop_screen_glm, rl$stop_oracle)[1]
+g_non <- ocfun(rn$stop_screen_glm, rn$stop_oracle)[1]
+s_non <- ocfun(rn$stop_screen_sl,  rn$stop_oracle)[1]
+cat(sprintf(paste0("Against the oracle, over all %d cells the screen with a ",
+  "flexible (SuperLearner) synthetic-nuisance model attains sensitivity %.2f ",
+  "and specificity %.2f; with a GLM synthetic-nuisance model these are %.2f ",
+  "and %.2f. The whole gap is on the nonlinear surface: the GLM screen's ",
+  "sensitivity is %.2f on the linear surface but falls to %.2f on the ",
+  "nonlinear surface, whereas the flexible screen holds sensitivity %.2f ",
+  "there. That difference quantifies the cost of misspecifying the ",
   "synthetic-nuisance model, the central plasmode pitfall [@schreck2024plasmode].\n"),
-  s[1], s[2], g[1], g[2]))
+  nrow(res), s[1], s[2], g[1], g[2], g_lin, g_non, s_non))
 ```
 
 Two patterns bound what the screen can and cannot predict. First, the screen
@@ -2507,9 +2573,11 @@ synthetic treatment and outcome surfaces are too simple to reproduce the
 nuisance misspecification that biases the realised estimator, whereas the
 flexible screen reproduces it and tracks the oracle more closely. This is
 the reason the package exposes a `q0_library` argument and why we
-recommend a flexible synthetic-nuisance model. The run reported here uses
-@tbl-gate-oc's replicate count with the Monte Carlo standard error of each
-bias estimate; the script's `reps` is set higher for a final run.
+recommend a flexible synthetic-nuisance model. These operating
+characteristics come from the final 200-replicate run reported in
+@tbl-gate-oc; the per-cell bias estimates carry Monte Carlo standard errors
+on the order of 0.001 to 0.002, well inside the margins that separate each
+STOP verdict from the locked threshold.
 
 # Case Study: Rescue.Co Kenya Trauma Registry {#sec-casestudy}
 
@@ -2638,10 +2706,10 @@ correspond to different target populations:
 | Procedure                                 | Target population                                              |
 |-------------------------------------------|----------------------------------------------------------------|
 | Crude (complete-case)                     | Complete-outcome subset (n = 1,277)                            |
-| PS matching                               | Matched overlap subset (n = 615)                               |
+| PS matching                               | Matched overlap subset (615 pairs; 1,230 individuals)          |
 | IPTW (stabilised)                         | Full eligible cohort (n = 1,693)                               |
 | Full-cohort TMLE (prespecified primary)   | Full eligible cohort (n = 1,693)                               |
-| Matched-cohort TMLE                       | Matched overlap subset (n = 1,230)                             |
+| Matched-cohort TMLE                       | Matched overlap subset (615 pairs; 1,230 individuals)          |
 | Complete-outcome TMLE with IPCW weights   | Complete-outcome rows weighted toward full-cohort marginal contrast |
 
 **Weight-diagnostics table.** Treatment weights and missingness
@@ -2714,7 +2782,7 @@ deviation entry.
 | timestamp | stage | diagnostic or issue | prespecified criterion | decision | rationale | reviewer role | effect estimate visible? | action taken | override? |
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-01-12 09:14 | Stage 2a | Three NCs failed NZV filter | NZV check at lock-fingerprint covariate set | FLAG | Drop the three NCs; record narrower panel | Lead analyst | No | Continue with 2 surviving NCs; note as limitation | No |
-| 2026-01-12 11:02 | Stage 2c | DQ stress reported at `n_sims = 50` (200-replicate run pending) | `n_sims` >= 200 for inferential interpretation | GO | Report the 50-replicate run; the bundled `n_sims = 3` configuration is a CI smoke test only | Lead analyst | No | Locked `ensemble_t05` as minimax winner (over `glm_t01`, which had the best baseline RMSE but the worst worst-case under the five-threat sweep) | No |
+| 2026-01-12 11:02 | Stage 2c | DQ stress reported at `n_sims = 200` | `n_sims` >= 200 for inferential interpretation | GO | Report the 200-replicate run; the bundled `n_sims = 3` configuration is a CI smoke test only | Lead analyst | No | Locked `ensemble_t05` as minimax winner (over `glm_t01`, which had the best baseline RMSE but the worst worst-case under the five-threat sweep) | No |
 | 2026-01-12 14:45 | Gate | All checkpoints GO or documented FLAG | All preceding stages recorded | GO | Authorise Stage 4 | Reviewer | No | Run locked primary analysis | No |
 
 ## Pre-outcome decision and plasmode results {#sec-casestudy-dq}
@@ -2778,11 +2846,10 @@ therefore reproduces, on a real-data lock, the same mechanism that the
 constructed divergence study in @sec-divergence demonstrates: a
 candidate selected for clean-data efficiency is the most exposed under
 the prespecified threat sweep, and the minimax rule reroutes the
-selection toward a more robust specification. The currently reported
-result uses the 50-replicate run
-(`rescueCo/scripts/rescueco_dq_full.R`, see @sec-reproducibility); a
-200-replicate confirmation is in progress. The 3-replicate
-configuration bundled with the staged pipeline is a
+selection toward a more robust specification. The reported result uses
+the 200-replicate run
+(`rescueCo/scripts/rescueco_dq_full.R`, see @sec-reproducibility). The
+3-replicate configuration bundled with the staged pipeline is a
 continuous-integration smoke test and is not used for inference.
 Negative controls run at Stage 3 on the locked PS:
 
@@ -2861,8 +2928,8 @@ missingness model, returns RD = 0.033 with a CI that just crosses
 zero (−0.0004, 0.066). The two matching-based estimators
 give the smallest point estimates (RD = 0.027 for matched RD
 without further adjustment; RD = 0.026 for matched-cohort TMLE) and
-the widest CIs, reflecting the smaller matched-pair samples
-(n = 615 and n = 1230). The full-cohort TMLE remains the
+the widest CIs, in line with the smaller matched cohort
+(615 matched pairs, 1,230 individuals). The full-cohort TMLE remains the
 prespecified primary because it is doubly robust and uses the
 locked propensity-score truncation chosen at Stage 2b on the full
 cohort; the IPCW-TMLE is the prespecified missing-outcome
@@ -2913,13 +2980,50 @@ want. Stage 2c then runs the full DQ stress test
 (`run_plasmode_dq_stress()`) over the prespecified threat sweep and
 produces a structural pass on each scenario at 200 replicates per threat-severity
 cell (see @sec-reproducibility for the entry point). The five
-threats encoded by `run_plasmode_dq_stress()` (covariate MCAR,
-exposure misclassification, outcome misclassification, latent $U$,
-and near-positivity) do not cover two design challenges that mattered
+threats encoded by `run_plasmode_dq_stress()` (covariate missingness
+under MCAR/MAR/MNAR, exposure misclassification, outcome
+misclassification, latent $U$, and near-positivity) do not cover two
+design challenges that mattered
 in the rescueCo
 study, the strike-window confounder and the inter-facility transfer
 imbalance, which motivates the time-window and MAR / MNAR
 extensions planned for cleanTMLE 0.2.
+
+### Synthetic-outcome fidelity
+
+```{r casestudy-fidelity}
+.fid_path <- "../rescueCo/results/plasmode_fidelity.csv"
+if (file.exists(.fid_path)) {
+  fv <- stats::setNames(read.csv(.fid_path)$value, read.csv(.fid_path)$metric)
+} else {
+  fv <- stats::setNames(rep(NA_real_, 5),
+    c("n_complete_case", "real_prevalence", "Q0_auc_insample",
+      "Q0_auc_cv", "calibration_max_abs_dev_cv"))
+}
+```
+
+The DQ-stress plasmode reuses the empirical covariate and treatment
+structure of the rescueCo cohort and generates synthetic outcomes from a
+covariate-only model $Q_0(W) = E[Y \mid W]$, so the synthetic covariate and
+treatment marginals match the observed ones exactly by construction. Because a
+logistic $Q_0$ with an intercept forces the fitted mean to equal the observed
+mean, a marginal prevalence match is automatic and is not by itself evidence of
+fidelity, so we assess $Q_0$ out of sample instead. Fitting $Q_0(W)$ on the
+complete-case cohort ($n = `r fv[["n_complete_case"]]`$, outcome prevalence
+`r round(fv[["real_prevalence"]], 3)`) and evaluating it by ten-fold
+cross-validation, the covariate-only outcome model discriminates the observed
+outcome with a cross-validated AUC of `r round(fv[["Q0_auc_cv"]], 2)` (the
+in-sample AUC of `r round(fv[["Q0_auc_insample"]], 2)` is optimistic by
+resubstitution), and its out-of-sample calibration has a maximum absolute
+predicted-minus-observed deviation across risk deciles of
+`r round(fv[["calibration_max_abs_dev_cv"]], 3)`. This establishes that the
+plasmode preserves the covariate structure and a moderately discriminating,
+reasonably calibrated marginal outcome model, not that it reproduces the joint
+treatment-outcome law. The synthetic outcome carries a fixed risk difference
+and no effect modification, and the fidelity of that joint structure to the
+realised process cannot be checked before the outcome is unblinded, so the
+diagnostic is a necessary rather than a sufficient fidelity check, consistent
+with the limitation in @sec-discussion.
 
 ### Estimator functions and real-data robustness
 
@@ -3040,7 +3144,7 @@ The targeted-learning causal-gap sensitivity analysis
 [@diaz2013sensitivity] characterises the change in $\Psi$ as the
 unmeasured-confounder bound varies. Causal-gap is unblinding-stage
 and characterises one threat (unmeasured confounding) in a TL-
-specific way. The DQ stress test is broader (it covers four
+specific way. The DQ stress test is broader (it covers five
 threats) but cruder (it does not adjust the estimate). Both are
 useful and complementary.
 
@@ -3086,7 +3190,7 @@ confirmatory.
 
 The DQ stress test also depends on the same parametric
 synthetic-outcome model used by the baseline plasmode. If that
-model misrepresents the joint covariate–treatment–outcome
+model misrepresents the joint covariate-treatment-outcome
 distribution (for example by omitting effect modification or
 mis-specifying functional form), the simulated bias and coverage
 under stressed scenarios may be optimistic or pessimistic in ways
@@ -3130,12 +3234,15 @@ is known to misbehave.
 
 ### Model assumptions
 
-The covariate-missingness scenario assumes MCAR. MAR and MNAR
-mechanisms require an explicit missingness model and are not yet
-supported. The principled alternative is inverse-probability-of-
-missingness weighting, which weakens the assumption to stratified
-MCAR; we plan to add a native cleanTMLE implementation in a future
-release.
+The covariate-missingness scenario degrades $W$ under MCAR, MAR, and
+MNAR masks, so the stress test can probe missingness that depends on
+observed covariates (MAR) or on the masked value itself (MNAR). The
+only missing-data handling exercised, however, is median imputation:
+the degraded covariate is filled with its column median before each
+candidate is refit. A principled alternative is
+inverse-probability-of-missingness weighting or multiple imputation,
+which under MAR recovers valid inference where median imputation does
+not; a native cleanTMLE implementation of that path is future work.
 
 The plasmode DGP itself is parametric. The outcome is generated
 from a logistic regression of $Y$ on $W$ fitted to the lock data,
@@ -3170,8 +3277,8 @@ designs for Scenario B (marginal overlap, PS range 0.037--0.990)
 produced numerical instability in regularised learners: SL.glmnet
 ran away on computation with no convergence signal, inflating wall
 time by more than an order of magnitude relative to GLM. The
-simulation in @sec-simulation therefore uses a two-candidate GLM PS
-grid ($t \in \{0.01, 0.05\}$) for the DQ stress test; SL.glmnet is
+simulation in @sec-simulation therefore uses a three-candidate GLM PS
+grid ($t \in \{0.001, 0.025, 0.20\}$) for the DQ stress test; SL.glmnet is
 retained in the SuperLearner library for the cross-fitted TMLE
 nuisance fits, where it operates on the full (undegraded)
 observed-data sample. In practice, the GLM and regularised-learner
@@ -3183,15 +3290,19 @@ on a small representative run before committing to a full grid.
 
 ### Computational cost
 
-Each scenario $\times$ severity adds a full set of plasmode
-replicates. With the configuration of @sec-simulation (30
-replicates per cell, nine degraded severity cells plus one
-undegraded baseline, and two PS candidates) the test fits 600
-TMLE models per Monte Carlo scenario. For the three simulation
-scenarios combined, this totals 1,800 models, which completes
-in roughly three hours on a modern laptop. Larger candidate grids
-or higher replicate counts scale linearly; parallelising over
-severity cells is the most direct route for interactive use.
+Each scenario $\times$ severity cell adds a full set of plasmode
+replicates. With the configuration of @sec-simulation (30 plasmode
+replicates per cell, 19 degraded severity cells, and three PS
+candidates) the stress test fits about 1,700 candidate TMLE models
+per Monte Carlo scenario, or roughly 6,800 across the four scenarios,
+alongside the undegraded baseline plasmode. Each fit uses a
+GLM-nuisance TMLE, so a full per-scenario run, including the
+200-replicate main Monte Carlo, completed in about twelve minutes on
+a current multi-core workstation in our runs, and the four-scenario
+study fits inside a conventional statistical-analysis-plan timeline.
+Larger candidate grids or higher replicate counts scale linearly;
+parallelising over severity cells is the most direct route for
+interactive use.
 
 ### Estimand scope
 
@@ -3367,9 +3478,9 @@ have separate test files and are tagged accordingly.
 Beyond the unit tests, we validate the package's targeted-learning estimator
 against the reference `tmle` package on a single large sample ($n = 20{,}000$)
 from the Scenario A data-generating process, where the analytic marginal risk
-difference is known. Provisional results, to be confirmed on the final run,
-show the cleanTMLE cross-fitted TMLE and `tmle::tmle()` agreeing to roughly
-four decimal places (a difference near $0.0002$ in the risk difference, with
+difference is known. The results show the cleanTMLE TMLE and `tmle::tmle()`
+agreeing to roughly four decimal places (a difference near $0.0002$ in the
+risk difference, with
 near-identical standard errors), and both recovering the analytic truth
 (@tbl-validation). This establishes that the estimator machinery is a correct
 implementation; the package's distinct contributions are the staged
@@ -3396,10 +3507,11 @@ the `SIM_REPS`, `SIM_NOBS`, and `SIM_RESULTS` environment variables (see
 | Script | Output file(s) | Figures / tables |
 |---|---|---|
 | `run_simulation.R` | `results_new/simulation_results.rds`, `results_new/summary_*.csv` | per-scenario metrics tables in @sec-simulation, @fig-mc-boxplots, @fig-coverage-bar, @fig-se-calibration, @fig-mc-forest, @fig-dq-degradation |
-| `run_gate_operating_characteristics.R` | `results_new/gate_oc.rds` | @sec-gate-oc figures |
+| `run_gate_operating_characteristics.R` | `results_new/gate_oc.rds` | @tbl-gate-oc, @sec-gate-oc |
 | `_bootstrap_variance.R` | `results_new/bootstrap_variance.rds`, `results_new/bootstrap_variance.csv` | @tbl-boot-variance |
 | `sandbox/validation/validate_vs_tmle.R` | `sandbox/validation/validation_vs_tmle.csv` | @tbl-validation |
 | `rescueCo/scripts/rescueco_dq_full.R` | `rescueCo/results/plasmode_dq_stress.rds`, `rescueCo/results/plasmode_dq_degradation.csv` | Case-study DQ subsection (@sec-casestudy-dq) |
+| `sandbox/rescueco_fidelity/plasmode_fidelity.R` | `rescueCo/results/plasmode_fidelity.csv` | Case-study synthetic-outcome fidelity subsection |
 | `sandbox/candidate_divergence/divergence_study.R` | `candidate_divergence_full.rds`, `degradation_gradient.png` | @sec-divergence (@fig-divergence) |
 
 : Script-to-output map. Running the scripts in order fully
@@ -3419,7 +3531,7 @@ smoke test, which is not used for any reported result.
 ## Conceptual layers of the workflow
 
 @tbl-layers distinguishes the conceptual layers that the workflow keeps
-separate, and serves as a reference for which decisions are addressed at
+separate, and is a reference for which decisions are addressed at
 the design stage versus the estimation stage.
 
 ```{r layers-table}

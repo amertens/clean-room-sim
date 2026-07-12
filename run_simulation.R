@@ -21,10 +21,12 @@
 #                TMLE_CF / Match_TMLE
 #   * Audit + decision log persisted as RDS artifacts
 #
-# Three scenarios:
-#   A. Good overlap          (overlap_strength = 0.5, no U)
-#   B. Marginal overlap      (overlap_strength = 1.5, no U)
-#   C. Unmeasured confounding (overlap_strength = 0.5, U with OR = 2)
+# Four scenarios:
+#   A. Good overlap           (overlap_strength = 0.5, no U)
+#   B. Marginal overlap       (overlap_strength = 1.5, no U)
+#   C. Unmeasured confounding (overlap_strength = 0.5, U prev = 0.40, OR = 3.0
+#                              on both treatment and outcome)
+#   D. Misspecified surface   (misspec = TRUE; nonlinear outcome/PS)
 #
 # Six estimators per scenario:
 #   Crude, IPTW, PS Match, TMLE, TMLE_CF (cross-fitted), Match_TMLE
@@ -119,113 +121,11 @@ cat("============================================================\n\n")
 
 
 # ── DGP Functions ────────────────────────────────────────────────────────────
-
-generate_data <- function(n, overlap_strength = 0.5, effect_size = -0.05,
-                          seed = NULL,
-                          U_prevalence = 0, U_trt_OR = 1, U_out_OR = 1,
-                          misspec = FALSE) {
-  if (!is.null(seed)) set.seed(seed)
-
-  age         <- rnorm(n, mean = 55, sd = 10)
-  sex         <- rbinom(n, 1, 0.55)
-  biomarker   <- rnorm(n, mean = 0, sd = 1)
-  comorbidity <- sample(0:2, n, replace = TRUE, prob = c(0.5, 0.3, 0.2))
-  ckd         <- rbinom(n, 1, 0.12)
-
-  # Unmeasured confounder (not returned in the data frame the analyst sees).
-  U <- if (U_prevalence > 0) rbinom(n, 1, U_prevalence) else rep(0L, n)
-
-  if (misspec) {
-    # Misspecified-surface DGP (Scenario D). Both nuisances are nonlinear:
-    # a quadratic in (standardised) age and a sex x biomarker interaction, and
-    # the treatment effect is modified by sex. A main-effects GLM is therefore
-    # wrong for BOTH the PS and the outcome, so double robustness cannot rescue
-    # it, while a flexible learner (gam + interactions) can. The PS nonlinearity
-    # is the symmetric interaction, which does not pile the PS at 0/1.
-    a <- (age - 55) / 10
-    lp_trt <- -0.1 + 0.5 * a + 1.0 * sex * biomarker + 0.5 * ckd +
-      0.2 * comorbidity + log(U_trt_OR) * U
-    ps_true <- plogis(lp_trt)
-    treatment <- rbinom(n, 1, ps_true)
-    lp_out <- -0.6 + 0.4 * a + 0.7 * a^2 + 1.0 * sex * biomarker +
-      0.6 * ckd + 0.3 * comorbidity +
-      effect_size / 0.15 * treatment * (1 + 0.4 * sex) +
-      log(U_out_OR) * U
-  } else {
-    lp_trt <- -0.5 +
-      overlap_strength * (0.03 * (age - 55) +
-                          0.8 * sex +
-                          0.6 * biomarker +
-                          0.5 * ckd +
-                          0.3 * comorbidity) +
-      log(U_trt_OR) * U
-    ps_true <- plogis(lp_trt)
-    treatment <- rbinom(n, 1, ps_true)
-    lp_out <- -2.5 +
-      0.015 * (age - 55) +
-      0.3 * sex +
-      0.2 * biomarker +
-      0.6 * ckd +
-      0.25 * comorbidity +
-      effect_size / 0.15 * treatment +
-      log(U_out_OR) * U
-  }
-
-  event_24 <- rbinom(n, 1, plogis(lp_out))
-
-  # Negative-control outcome: depends on covariates only, not treatment.
-  lp_nc <- -1.0 + 0.01 * (age - 55) + 0.1 * sex + 0.15 * biomarker
-  nc_outcome <- rbinom(n, 1, plogis(lp_nc))
-
-  data.frame(
-    age         = round(age, 1),
-    sex         = sex,
-    biomarker   = round(biomarker, 3),
-    comorbidity = comorbidity,
-    ckd         = ckd,
-    treatment   = treatment,
-    event_24    = event_24,
-    nc_outcome  = nc_outcome,
-    stringsAsFactors = FALSE
-  )
-}
-
-
-compute_truth <- function(n_truth, overlap_strength, effect_size, seed,
-                          U_prevalence = 0, U_out_OR = 1, misspec = FALSE) {
-  set.seed(seed)
-  age         <- rnorm(n_truth, mean = 55, sd = 10)
-  sex         <- rbinom(n_truth, 1, 0.55)
-  biomarker   <- rnorm(n_truth, mean = 0, sd = 1)
-  comorbidity <- sample(0:2, n_truth, replace = TRUE, prob = c(0.5, 0.3, 0.2))
-  ckd         <- rbinom(n_truth, 1, 0.12)
-  U           <- if (U_prevalence > 0) rbinom(n_truth, 1, U_prevalence) else rep(0L, n_truth)
-
-  coef_trt <- effect_size / 0.15
-  if (misspec) {
-    a <- (age - 55) / 10
-    lp_out_base <- -0.6 + 0.4 * a + 0.7 * a^2 + 1.0 * sex * biomarker +
-      0.6 * ckd + 0.3 * comorbidity + log(U_out_OR) * U
-    # Treatment effect is modified by sex, so the marginal contrast integrates
-    # the arm-specific coefficient over the covariate distribution.
-    risk_1 <- mean(plogis(lp_out_base + coef_trt * (1 + 0.4 * sex)))
-    risk_0 <- mean(plogis(lp_out_base))
-    return(list(risk_1 = risk_1, risk_0 = risk_0, RD = risk_1 - risk_0))
-  }
-
-  lp_out_base <- -2.5 +
-    0.015 * (age - 55) +
-    0.3 * sex +
-    0.2 * biomarker +
-    0.6 * ckd +
-    0.25 * comorbidity +
-    log(U_out_OR) * U
-
-  risk_1 <- mean(plogis(lp_out_base + coef_trt))
-  risk_0 <- mean(plogis(lp_out_base))
-
-  list(risk_1 = risk_1, risk_0 = risk_0, RD = risk_1 - risk_0)
-}
+# generate_data() and compute_truth() live in dgp_scenarios.R, the single source
+# shared with the sandbox verification/calibration scripts so the DGP cannot
+# drift between the production run and the code that verifies it. Sourced
+# relative to the repository root (the documented run location).
+source("dgp_scenarios.R")
 
 
 # ── Scenarios ────────────────────────────────────────────────────────────────
@@ -247,10 +147,10 @@ scenarios <- list(
     label            = "Scenario C: Unmeasured Confounding",
     overlap_strength = 0.5,
     effect_size      = -0.05,
-    U_prevalence     = 0.20,
-    U_trt_OR         = 2.0,
-    U_out_OR         = 2.0,
-    description      = "Good measured overlap, but binary U (prev=0.20, OR=2.0) confounds A and Y."
+    U_prevalence     = 0.40,
+    U_trt_OR         = 3.0,
+    U_out_OR         = 3.0,
+    description      = "Good measured overlap, but binary U (prev=0.40, OR=3.0) confounds A and Y."
   ),
   misspecified = list(
     label            = "Scenario D: Misspecified Surface",
@@ -485,6 +385,20 @@ build_summary_table <- function(results_df, truth_rd) {
 }
 
 
+# Stable key of a scenario's data-generating parameters (everything except the
+# cosmetic label/description). Any change to the DGP (e.g. a recalibrated U
+# prevalence or odds ratio) changes this key, so a cache written under the old
+# DGP no longer matches and the scenario is recomputed rather than silently
+# served from a stale done_/interim_ file. Caches predating this key (no
+# dgp_key field) do not match and are recomputed, which is the safe behaviour.
+.dgp_key <- function(sc) {
+  keep <- sc[setdiff(names(sc), c("label", "description"))]
+  keep <- keep[order(names(keep))]
+  paste(names(keep),
+        vapply(keep, function(v) paste(format(v), collapse = ","), character(1)),
+        sep = "=", collapse = "|")
+}
+
 interim_path <- function(sc_name) {
   file.path(config$results_dir,
             sprintf("interim_%s.rds", sc_name))
@@ -502,6 +416,7 @@ save_interim <- function(sc_name, rep_results, scenario_meta, sc) {
     n_obs       = config$n_obs,
     misspec     = sc$misspec %||% FALSE,
     seed        = config$seed,
+    dgp_key     = .dgp_key(sc),
     saved_at    = Sys.time()
   )
   saveRDS(obj, interim_path(sc_name))
@@ -517,7 +432,8 @@ load_interim_for_resume <- function(sc_name, sc) {
   same <- isTRUE(obj$n_reps  == config$n_reps) &&
           isTRUE(obj$n_obs   == config$n_obs)  &&
           isTRUE(obj$misspec == (sc$misspec %||% FALSE)) &&
-          isTRUE(obj$seed    == config$seed)
+          isTRUE(obj$seed    == config$seed) &&
+          isTRUE(obj$dgp_key == .dgp_key(sc))
   if (!same) return(NULL)
   obj$rep_results
 }
@@ -549,7 +465,9 @@ for (sc_name in names(scenarios)) {
     .d <- tryCatch(readRDS(.done_f), error = function(e) NULL)
     if (!is.null(.d) && isTRUE(.d$n_reps == config$n_reps) &&
         isTRUE(.d$n_obs == config$n_obs) &&
-        isTRUE(.d$misspec == (sc$misspec %||% FALSE))) {
+        isTRUE(.d$misspec == (sc$misspec %||% FALSE)) &&
+        isTRUE(.d$seed == config$seed) &&
+        isTRUE(.d$dgp_key == .dgp_key(sc))) {
       cat(sprintf("\n=== %s ===\n  [resume] loading completed scenario (%d reps, n=%d); skipping\n",
                   sc$label, config$n_reps, config$n_obs)); .flush()
       all_results[[sc_name]]   <- .d$results
@@ -893,6 +811,7 @@ for (sc_name in names(scenarios)) {
                meta = all_meta[[sc_name]], audit = audit,
                truth = truth_rd, n_reps = config$n_reps,
                n_obs = config$n_obs, misspec = sc$misspec %||% FALSE,
+               seed = config$seed, dgp_key = .dgp_key(sc),
                saved_at = Sys.time()),
           scenario_done_path(sc_name))
 }
