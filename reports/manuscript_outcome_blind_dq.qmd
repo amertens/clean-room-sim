@@ -535,53 +535,44 @@ gate authorises Stage 4.
 ```{r walkthrough, eval = FALSE, echo = TRUE}
 library(cleanTMLE)
 
-# Stage 1a: lock the analytic specification (marginal risk-difference estimand
-# at 6 months, recorded with the lock).
-lock  <- create_analysis_lock(
-  data = rescueco, treatment = "rescueco", outcome = "gose_good",
-  covariates = baseline_covariates,
-  sl_library = c("SL.glm", "SL.glmnet", "SL.gam"), seed = 2026)
-audit <- create_audit_log(lock)
-#> lock_hash: 9f2c1a... (SHA-256 fingerprint of columns + data shape)
-
-# Stage 1b: cohort adequacy (events only; outcome still masked).
-cp1 <- checkpoint_cohort_adequacy(lock, min_n_per_arm = 200, min_events = 50)
-#> PASS: 1,013 vs 680 per arm; 1,277 with observed GOSE
-
-# Stage 2a: propensity score, overlap, balance.
-ps   <- fit_ps_superlearner(lock)
-cp2  <- checkpoint_balance(compute_ps_diagnostics(ps), max_smd = 0.10)
-#> PASS: PS in [0.21, 0.81]; max post-weighting SMD 0.07; ESS 78% of n
-
-# Stage 2b + 2c: outcome-blind candidate selection and DQ stress test.
-cands <- list(tmle_candidate("glm_t01", truncation = 0.01),
+# Pre-outcome pass (Stages 1-3, outcome-blind). Builds the analysis lock
+# (SHA-256 fingerprint of columns + data shape), runs cohort adequacy, PS
+# overlap and balance, outcome-blind candidate selection and the DQ stress
+# test, and the negative-control checks, and assembles the reviewer dossier.
+cands <- list(tmle_candidate("glm_t01",      truncation = 0.01),
               tmle_candidate("ensemble_t05", truncation = 0.05))
-plas  <- run_plasmode_feasibility(lock, tmle_candidates = cands, reps = 50)
-dq    <- run_plasmode_dq_stress(lock, tmle_candidates = cands,
-                                scenarios = default_dq_scenarios())
-sel   <- select_tmle_candidate(plas, rule = "min_max_rmse", dq_results = dq)
-#> Selected candidate: 'ensemble_t05' (min-max RMSE across DQ threats)
+pre <- run_clean_tmle_preoutcome(
+  data = rescueco, Avar = "rescueco", Yvar = "gose_good",
+  covariates = baseline_covariates,
+  learner_lib = c("SL.glm", "SL.glmnet", "SL.gam"),
+  tmle_candidates = cands, selection_rule = "min_max_rmse",
+  dq_scenarios = default_dq_scenarios(),
+  neg_control_outcomes = c("household_urban", "chronic_hypertension"),
+  seed = 2026)
+print(pre$dossier)
+#> lock_hash 9f2c1a...; cohort 1,013 vs 680 per arm, 1,277 observed GOSE;
+#> PS in [0.21, 0.81], max SMD 0.07; selected 'ensemble_t05' (min-max RMSE
+#> across DQ threats); negative controls near null; decision: GO with FLAG
 
-# Stage 3: negative-control outcomes.
-nc <- run_residual_confounding_stage(lock,
-        negative_controls = c("household_urban", "chronic_hypertension"))
-#> 2 of 5 NCs fit (3 dropped by near-zero-variance filter); both near null
+# Pre-outcome authorisation. The token binds the lock hash and an audit
+# fingerprint; run_clean_tmle_primary() refuses to read the outcome unless it
+# is handed a matching, authorising token.
+auth <- authorize_outcome_analysis(pre$audit, allow_flag = TRUE)
 
-# Pre-outcome decision and authorisation.
-gate <- gate_all(cp1, cp2, nc, allow_flag = TRUE)
-auth <- authorize_outcome_analysis(lock, gate)
-#> Decision: GO with FLAG (narrowed negative-control panel)
-
-# Stage 4: unblind and run the locked primary analysis.
-fit  <- run_clean_tmle(lock, spec = sel, ps_fit = ps, authorization = auth)
+# Stage 4: unblind and run the locked primary analysis under the token.
+fit  <- run_clean_tmle_primary(pre, authorization = auth)
 #> Risk difference 0.031 (95% CI -0.001, 0.062)
 ```
 
-@tbl-functions summarises the functions exercised above, what each one
-does, and the representative output it returns. Functions in the first
-block run while the outcome is masked; only `run_clean_tmle()` (and its
-IPCW and concordance siblings) read the observed outcome, and they do so
-only on a lock carrying a valid authorisation.
+@tbl-functions summarises the functions the pre-outcome pass exercises,
+what each one does, and the representative output it returns.
+`run_clean_tmle_preoutcome()` runs the first block (Stages 1a-3) while the
+outcome is masked; only `run_clean_tmle_primary()` (and the modular
+IPCW and concordance siblings) reads the observed outcome, and it does so
+only when handed an authorisation token that matches the lock hash and the
+recorded audit. The unguarded `run_clean_tmle()` convenience wrapper, by
+contrast, reads the outcome once its internal checks pass and is labelled
+accordingly.
 
 ```{r functions-table}
 #| label: tbl-functions
@@ -599,7 +590,7 @@ fns <- data.frame(
     "run_residual_confounding_stage()",
     "gate_all()",
     "authorize_outcome_analysis()",
-    "run_clean_tmle()",
+    "run_clean_tmle_primary()",
     "run_ipcw_tmle()",
     "export_decision_log()"),
   `What it does` = c(
@@ -613,7 +604,7 @@ fns <- data.frame(
     "Estimate effects on prespecified negative-control outcomes to probe residual confounding.",
     "Aggregate checkpoint records into a single pre-outcome decision.",
     "Record authorisation so Stage-4 functions will read the outcome.",
-    "Run the locked four-step TMLE primary analysis; refuses to run without authorisation.",
+    "Run the locked four-step TMLE primary analysis on the pre-outcome pass; refuses to read the outcome without a token matching the lock and audit.",
     "TMLE with inverse-probability-of-censoring weights for outcome missingness.",
     "Export the audit trail and decision log as a tidy data frame for the reviewer."),
   `Representative output` = c(
@@ -1844,8 +1835,10 @@ $0.000$, so it carries the wrong sign entirely. IPTW removes most
 of the confounding (bias $+0.044$) but coverage falls to $0.540$
 because the main-effects PS model does not capture the nonlinear
 surface. The GLM-based TMLE is similarly limited (bias $+0.045$,
-coverage $0.505$). PS-matched TMLE improves coverage to $0.675$
-through the caliper restriction but its bias remains near $+0.039$.
+coverage $0.505$). PS matching improves coverage to $0.675$
+through the caliper restriction but its bias remains near $+0.039$, and the
+matched-cohort TMLE does a little better still (coverage $0.835$, bias
+$+0.031$).
 Only the cross-fitted TMLE with a generalised-additive-model-plus-interaction
 library recovers the truth: bias $+0.007$ (about $0.3$ of the
 empirical SD) and coverage $0.920$, indistinguishable from nominal
@@ -2573,8 +2566,19 @@ synthetic treatment and outcome surfaces are too simple to reproduce the
 nuisance misspecification that biases the realised estimator, whereas the
 flexible screen reproduces it and tracks the oracle more closely. This is
 the reason the package exposes a `q0_library` argument and why we
-recommend a flexible synthetic-nuisance model. These operating
-characteristics come from the final 200-replicate run reported in
+recommend a flexible synthetic-nuisance model. Two limitations of this
+grid temper the reported numbers. The specificity of 1.00 rests on only
+the two GO cells in the sweep, both on the linear surface (the nonlinear
+surface contains no GO cell), so the screen's false-STOP behaviour on a
+nonlinear surface is untested. And on the nonlinear surface the gate is
+flagging nuisance misspecification, not only unmeasured confounding: at
+the no-confounder cell ($s = 1$, OR $= 1$) the realised bias is already
+about 0.07 and the cell STOPs, so the nonlinear sensitivity measures the
+screen's detection of GLM misspecification as much as of the latent
+confounder. The two failure modes coincide here by construction, and a
+wider grid with more GO cells and a confounder-free nonlinear baseline
+would be needed to separate them. These operating characteristics come
+from the final 200-replicate run reported in
 @tbl-gate-oc; the per-cell bias estimates carry Monte Carlo standard errors
 on the order of 0.001 to 0.002, well inside the margins that separate each
 STOP verdict from the locked threshold.
@@ -2600,12 +2604,29 @@ provider (Rescue.Co) with traditional ambulance care, on functional
 outcome six months post-injury. All five stages were run on cleanTMLE
 0.1.1, with the package version and the analysis-lock fingerprint
 recorded in the released case-study metadata (supplementary materials),
-and the example is fully reproducible from the bundled `rescueCo/`
-directory in the companion repository. The DQ stress test in this run
-is reported at 200 replicates (see @sec-casestudy-dq). The example
+and the analysis code is available in the companion repository. The
+individual-level registry data are access-restricted (see the ethics and
+data-availability statement below), so the case study is code-reproducible
+rather than data-public. The DQ stress test in this run
+is reported at 50 replicates (see @sec-casestudy-dq), an illustration
+below the 200-replicate bar used for inferential interpretation. The example
 illustrates a real-registry execution of the workflow and is not
 primary evidence of DQ-stress validity, which the simulation in
 @sec-simulation provides.
+
+**Ethics and data availability.** The Rescue.Co Kenya Trauma Registry is a
+real, IRB-governed dataset of human trauma patients. The study was approved
+by [approving ethics committee and approval number to be completed], and
+participation was covered by [informed consent / an approved waiver of
+consent to be completed]. Because the registry contains identifiable and
+sensitive individual-level information (including HIV/ART status and
+socioeconomic indicators), the patient-level data cannot be shared publicly
+and are not included in the companion repository; the `rescueCo/` data and
+result artefacts are excluded from version control for this reason. The
+analysis code, the analysis-lock fingerprint, and aggregate outputs are
+available in the companion repository, and de-identified individual-level
+data are available from the authors on reasonable request, subject to the
+governing data-use agreement and ethics approval.
 
 The example is interesting for four reasons that the simulation
 does not exercise: (a) the primary outcome (Glasgow Outcome Scale
@@ -2769,7 +2790,7 @@ package evaluates automatically) or rests on reviewer judgment.
 | Stage 1b cohort adequacy and event counts | `checkpoint_cohort_adequacy()` output, attrition table | `min_n_per_arm` = 200, `min_events` = 50 | GO | Adequate cohort for the prespecified estimand | Software-enforced |
 | Stage 2a overlap, balance, ESS, weight stability | `compute_ps_diagnostics()`, `love_plot_threeway()`, `clean_weight_diagnostics()` | PS in [0.01, 0.99]; max-SMD <= 0.10 after weighting; max weight <= 10 | GO | Positivity and balance acceptable for full-cohort target | Software-enforced |
 | Stage 2b baseline plasmode | `run_plasmode_feasibility()` bias 0.001, coverage 0.94 | bias <= 0.01, coverage >= 0.90, SE/SD in (0.8, 1.2) | GO | Candidate operates within prespecified envelope | Software-enforced |
-| Stage 2c DQ stress test | `run_plasmode_dq_stress()` minimax rule | Each scenario within thresholds across severities | **GO** (reported on the $n_{\text{reps}} = 200$ run; the bundled $n_{\text{reps}} = 3$ configuration is a CI smoke test) | Selected candidate is stable across the prespecified threats at 200 replicates | Software-enforced |
+| Stage 2c DQ stress test | `run_plasmode_dq_stress()` minimax rule | Each scenario within thresholds across severities | **GO** (reported on a $n_{\text{reps}} = 50$ illustrative run, below the 200 bar used for inference; the bundled $n_{\text{reps}} = 3$ configuration is a CI smoke test) | Selected candidate is stable across the prespecified threats at 50 replicates | Software-enforced |
 | Stage 3 negative controls | `run_residual_confounding_stage()` (2 of 5 NCs survived NZV; both pass) | All analysed NCs pass at $\alpha$ = 0.05 | GO with FLAG | Narrower NC panel than SAP; residual-confounding probe partial | Reviewer-judgment |
 | Gate authorisation | `authorize_outcome_analysis()` returns GO | All preceding checkpoints GO or documented FLAG | GO | Proceed to locked primary analysis | Software-enforced |
 
@@ -2782,7 +2803,7 @@ deviation entry.
 | timestamp | stage | diagnostic or issue | prespecified criterion | decision | rationale | reviewer role | effect estimate visible? | action taken | override? |
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-01-12 09:14 | Stage 2a | Three NCs failed NZV filter | NZV check at lock-fingerprint covariate set | FLAG | Drop the three NCs; record narrower panel | Lead analyst | No | Continue with 2 surviving NCs; note as limitation | No |
-| 2026-01-12 11:02 | Stage 2c | DQ stress reported at `n_sims = 200` | `n_sims` >= 200 for inferential interpretation | GO | Report the 200-replicate run; the bundled `n_sims = 3` configuration is a CI smoke test only | Lead analyst | No | Locked `ensemble_t05` as minimax winner (over `glm_t01`, which had the best baseline RMSE but the worst worst-case under the five-threat sweep) | No |
+| 2026-01-12 11:02 | Stage 2c | DQ stress reported at `n_sims = 50` (illustrative) | `n_sims` >= 200 for inferential interpretation | FLAG | Report the 50-replicate illustrative run; a 200-replicate confirmation is deferred as the case study is a workflow demonstration, not confirmatory; bundled `n_sims = 3` is a CI smoke test only | Lead analyst | Yes | Locked `ensemble_t05` as minimax winner (over `glm_t01`, which had the best baseline RMSE but the worst worst-case under the five-threat sweep) | No |
 | 2026-01-12 14:45 | Gate | All checkpoints GO or documented FLAG | All preceding stages recorded | GO | Authorise Stage 4 | Reviewer | No | Run locked primary analysis | No |
 
 ## Pre-outcome decision and plasmode results {#sec-casestudy-dq}
@@ -2846,11 +2867,15 @@ therefore reproduces, on a real-data lock, the same mechanism that the
 constructed divergence study in @sec-divergence demonstrates: a
 candidate selected for clean-data efficiency is the most exposed under
 the prespecified threat sweep, and the minimax rule reroutes the
-selection toward a more robust specification. The reported result uses
-the 200-replicate run
-(`rescueCo/scripts/rescueco_dq_full.R`, see @sec-reproducibility). The
-3-replicate configuration bundled with the staged pipeline is a
-continuous-integration smoke test and is not used for inference.
+selection toward a more robust specification. The reported result uses a
+50-replicate run (`rescueCo/scripts/rescueco_dq_full.R`, see
+@sec-reproducibility), an illustration below the 200-replicate bar we
+adopt for inferential interpretation, consistent with the case study
+being a workflow demonstration rather than confirmatory evidence; a
+200-replicate confirmation is the analyst's next step for a
+submission-grade analysis. The 3-replicate configuration bundled with the
+staged pipeline is a continuous-integration smoke test and is not used
+for inference.
 Negative controls run at Stage 3 on the locked PS:
 
 | Negative control       | Estimate | SE      | p-value | Pass |
@@ -2978,8 +3003,9 @@ Stage 2b feasibility coverage of 0.94 with bias below 0.001 across
 50 replicates is the kind of design validation a reviewer would
 want. Stage 2c then runs the full DQ stress test
 (`run_plasmode_dq_stress()`) over the prespecified threat sweep and
-produces a structural pass on each scenario at 200 replicates per threat-severity
-cell (see @sec-reproducibility for the entry point). The five
+produces a structural pass on each scenario at 50 replicates per threat-severity
+cell (an illustration below the 200-replicate inferential bar; see
+@sec-reproducibility for the entry point). The five
 threats encoded by `run_plasmode_dq_stress()` (covariate missingness
 under MCAR/MAR/MNAR, exposure misclassification, outcome
 misclassification, latent $U$, and near-positivity) do not cover two
@@ -3520,8 +3546,11 @@ produces all figures and tables. The underscore-prefixed scripts
 (`dev/`) are diagnostic utilities not required for manuscript
 reproduction.
 
-The case-study DQ results reported in @sec-casestudy-dq use the
-200-replicate run produced by `rescueCo/scripts/rescueco_dq_full.R`. The
+The case-study DQ results reported in @sec-casestudy-dq use a
+50-replicate illustrative run produced by
+`rescueCo/scripts/rescueco_dq_full.R` (a 200-replicate confirmation is
+deferred, as the case study is a workflow demonstration rather than
+confirmatory evidence). The
 bundled configuration (`config/clean_room_config.yml`) runs Stage 2c
 at 3 replicates per threat-severity cell as a continuous-integration
 smoke test, which is not used for any reported result.
