@@ -46,8 +46,19 @@ map_rows <- list(); cmp_rows <- list()
 
 for (cn in intersect(names(locks), run_set)) {
   lk <- locks[[cn]]
-  st_file <- file.path(OUT, paste0("design_", cn, ".rds"))
-  psf <- if (file.exists(st_file)) readRDS(st_file)$ps else NULL
+  lite_file <- file.path(OUT, paste0("design_lite_", cn, ".rds"))
+  full_file <- file.path(OUT, paste0("design_", cn, ".rds"))
+  if (!file.exists(lite_file) && file.exists(full_file)) {
+    st_full <- readRDS(full_file)
+    saveRDS(list(ps_raw = st_full$ps$ps_raw %||% st_full$ps$ps,
+                 ps = st_full$ps$ps, support = st_full$support,
+                 feasibility = st_full$feasibility), lite_file)
+    rm(st_full); gc()
+  }
+  psf <- if (file.exists(lite_file)) {
+    lt <- readRDS(lite_file)
+    wrap_ps_fit(lk, ps_scores = lt$ps_raw)
+  } else NULL
   ck  <- file.path(OUT, paste0("supportsim_", cn, "_ckpt.rds"))
   res_file <- file.path(OUT, paste0("supportsim_", cn, ".rds"))
 

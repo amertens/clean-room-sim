@@ -1,0 +1,301 @@
+---
+title: "Which estimands can this design deliver? The Rescue.Co case study"
+subtitle: "A cleanTMLE clean-room analysis of five transport contrasts"
+author: "cleanTMLE case study"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    self-contained: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(knitr)
+OUT <- file.path("..", "results", "multiarm")
+rd <- function(f) {
+  p <- file.path(OUT, f)
+  if (file.exists(p)) read.csv(p, stringsAsFactors = FALSE) else NULL
+}
+locks    <- rd("lock_summary.csv")
+support  <- rd("support_by_contrast.csv")
+feas     <- rd("estimand_feasibility.csv")
+nd       <- rd("near_deterministic_covariates.csv")
+vr       <- rd("violation_regions.csv")
+who      <- rd("who_is_unsupported.csv")
+slw      <- rd("sl_propensity_weights.csv")
+ncl      <- rd("nc_ladder.csv")
+chk      <- rd("collider_check.csv")
+smap     <- rd("support_map.csv")
+dcmp     <- rd("plasmode_design_comparison.csv")
+est      <- rd("ladder_estimates.csv")
+dlog     <- rd("ladder_design_log.csv")
+recon    <- {
+  p <- file.path("..", "results", "reconciliation_table.csv")
+  if (file.exists(p)) read.csv(p, stringsAsFactors = FALSE) else NULL
+}
+fmt <- function(x, d = 4) formatC(x, format = "f", digits = d)
+ci <- function(e, lo, hi, d = 4)
+  sprintf("%s [%s, %s]", fmt(e, d), fmt(lo, d), fmt(hi, d))
+```
+
+## The question
+
+The study protocol names Rescue.Co against all other transport as the
+primary comparison. Whether that comparison is estimable is not a given: an
+average treatment effect requires every kind of patient to have a real
+probability of appearing in both arms, and most patients who reach a Nairobi
+trauma registry without an ambulance are not patients Rescue.Co serves. This
+case study runs the cleanTMLE design stage, with no outcome access, on five
+locks: the four multi-arm contrasts on the known-transport cohort and the
+restricted primary cohort. The design stage grades each contrast's support,
+maps which estimands each can deliver, and pre-registers the fallback rule;
+only then are outcomes joined and the declared ladder estimated. Every
+number below is computed from the pipeline's CSV outputs at render time.
+
+## Cohorts and locks
+
+```{r locks}
+if (!is.null(locks)) kable(locks, col.names = c(
+  "Lock", "Contrast", "n", "Treated", "Control", "Design columns"))
+```
+
+The design matrix is rebuilt from the raw registry to the main pipeline's
+construction rules and matches its 90 design columns exactly (see
+`design_columns.csv`); prevalence and variance filters are anchored on the
+primary cohort, and the five negative controls are registered as cohort
+columns before any filter, so no screen can drop them.
+
+## Support by contrast
+
+```{r support}
+if (!is.null(support)) {
+  s <- support[, c("contrast", "n", "n_treated", "n_control",
+                   "pct_outside_band", "max_iptw_weight", "p99_iptw_weight",
+                   "ess_treated", "ess_control", "c_statistic", "verdict",
+                   "escalated")]
+  kable(s, col.names = c("Lock", "n", "Treated", "Control",
+                         "% outside [0.05, 0.95]", "Max weight",
+                         "99th pct weight", "ESS treated", "ESS control",
+                         "c-statistic", "Verdict", "Escalated"),
+        digits = c(0, 0, 0, 0, 2, 1, 1, 0, 0, 3, 0, 0))
+}
+```
+
+```{r support-narrative, results='asis'}
+if (!is.null(support)) {
+  sev <- support$contrast[support$verdict %in% c("SEVERE", "FAIL")]
+  ok  <- support$contrast[support$verdict == "PASS"]
+  cat(sprintf(paste0(
+    "The gate grades %s as SEVERE or worse and %s as PASS. ",
+    "The verdict string travels with every estimate downstream.\n"),
+    paste(sev, collapse = ", "),
+    if (length(ok)) paste(ok, collapse = ", ") else "none"))
+}
+```
+
+Mirrored propensity histograms per lock (band shaded):
+
+```{r support-figs, results='asis'}
+for (cn in c("C1", "C2", "C3", "C4", "PRIMARY")) {
+  f <- file.path(OUT, sprintf("fig_support_%s.png", cn))
+  if (file.exists(f)) cat(sprintf("![](%s)\n\n", f))
+}
+```
+
+### Near-deterministic strata and tree-identified regions
+
+```{r nd}
+if (!is.null(nd)) kable(nd, digits = 4)
+```
+
+```{r vr}
+if (!is.null(vr)) kable(vr, digits = 4)
+```
+
+## Which estimands does each design support?
+
+```{r feas}
+if (!is.null(feas)) {
+  f2 <- feas[, c("contrast", "estimand", "max_weight", "ess_treated",
+                 "ess_control", "n_removed_treated", "n_removed_control",
+                 "verdict", "feasible")]
+  kable(f2, col.names = c("Lock", "Estimand", "Max weight", "ESS treated",
+                          "ESS control", "Removed treated",
+                          "Removed control", "Verdict", "Feasible"),
+        digits = c(0, 0, 1, 0, 0, 0, 0, 0, 0))
+}
+```
+
+The rows tell the study's story: on the protocol contrast the ATE's weights
+explode, the ATT's control weights stay bounded by max g/(1-g), and the
+ATO's weights are bounded by one by construction, so the effect among the
+treated and the overlap-weighted effect remain estimable where the ATE is
+not.
+
+### Who is unsupported
+
+Standardised differences of the patients outside the band against those
+inside it, on interpretable variables. Trimming changes the estimand; this
+is who the trimmed analysis is no longer about.
+
+```{r who}
+if (!is.null(who)) {
+  w10 <- do.call(rbind, lapply(split(who, who$contrast), function(d) {
+    d <- d[d$population == "all", ]
+    head(d[order(-abs(d$smd)), ], 8)
+  }))
+  kable(w10, row.names = FALSE, digits = 3)
+}
+```
+
+## The outcome-blind support map
+
+`simulate_support()` generates synthetic data under the generate-treatment
+plasmode design across a prespecified family of outcome surfaces
+(confounding along the propensity direction, effect modification along it),
+computes each estimand's truth on every replicate, and reports where each
+estimator stays within the bias tolerance at near-nominal coverage.
+
+```{r smap}
+if (!is.null(smap)) {
+  m <- smap[, c("contrast", "confounding", "modification", "estimand",
+                "truth_mean", "bias", "coverage", "se_cal", "pass")]
+  kable(m, digits = c(0, 1, 1, 0, 4, 4, 3, 2, 0))
+}
+```
+
+```{r smap-figs, results='asis'}
+for (cn in c("PRIMARY", "C1", "C2", "C3", "C4")) {
+  f <- file.path(OUT, sprintf("fig_supportmap_%s.png", cn))
+  if (file.exists(f)) cat(sprintf("![](%s)\n\n", f))
+}
+```
+
+### The plasmode design comparison
+
+Keeping each subject's observed treatment and simulating only the outcome
+induces a positivity violation by construction (Shaw et al. 2025). The table
+compares the two designs on this study's own cohorts at the same replicate
+count.
+
+```{r dcmp}
+if (!is.null(dcmp)) {
+  d <- dcmp[dcmp$estimand == "ATE",
+            c("contrast", "design", "confounding", "bias", "coverage",
+              "se_cal", "emp_sd", "mean_se")]
+  kable(d[order(d$contrast, d$confounding, d$design), ],
+        row.names = FALSE, digits = c(0, 0, 1, 4, 3, 2, 4, 4))
+}
+```
+
+## Negative controls along the restriction ladder
+
+```{r ncl}
+if (!is.null(ncl)) {
+  n2 <- ncl[, c("contrast", "cohort", "negative_control", "n", "estimate",
+                "ci_lower", "ci_upper", "p_value", "flagged", "status")]
+  kable(n2, digits = c(0, 0, 0, 0, 4, 4, 4, 4, 0, 0))
+}
+```
+
+A control that fails on the full ambulance cohort and turns null after the
+transfer and prior-care restrictions is evidence for the restrictions:
+the confounding was removed by design, not by adjustment, and a
+negative-control step that runs on one cohort cannot see that.
+
+## Care-process collider check
+
+```{r chk}
+if (!is.null(chk)) kable(chk, digits = 4)
+```
+
+## The fitted propensity ensembles
+
+A propensity fit that puts substantial weight on the marginal-mean learner
+is itself a diagnostic. The fitted SuperLearner weights per lock:
+
+```{r slw}
+if (!is.null(slw)) {
+  s3 <- reshape(slw, idvar = "learner", timevar = "contrast",
+                direction = "wide")
+  names(s3) <- sub("^weight\\.", "", names(s3))
+  kable(s3, row.names = FALSE, digits = 3)
+}
+```
+
+## Estimation down the declared ladder
+
+Every lock declared, before outcome access: primary ATE, fallbacks trimmed
+ATE, then ATT, then ATO, trigger SEVERE, with a pre-registered
+bias-to-null floor of 0.35 percentage points on mortality. Outcomes were
+joined only at this stage. Every row carries its estimand, the support
+verdict, and the implausibility flags; on C1 the ATE row exists only as a
+labelled override for reconciliation against the main pipeline.
+
+```{r est}
+if (!is.null(est)) {
+  e2 <- est[, c("contrast", "outcome", "estimand", "is_primary", "estimate",
+                "ci_lower", "ci_upper", "p_value", "n", "support_verdict",
+                "implausible")]
+  kable(e2[order(e2$contrast, e2$outcome, e2$estimand), ],
+        row.names = FALSE,
+        col.names = c("Lock", "Outcome", "Estimand", "Primary", "Estimate",
+                      "CI low", "CI high", "p", "n", "Verdict",
+                      "Implausible"),
+        digits = c(0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0))
+}
+```
+
+### Gate path and logged decisions
+
+```{r dlog}
+if (!is.null(dlog)) {
+  d2 <- unique(dlog[dlog$type %in% c("estimand_switch", "override",
+                                     "outcome_access"),
+                    c("contrast", "outcome", "type", "note")])
+  kable(d2, row.names = FALSE)
+}
+```
+
+There is no STOP followed by estimation with nothing between: an infeasible
+primary is either absent from the estimates or present as an override row
+whose reason appears in the log above.
+
+## Reconciliation against the main pipeline
+
+The reconciliation table (`results/reconciliation_table.csv`, regenerated by
+`scripts/build_reconciliation_table.R`) compares every clean-room estimate
+with the main pipeline's published value.
+
+```{r recon}
+if (!is.null(recon)) {
+  kable(as.data.frame(table(recon$verdict)),
+        col.names = c("Verdict", "Rows"))
+  key <- recon[recon$outcome %in% c("death_by_6mo", "time_to_arrival") &
+                 is.finite(recon$cr_est) & is.finite(recon$main_est),
+               c("contrast", "outcome", "estimand", "cr_est", "main_est",
+                 "abs_diff", "verdict")]
+  if (nrow(key)) kable(key, row.names = FALSE, digits = 4)
+}
+```
+
+## Limitations
+
+The support verdicts and the feasibility table are computed from the fitted
+propensity, so a PASS is necessary, not sufficient: a propensity model that
+misses the covariate that separates the arms will not warn here, which is
+why the near-deterministic stratum check and the tree search run beside the
+global statistics, and why the negative-control ladder runs beside all of
+them. The support map inherits the synthetic outcome family: it spans
+confounding, effect modification and curvature along the direction that
+drives non-overlap, but a real outcome surface can misbehave along a
+direction the family does not span. The proxy survival analysis of the
+earlier case study remains strictly secondary (its event times are coarsened
+and partly imputed), and two data amendments are pending in every lock's
+design log: 76 treated patients without a Rescue.Co ID under review, and a
+possible mid-study improvement in Rescue.Co ascertainment.

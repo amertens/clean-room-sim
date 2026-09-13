@@ -60,12 +60,28 @@ pairs <- expand.grid(contrast = CONTRASTS, outcome = OUTCOMES,
 cr_log(paste("Pairs to estimate:", nrow(pairs), "(",
              paste(OUTCOMES, collapse = ", "), ")"))
 
+# Slim per-contrast design extracts: the full design checkpoints carry the
+# SuperLearner fit (hundreds of MB); estimation needs only the scores, the
+# support assessment, and the feasibility table.
+for (cn in CONTRASTS) {
+  lite <- file.path(OUT, paste0("design_lite_", cn, ".rds"))
+  full <- file.path(OUT, paste0("design_", cn, ".rds"))
+  if (!file.exists(lite) && file.exists(full)) {
+    st <- readRDS(full)
+    saveRDS(list(ps_raw = st$ps$ps_raw %||% st$ps$ps, ps = st$ps$ps,
+                 support = st$support, feasibility = st$feasibility),
+            lite)
+    rm(st); gc()
+  }
+}
+
 fit_pair <- function(cn, oc) {
   ck <- file.path(OUT, sprintf("ladder_%s_%s.rds", cn, oc))
   if (file.exists(ck) && !nzchar(Sys.getenv("MULTIARM_FORCE")))
     return(readRDS(ck))
   lk <- locks[[cn]]
-  st <- readRDS(file.path(OUT, paste0("design_", cn, ".rds")))
+  lk$sl_library <- SL_LIB   # refits inside the ladder use the study library
+  st <- readRDS(file.path(OUT, paste0("design_lite_", cn, ".rds")))
 
   # Stage 4 outcome join: the one place outcomes reach a lock.
   oc_col <- outcomes[[oc]][match(lk$data$patient_id, outcomes$patient_id)]
@@ -74,10 +90,11 @@ fit_pair <- function(cn, oc) {
   lk$.outcome_masked <- FALSE
   lk <- cleanTMLE:::.log_design_decision(lk, "outcome_access",
     sprintf("Outcome %s joined for Stage 4 estimation (design stage complete).", oc))
+  psf <- wrap_ps_fit(lk, ps_scores = st$ps_raw)
 
   use_ipcw <- oc %in% DELTA_OUTCOMES && anyNA(oc_col)
   res <- tryCatch(run_estimand_ladder(
-    lk, st$ps,
+    lk, psf,
     support = st$support, feasibility = st$feasibility,
     family = unname(FAMILY[[oc]]), use_ipcw = use_ipcw,
     sl_library = SL_LIB, cv_folds = 10L, prescreen_g = FALSE,
