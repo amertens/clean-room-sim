@@ -1,5 +1,20 @@
 # Support and estimability plan (September 2026)
 
+Status, end of the first build day (2026-09-13): items C, A, B, D, E, F and
+G are implemented with tests (cleanTMLE 0.2.0, suite at 634 passing before
+the day's last additions), the simplification pass and the documentation
+rebuild are in, and the rescueCo multi-arm pipeline (scripts 10 to 14) is
+built and running: the cohort and the 90-column design matrix reproduced the
+main pipeline exactly, the support gates match on every contrast (C1 SEVERE,
+C2 SEVERE, C3 FLAG, C4 FLAG, PRIMARY PASS), and the unadjusted
+negative-control ladder reproduces the restriction finding to four decimals.
+Support simulations and ladder estimation run checkpointed in the
+background. Of the ranked extras, the TARGET emulation-table exporter and
+the pre-registered bias-to-null floor are in; the gate
+operating-characteristics study, the Lepski truncation rule, the
+lock-by-reference option and the incremental-propensity estimator remain
+open, in that order.
+
 Purpose of this revision, in one sentence: make cleanTMLE the package that
 decides, before outcome access, whether a comparison is estimable and with
 which estimand, and strip away everything that distracts from that.

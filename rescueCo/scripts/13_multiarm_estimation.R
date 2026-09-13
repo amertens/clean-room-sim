@@ -134,7 +134,7 @@ if (nrow(todo) > 0) {
       proj <- getwd()
       parallel::clusterExport(cl, c("proj", "OUT", "locks", "outcomes",
                                     "DELTA_OUTCOMES", "FAMILY", "SL_LIB",
-                                    "fit_pair"), envir = environment())
+                                    "fit_pair", "todo"), envir = environment())
       parallel::clusterEvalQ(cl, {
         setwd(proj)
         suppressMessages(library(cleanTMLE))

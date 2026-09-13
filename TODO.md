@@ -1,8 +1,47 @@
 # cleanTMLE TODO
 
-Long-tail development items, grouped. Updated 2026-05-11.
+Long-tail development items, grouped. Updated 2026-09-13.
 
 Items shipped or merged into the manuscript/presentation/vignettes are marked **[done]** and kept for traceability.
+
+## Closed by the September 2026 revision (cleanTMLE 0.2.0)
+
+The support-and-estimability revision (docs/revision/support_and_estimability_plan.md)
+closed the following items; details in cleanTMLE/NEWS.md:
+
+- **A.8 [done]** Matched-vs-full decomposition: `simulate_support()` runs the
+  matched, trimmed, ATT and ATO estimators on the same replicates with
+  per-estimand truths, so the gaps decompose into estimand difference,
+  efficiency loss and extrapolation error.
+- **A.14 [done]** Estimand revision after STOP: `declare_estimand_ladder()` +
+  `run_estimand_ladder()` make the switch a pre-registered, logged decision.
+- **A.15 [done]** Low-replicate guard: `simulate_support()` tags runs below 50
+  replicates demonstration-only and the printed verdict is FLAG.
+- **A.16 [done]** Negative-control attrition: `create_contrast_locks()` and the
+  rescueCo rebuild register controls as cohort columns before any variance
+  filter; `run_negative_control_ladder()` reports them per rung.
+- **A.17 [done in part]** Dead exports: update_* family, re_estimate,
+  compare_fits, hr_data archived to attic/; plot_dq_heatmap internalised;
+  expit/logit kept exported but demoted from the pkgdown index. Remaining
+  advertised-but-unused items are in the pkgdown Superseded section.
+- **A.22 [done]** Positivity-diagnostics consolidation: `assess_support()`
+  (and `run_positivity_diagnostics()` is now a working wrapper over it; its
+  0.1.x class check demanded an object no constructor produced).
+- **Z(a) trimmed/estimand work [done]** `run_trimmed_tmle()` with refit and
+  the Crump rule; `run_att_tmle()` complete-case ATT with the same-g test;
+  `estimate_ato()` augmented overlap weights.
+- **Z(c) trim-now [done in part]** The governance layer is superseded with
+  once-per-session notes rather than moved; the audit-write machinery stays
+  functional for the enforced two-pass path only.
+- **Z(d) positivity-strained DGP [done]** The generate-treatment design plus
+  the `support_surfaces()` confounding axis; the observed-treatment baseline
+  is deprecated (Shaw et al. 2025).
+
+Still open from the same review: the Lepski-type adaptive truncation rule
+(Xu, Gruber and van der Laan 2026) beside `"sqrt_n_ln_n"` and Crump; the
+gate operating-characteristics study on positivity-strained DGPs at an
+inferential budget; a lock-by-reference option so long pipelines do not
+serialise the data into every stage artifact.
 
 ---
 

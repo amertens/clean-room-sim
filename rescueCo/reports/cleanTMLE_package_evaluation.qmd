@@ -16,6 +16,16 @@ execute:
   message: false
 ---
 
+::: {.callout-note}
+This memo evaluated cleanTMLE 0.1.0 against the original single-contrast
+pipeline and is kept as the historical friction list. Nearly every concrete
+recommendation shipped in 0.1.1 through 0.1.5, and the September 2026
+revision (cleanTMLE 0.2.0) superseded the framework it evaluates: the
+current critical evaluation, architecture and disposition of every export
+is `docs/revision/support_and_estimability_plan.md`, and the current case
+study is `rescueco_estimability_case_study.qmd`.
+:::
+
 ```{r setup}
 library(knitr)
 
