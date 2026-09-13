@@ -8,6 +8,27 @@ the analysis will reproduce without any external paths.
 For the original purpose / methods description see
 [`README_legacy.md`](README_legacy.md).
 
+## The multi-arm estimability study (September 2026, the current line)
+
+The case study's current main line asks which estimands each of five
+transport contrasts can deliver, decided before outcome access, and runs
+on cleanTMLE 0.2.0. Scripts 10 to 14 supersede the single-contrast stages
+below (which remain the legacy line):
+
+| Script | What it does |
+|--------|--------------|
+| `10_multiarm_build.R` | Cohort from raw registry (transport3, exact main-pipeline counts), ten outcomes, the 90-column design matrix, five locks (C1 protocol comparator, C2, C3, C4, PRIMARY) with declared estimand ladders; outcomes stored separately so the locks are physically outcome-free |
+| `11_multiarm_design.R` | Per lock: SuperLearner propensity (rwe_wide library), `assess_support()` verdict, `estimand_feasibility()`, who-is-unsupported profile, collider check, design report; checkpointed per lock |
+| `11b_nc_ladder_unadjusted.R` | Negative-control restriction ladder (unadjusted, the main pipeline's balance-check reading) |
+| `12_multiarm_support_sim.R` | `simulate_support()` per lock (200 replicates) plus the generate-vs-sample plasmode design comparison on PRIMARY and C1; checkpointed per grid cell |
+| `13_multiarm_estimation.R` | The declared ladder per lock and outcome (ATE where feasible, trimmed ATE, ATT, ATO), IPCW primary for follow-up outcomes; checkpointed per pair |
+| `14_multiarm_report.R` | E-values from adjusted arm risks, bias-to-null against the pre-registered floor, artifact regeneration, reconciliation rebuild, report render |
+
+Outputs live in `results/multiarm/`; the report is
+`reports/rescueco_estimability_case_study.qmd`; the reconciliation
+against the main pipeline is `results/reconciliation_2026-09.md` plus the
+computed `results/reconciliation_table.csv`.
+
 ## What's in this folder
 
 ```
