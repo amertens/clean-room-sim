@@ -240,7 +240,8 @@ if (!is.null(cr_eff)) {
   }
 }
 
-cr_nc <- read_cr("negative_control_results.csv")
+cr_nc <- if (file.exists(file.path(CR_ROOT, "multiarm", "nc_ladder.csv")))
+  NULL else read_cr("negative_control_results.csv")
 if (!is.null(cr_nc)) {
   nc_map <- c(household_urban = "NC: Urban household (SES)",
               chronic_hypertension = "NC: Chronic hypertension",
@@ -263,6 +264,54 @@ if (!is.null(cr_nc)) {
                      if (!is.na(lcol)) r[[lcol]] else NA,
                      if (!is.na(hcol)) r[[hcol]] else NA, NA)
     }
+  }
+}
+
+# ── Clean-room multi-arm ladder estimates (September rebuild) ───────────────
+cr_lad <- read_cr("multiarm", "ladder_estimates.csv")
+if (!is.null(cr_lad)) {
+  for (i in seq_len(nrow(cr_lad))) {
+    r <- cr_lad[i, ]
+    key <- switch(r$estimand,
+      ATE = list(est = if (isTRUE(r$used_ipcw == TRUE | r$used_ipcw == "TRUE"))
+        "TMLE, IPCW via Delta" else "TMLE, complete case", ed = "ATE"),
+      trimmed_ATE = {
+        lvl <- sub("^ATE on the common-support population, trimmed ", "",
+                   r$estimand_label)
+        list(est = "TMLE, complete case",
+             ed = paste0("trimmed ATE (", lvl, ")"))
+      },
+      ATT = list(est = "TMLE, complete case",
+                 ed = "ATT among outcome-observed"),
+      ATO = list(est = "augmented overlap weights, IF variance", ed = "ATO"),
+      matched_ATT = list(est = "TMLE on matched cohort", ed = "matched ATT"),
+      NULL)
+    if (is.null(key)) next
+    tab <- cr_fill(tab, r$contrast, r$outcome, key$ed, key$est,
+                   r$estimate, r$ci_lower, r$ci_upper, r$n)
+  }
+}
+
+# Clean-room multi-arm negative-control ladder: map the C4 rungs onto the
+# main pipeline's two NC cohorts.
+cr_ncl <- read_cr("multiarm", "nc_ladder.csv")
+if (!is.null(cr_ncl)) {
+  nc_map2 <- c(nc_household_urban = "NC: Urban household (SES)",
+               nc_cooking_fuel_wood_charcoal = "NC: Wood/charcoal cooking fuel (SES)",
+               nc_chronic_hypertension = "NC: Chronic hypertension",
+               nc_diabetes_insulin = "NC: Diabetes, insulin dependent",
+               nc_hiv_art = "NC: HIV/AIDS on ART")
+  for (i in seq_len(nrow(cr_ncl))) {
+    r <- cr_ncl[i, ]
+    if (!r$contrast %in% c("C4")) next
+    ctr <- if (grepl("prior care", r$cohort)) "PRIMARY"
+           else if (identical(r$cohort, "full cohort")) "C4" else NA
+    if (is.na(ctr)) next
+    key <- nc_map2[[as.character(r$negative_control)]]
+    if (is.null(key)) next
+    tab <- cr_fill(tab, ctr, key, "unadjusted RD (balance check)",
+                   "clean-room NC ladder (TMLE)",
+                   r$estimate, r$ci_lower, r$ci_upper, r$n)
   }
 }
 
