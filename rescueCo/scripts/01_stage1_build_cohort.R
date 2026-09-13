@@ -73,6 +73,21 @@ if (!treatment_src %in% names(reg)) {
 # ems_ambulance: 0 = Non-Rescue.Co EMS, 1 = Rescue.Co EMS; NA = non-ambulance
 # We keep only ambulance patients (non-NA) for the causal comparison
 reg$A <- as.integer(as.numeric(reg[[treatment_src]]))
+
+# Secondary fill: a handful of ambulance arrivals have a blank ems_ambulance
+# flag but hosp_transport == "Ambulance". Treat these as non-Rescue.Co (A = 0),
+# matching the main pipeline and the Stage-1 audit note. Non-ambulance modes
+# (private car, boda boda, walk-in, ...) stay NA and are excluded.
+if ("hosp_transport" %in% names(reg)) {
+  mode_num <- suppressWarnings(as.numeric(reg$hosp_transport))  # 1 = Ambulance
+  idx_amb_na <- is.na(reg$A) & !is.na(mode_num) & mode_num == 1
+  if (any(idx_amb_na)) {
+    reg$A[idx_amb_na] <- 0L
+    cr_log(paste("Filled A = 0 for", sum(idx_amb_na),
+                 "ambulance arrivals (hosp_transport = Ambulance, ems_ambulance blank)"))
+  }
+}
+
 n_before <- nrow(reg)
 reg <- reg[!is.na(reg$A), ]
 cr_log(paste0("Treatment (A = ", treatment_src, "): ",
@@ -102,10 +117,35 @@ if (!is.null(transfer_col) && transfer_col %in% names(reg)) {
   transfer_raw <- tolower(trimws(as.character(haven::as_factor(reg[[transfer_col]]))))
   reg$is_transfer <- as.integer(grepl("yes", transfer_raw))
 
+  # Prior-care-elsewhere flag (2026-07-14 coauthor decision). `prior_care`
+  # ("Care sought elsewhere prior to arrival?"; 0 = No, 1 = Yes, 99 = Unknown)
+  # is near-complete and BROADER than the sparse interfacility-transfer flag:
+  # some ambulance patients report prior care yet are not coded as transfers,
+  # but their injury-to-arrival clock still does not start at a direct scene run.
+  # The primary cohort therefore excludes the UNION
+  #   pre_hospital_care = interfacility_transfer OR prior_care == Yes,
+  # symmetric to the transfer exclusion. Transfers/prior-care patients are added
+  # back (with `is_transfer` covariate) only in the transfer-included sensitivity.
+  prior_care_col <- cfg$treatment$prior_care_column %||% "prior_care"
+  if (prior_care_col %in% names(reg)) {
+    pc_num <- suppressWarnings(as.numeric(reg[[prior_care_col]]))  # 1 = Yes
+    reg$sought_prior_care <- as.integer(!is.na(pc_num) & pc_num == 1)
+  } else {
+    reg$sought_prior_care <- 0L
+    cr_log(paste("WARNING: prior_care column", prior_care_col,
+                 "not found; prior-care exclusion not applied."))
+  }
+  reg$pre_hospital_care <- as.integer(
+    (reg$is_transfer == 1 & !is.na(reg$is_transfer)) | reg$sought_prior_care == 1)
+
   n_transfer <- sum(reg$is_transfer == 1, na.rm = TRUE)
   n_direct   <- sum(reg$is_transfer == 0, na.rm = TRUE)
+  n_prior    <- sum(reg$sought_prior_care == 1, na.rm = TRUE)
+  n_prior_only <- sum(reg$sought_prior_care == 1 & reg$is_transfer == 0, na.rm = TRUE)
   cr_log(paste("Transfer status: direct =", n_direct, ", transfer =", n_transfer,
                ", unknown =", sum(is.na(reg$is_transfer))))
+  cr_log(paste("Prior-care-elsewhere:", n_prior, "total,",
+               n_prior_only, "not already coded as interfacility transfers"))
 
   # Cross-tab
   cr_log("Transfer x Treatment:")
@@ -120,27 +160,33 @@ if (!is.null(transfer_col) && transfer_col %in% names(reg)) {
 
   if (exclude_transfers) {
     n_before_transfer <- nrow(reg)
-    reg <- reg[reg$is_transfer == 0 & !is.na(reg$is_transfer), ]
+    reg <- reg[reg$pre_hospital_care == 0, ]
     n_excluded <- n_before_transfer - nrow(reg)
     cr_log(paste("PRIMARY ANALYSIS: Excluded", n_excluded,
-                 "inter-facility transfers.", nrow(reg), "direct-from-scene patients remain."))
+                 "patients with pre-hospital care (interfacility transfer OR prior care elsewhere).",
+                 nrow(reg), "direct-from-scene patients remain."))
     decisions <- log_decision(decisions, "stage1",
-                              paste("Excluded", n_excluded, "inter-facility transfers"),
+                              paste("Excluded", n_excluded,
+                                    "patients with pre-hospital care (transfer OR prior_care==Yes)"),
                               paste("40.7% of non-Rescue.Co ambulance patients are transfers vs 2.5% of Rescue.Co.",
-                                    "Transfers conflate ambulance quality with time at referring facility.",
+                                    "Transfers and prior-care-elsewhere patients both break the injury-to-arrival clock.",
+                                    "Union flag pre_hospital_care = interfacility_transfer OR prior_care==Yes",
+                                    "(2026-07-14 coauthor decision).",
                                     "Full cohort retained as sensitivity analysis (set exclude_transfers: false)."),
                               type = "design-stage")
   } else {
-    cr_log("SENSITIVITY ANALYSIS: Keeping all ambulance patients (transfers + direct).")
+    cr_log("SENSITIVITY ANALYSIS: Keeping all ambulance patients (transfers + prior-care + direct).")
     cr_log("  is_transfer will be included as a covariate.")
     decisions <- log_decision(decisions, "stage1",
-                              "Sensitivity: including inter-facility transfers with covariate adjustment",
+                              "Sensitivity: including interfacility transfers + prior-care patients with covariate adjustment",
                               "Transfer indicator added to covariate set",
                               type = "design-stage")
   }
 } else {
   cr_log("WARNING: Transfer column not found; cannot distinguish direct vs transfer.")
   reg$is_transfer <- NA_integer_
+  reg$sought_prior_care <- 0L
+  reg$pre_hospital_care <- 0L
 }
 
 cr_log(paste("After transfer handling:", nrow(reg), "patients (",
@@ -663,10 +709,13 @@ audit <- .decision(audit, "Stage 1a", "cohort",
   "Restricted to ambulance arrivals (Rescue.Co or other)",
   "Treatment indicator only defined for ambulance patients")
 audit <- .decision(audit, "Stage 1a", "cohort",
-  "Excluded interfacility transfers (n_excluded = 494)",
-  "Transfers conflate ambulance quality with referring-facility care; analysed separately")
+  paste0("Excluded pre-hospital-care patients (interfacility transfer OR prior_care==Yes); ",
+         "primary cohort n = ", nrow(dat)),
+  paste("Transfers and prior-care-elsewhere patients both break the injury-to-arrival clock;",
+        "union flag pre_hospital_care per 2026-07-14 coauthor decision; analysed separately in sensitivity"))
 audit <- .decision(audit, "Stage 1a", "cohort",
-  "Filled treatment for 12 ambulance arrivals where ems_ambulance was blank but hosp_transport said Ambulance",
+  paste0("Filled treatment A=0 for ambulance arrivals where ems_ambulance was blank but ",
+         "hosp_transport said Ambulance"),
   "These are clearly ambulance arrivals; treatment indicator filled as A=0 (non-Rescue)")
 audit <- .decision(audit, "Stage 1a", "outcome",
   "Primary outcome = GOSE > 4 (binary)",
@@ -745,11 +794,11 @@ if (!is.null(evt_supp)) {
 # 10) Attrition table from raw registry → analytic cohort. cleanTMLE v0.1.1
 #     accepts a named list directly per Issue #1 in the improvement prompt.
 attrition_steps <- list(
-  "Total trauma registry"             = 8326,
-  "Ambulance arrivals"                = 2197,
-  "Excluding interfacility transfers" = 1703,
-  "Treated (Rescue.Co)"               = sum(dat$A == 1),
-  "Control (other ambulance)"         = sum(dat$A == 0))
+  "Total trauma registry"                          = 8326,
+  "Ambulance arrivals"                             = 2197,
+  "Excluding pre-hospital care (transfer/prior)"   = nrow(dat),
+  "Treated (Rescue.Co)"                            = sum(dat$A == 1),
+  "Control (other ambulance)"                      = sum(dat$A == 0))
 attrition <- tryCatch(
   cleanTMLE::attrition_table(attrition_steps),
   error = function(e) {

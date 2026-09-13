@@ -75,6 +75,9 @@ cr_log("Running survtmle (primary survival estimator)...")
 
 result_survtmle <- tryCatch({
   require(survtmle)
+  # Seed the primary survival estimator so its SuperLearner CV folds (and hence
+  # the reported risks) are reproducible across runs.
+  set.seed(cfg$seed)
 
   # Prepare data: survtmle expects ftime (positive integer), ftype (0/1)
   cc <- complete.cases(time_var, event_var, A)
@@ -87,17 +90,35 @@ result_survtmle <- tryCatch({
   col_var <- apply(W_cc, 2, var, na.rm = TRUE)
   W_cc <- W_cc[, !is.na(col_var) & col_var > 1e-8, drop = FALSE]
 
-  # Bin to target times (survtmle needs bounded ftime)
   max_t <- max(target_times)
   ftime_cc <- pmin(ftime_cc, max_t)
 
-  # Run survtmle at each target time
+  # --- Discretise time to a COARSE grid before calling survtmle -------------
+  # The proxy survival times built in Stage 1 have support only at a monthly
+  # scale (hospital deaths ~day 1, LFTU censored at day 30, follow-up deaths
+  # ~day 90, alive censored at day 180) and just ~50 events over 180 days.
+  # Passing the raw DAILY grid (1..180) to survtmle's pooled-hazard method
+  # makes it fit a hazard over ~180 near-empty time points and EXTRAPOLATE the
+  # hazard past the last observed event (day ~167) out to t0 = 180. That
+  # inflated the cumulative incidence ~6x (180-day risk ~0.21-0.24, versus a
+  # crude death rate of ~0.03 and the discrete-time TMLE's ~0.03-0.04). Binning
+  # ftime to a monthly grid aligned to the reporting horizons removes the
+  # near-empty intervals and yields risks consistent with KM, the crude rate,
+  # and the discrete-time TMLE. See reconciliation_2026-07-28.md (Discrepancy 4).
+  surv_grid <- sort(unique(c(1, seq(30, max_t, by = 30), target_times)))
+  ftime_bin <- findInterval(ftime_cc, surv_grid)      # 1..length(surv_grid)
+  tt_bin    <- findInterval(target_times, surv_grid)  # target horizons in bin index
+  cr_log(paste0("survtmle time grid (days): ", paste(surv_grid, collapse = ", "),
+                " -> ", length(surv_grid), " bins; target bins ",
+                paste(tt_bin, collapse = ", ")))
+
+  # Run survtmle on the binned time index; t0 = last target bin
   survtmle_fit <- survtmle::survtmle(
-    ftime    = ftime_cc,
+    ftime    = ftime_bin,
     ftype    = ftype_cc,
     trt      = A_cc,
     adjustVars = W_cc,
-    t0       = max(target_times),
+    t0       = max(tt_bin),
     SL.ftime = c("SL.glm", "SL.mean"),
     SL.ctime = c("SL.glm", "SL.mean"),
     SL.trt   = c("SL.glm", "SL.mean"),
@@ -106,7 +127,8 @@ result_survtmle <- tryCatch({
   )
 
   # Extract cumulative incidence at each target time using timepoints
-  survtmle_tp <- survtmle::timepoints(survtmle_fit, times = target_times)
+  # (times are in the binned-index space, mapped back to days for the table).
+  survtmle_tp <- survtmle::timepoints(survtmle_fit, times = tt_bin)
 
   # Build results table
   survtmle_rows <- list()
@@ -222,11 +244,11 @@ pb5$tick()
 # --- G. Discrete-time Survival-TMLE (full cohort) — SENSITIVITY ---
 # Note (Part 3 #1 of case-study prompt): the proxy survival times built in
 # Stage 1 (hospital deaths=day 1; FU deaths=day 90; alive=180; LFTU=30
-# censored) introduce informative censoring (lost ≠ MAR). Discrete-time
-# TMLE on this scheme has historically given a 180-day RD that differs
-# from `survtmle`'s by ~1.1 pp; the gap is artifact, not a real estimator
-# disagreement. Therefore: SURVTMLE is primary survival; DISCRETE-TIME
-# TMLE is reported as sensitivity ONLY.
+# censored) introduce informative censoring (lost ≠ MAR). Both survival
+# estimators discretise time to a coarse (monthly) grid; on that grid the
+# `survtmle` primary and this discrete-time TMLE agree closely on 180-day
+# absolute risks (~3-4%) and RD. SURVTMLE remains primary survival;
+# DISCRETE-TIME TMLE is reported as a sensitivity cross-check.
 cr_log("Running survival TMLE (full cohort) — sensitivity only, see header note...")
 
 result_surv_tmle <- tryCatch(
@@ -339,11 +361,11 @@ tryCatch({
 
 # --- Kaplan-Meier for visual reference ---
 cr_log("Generating Kaplan-Meier curves...")
+km_ok <- !is.na(time_var) & !is.na(event_var) & !is.na(A)
 km_data <- data.frame(
-  time  = time_var[!is.na(time_var) & !is.na(event_var) & !is.na(A)],
-  event = event_var[!is.na(time_var) & !is.na(event_var) & !is.na(A)],
-  group = factor(A[!is.na(time_var) & !is.na(event_var) & !is.na(A)],
-                  labels = c("Control", "Rescue.Co"))
+  time  = time_var[km_ok],
+  event = event_var[km_ok],
+  group = factor(A[km_ok], labels = c("Control", "Rescue.Co"))
 )
 
 if (nrow(km_data) > 0) {

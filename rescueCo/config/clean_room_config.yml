@@ -35,6 +35,10 @@ treatment:
   # Primary analysis excludes inter-facility transfers (direct-from-scene only).
   # Sensitivity analysis includes all ambulance patients with transfer as covariate.
   transfer_column: "inter_facility_transfer"  # "No" = direct, "Yes*" = transfer
+  # Prior-care-elsewhere column (2026-07-14 coauthor decision): patients who
+  # sought care before arrival are excluded from the primary cohort together
+  # with interfacility transfers (union flag pre_hospital_care).
+  prior_care_column: "prior_care"             # 0 = No, 1 = Yes, 99 = Unknown
   exclude_transfers: true                      # Primary: true; Sensitivity: false
 
 # --- Binary outcome (GOSE-based) ---

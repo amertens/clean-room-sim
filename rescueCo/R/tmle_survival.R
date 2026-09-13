@@ -58,32 +58,185 @@ expand_person_time <- function(time_var, event_var, A, W,
   do.call(rbind, records)
 }
 
-#' Discrete-time survival TMLE
+#' Internal: targeted discrete-time survival TMLE core (single failure type)
 #'
-#' Implements TMLE for counterfactual survival curves using discrete hazard models.
+#' Fits initial main-terms logistic working models for the event hazard,
+#' censoring hazard and treatment mechanism, then TARGETS the event hazard by
+#' iterating a logistic fluctuation along the clever covariate
+#'   H_a(t) = -I(A = a) / (g_a(W) * G_c(t- | a, W)) * S_a(t0 | W) / S_a(t | W)
+#' until the fluctuation coefficient converges to 0, so the plug-in solves the
+#' efficient influence function for the counterfactual risk F_a(t0) = 1 - S_a(t0).
+#' Standard errors are the influence-curve-based (analytic) SEs.
+#'
+#' Matrices are oriented [time-grid x subject]; cumulative products run down
+#' columns (over time).
+#'
+#' @keywords internal
+.discrete_surv_tmle_core <- function(time_b, event_c, A_c, W_mat, grid, target_times,
+                                     gbound = 0.025, cbound = 0.02,
+                                     max_iter = 50, tol = 1e-6) {
+  n <- length(time_b)
+  K <- length(grid)
+  tix <- match(time_b, grid)                       # observed grid index per subject
+  if (anyNA(tix)) return(NULL)
+
+  # Observed person-time (long): subject i contributes rows j = 1..tix[i]
+  ri <- rep(seq_len(n), tix)
+  rj <- sequence(tix)
+  yhaz  <- as.integer(rj == tix[ri] & event_c[ri] == 1L)  # event at this period
+  cflag <- as.integer(rj == tix[ri] & event_c[ri] == 0L)  # censored at this period
+  day   <- grid[rj]
+
+  # --- Initial working models (main-terms logistic GLM) --------------------
+  # Parametric GLMs (not SuperLearner): with only a few dozen events on the
+  # discrete grid the SL library (esp. SL.glmnet) is unstable and could shrink
+  # the treatment coefficient to exactly 0, which previously collapsed the
+  # matched-cohort risk difference to a spurious 0. The primary survival
+  # estimator (survtmle) retains the SuperLearner fit.
+  keep <- cflag == 0L                              # event-hazard risk set excludes censor rows
+  hfit <- suppressWarnings(glm(y ~ ., family = binomial(),
+    data = data.frame(y = yhaz[keep], time = day[keep], A = A_c[ri][keep],
+                      W_mat[ri, , drop = FALSE][keep, , drop = FALSE])))
+  cfit <- suppressWarnings(glm(y ~ ., family = binomial(),
+    data = data.frame(y = cflag, time = day, A = A_c[ri], W_mat[ri, , drop = FALSE])))
+  gfit <- suppressWarnings(glm(A ~ ., family = binomial(),
+    data = data.frame(A = A_c, W_mat)))
+  g1 <- pmin(pmax(as.numeric(predict(gfit, type = "response")), gbound), 1 - gbound)
+
+  # Counterfactual full-grid hazard predictions (K x n matrix per arm)
+  predmat <- function(fit, a) {
+    fi <- rep(seq_len(n), each = K)
+    dd <- rep(grid, n)
+    px <- data.frame(time = dd, A = a, W_mat[fi, , drop = FALSE])
+    matrix(pmin(pmax(as.numeric(predict(fit, newdata = px, type = "response")),
+                     1e-6), 1 - 1e-6), nrow = K)
+  }
+  arms <- list()
+  for (a in c(0, 1)) {
+    lam  <- predmat(hfit, a)                        # event hazard
+    lamc <- predmat(cfit, a)                        # censoring hazard
+    GcS    <- apply(1 - lamc, 2, cumprod)
+    Gcprev <- rbind(1, GcS[-K, , drop = FALSE])     # censoring survival just before t
+    arms[[as.character(a)]] <- list(lam = lam, Gcprev = pmax(Gcprev, cbound))
+  }
+
+  est <- vector("list", length(target_times))
+  for (ti in seq_along(target_times)) {
+    tt <- target_times[ti]
+    m0 <- match(tt, grid)
+    risks <- c()
+    ics   <- list()
+
+    for (a in c(1, 0)) {
+      L <- arms[[as.character(a)]]
+      lam_t <- L$lam
+      Gcp   <- L$Gcprev
+      pia   <- if (a == 1) g1 else 1 - g1
+
+      # Observed at-risk uncensored score rows for this arm/horizon
+      mask <- (A_c[ri] == a) & (rj <= m0) & (cflag == 0L)
+      ri_s <- ri[mask]
+      rj_s <- rj[mask]
+      y_s  <- yhaz[mask]
+
+      # Clever covariate matrix (m0 x n): H_a(t,i)
+      clever <- function(St) {
+        Sm0 <- St[m0, ]
+        -sweep(sweep(1 / St[seq_len(m0), , drop = FALSE], 2, Sm0, "*") /
+                 Gcp[seq_len(m0), , drop = FALSE], 2, pia, "/")
+      }
+
+      # --- Targeting: iterate the logistic fluctuation to convergence ---
+      for (iter in seq_len(max_iter)) {
+        St  <- apply(1 - lam_t, 2, cumprod)
+        h   <- clever(St)
+        off <- qlogis(pmin(pmax(lam_t[cbind(rj_s, ri_s)], 1e-6), 1 - 1e-6))
+        hh  <- h[cbind(rj_s, ri_s)]
+        eps <- 0
+        if (length(y_s) > 2 && sd(hh) > 0) {
+          fe <- suppressWarnings(try(
+            glm(y_s ~ -1 + hh + offset(off), family = binomial()), silent = TRUE))
+          if (!inherits(fe, "try-error")) {
+            eps <- as.numeric(coef(fe)[1])
+            if (is.na(eps)) eps <- 0
+          }
+        }
+        lam_t[seq_len(m0), ] <- plogis(
+          qlogis(pmin(pmax(lam_t[seq_len(m0), , drop = FALSE], 1e-6), 1 - 1e-6)) + eps * h)
+        if (abs(eps) < tol) break
+      }
+
+      St     <- apply(1 - lam_t, 2, cumprod)
+      Sm0t   <- St[m0, ]
+      risk_a <- mean(1 - Sm0t)
+
+      # Influence curve for F_a(t0): score part + W part, centred
+      h       <- clever(St)
+      resid   <- y_s - lam_t[cbind(rj_s, ri_s)]
+      contrib <- h[cbind(rj_s, ri_s)] * resid
+      Dout <- numeric(n)
+      if (length(ri_s) > 0) {
+        agg <- rowsum(contrib, ri_s)
+        Dout[as.integer(rownames(agg))] <- agg[, 1]
+      }
+      ics[[as.character(a)]] <- Dout + (1 - Sm0t) - risk_a
+      risks[as.character(a)] <- risk_a
+    }
+
+    r1 <- risks["1"]
+    r0 <- risks["0"]
+    icRD <- ics[["1"]] - ics[["0"]]
+    se <- sqrt(var(icRD) / n)
+    est[[ti]] <- data.frame(
+      time            = tt,
+      risk_1          = r1,
+      risk_0          = r0,
+      risk_difference = r1 - r0,
+      risk_ratio      = if (isTRUE(r0 > 0)) r1 / r0 else NA_real_,
+      rd_se           = se,
+      rd_ci_lower     = (r1 - r0) - 1.96 * se,
+      rd_ci_upper     = (r1 - r0) + 1.96 * se,
+      row.names       = NULL,
+      stringsAsFactors = FALSE
+    )
+  }
+  do.call(rbind, est)
+}
+
+#' Discrete-time survival TMLE (targeted)
+#'
+#' Targeted maximum-likelihood estimator of the counterfactual cumulative
+#' incidence (risk) at each target time, using discrete-time hazards. See
+#' \code{.discrete_surv_tmle_core} for the targeting step and influence-curve
+#' inference. Unlike a plug-in g-computation, the event hazard is fluctuated
+#' toward the efficient influence function using the treatment and censoring
+#' mechanisms, so the estimate cannot collapse to a spurious null when the
+#' outcome model happens to drop the treatment term.
 #'
 #' @param time_var Observed event/censor times
-#' @param event_var Binary event indicator
+#' @param event_var Binary event indicator (1 = event, 0 = censored)
 #' @param A Treatment vector
 #' @param W Covariate matrix
 #' @param target_times Vector of time points at which to estimate risk
-#' @param sl_lib SuperLearner library for hazard and treatment models
-#' @param sl_lib_censor SuperLearner library for censoring model
-#' @param seed Random seed
-#' @return List with counterfactual risk estimates
+#' @param sl_lib,sl_lib_censor Retained for API compatibility; unused. The
+#'   discrete-time estimator uses parametric working models (see Details); the
+#'   primary survtmle estimator is where the SuperLearner library applies.
+#' @param seed Random seed (the estimator is deterministic; kept for API parity)
+#' @param cv_folds,n_boot Retained for API compatibility; unused (analytic
+#'   influence-curve SEs replace the former bootstrap).
+#' @return List with counterfactual risk estimates and IC-based SEs
 run_survival_tmle <- function(time_var, event_var, A, W,
                               target_times = c(30, 90, 180),
                               sl_lib = c("SL.glm", "SL.glmnet", "SL.mean"),
                               sl_lib_censor = c("SL.glm", "SL.mean"),
                               seed = 42, cv_folds = 2, n_boot = 20) {
-  require(SuperLearner)
   set.seed(seed)
 
   # Complete cases
   cc <- complete.cases(time_var, event_var, A)
   time_cc  <- time_var[cc]
-  event_cc <- event_var[cc]
-  A_cc     <- A[cc]
+  event_cc <- as.integer(event_var[cc])
+  A_cc     <- as.integer(A[cc])
   W_cc     <- W[cc, , drop = FALSE]
 
   # Remove zero-variance covariates
@@ -94,192 +247,33 @@ run_survival_tmle <- function(time_var, event_var, A, W,
             paste(colnames(W_cc)[!keep_cols], collapse = ", "))
     W_cc <- W_cc[, keep_cols, drop = FALSE]
   }
-
-  n        <- sum(cc)
-
+  W_mat <- as.matrix(W_cc)
+  n <- sum(cc)
   max_time <- max(target_times)
 
-  # Discretize time to reasonable grid (e.g., weekly bins for daily data)
+  # Discretise time to a weekly grid (plus the target horizons)
   time_grid <- sort(unique(c(seq(1, max_time, by = 7), target_times)))
   time_grid <- time_grid[time_grid <= max_time]
 
-  # Bin observed times to grid
-  time_binned <- sapply(time_cc, function(t) {
-    max(time_grid[time_grid <= max(t, min(time_grid))])
-  })
+  # Bin observed times to the grid
+  time_binned <- sapply(time_cc, function(t)
+    max(time_grid[time_grid <= max(t, min(time_grid))]))
 
-  # Expand to person-time
-  pt_data <- expand_person_time(time_binned, event_cc, A_cc, W_cc,
-                                max_time = max_time, time_grid = time_grid)
-
-  if (is.null(pt_data) || nrow(pt_data) == 0) {
-    warning("No person-time records created")
-    return(NULL)
-  }
-
-  # --- Step 1: Estimate treatment model g(A|W) ---
-  # Use subject-level data, not person-time
-  g_data <- data.frame(A = A_cc, as.data.frame(W_cc))
-  g_fit <- tryCatch(
-    SuperLearner(Y = g_data$A, X = g_data[, -1, drop = FALSE],
-                 family = binomial(), SL.library = sl_lib,
-                 cvControl = list(V = cv_folds)),
+  estimates <- tryCatch(
+    .discrete_surv_tmle_core(time_binned, event_cc, A_cc, W_mat,
+                             time_grid, target_times),
     error = function(e) {
-      warning("g-model SL failed, using GLM: ", e$message)
-      SuperLearner(Y = g_data$A, X = g_data[, -1, drop = FALSE],
-                   family = binomial(), SL.library = "SL.glm",
-                   cvControl = list(V = cv_folds))
-    }
-  )
-  g_pred <- as.numeric(g_fit$SL.predict)
-  g_pred <- pmin(pmax(g_pred, 0.01), 0.99)
-
-  # Map g to person-time
-  pt_data$g_A <- g_pred[pt_data$id]
-
-  # --- Step 2: Estimate censoring model P(C=0 | t, A, W) ---
-  W_cols <- setdiff(names(pt_data), c("id", "time", "A", "Y_hazard", "C", "g_A"))
-  cens_X <- pt_data[, c("time", "A", W_cols), drop = FALSE]
-
-  cens_fit <- tryCatch(
-    SuperLearner(Y = 1 - pt_data$C, X = cens_X, family = binomial(),
-                 SL.library = sl_lib_censor, cvControl = list(V = cv_folds)),
-    error = function(e) {
-      warning("Censoring model SL failed: ", e$message)
-      SuperLearner(Y = 1 - pt_data$C, X = cens_X, family = binomial(),
-                   SL.library = "SL.glm", cvControl = list(V = cv_folds))
-    }
-  )
-  pt_data$surv_cens <- pmax(as.numeric(cens_fit$SL.predict), 0.01)
-
-  # --- Step 3: Estimate hazard model Q(Y_hazard | t, A, W) ---
-  # Only among uncensored person-time rows
-  uncens <- pt_data$C == 0
-  haz_X <- pt_data[uncens, c("time", "A", W_cols), drop = FALSE]
-  haz_Y <- pt_data$Y_hazard[uncens]
-
-  haz_fit <- tryCatch(
-    SuperLearner(Y = haz_Y, X = haz_X, family = binomial(),
-                 SL.library = sl_lib, cvControl = list(V = cv_folds)),
-    error = function(e) {
-      warning("Hazard model SL failed: ", e$message)
-      SuperLearner(Y = haz_Y, X = haz_X, family = binomial(),
-                   SL.library = "SL.glm", cvControl = list(V = cv_folds))
-    }
-  )
-
-  # --- Step 4: Predict counterfactual hazards ---
-  results <- list()
-
-  for (a_val in c(1, 0)) {
-    # Predict hazard under A = a_val for all person-time rows
-    pred_X <- pt_data[uncens, c("time", "A", W_cols), drop = FALSE]
-    pred_X$A <- a_val
-    h_pred <- pmin(pmax(as.numeric(predict(haz_fit, newdata = pred_X)$pred), 0.001), 0.999)
-
-    # For each individual, compute cumulative survival
-    surv_by_id <- list()
-    ids <- unique(pt_data$id[uncens])
-
-    for (id_i in ids) {
-      rows <- which(pt_data$id[uncens] == id_i)
-      h_i <- h_pred[rows]
-      t_i <- pt_data$time[uncens][rows]
-      surv_i <- cumprod(1 - h_i)
-      surv_by_id[[as.character(id_i)]] <- data.frame(
-        id = id_i, time = t_i, surv = surv_i
-      )
-    }
-
-    surv_all <- do.call(rbind, surv_by_id)
-
-    # Estimate risk at target times
-    for (tt in target_times) {
-      # For each individual, get survival at time tt
-      surv_at_t <- sapply(ids, function(id_i) {
-        s <- surv_all[surv_all$id == id_i, ]
-        s <- s[s$time <= tt, ]
-        if (nrow(s) == 0) return(1)
-        min(s$surv)  # cumulative survival up to tt
-      })
-      risk_at_t <- 1 - surv_at_t
-      results[[paste0("risk_", a_val, "_t", tt)]] <- mean(risk_at_t)
-    }
-  }
-
-  # --- Step 5: Compute contrasts ---
-  estimates <- data.frame(
-    time = target_times,
-    risk_1 = sapply(target_times, function(tt) results[[paste0("risk_1_t", tt)]]),
-    risk_0 = sapply(target_times, function(tt) results[[paste0("risk_0_t", tt)]]),
-    stringsAsFactors = FALSE
-  )
-  estimates$risk_difference <- estimates$risk_1 - estimates$risk_0
-  estimates$risk_ratio <- ifelse(estimates$risk_0 > 0,
-                                  estimates$risk_1 / estimates$risk_0, NA)
-
-  # --- Bootstrap SEs ---
-  boot_results <- array(NA, dim = c(n_boot, length(target_times), 2))  # RD, RR
-  pb_boot <- cr_progress(n_boot, "  Bootstrap")
-
-  for (b in seq_len(n_boot)) {
-    pb_boot$tick()
-    boot_ids <- sample(n, n, replace = TRUE)
-    time_b  <- time_binned[boot_ids]
-    event_b <- event_cc[boot_ids]
-    A_b     <- A_cc[boot_ids]
-    W_b     <- W_cc[boot_ids, , drop = FALSE]
-
-    boot_est <- tryCatch({
-      pt_b <- expand_person_time(time_b, event_b, A_b, W_b,
-                                  max_time = max_time, time_grid = time_grid)
-      if (is.null(pt_b) || nrow(pt_b) == 0) return(NULL)
-
-      # Simple GLM-based bootstrap for speed
-      haz_X_b <- pt_b[pt_b$C == 0, c("time", "A", names(as.data.frame(W_b))), drop = FALSE]
-      haz_Y_b <- pt_b$Y_hazard[pt_b$C == 0]
-
-      haz_glm <- glm(haz_Y_b ~ ., data = haz_X_b, family = binomial())
-
-      boot_risks <- sapply(target_times, function(tt) {
-        sapply(c(1, 0), function(a_val) {
-          pred_data <- haz_X_b
-          pred_data$A <- a_val
-          h_b <- pmin(pmax(predict(haz_glm, newdata = pred_data, type = "response"), 0.001), 0.999)
-
-          # Average risk at target time
-          at_time <- haz_X_b$time <= tt
-          if (sum(at_time) == 0) return(0)
-          mean(h_b[at_time])  # Simplified: average hazard as proxy
-        })
-      })
-      boot_risks
-    }, error = function(e) NULL)
-
-    if (!is.null(boot_est) && is.matrix(boot_est)) {
-      for (j in seq_along(target_times)) {
-        boot_results[b, j, 1] <- boot_est[1, j] - boot_est[2, j]  # RD
-        boot_results[b, j, 2] <- ifelse(boot_est[2, j] > 0,
-                                          boot_est[1, j] / boot_est[2, j], NA)  # RR
-      }
-    }
-  }
-
-  # Compute SEs from bootstrap
-  estimates$rd_se <- apply(boot_results[, , 1, drop = FALSE], 2,
-                           sd, na.rm = TRUE)
-  estimates$rd_ci_lower <- estimates$risk_difference - 1.96 * estimates$rd_se
-  estimates$rd_ci_upper <- estimates$risk_difference + 1.96 * estimates$rd_se
+      warning("Discrete-time survival TMLE failed: ", e$message)
+      NULL
+    })
+  if (is.null(estimates)) return(NULL)
 
   list(
-    method     = "Survival TMLE (discrete-time)",
-    estimates  = estimates,
-    n          = n,
-    max_time   = max_time,
-    time_grid  = time_grid,
-    g_fit      = g_fit,
-    haz_fit    = haz_fit,
-    cens_fit   = cens_fit
+    method    = "Survival TMLE (discrete-time)",
+    estimates = estimates,
+    n         = n,
+    max_time  = max_time,
+    time_grid = time_grid
   )
 }
 
