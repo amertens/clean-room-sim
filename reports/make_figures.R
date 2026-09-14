@@ -1,7 +1,8 @@
 # Generate static PNG flowcharts to replace mermaid diagrams (which do not
-# render in docx output). Uses only base R graphics. Run from reports/:
+# render in docx output) for the manuscript appendix. Base R graphics only:
 #   Rscript make_figures.R
-# Produces reports/figures/fig-roadmap.png, fig-governance.png, fig-cohort-flow.png
+# Produces reports/figures/fig-roadmap.png and fig-governance.png, the two
+# appendix figures the manuscript includes.
 
 # Resolve an output directory next to this script (reports/figures), so the
 # figures land in the right place regardless of the working directory.
@@ -79,49 +80,5 @@ for (j in seq_along(ext)) {
 }
 invisible(dev.off())
 
-## ---- 3. Rescue.Co cohort flow ---------------------------------------------
-
-png(file.path(figdir, "fig-cohort-flow.png"), width = 1600, height = 2000, res = 200)
-op <- par(mar = c(0.5, 0.5, 0.5, 0.5)); on.exit(par(op), add = TRUE)
-plot.new(); plot.window(xlim = c(0, 12), ylim = c(0, 12))
-flow <- c("Registry observations (all 2018-2024 trauma transports)",
-          "Ambulance arrivals at participating hospitals",
-          "Direct-from-scene cohort (inter-facility transfers excluded)",
-          "Analytic cohort: n = 1,693 (1,013 Rescue.Co + 680 other)",
-          "Complete 6-month GOSE: n = 1,277",
-          "Matched subset: n = 615 (matching) / 1,230 (matched-TMLE)")
-xc <- 4.5; bw <- 7.5; bh <- 0.9
-ys <- numeric(length(flow))
-for (i in seq_along(flow)) {
-  yc <- 12 - i*1.7 + 0.3; ys[i] <- yc
-  draw_box(xc, yc, bw, bh, flow[i], fill = "white", cex = 0.85, wrap = 40)
-  if (i > 1) varrow(xc, ys[i-1] - bh/2, yc + bh/2)
-}
-# Side note: missing GOSE handled by IPCW, branching off the analytic cohort (box 4)
-draw_box(10.3, ys[4], 3, 1.0, "Missing GOSE n = 416 (24.6%): handled by IPCW",
-         fill = "grey92", cex = 0.78, wrap = 20)
-arrows(xc + bw/2, ys[4], 10.3 - 1.5, ys[4], length = 0.10, lwd = 1.2,
-       lty = 2, col = "grey40")
-invisible(dev.off())
-
-## ---- 4. Negative-control attrition ---------------------------------------
-
-png(file.path(figdir, "fig-nc-attrition.png"), width = 1600, height = 1500, res = 200)
-op <- par(mar = c(0.5, 0.5, 0.5, 0.5)); on.exit(par(op), add = TRUE)
-plot.new(); plot.window(xlim = c(0, 12), ylim = c(0, 10))
-xc <- 4.5; bw <- 7.5
-yA <- 9; yB <- 6.7; yD <- 4.2; yE <- 1.9
-draw_box(xc, yA, bw, 1.4, "5 prespecified NCs: chronic_hypertension, chronic_diabetes_insulin, chronic_hiv_art, household_urban, fuel_wood", cex = 0.82, wrap = 40)
-draw_box(xc, yB, bw, 0.8, "NZV filter at data-sanitisation step", cex = 0.85, wrap = 40)
-draw_box(xc, yD, bw, 1.0, "2 analysed: chronic_hypertension, household_urban", cex = 0.85, wrap = 40)
-draw_box(xc, yE, bw, 0.8, "Both pass NC checks", cex = 0.85, wrap = 40)
-varrow(xc, yA - 0.7, yB + 0.4)
-varrow(xc, yB - 0.4, yD + 0.5)
-varrow(xc, yD - 0.5, yE + 0.4)
-# Side branch: 3 dropped
-draw_box(10.3, yB, 3, 1.2, "3 dropped: chronic_diabetes_insulin, chronic_hiv_art, fuel_wood",
-         fill = "grey92", cex = 0.78, wrap = 20)
-arrows(xc + bw/2, yB, 10.3 - 1.5, yB, length = 0.10, lwd = 1.2, lty = 2, col = "grey40")
-invisible(dev.off())
-
-cat("Wrote figures/fig-roadmap.png, fig-governance.png, fig-cohort-flow.png, fig-nc-attrition.png\n")
+cat("Wrote figures/fig-roadmap.png and fig-governance.png
+")

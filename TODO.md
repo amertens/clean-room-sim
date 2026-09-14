@@ -508,7 +508,7 @@ planned extensions" section of README.md.
 - Consider adding rows for: `tmle3` (target-learning ecosystem), `lmtp`, `survtmle`, `WeightIt`, `MatchIt`. The point is operational — what each does and does not provide — not a method ranking.
 
 ### C.4 Tutorial follow-up
-- The `cleanTMLE_for_applied_analysts.qmd` tutorial currently renders to HTML and DOCX. Consider adding PDF output once the cross-reference style stabilises.
+- Resolved September 2026: the applied-analyst tutorial was consolidated into the package vignettes (the staged-analysis vignette's first half is the applied walkthrough); the standalone `cleanTMLE_for_applied_analysts.qmd` was removed from `reports/`.
 
 ---
 

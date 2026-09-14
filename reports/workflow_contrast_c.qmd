@@ -95,8 +95,11 @@ make_data <- function(n, dgp = c("linear","nonlinear","sparse"), true_RD = -0.05
 covariates <- c("age", "sex", "biomarker", "comorbidity")
 
 # Fixed-library TMLE: pick lib and truncation a priori.
+# (0.2.0 API: estimate_effect(return_steps = TRUE) runs the same modular
+# quartet the pre-consolidation four-step calls ran, on the same fit_ps()
+# propensity, so the estimator is unchanged.)
 fit_fixed <- function(data) {
-  lock <- create_simple_lock(
+  lock <- create_analysis_lock(
     data       = data,
     treatment  = "treatment",
     outcome    = "event_24",
@@ -104,22 +107,16 @@ fit_fixed <- function(data) {
     sl_library = c("SL.glm", "SL.mean"),
     seed       = 1L
   )
-  spec <- tmle_candidate("fixed",
-                         g_library = c("SL.glm", "SL.mean"),
-                         q_library = c("SL.glm", "SL.mean"),
-                         truncation = 0.01)
-  lock <- lock_primary_tmle_spec(lock, spec)
-  ps   <- fit_ps_superlearner(lock)
-  g    <- fit_tmle_treatment_mechanism(lock, ps)
-  Qf   <- fit_tmle_outcome_mechanism(lock, g)
-  upd  <- run_tmle_targeting_step(g, Qf)
-  extract_tmle_estimate(upd)
+  ps <- fit_ps(lock, truncate = 0.01)
+  estimate_effect(lock, ps, estimand = "ATE", estimator = "tmle",
+                  sl_library = c("SL.glm", "SL.mean"), gbound = 0.01,
+                  return_steps = TRUE)
 }
 
 # Plasmode-selected TMLE: pick the candidate with the smallest plasmode
 # RMSE on one outcome-blind plasmode replicate from the same DGP.
 fit_plasmode <- function(data) {
-  lock <- create_simple_lock(
+  lock <- create_analysis_lock(
     data       = data,
     treatment  = "treatment",
     outcome    = "event_24",
@@ -157,12 +154,11 @@ fit_plasmode <- function(data) {
   match_i  <- which(cand_ids == selected_id)
   if (length(match_i) == 0L) match_i <- 1L
   selected <- candidates[[match_i[1L]]]
-  lock <- lock_primary_tmle_spec(lock, selected)
-  ps   <- fit_ps_superlearner(lock)
-  g    <- fit_tmle_treatment_mechanism(lock, ps)
-  Qf   <- fit_tmle_outcome_mechanism(lock, g)
-  upd  <- run_tmle_targeting_step(g, Qf)
-  out  <- extract_tmle_estimate(upd)
+  ps  <- fit_ps(lock, truncate = selected$truncation)
+  out <- estimate_effect(lock, ps, estimand = "ATE", estimator = "tmle",
+                         sl_library = selected$q_library,
+                         gbound = selected$truncation,
+                         return_steps = TRUE)
   attr(out, "selected_candidate") <- selected_id
   out
 }
