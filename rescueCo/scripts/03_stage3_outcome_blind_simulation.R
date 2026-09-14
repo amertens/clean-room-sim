@@ -2,15 +2,15 @@
 # Stage 2b/3: Outcome-Blind Plasmode + Data-Quality Stress Test
 # ============================================================
 # Modernised: uses the cleanTMLE plasmode API
-#   - expand_tmle_candidate_grid() to enumerate candidates
-#   - validate_tmle_candidates() to reject ill-specified ones
+#   - cleanTMLE:::expand_tmle_candidate_grid() to enumerate candidates
+#   - cleanTMLE:::validate_tmle_candidates() to reject ill-specified ones
 #   - run_plasmode_feasibility() for baseline RMSE/coverage
 #   - run_plasmode_dq_stress() for the DQ stress curve (the package's
 #     distinguishing contribution: covariate missingness, treatment
 #     misclassification, outcome misclassification, unmeasured confounding)
-#   - summarize_dq_degradation() to flag fragile candidates
-#   - select_tmle_candidate() / lock_primary_tmle_spec() to lock a spec
-#   - gate_check() for a structured GO/FLAG/STOP from plasmode metrics
+#   - cleanTMLE:::summarize_dq_degradation() to flag fragile candidates
+#   - select_tmle_candidate() / cleanTMLE:::lock_primary_tmle_spec() to lock a spec
+#   - cleanTMLE:::gate_check() for a structured GO/FLAG/STOP from plasmode metrics
 #
 # NO real GOSE or survival outcomes are used at this stage.
 # ============================================================
@@ -77,12 +77,12 @@ candidates <- list(
     truncation   = 0.05))
 
 # Validate
-cleanTMLE::validate_tmle_candidates(candidates)
+cleanTMLE:::validate_tmle_candidates(candidates)
 cr_log(paste("Defined", length(candidates), "candidate TMLE specifications"))
 
 # Also accept the package's default expansion as a sanity check
 default_grid <- tryCatch(
-  cleanTMLE::expand_tmle_candidate_grid(
+  cleanTMLE:::expand_tmle_candidate_grid(
     g_libraries  = list(c("SL.glm"), c("SL.glm", "SL.glmnet", "SL.mean")),
     Q_libraries  = list(c("SL.glm"), c("SL.glm", "SL.glmnet", "SL.mean")),
     truncations  = c(0.01, 0.05)),
@@ -106,9 +106,9 @@ plas <- tryCatch(
   error = function(e) { cr_log(paste("run_plasmode_feasibility failed:", e$message)); NULL })
 
 if (!is.null(plas)) {
-  # summarize_plasmode_results() returns a `plasmode_results` object whose
+  # cleanTMLE:::summarize_plasmode_results() returns a `plasmode_results` object whose
   # metrics live in $metrics. write.csv can't coerce it directly.
-  cleanTMLE::summarize_plasmode_results(plas)  # prints to console
+  cleanTMLE:::summarize_plasmode_results(plas)  # prints to console
   if (!is.null(plas$metrics)) {
     write.csv(as.data.frame(plas$metrics),
       file.path(results_dir, "plasmode_summary.csv"),
@@ -172,7 +172,7 @@ dq <- tryCatch(
 
 if (!is.null(dq)) {
   saveRDS(dq, file.path(results_dir, "plasmode_dq_stress.rds"))
-  dq_summary <- tryCatch(cleanTMLE::summarize_dq_degradation(dq),
+  dq_summary <- tryCatch(cleanTMLE:::summarize_dq_degradation(dq),
     error = function(e) NULL)
   if (!is.null(dq_summary)) {
     write.csv(dq_summary, file.path(results_dir, "plasmode_dq_degradation.csv"),
@@ -208,7 +208,7 @@ selected <- if (!is.null(plas)) {
 } else NULL
 
 if (!is.null(selected)) {
-  lock <- tryCatch(cleanTMLE::lock_primary_tmle_spec(lock, selected),
+  lock <- tryCatch(cleanTMLE:::lock_primary_tmle_spec(lock, selected),
                    error = function(e) { cr_log(paste("lock_primary_tmle_spec failed:", e$message)); lock })
   cr_log(paste("Locked primary TMLE spec:", selected$candidate_id,
                " (truncation =", selected$truncation, ")"))
@@ -222,18 +222,18 @@ if (!is.null(selected)) {
 # STEP 5: GATE CHECK — composite GO/FLAG/STOP from plasmode metrics
 # ============================================================
 gate <- tryCatch(
-  cleanTMLE::gate_check(plas,
+  cleanTMLE:::gate_check(plas,
     rmse_threshold     = 0.05,
     coverage_threshold = 0.85),
   error = function(e) { cr_log(paste("gate_check failed:", e$message)); NULL })
 if (!is.null(gate) && inherits(gate, "cleantmle_checkpoint")) {
-  audit <- cleanTMLE::record_checkpoint(audit, gate)
+  audit <- cleanTMLE:::record_checkpoint(audit, gate)
   cr_log(paste("Gate decision (Stage 2b plasmode):", gate$decision))
 } else if (!is.null(gate)) {
   cr_log(paste("Gate result returned but not a cleantmle_checkpoint; skipping audit append."))
 }
 
-audit <- cleanTMLE::record_stage(audit, "Stage 2b",
+audit <- cleanTMLE:::record_stage(audit, "Stage 2b",
   if (!is.null(selected)) paste("Locked TMLE candidate:", selected$candidate_id) else "Plasmode complete")
 
 # ============================================================

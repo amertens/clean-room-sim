@@ -258,28 +258,28 @@ run_one_replicate <- function(dat, lock, ps_fit, truth_rd, n_folds = 1L,
   results <- list()
 
   results$Crude <- tryCatch({
-    cr <- run_crude_workflow(lock)
+    cr <- cleanTMLE:::run_crude_workflow(lock)
     list(estimate = cr$estimate, se = cr$se,
          ci_lower = cr$ci_lower, ci_upper = cr$ci_upper)
   }, error = function(e) list(estimate = NA, se = NA, ci_lower = NA, ci_upper = NA))
 
   results$IPTW <- tryCatch({
-    ip <- run_iptw_workflow(lock, ps_fit)
+    ip <- cleanTMLE:::run_iptw_workflow(lock, ps_fit)
     list(estimate = ip$estimate, se = ip$se,
          ci_lower = ip$ci_lower, ci_upper = ip$ci_upper)
   }, error = function(e) list(estimate = NA, se = NA, ci_lower = NA, ci_upper = NA))
 
   results$`PS Match` <- tryCatch({
-    mt <- run_match_workflow(lock, ps_fit)
+    mt <- cleanTMLE:::run_match_workflow(lock, ps_fit)
     list(estimate = mt$estimate, se = mt$se,
          ci_lower = mt$ci_lower, ci_upper = mt$ci_upper)
   }, error = function(e) list(estimate = NA, se = NA, ci_lower = NA, ci_upper = NA))
 
   results$TMLE <- tryCatch({
-    g_fit    <- fit_tmle_treatment_mechanism(lock, ps_fit)
-    Q_fit    <- fit_tmle_outcome_mechanism(lock, g_fit)
-    tmle_upd <- run_tmle_targeting_step(g_fit, Q_fit)
-    te       <- extract_tmle_estimate(tmle_upd)
+    g_fit    <- cleanTMLE:::fit_tmle_treatment_mechanism(lock, ps_fit)
+    Q_fit    <- cleanTMLE:::fit_tmle_outcome_mechanism(lock, g_fit)
+    tmle_upd <- cleanTMLE:::run_tmle_targeting_step(g_fit, Q_fit)
+    te       <- cleanTMLE:::extract_tmle_estimate(tmle_upd)
     ate      <- te$estimates$ATE
     list(estimate = ate$estimate, se = ate$se,
          ci_lower = ate$ci_lower, ci_upper = ate$ci_upper)
@@ -287,7 +287,7 @@ run_one_replicate <- function(dat, lock, ps_fit, truth_rd, n_folds = 1L,
 
   if (n_folds > 1L) {
     results$TMLE_CF <- tryCatch({
-      cf <- estimate_tmle_risk_point(
+      cf <- cleanTMLE:::estimate_tmle_risk_point(
         data       = dat,
         treatment  = lock$treatment,
         outcome    = lock$outcome,
@@ -304,9 +304,9 @@ run_one_replicate <- function(dat, lock, ps_fit, truth_rd, n_folds = 1L,
   }
 
   results$Match_TMLE <- tryCatch({
-    mt <- run_match_workflow(lock, ps_fit)
+    mt <- cleanTMLE:::run_match_workflow(lock, ps_fit)
     matched_idx <- as.integer(rownames(mt$matched_data))
-    mt_tmle <- run_matched_tmle(lock, ps_fit, subset_idx = matched_idx)
+    mt_tmle <- cleanTMLE:::run_matched_tmle(lock, ps_fit, subset_idx = matched_idx)
     ate <- mt_tmle$estimates$ATE
     list(estimate = ate$estimate, se = ate$se,
          ci_lower = ate$ci_lower, ci_upper = ate$ci_upper)
@@ -515,32 +515,32 @@ for (sc_name in names(scenarios)) {
     description = "Truncation sensitivity (0.01, 0.05, 0.10)",
     settings    = list(thresholds = c(0.01, 0.05, 0.10))
   )
-  lock <- define_negative_control(lock, "nc_outcome",
+  lock <- cleanTMLE:::define_negative_control(lock, "nc_outcome",
     description = "Outcome driven by covariates only, no treatment effect"
   )
-  validate_analysis_lock(lock)
+  cleanTMLE:::validate_analysis_lock(lock)
 
-  audit  <- create_audit_log(lock)
-  audit  <- record_stage(audit, "Stage 1a",
+  audit  <- cleanTMLE:::create_audit_log(lock)
+  audit  <- cleanTMLE:::record_stage(audit, "Stage 1a",
               "Lock created; estimand, sensitivity plan, NCO declared.")
-  audit  <- record_decision_log_entry(audit, "Stage 1a",
+  audit  <- cleanTMLE:::record_decision_log_entry(audit, "Stage 1a",
               decision_type = "lock",
               description   = sprintf("Lock %s for %s", lock$lock_hash, sc$label),
               rationale     = "Pre-outcome lock before any estimation.")
 
   # ── Stage 1b: cohort adequacy + design precision ──────────────────────
   cat("  Stage 1b: cohort adequacy + design precision...\n"); .flush()
-  cp1 <- checkpoint_cohort_adequacy(lock,
+  cp1 <- cleanTMLE:::checkpoint_cohort_adequacy(lock,
     min_n_per_arm = config$cohort_min_per_arm,
     min_events    = config$cohort_min_events
   )
-  audit <- record_checkpoint(audit, cp1)
+  audit <- cleanTMLE:::record_checkpoint(audit, cp1)
   cat(sprintf("    Check Point 1: %s\n", cp1$decision)); .flush()
 
   dp <- tryCatch(estimate_design_precision(lock, target_mdd = 0.05),
                  error = function(e) NULL)
   if (!is.null(dp)) {
-    audit <- record_decision_log_entry(audit, "Stage 1b",
+    audit <- cleanTMLE:::record_decision_log_entry(audit, "Stage 1b",
                 decision_type = "design_precision",
                 description   = "Design-precision estimate computed",
                 rationale     = "Pre-outcome MDD diagnostic.",
@@ -552,10 +552,10 @@ for (sc_name in names(scenarios)) {
   # and apply the mask after the plasmode (which needs the real Y to fit
   # Q0 and generate synthetic outcomes).
   cat("  Stage 2a: PS diagnostics + balance checkpoint...\n"); .flush()
-  ps_fit_ref <- fit_ps_glm(lock)
-  ps_diag    <- compute_ps_diagnostics(ps_fit_ref)
+  ps_fit_ref <- cleanTMLE:::fit_ps_glm(lock)
+  ps_diag    <- cleanTMLE:::compute_ps_diagnostics(ps_fit_ref)
   cp2 <- tryCatch(
-    checkpoint_balance(ps_diag,
+    cleanTMLE:::checkpoint_balance(ps_diag,
                        max_smd     = config$balance_max_smd,
                        min_ess_pct = config$balance_min_ess_pct,
                        lock_hash   = lock$lock_hash),
@@ -565,7 +565,7 @@ for (sc_name in names(scenarios)) {
     }
   )
   if (!is.null(cp2)) {
-    audit <- record_checkpoint(audit, cp2)
+    audit <- cleanTMLE:::record_checkpoint(audit, cp2)
     cat(sprintf("    Check Point 2: %s\n", cp2$decision)); .flush()
   }
   cat(sprintf("    PS range: [%.3f, %.3f]  ESS: %.0f / %d (%.0f%%)\n",
@@ -590,11 +590,11 @@ for (sc_name in names(scenarios)) {
               best$candidate_id, paste(best$g_library, collapse = "+"),
               best$truncation)); .flush()
 
-  gate_2b <- gate_check(plas$metrics, scenario_name = sc$label,
+  gate_2b <- cleanTMLE:::gate_check(plas$metrics, scenario_name = sc$label,
                          targets = config$gate_targets,
                          method  = best$candidate_id)
   cat(sprintf("    Stage 2b gate: %s\n", gate_2b$decision)); .flush()
-  audit <- record_decision_log_entry(audit, "Stage 2b",
+  audit <- cleanTMLE:::record_decision_log_entry(audit, "Stage 2b",
               decision_type = "candidate_selection",
               description   = sprintf("Selected %s by min_rmse", best$candidate_id),
               rationale     = "Plasmode-selected TMLE specification.",
@@ -616,7 +616,7 @@ for (sc_name in names(scenarios)) {
   })
   if (!is.null(dq_results)) {
     cat("\n    DQ degradation summary (selected candidate):\n")
-    dq_deg <- summarize_dq_degradation(dq_results)
+    dq_deg <- cleanTMLE:::summarize_dq_degradation(dq_results)
     sel_deg <- dq_deg[dq_deg$candidate == best$candidate_id, ]
     if (nrow(sel_deg) > 0) {
       print(sel_deg[, c("scenario", "level", "bias_degraded", "rmse_ratio",
@@ -627,7 +627,7 @@ for (sc_name in names(scenarios)) {
     saveRDS(dq_results,
             file.path(config$results_dir,
                       sprintf("dq_stress_%s.rds", sc_name)))
-    audit <- record_decision_log_entry(audit, "Stage 2b*",
+    audit <- cleanTMLE:::record_decision_log_entry(audit, "Stage 2b*",
                 decision_type = "dq_stress",
                 description   = "Plasmode DQ stress test executed.",
                 rationale     = "Quantitative SPIFD2 mapping check.")
@@ -637,9 +637,9 @@ for (sc_name in names(scenarios)) {
   # Lock the primary TMLE spec, then mask. Stage 4 estimators on the
   # masked lock will refuse to run; only after the gate authorises do we
   # unmask and proceed to the comparative analysis.
-  original_lock <- lock_primary_tmle_spec(lock, best)
+  original_lock <- cleanTMLE:::lock_primary_tmle_spec(lock, best)
   masked        <- mask_outcome(original_lock)
-  audit         <- record_stage(audit, "Mask",
+  audit         <- cleanTMLE:::record_stage(audit, "Mask",
                     "Outcome column masked; Stage 3 follows on masked lock.",
                     decision = "OUTCOME-BLIND")
 
@@ -648,7 +648,7 @@ for (sc_name in names(scenarios)) {
   # the residual-confounding check legitimately uses it to probe bias.
   cat("  Stage 3: residual-confounding check via NCO...\n"); .flush()
   stage3 <- tryCatch(
-    run_residual_confounding_stage(masked, ps_fit_ref),
+    cleanTMLE:::run_residual_confounding_stage(masked, ps_fit_ref),
     error = function(e) {
       message("    Stage 3 failed: ", e$message)
       NULL
@@ -656,7 +656,7 @@ for (sc_name in names(scenarios)) {
   )
   cp3 <- if (!is.null(stage3) && !is.null(stage3$checkpoint)) stage3$checkpoint else NULL
   if (!is.null(cp3)) {
-    audit <- record_checkpoint(audit, cp3)
+    audit <- cleanTMLE:::record_checkpoint(audit, cp3)
     cat(sprintf("    Check Point 3: %s\n", cp3$decision)); .flush()
   }
 
@@ -664,11 +664,11 @@ for (sc_name in names(scenarios)) {
   gate_args <- Filter(Negate(is.null), list(cp1, cp2, cp3))
   gate_overall <- do.call(gate_all, c(gate_args, list(allow_flag = TRUE)))
   cat(sprintf("    Pre-outcome gate: %s\n", gate_overall$decision)); .flush()
-  audit <- record_checkpoint(audit, gate_overall)
+  audit <- cleanTMLE:::record_checkpoint(audit, gate_overall)
 
-  # Authorisation gate. authorize_outcome_analysis() returns a checkpoint
+  # Authorisation gate. cleanTMLE:::authorize_outcome_analysis() returns a checkpoint
   # whose `authorized` slot is TRUE when no required stage has STOP.
-  auth <- tryCatch(authorize_outcome_analysis(audit),
+  auth <- tryCatch(cleanTMLE:::authorize_outcome_analysis(audit),
                    error = function(e) list(authorized = FALSE,
                                             decision   = "STOP",
                                             rationale  = conditionMessage(e)))
@@ -677,14 +677,14 @@ for (sc_name in names(scenarios)) {
   if (auth_passed) {
     cat(sprintf("    Outcome access AUTHORISED (gate decision: %s).\n",
                 auth$decision)); .flush()
-    audit <- record_decision_log_entry(audit, "Gate",
+    audit <- cleanTMLE:::record_decision_log_entry(audit, "Gate",
                 decision_type = "authorize",
                 description   = "Outcome unblinding authorised by gate.",
                 rationale     = "All required checkpoints passed.")
   } else {
     cat(sprintf("    Outcome access DENIED: %s\n",
                 if (is.null(auth$rationale)) "(no reason given)" else auth$rationale)); .flush()
-    audit <- record_decision_log_entry(audit, "Gate",
+    audit <- cleanTMLE:::record_decision_log_entry(audit, "Gate",
                 decision_type = "authorize",
                 description   = "Outcome unblinding NOT authorised.",
                 rationale     = "Forced unblinding for the simulation only.")
@@ -748,8 +748,8 @@ for (sc_name in names(scenarios)) {
     # Stage 4 estimators in run_one_replicate() would be refused by the outcome
     # guard and every estimate would come back NA.
     lock_rep$.outcome_authorized <- TRUE
-    lock_rep <- lock_primary_tmle_spec(lock_rep, best)
-    ps_rep   <- fit_ps_glm(lock_rep)
+    lock_rep <- cleanTMLE:::lock_primary_tmle_spec(lock_rep, best)
+    ps_rep   <- cleanTMLE:::fit_ps_glm(lock_rep)
 
     rep_results[[rep_i]] <- tryCatch(
       run_one_replicate(dat_rep, lock_rep, ps_rep, truth_rd,
@@ -790,11 +790,11 @@ for (sc_name in names(scenarios)) {
   # Save the audit + decision log for this scenario.
   saveRDS(audit, file.path(config$results_dir,
                             sprintf("audit_%s.rds", sc_name)))
-  write.csv(export_audit_trail(audit),
+  write.csv(cleanTMLE:::export_audit_trail(audit),
             file.path(config$results_dir,
                       sprintf("audit_%s.csv", sc_name)),
             row.names = FALSE)
-  write.csv(export_decision_log(audit),
+  write.csv(cleanTMLE:::export_decision_log(audit),
             file.path(config$results_dir,
                       sprintf("decision_log_%s.csv", sc_name)),
             row.names = FALSE)

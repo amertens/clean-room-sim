@@ -90,7 +90,7 @@ fit_pair <- function(cn, oc) {
   lk$.outcome_masked <- FALSE
   lk <- cleanTMLE:::.log_design_decision(lk, "outcome_access",
     sprintf("Outcome %s joined for Stage 4 estimation (design stage complete).", oc))
-  psf <- wrap_ps_fit(lk, ps_scores = st$ps_raw)
+  psf <- cleanTMLE:::wrap_ps_fit(lk, ps_scores = st$ps_raw)
 
   use_ipcw <- oc %in% DELTA_OUTCOMES && anyNA(oc_col)
   res <- tryCatch(run_estimand_ladder(

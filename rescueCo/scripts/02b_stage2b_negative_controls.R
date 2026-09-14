@@ -60,7 +60,7 @@ if (length(nc_available) == 0) {
 }
 
 # --- cleanTMLE negative control analysis ---
-# NOTE: cleanTMLE's run_negative_control() uses IPTW, not TMLE.
+# NOTE: cleanTMLE's cleanTMLE:::run_negative_control() uses IPTW, not TMLE.
 # This is a methodological difference but still serves the same diagnostic purpose.
 cr_log("Running cleanTMLE negative control analysis...")
 
@@ -74,7 +74,7 @@ lock_for_nc <- tryCatch(
 stage3_nc <- NULL
 if (!is.null(lock_for_nc) && !is.null(ct_ps_fit)) {
   stage3_nc <- tryCatch(
-    cleanTMLE::run_residual_confounding_stage(lock_for_nc, ct_ps_fit),
+    cleanTMLE:::run_residual_confounding_stage(lock_for_nc, ct_ps_fit),
     error = function(e) {
       cr_log(paste("cleanTMLE run_residual_confounding_stage failed:", e$message))
       cr_log("Falling back to custom negative control analysis...")
@@ -89,7 +89,7 @@ if (!is.null(stage3_nc)) {
   print(nc_results)
 
   cp3 <- stage3_nc$checkpoint
-  audit <- cleanTMLE::record_checkpoint(audit, cp3)
+  audit <- cleanTMLE:::record_checkpoint(audit, cp3)
   cr_log(paste("Check Point 3 (residual bias):", cp3$decision))
 
   decisions <- log_decision(decisions, "stage2b",
@@ -102,7 +102,7 @@ if (!is.null(stage3_nc)) {
   nc_tmle_rows <- list()
   for (nc_var in nc_available) {
     nc_tmle <- tryCatch(
-      cleanTMLE::run_negative_control_tmle(lock_for_nc, nc_var, ct_ps_fit),
+      cleanTMLE:::run_negative_control_tmle(lock_for_nc, nc_var, ct_ps_fit),
       error = function(e) { cr_log(paste("run_negative_control_tmle(",
                                            nc_var, ") failed:", e$message)); NULL })
     if (!is.null(nc_tmle)) {
@@ -126,12 +126,12 @@ if (!is.null(stage3_nc)) {
 
   # Structured residual-bias checkpoint
   cp_resid <- tryCatch(
-    cleanTMLE::checkpoint_residual_bias(stage3_nc,
+    cleanTMLE:::checkpoint_residual_bias(stage3_nc,
       max_abs_bias = 0.02, min_p = 0.05,
       lock_hash = lock$lock_hash),
     error = function(e) NULL)
   if (!is.null(cp_resid)) {
-    audit <- cleanTMLE::record_checkpoint(audit, cp_resid)
+    audit <- cleanTMLE:::record_checkpoint(audit, cp_resid)
     cr_log(paste("Residual-bias checkpoint:", cp_resid$decision))
   }
 } else {
@@ -197,10 +197,10 @@ if (!is.null(lock_for_nc)) {
 
 if (!is.null(ct_plasmode)) {
   selected <- cleanTMLE::select_tmle_candidate(ct_plasmode, rule = "min_rmse")
-  lock <- cleanTMLE::lock_primary_tmle_spec(lock, selected)
+  lock <- cleanTMLE:::lock_primary_tmle_spec(lock, selected)
   cr_log(paste("Selected TMLE candidate:", selected$label))
 
-  audit <- cleanTMLE::record_stage(audit, "Stage 2b",
+  audit <- cleanTMLE:::record_stage(audit, "Stage 2b",
     paste("Plasmode complete; selected:", selected$candidate_id))
 
   decisions <- log_decision(decisions, "stage2b",
@@ -245,7 +245,7 @@ if (!is.null(ct_plasmode)) {
 # --- cleanTMLE gate check ---
 if (!is.null(ct_plasmode)) {
   ct_gate <- tryCatch(
-    cleanTMLE::gate_check(ct_plasmode$metrics, "plasmode",
+    cleanTMLE:::gate_check(ct_plasmode$metrics, "plasmode",
       targets = list(max_abs_bias = 0.01, min_coverage = 0.90)),
     error = function(e) { cr_log(paste("gate_check failed:", e$message)); NULL }
   )

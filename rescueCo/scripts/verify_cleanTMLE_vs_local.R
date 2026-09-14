@@ -8,10 +8,10 @@ lock <- load_lock("rescueCo/results/stage1_lock_unmasked.rds")
 ps_fit <- readRDS("rescueCo/results/stage2_ct_ps_fit.rds")
 
 # cleanTMLE modular TMLE
-g <- fit_tmle_treatment_mechanism(lock, ps_fit)
-Q <- fit_tmle_outcome_mechanism(lock, g, override_clean_room = TRUE)
-upd <- run_tmle_targeting_step(g, Q)
-est <- extract_tmle_estimate(upd)
+g <- cleanTMLE:::fit_tmle_treatment_mechanism(lock, ps_fit)
+Q <- cleanTMLE:::fit_tmle_outcome_mechanism(lock, g, override_clean_room = TRUE)
+upd <- cleanTMLE:::run_tmle_targeting_step(g, Q)
+est <- cleanTMLE:::extract_tmle_estimate(upd)
 
 ate <- est$estimates$ATE
 cat("cleanTMLE modular TMLE on rescueCo lock:\n")

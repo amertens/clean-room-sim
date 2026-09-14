@@ -23,7 +23,7 @@ cfg <- load_cr_config()
 cr_log("=== Stage 1: Build Analytic Cohort ===")
 
 # --- Initialize decision log ---
-decisions <- init_decision_log()
+decisions <- cleanTMLE:::init_decision_log()
 decisions <- log_decision(decisions, "stage1",
                           "Load data directly from Stata .dta files via haven",
                           "Use cleaned trauma registry and raw 6mo follow-up exports",
@@ -673,7 +673,7 @@ for (nc_var in nc_vars) {
     nc_re_added <- c(nc_re_added, nc_var)
   }
   if (nc_var %in% names(lock_data)) {
-    lock <- cleanTMLE::define_negative_control(lock, nc_var,
+    lock <- cleanTMLE:::define_negative_control(lock, nc_var,
       description = paste("Pre-treatment covariate", nc_var,
                            "— treatment should have no causal effect"))
   } else {
@@ -692,12 +692,12 @@ lock_pre_mask <- lock  # keep an unmasked copy for stages that need outcome (fin
 lock <- cleanTMLE::mask_outcome(lock)
 
 # 7) Initialise audit trail with FULL decision log of every design choice
-audit <- cleanTMLE::create_audit_log(lock)
-audit <- cleanTMLE::record_stage(audit, "Stage 1a", "Cohort built and analysis lock created")
+audit <- cleanTMLE:::create_audit_log(lock)
+audit <- cleanTMLE:::record_stage(audit, "Stage 1a", "Cohort built and analysis lock created")
 
 # Record every analytic decision the script made (~15 entries → manuscript req)
 .decision <- function(audit, stage, type, desc, why) {
-  cleanTMLE::record_decision_log_entry(audit,
+  cleanTMLE:::record_decision_log_entry(audit,
     stage = stage, decision_type = type,
     description = desc, rationale = why)
 }
@@ -755,7 +755,7 @@ audit <- .decision(audit, "Stage 1a", "merge",
 
 # 8) Stage 1b — Check Point 1: Cohort adequacy
 cp1 <- tryCatch(
-  cleanTMLE::checkpoint_cohort_adequacy(lock,
+  cleanTMLE:::checkpoint_cohort_adequacy(lock,
     min_n_per_arm  = 50,
     min_events     = 20,
     min_prevalence = 0.01
@@ -765,7 +765,7 @@ cp1 <- tryCatch(
   }
 )
 if (!is.null(cp1)) {
-  audit <- cleanTMLE::record_checkpoint(audit, cp1)
+  audit <- cleanTMLE:::record_checkpoint(audit, cp1)
   cr_log(paste("Check Point 1 (cohort adequacy):", cp1$decision))
 } else {
   cp1 <- list(decision = "PASS (manual)", rationale = "Checkpoint errored; manual fallback")
@@ -784,7 +784,7 @@ if (!is.null(design_prec)) {
 }
 
 evt_supp <- tryCatch(
-  cleanTMLE::summarize_event_support(lock_pre_mask),
+  cleanTMLE:::summarize_event_support(lock_pre_mask),
   error = function(e) { cr_log(paste("event_support failed:", e$message)); NULL })
 if (!is.null(evt_supp)) {
   cr_log("Event support by treatment arm:")
@@ -814,7 +814,7 @@ cr_log("Saved attrition_table.csv")
 results_dir <- cfg$paths$results
 tryCatch({
   cleanTMLE::save_lock(lock, file.path(results_dir, "stage1_lock.rds"))
-  cleanTMLE::save_audit(audit, file.path(results_dir, "stage1_audit.rds"))
+  cleanTMLE:::save_audit(audit, file.path(results_dir, "stage1_audit.rds"))
   saveRDS(lock_pre_mask, file.path(results_dir, "stage1_lock_unmasked.rds"))
   saveRDS(design_prec,    file.path(results_dir, "stage1_design_precision.rds"))
   saveRDS(evt_supp,       file.path(results_dir, "stage1_event_support.rds"))

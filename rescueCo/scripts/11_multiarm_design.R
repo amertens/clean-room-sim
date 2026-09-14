@@ -60,14 +60,14 @@ for (cn in names(locks)) {
     # (analysis/04).
     v_folds <- if (nrow(lk$data) > 4000) 5L else 10L
     t0 <- Sys.time()
-    psf <- fit_ps_superlearner(lk_fit, truncate = 0.01, cv_folds = v_folds)
+    psf <- cleanTMLE:::fit_ps_superlearner(lk_fit, truncate = 0.01, cv_folds = v_folds)
     cr_log(paste("[", cn, "] PS fit in",
                  round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1),
                  "min"))
 
     sup <- assess_support(psf, tree_search = TRUE, tree_min_n = 50L)
     fea <- estimand_feasibility(psf)
-    who <- who_is_unsupported(psf, vars = PROFILE_VARS)
+    who <- cleanTMLE:::who_is_unsupported(psf, vars = PROFILE_VARS)
 
     # Negative-control ladder on the ambulance contrasts; single full-cohort
     # rung elsewhere (the restriction ladder is about the ambulance cohort).

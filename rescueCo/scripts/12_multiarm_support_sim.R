@@ -37,7 +37,7 @@ run_set <- if (length(only[nzchar(only)])) only[nzchar(only)] else names(locks)
 # points at the centre, baseline rate 3 percent, confounding up to 2 log-odds
 # per SD of the propensity direction, modification up to full (effect
 # vanishing one SD into the control-typical region).
-SURFACE <- support_surfaces(confounding = c(0, 1, 2),
+SURFACE <- cleanTMLE:::support_surfaces(confounding = c(0, 1, 2),
                             modification = c(0, 1),
                             complexity = "linear",
                             effect = 0.02, base_rate = 0.03)
@@ -57,7 +57,7 @@ for (cn in intersect(names(locks), run_set)) {
   }
   psf <- if (file.exists(lite_file)) {
     lt <- readRDS(lite_file)
-    wrap_ps_fit(lk, ps_scores = lt$ps_raw)
+    cleanTMLE:::wrap_ps_fit(lk, ps_scores = lt$ps_raw)
   } else NULL
   ck  <- file.path(OUT, paste0("supportsim_", cn, "_ckpt.rds"))
   res_file <- file.path(OUT, paste0("supportsim_", cn, ".rds"))
@@ -93,7 +93,7 @@ for (cn in intersect(names(locks), run_set)) {
     if (file.exists(cmp_file) && !nzchar(Sys.getenv("MULTIARM_FORCE"))) {
       cmp <- readRDS(cmp_file)
     } else {
-      surf2 <- support_surfaces(confounding = c(0, 2), modification = 0,
+      surf2 <- cleanTMLE:::support_surfaces(confounding = c(0, 2), modification = 0,
                                 complexity = "linear",
                                 effect = 0.02, base_rate = 0.03)
       cr_log(paste("[", cn, "] design comparison (generate vs sample),",

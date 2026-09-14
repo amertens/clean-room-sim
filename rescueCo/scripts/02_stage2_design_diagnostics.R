@@ -264,14 +264,14 @@ if (!is.null(lock_unmasked)) {
   # explicitly. Wrap in tryCatch to fall back gracefully.
   cv_folds <- cfg$superlearner$cv_folds %||% 10L
   ct_ps_fit <- tryCatch(
-    cleanTMLE::fit_ps_superlearner(lock_unmasked,
+    cleanTMLE:::fit_ps_superlearner(lock_unmasked,
       truncate = cfg$propensity_score$truncation_lower,
       cv_folds = cv_folds),
     error = function(e) {
       cr_log(paste("fit_ps_superlearner failed:", e$message,
                     "— falling back to fit_ps_glm"))
       tryCatch(
-        cleanTMLE::fit_ps_glm(lock_unmasked,
+        cleanTMLE:::fit_ps_glm(lock_unmasked,
           truncate = cfg$propensity_score$truncation_lower),
         error = function(e2) NULL)
     })
@@ -281,17 +281,17 @@ if (!is.null(lock_unmasked)) {
 
 if (!is.null(ct_ps_fit)) {
   ct_diag <- tryCatch(
-    cleanTMLE::compute_ps_diagnostics(ct_ps_fit),
+    cleanTMLE:::compute_ps_diagnostics(ct_ps_fit),
     error = function(e) { cr_log(paste("compute_ps_diagnostics failed:", e$message)); NULL }
   )
 
-  ct_wt_summary <- tryCatch(cleanTMLE::make_wt_summary_table(ct_ps_fit),
+  ct_wt_summary <- tryCatch(cleanTMLE:::make_wt_summary_table(ct_ps_fit),
     error = function(e) NULL)
-  ct_extreme_wt <- tryCatch(cleanTMLE::extreme_weights(ct_ps_fit, k = 10),
+  ct_extreme_wt <- tryCatch(cleanTMLE:::extreme_weights(ct_ps_fit, k = 10),
     error = function(e) NULL)
 
   # Inspect IPW weights (built-in diagnostic plot/table)
-  ct_ipw_inspect <- tryCatch(cleanTMLE::inspect_ipw_weights(ct_ps_fit),
+  ct_ipw_inspect <- tryCatch(cleanTMLE:::inspect_ipw_weights(ct_ps_fit),
     error = function(e) NULL)
   if (!is.null(ct_ipw_inspect)) saveRDS(ct_ipw_inspect,
     file.path(results_dir, "cleanTMLE_ipw_weight_inspection.rds"))
@@ -300,14 +300,14 @@ if (!is.null(ct_ps_fit)) {
   matched_idx <- tryCatch(match_result$matched_idx, error = function(e) NULL)
   if (!is.null(matched_idx) && length(matched_idx) > 0) {
     m_smds <- tryCatch(
-      cleanTMLE::compute_matched_smds(lock_data <- lock_unmasked$data,
+      cleanTMLE:::compute_matched_smds(lock_data <- lock_unmasked$data,
         treatment = lock_unmasked$treatment,
         covariates = lock_unmasked$covariates,
         subset_idx = matched_idx),
       error = function(e) { cr_log(paste("compute_matched_smds failed:", e$message)); NULL })
     if (!is.null(m_smds)) {
       ct_love3 <- tryCatch(
-        cleanTMLE::love_plot_threeway(ct_diag, matched_smds = m_smds),
+        cleanTMLE:::love_plot_threeway(ct_diag, matched_smds = m_smds),
         error = function(e) NULL)
       if (!is.null(ct_love3))
         ggsave(file.path(results_dir, "cleanTMLE_love_plot_threeway.png"),
@@ -346,14 +346,14 @@ if (!is.null(ct_ps_fit)) {
 # Check Point 2: Balance
 if (!is.null(ct_diag)) {
   cp2 <- tryCatch(
-    cleanTMLE::checkpoint_balance(ct_diag,
+    cleanTMLE:::checkpoint_balance(ct_diag,
       max_smd     = 0.10,
       min_ess_pct = 50,
       lock_hash   = lock$lock_hash),
     error = function(e) { cr_log(paste("checkpoint_balance failed:", e$message)); NULL }
   )
   if (!is.null(cp2)) {
-    audit <- cleanTMLE::record_checkpoint(audit, cp2)
+    audit <- cleanTMLE:::record_checkpoint(audit, cp2)
     cr_log(paste("Check Point 2 (balance):", cp2$decision))
     decisions <- log_decision(decisions, "stage2",
       paste("cleanTMLE Check Point 2:", cp2$decision),
@@ -363,7 +363,7 @@ if (!is.null(ct_diag)) {
 }
 
 audit <- tryCatch(
-  cleanTMLE::record_stage(audit, "Stage 2", "PS estimation and balance checks complete"),
+  cleanTMLE:::record_stage(audit, "Stage 2", "PS estimation and balance checks complete"),
   error = function(e) { cr_log(paste("record_stage failed:", e$message)); audit }
 )
 

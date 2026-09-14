@@ -425,7 +425,7 @@ if (!is.null(lock)) {
 
     # Weight summary and extreme weights from IPW
     tryCatch({
-      wt_tbl <- cleanTMLE::make_wt_summary_table(ct_ipw_risk)
+      wt_tbl <- cleanTMLE:::make_wt_summary_table(ct_ipw_risk)
       cr_log("cleanTMLE IPW weight summary:")
       print(wt_tbl)
     }, error = function(e) cr_log(paste("IPW weight summary failed:", e$message)))
@@ -465,7 +465,7 @@ if (!is.null(lock)) {
     print(ct_surv_tmle)
   }
 
-  audit <- cleanTMLE::record_stage(audit, "Stage 5", "Survival analysis complete")
+  audit <- cleanTMLE:::record_stage(audit, "Stage 5", "Survival analysis complete")
   save_stage_output(lock, "stage5_lock.rds")
   save_stage_output(audit, "stage5_audit.rds")
 }

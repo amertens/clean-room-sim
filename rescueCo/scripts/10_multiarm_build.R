@@ -523,7 +523,7 @@ lock_p$contrast <- list(name = "PRIMARY",
                         treated = "Rescue.Co ambulance",
                         control = "Non-Rescue.Co ambulance",
                         source_column = "transport3")
-for (nc in NC_VARS) lock_p <- define_negative_control(lock_p, nc)
+for (nc in NC_VARS) lock_p <- cleanTMLE:::define_negative_control(lock_p, nc)
 locks$PRIMARY <- lock_p
 class(locks) <- c("contrast_locks", "list")
 

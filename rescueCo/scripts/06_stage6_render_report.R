@@ -53,13 +53,13 @@ audit <- tryCatch(
 
 if (!is.null(audit)) {
   cr_log("Exporting cleanTMLE audit trail...")
-  audit_trail <- tryCatch(cleanTMLE::export_audit_trail(audit), error = function(e) NULL)
+  audit_trail <- tryCatch(cleanTMLE:::export_audit_trail(audit), error = function(e) NULL)
   if (!is.null(audit_trail)) {
     write.csv(audit_trail, file.path(cfg$paths$results, "cleanTMLE_audit_trail.csv"),
               row.names = FALSE)
     cr_log(paste("cleanTMLE audit trail:", nrow(audit_trail), "entries"))
   }
-  audit_dlog <- tryCatch(cleanTMLE::export_decision_log(audit), error = function(e) NULL)
+  audit_dlog <- tryCatch(cleanTMLE:::export_decision_log(audit), error = function(e) NULL)
   if (!is.null(audit_dlog)) {
     write.csv(audit_dlog, file.path(cfg$paths$results, "cleanTMLE_decision_log.csv"),
               row.names = FALSE)

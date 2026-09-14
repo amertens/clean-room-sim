@@ -46,14 +46,14 @@ audit        <- tryCatch(load_stage_output("stage3_audit.rds"),
 ps_fit       <- load_stage_output("stage2_ct_ps_fit.rds")
 
 # --- Pre-outcome authorisation ---
-gate <- tryCatch(authorize_outcome_analysis(audit, allow_flag = TRUE),
+gate <- tryCatch(cleanTMLE:::authorize_outcome_analysis(audit, allow_flag = TRUE),
                   error = function(e) {
                     cr_log(paste("authorize_outcome_analysis failed:",
                                   e$message)); NULL })
 if (!is.null(gate)) {
   cr_log(paste("Pre-outcome gate decision:", gate$decision))
-  audit <- record_checkpoint(audit, gate)
-  tryCatch(assert_outcome_authorized(audit),
+  audit <- cleanTMLE:::record_checkpoint(audit, gate)
+  tryCatch(cleanTMLE:::assert_outcome_authorized(audit),
            error = function(e) cr_log(paste("assert_outcome_authorized:",
                                               e$message)))
   if (!is.null(lock_orig))
@@ -72,29 +72,29 @@ cr_log(sprintf("Unmasked outcome: n_total = %d, n_observed = %d (%.1f%% NA)",
 
 # 1. Crude (unadjusted)
 cr_log("Estimator 1/5: crude unadjusted RD ...")
-crude <- run_crude_workflow(lock)
+crude <- cleanTMLE:::run_crude_workflow(lock)
 cr_log(sprintf("  Crude RD = %.4f [%.4f, %.4f]",
                 crude$estimate, crude$ci_lower, crude$ci_upper))
 
 # 2. PS matching (matched RD without further adjustment)
 cr_log("Estimator 2/5: PS matching (run_match_workflow) ...")
-match_fit <- run_match_workflow(lock, ps_fit)
+match_fit <- cleanTMLE:::run_match_workflow(lock, ps_fit)
 cr_log(sprintf("  Match RD  = %.4f [%.4f, %.4f]  (n_matched = %d)",
                 match_fit$estimate, match_fit$ci_lower, match_fit$ci_upper,
                 match_fit$n_matched))
 
 # 3. IPTW (stabilised, full cohort)
 cr_log("Estimator 3/5: IPTW (run_iptw_workflow) ...")
-iptw_fit <- run_iptw_workflow(lock, ps_fit)
+iptw_fit <- cleanTMLE:::run_iptw_workflow(lock, ps_fit)
 cr_log(sprintf("  IPTW RD   = %.4f [%.4f, %.4f]",
                 iptw_fit$estimate, iptw_fit$ci_lower, iptw_fit$ci_upper))
 
 # 4. Full-cohort TMLE (four-step pipeline; locked truncation)
 cr_log("Estimator 4/5: full-cohort TMLE ...")
-g_fit    <- fit_tmle_treatment_mechanism(lock, ps_fit)
-Q_fit    <- fit_tmle_outcome_mechanism(lock, g_fit)
-tmle_upd <- run_tmle_targeting_step(g_fit, Q_fit)
-tmle_fit <- extract_tmle_estimate(tmle_upd)
+g_fit    <- cleanTMLE:::fit_tmle_treatment_mechanism(lock, ps_fit)
+Q_fit    <- cleanTMLE:::fit_tmle_outcome_mechanism(lock, g_fit)
+tmle_upd <- cleanTMLE:::run_tmle_targeting_step(g_fit, Q_fit)
+tmle_fit <- cleanTMLE:::extract_tmle_estimate(tmle_upd)
 ate_full <- tmle_fit$estimates$ATE
 cr_log(sprintf("  TMLE RD   = %.4f [%.4f, %.4f]",
                 ate_full$estimate, ate_full$ci_lower, ate_full$ci_upper))
@@ -102,7 +102,7 @@ cr_log(sprintf("  TMLE RD   = %.4f [%.4f, %.4f]",
 # 5. Matched-cohort TMLE (TMLE on the matched subset)
 cr_log("Estimator 5/6: matched-cohort TMLE (run_matched_tmle) ...")
 matched_idx <- as.integer(rownames(match_fit$matched_data))
-mtmle_fit   <- run_matched_tmle(lock, ps_fit, subset_idx = matched_idx)
+mtmle_fit   <- cleanTMLE:::run_matched_tmle(lock, ps_fit, subset_idx = matched_idx)
 ate_match   <- mtmle_fit$estimates$ATE
 cr_log(sprintf("  Matched TMLE RD = %.4f [%.4f, %.4f]  (n_matched = %d)",
                 ate_match$estimate, ate_match$ci_lower, ate_match$ci_upper,
@@ -110,7 +110,7 @@ cr_log(sprintf("  Matched TMLE RD = %.4f [%.4f, %.4f]  (n_matched = %d)",
 
 # 6. IPCW-weighted TMLE (sensitivity for outcome missingness)
 cr_log("Estimator 6/6: IPCW-weighted TMLE (run_ipcw_tmle) ...")
-ipcw_fit <- tryCatch(run_ipcw_tmle(lock, ps_fit),
+ipcw_fit <- tryCatch(cleanTMLE:::run_ipcw_tmle(lock, ps_fit),
                       error = function(e) {
                         cr_log(paste("run_ipcw_tmle failed:", e$message))
                         NULL
@@ -173,20 +173,20 @@ decisions <- log_decision(decisions, "stage4",
 
 # --- Diagnostics (cleanTMLE built-ins) ---
 tryCatch({
-  cc_p <- clever_covariate_plot(ps_fit = ps_fit, lock = lock)
+  cc_p <- cleanTMLE:::clever_covariate_plot(ps_fit = ps_fit, lock = lock)
   ggsave(file.path(cfg$paths$results, "clever_covariate_plot.png"),
          cc_p, width = 8, height = 5)
 }, error = function(e) cr_log(paste("clever_covariate_plot failed:", e$message)))
 
 tryCatch({
-  ic_p <- ic_histogram(tmle_fit)
+  ic_p <- cleanTMLE:::ic_histogram(tmle_fit)
   ggsave(file.path(cfg$paths$results, "ic_plot.png"),
          ic_p, width = 8, height = 5)
 }, error = function(e) cr_log(paste("ic_histogram failed:", e$message)))
 
 # --- Pre-registered sensitivity: PS truncation grid ---
 sens <- tryCatch(
-  sensitivity_truncation(lock, thresholds = c(0.01, 0.025, 0.05, 0.10)),
+  cleanTMLE:::sensitivity_truncation(lock, thresholds = c(0.01, 0.025, 0.05, 0.10)),
   error = function(e) { cr_log(paste("sensitivity_truncation failed:",
                                       e$message)); NULL })
 if (!is.null(sens))
@@ -206,7 +206,7 @@ tryCatch({
 }, error = function(e) cr_log(paste("E-value failed:", e$message)))
 
 # --- Save outputs ---
-audit <- record_stage(audit, "Stage 4",
+audit <- cleanTMLE:::record_stage(audit, "Stage 4",
   sprintf("Primary TMLE estimate: %.4f", ate_full$estimate))
 
 save_stage_output(comparison,                "stage4_binary_comparison.rds")
@@ -253,11 +253,11 @@ for (pair in list(c("love_plot.png",          "fig_love_plot.png"),
 }
 
 if (!is.null(audit)) {
-  trail0 <- tryCatch(export_audit_trail(audit), error = function(e) NULL)
+  trail0 <- tryCatch(cleanTMLE:::export_audit_trail(audit), error = function(e) NULL)
   if (!is.null(trail0))
     write.csv(trail0, file.path(art_dir, "audit_summary.csv"),
               row.names = FALSE)
-  dlog0 <- tryCatch(export_decision_log(audit), error = function(e) NULL)
+  dlog0 <- tryCatch(cleanTMLE:::export_decision_log(audit), error = function(e) NULL)
   if (!is.null(dlog0))
     write.csv(dlog0, file.path(art_dir, "decision_summary.csv"),
               row.names = FALSE)

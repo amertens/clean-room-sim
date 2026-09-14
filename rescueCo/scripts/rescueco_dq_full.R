@@ -57,7 +57,7 @@ candidates <- list(
     candidate_id = "ensemble_t05", label = "GLM + glmnet(bounded) + Mean, trunc 0.05",
     g_library = c("SL.glm", "SL.glmnet.bounded", "SL.mean"),
     q_library = c("SL.glm", "SL.glmnet.bounded", "SL.mean"), truncation = 0.05))
-cleanTMLE::validate_tmle_candidates(candidates)
+cleanTMLE:::validate_tmle_candidates(candidates)
 
 # Baseline feasibility (needed for the minimax selection).
 cr_log("Plasmode feasibility...")
@@ -84,7 +84,7 @@ dq <- cleanTMLE::run_plasmode_dq_stress(
 saveRDS(dq, file.path(results_dir, "plasmode_dq_stress.rds"))
 save_stage_output(dq, "stage2b_dq_stress.rds")
 
-dq_summary <- cleanTMLE::summarize_dq_degradation(dq)
+dq_summary <- cleanTMLE:::summarize_dq_degradation(dq)
 write.csv(dq_summary, file.path(results_dir, "plasmode_dq_degradation.csv"),
           row.names = FALSE)
 cr_log(sprintf("DQ stress: scored %d scenarios across %d candidates",
