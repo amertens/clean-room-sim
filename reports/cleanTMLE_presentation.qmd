@@ -19,9 +19,11 @@ fig-dpi: 200
 ---
 
 ```{r setup, include = FALSE}
-# Numbers and figures come from the multi-arm result files; the effects
-# slides fill in as the estimation chain writes its outputs.
+# Case-study numbers and figures come from the recorded multi-arm result
+# files; the walkthrough slides execute the sixteen-verb workflow live on
+# a simulated cohort.
 library(ggplot2)
+library(cleanTMLE)
 .ma <- "../rescueCo/results/multiarm"
 .rd <- function(f) {
   p <- file.path(.ma, f)
@@ -63,7 +65,7 @@ A clean-room design fixes the first. cleanTMLE also answers the second, during t
 ## This talk
 
 1. The two failures, and a real analysis that fell into the second one.
-2. The design stage, in five verbs.
+2. A walkthrough of the workflow: sixteen verbs on one lock.
 3. What the simulations showed.
 4. Five ambulance-transport contrasts in Nairobi, and what the design stage refused to estimate.
 5. Where this sits among existing tools.
@@ -104,25 +106,111 @@ Nothing in the estimator's own output flagged it.
 
 # 2. How the package works
 
-## Five verbs
+## Sixteen verbs, one lock
 
-```r
-lock <- create_analysis_lock(data, "treatment", "outcome", covariates,
-                             negative_controls = ncs, mask = TRUE)
+| Stage | Verbs |
+|---|---|
+| 1: lock and declarations | `create_analysis_lock`, `declare_negative_controls`, `declare_estimand_ladder` |
+| 2: design estimability | `fit_ps`, `assess_support`, `estimand_feasibility`, `simulate_support` |
+| 2b: candidates and stress test | `define_candidates`, `stress_test`, `select_candidate` |
+| 3: residual confounding | `negative_control_ladder`, `check_process_indicators` |
+| review | `design_report`, `export_design_log` |
+| 4: estimation | `estimate_effect`, `run_estimand_ladder` |
+
+Everything above the last row runs with no outcome access. The next six slides run the workflow live on a simulated cohort.
+
+## Walkthrough: lock the plan, rules included
+
+```{r wt-lock, echo = TRUE}
+dat  <- sim_func1(n = 1000, seed = 42)
+lock <- create_analysis_lock(
+  dat, "treatment", "event_24",
+  covariates        = c("age", "sex", "biomarker", "comorbidity"),
+  negative_controls = "nc_outcome",
+  dq_thresholds = list(max_abs_bias = 0.02,
+                       min_coverage = 0.90, max_rmse_ratio = 1.5),
+  nc_criteria   = list(null_band = 0.02),
+  seed = 42, enforce = TRUE)
+lock <- declare_negative_controls(lock, "nc_outcome",
+          domains = "health_seeking_behavior")
 lock <- declare_estimand_ladder(lock, primary = "ATE",
-                                fallbacks = c("trimmed_ATE", "ATT", "ATO"),
-                                trigger = "SEVERE")
-
-ps  <- fit_ps(lock)                # SuperLearner, GLM, or external
-sup <- assess_support(ps)          # graded overlap verdict
-fea <- estimand_feasibility(ps)    # which estimands survive this fit
-sim <- simulate_support(lock, ps)  # the outcome-blind support map
-
-design_report(lock, sup, fea, simulation = sim)
-fit <- run_estimand_ladder(lock, ps)   # outcomes join only here
+          fallbacks = c("trimmed_ATE", "ATT"), trigger = "SEVERE")
+substr(lock$lock_hash, 1, 16)
 ```
 
-Everything above the last line runs with no outcome access.
+The thresholds are inside the fingerprint; the primary outcome column is already outside `lock$data`, in a sealed store that only Stage 4 rejoins.
+
+## Walkthrough: is the comparison estimable?
+
+```{r wt-support, echo = TRUE}
+ps  <- fit_ps(lock, method = "glm")
+sup <- assess_support(ps)
+sup$verdict
+fea <- estimand_feasibility(ps)
+```
+
+```{r wt-feas-table}
+knitr::kable(fea$table[, c("estimand", "max_weight",
+                           "ess_treated", "verdict")],
+             digits = 1)
+```
+
+## Walkthrough: candidates under declared threats
+
+```{r wt-stress, echo = TRUE}
+cands <- define_candidates(grid = list(
+  truncations = c(0.01, 0.05),
+  libraries   = list(glm = "SL.glm")))
+st <- stress_test(lock, cands, reps = 10, verbose = FALSE,
+  threats = list(unmeasured_confounding = list(
+    U_prevalence = 0.2, U_treatment_OR = c(1.5, 2),
+    U_outcome_OR = c(1.5, 2))))
+```
+
+```{r wt-verdict-table}
+knitr::kable(st$verdict, digits = 3)
+```
+
+## Walkthrough: select by the locked rule
+
+```{r wt-select, echo = TRUE}
+best <- select_candidate(st, rule = "min_max_rmse")
+best$candidate_id
+lock <- declare_estimand_ladder(lock, primary = "ATE",
+          fallbacks = c("trimmed_ATE", "ATT"),
+          trigger = "SEVERE", candidate = best)
+```
+
+The selection rule ran on simulated outcomes against fingerprinted thresholds; nothing about the realised effect direction could steer it.
+
+## Walkthrough: the released record
+
+```{r wt-log, echo = TRUE}
+masked <- mask_outcome(lock)          # physically outcome-free
+lock   <- unmask_outcome(masked, lock,
+                         approved_by = "review team")
+```
+
+```{r wt-log-table}
+lg <- export_design_log(lock, format = "muntner")
+knitr::kable(tail(lg[, c("stage", "decision", "decided_by")], 3))
+```
+
+There is no token and no gate object: the single institutional switch is `enforce = TRUE`, and the single act of authorisation is a person on the record.
+
+## Walkthrough: estimate what was declared
+
+```{r wt-estimate, echo = TRUE}
+fit <- run_estimand_ladder(lock, ps)
+```
+
+```{r wt-estimate-table}
+knitr::kable(fit$table[, c("estimand", "estimate", "ci_lower",
+                           "ci_upper", "support_verdict")],
+             digits = 3)
+```
+
+Each row is labelled with its estimand and its support verdict; a switch or an override would appear in the design log, never silently.
 
 ## The support assessment
 
@@ -180,7 +268,7 @@ So the switch rule is pre-registered. The lock records the primary, the ordered 
 
 Static weight diagnostics cannot say how much the extrapolation will hurt. That depends on how the outcome behaves in the region only one arm inhabits, and the design team is blind to the outcome.
 
-So the package simulates: covariates resampled, treatment redrawn from the fitted propensity, synthetic outcomes drawn from a prespecified family of surfaces. The truth is known on every replicate, separately per estimand. The map shows where each estimand holds a bias tolerance at near-nominal coverage.
+So the package simulates: covariates resampled, treatment redrawn from the fitted propensity, simulated outcomes drawn from a prespecified family of surfaces. The truth is known on every replicate, separately per estimand. The map shows where each estimand holds a bias tolerance at near-nominal coverage.
 
 ## Redraw treatment, or keep it?
 
@@ -190,7 +278,7 @@ For a support map that is disqualifying, because the violation is the thing unde
 
 ## The same loop stress-tests the estimator
 
-Candidate TMLE specifications are compared on synthetic outcomes, then re-run under prespecified data-quality threats: covariate missingness (MCAR, MAR, MNAR), exposure and outcome misclassification, near-positivity, unmeasured confounding.
+Candidate TMLE specifications are compared on simulated outcomes, then re-run under prespecified data-quality threats: covariate missingness (MCAR, MAR, MNAR), exposure and outcome misclassification, near-positivity, unmeasured confounding.
 
 Each candidate gets a degradation gradient on the same bias, RMSE, and coverage scale as the baseline. A minimax rule can lock the candidate with the best worst case rather than the best clean-data average.
 
@@ -509,8 +597,8 @@ flowchart TD
 | Causal question | Target-trial framework; FDA RWE Framework; ICH M14 | Lock record; `design_report(protocol = ...)` emulation table |
 | Identification (positivity) | ICH E9(R1) | `assess_support()`, `estimand_feasibility()` |
 | Statistical estimand | ICH E9(R1); FDA RWE Considerations | `declare_estimand_ladder()`, `run_estimand_ladder()` |
-| Estimator selection | FDA non-interventional studies; ICH M14 | `tmle_candidate()`, `select_tmle_candidate()` |
-| Pre-outcome DQ stress | Source reliability (FDA, EMA) | `run_plasmode_dq_stress()`, `simulate_support()` |
+| Estimator selection | FDA non-interventional studies; ICH M14 | `define_candidates()`, `select_candidate()` |
+| Pre-outcome DQ stress | Source reliability (FDA, EMA) | `stress_test()`, `simulate_support()` |
 | Post-outcome sensitivity | FDA non-interventional; ICH E9(R1) | `compute_evalue()`, `run_delta_sensitivity()` |
 
 ## The stress-test threat families
@@ -544,9 +632,9 @@ Hypertension is null on every rung. Insulin-treated diabetes and HIV on ART are 
 
 ## The support-map reading rule, from the design log
 
-Recorded before estimation: the maps are read over the moderate-confounding region (synthetic strength up to 1), with the whole-grid pass reported as a conservative bound.
+Recorded before estimation: the maps are read over the moderate-confounding region (simulated confounding strength up to 1), with the whole-grid pass reported as a conservative bound.
 
-The harshest rung stresses every weighting-based estimand at once, including on the PASS-verdict primary cohort, so a whole-grid rule conflates support failure with confounding stress. The signature used instead: failure at the mildest surface means a support problem (C1's ATE, coverage 0.87 before any synthetic confounding); failure only under stress, hitting all unmatched estimands together, means stress (the primary cohort at strength 2, where the matched ATT holds 0.93 to 0.96).
+The harshest rung stresses every weighting-based estimand at once, including on the PASS-verdict primary cohort, so a whole-grid rule conflates support failure with confounding stress. The signature used instead: failure at the mildest surface means a support problem (C1's ATE, coverage 0.87 before any simulated confounding); failure only under stress, hitting all unmatched estimands together, means stress (the primary cohort at strength 2, where the matched ATT holds 0.93 to 0.96).
 
 ## Candidate selection under stress (earlier single-contrast lock)
 
