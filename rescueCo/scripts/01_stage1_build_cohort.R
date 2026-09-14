@@ -469,14 +469,14 @@ W$fuel_wood        <- as.integer(fuel_val == 0)            # 0=Wood
 W$pay_self_cash <- as.integer(as_num(dat$dispo_payment___0))
 W$pay_insurance <- as.integer(as_num(dat$dispo_payment___4))
 
-# Clinical severity — handle both old (cleaned) and new (labeled) column names
+# Clinical severity: handle both old (cleaned) and new (labeled) column names
 if ("gcs" %in% names(dat)) {
   W$gcs <- as.numeric(dat$gcs)
 } else if (all(c("eyes_gcs", "verbal_gcs", "motor_gcs") %in% names(dat))) {
   W$gcs <- as.numeric(dat$eyes_gcs) + as.numeric(dat$verbal_gcs) + as.numeric(dat$motor_gcs)
 } else {
   W$gcs <- NA_real_
-  cr_log("WARNING: GCS columns not found — setting to NA")
+  cr_log("WARNING: GCS columns not found; setting to NA")
 }
 if ("iss" %in% names(dat)) {
   W$iss <- as.numeric(dat$iss)
@@ -484,7 +484,7 @@ if ("iss" %in% names(dat)) {
   W$iss <- as.numeric(dat$eiss_ais)
 } else {
   W$iss <- NA_real_
-  cr_log("WARNING: ISS column not found — setting to NA")
+  cr_log("WARNING: ISS column not found; setting to NA")
 }
 
 # Arrival month (extract from arrival_dt, arrival_date, or inj_date)
@@ -631,30 +631,29 @@ lock <- cleanTMLE::create_analysis_lock(
   covariates    = covariates_clean,
   sl_library    = cfg$superlearner$candidate_learners,
   plasmode_reps = cfg$negative_controls$plasmode_n_sims %||% 50L,
-  seed          = cfg$seed
-)
-
-# 3) Attach estimand metadata
-lock <- cleanroomGov::attach_estimand(lock,
-  description          = "Effect of Rescue.Co EMS transport on good functional outcome",
-  population           = "Trauma patients arriving by ambulance, excluding interfacility transfers",
-  treatment_strategies = c("Rescue.Co EMS", "Other ambulance"),
-  outcome_label        = "Good functional outcome at 6 months (GOSE > 4)",
-  followup             = "6 months",
-  contrast             = "risk_difference",
-  statistical_estimand = "E_W[E(Y|A=1,W) - E(Y|A=0,W)] under exchangeability + positivity"
-)
-
-# 4) Pre-register sensitivity plans (PS truncation + transfer inclusion)
-lock <- cleanroomGov::declare_sensitivity_plan(lock,
-  label       = "ps_truncation_grid",
-  description = "Re-estimate IPTW under alternative PS truncation thresholds",
-  settings    = list(truncation = c(0.01, 0.025, 0.05, 0.10))
-)
-lock <- cleanroomGov::declare_sensitivity_plan(lock,
-  label       = "include_transfers",
-  description = "Sensitivity: include interfacility transfers with `is_transfer` covariate",
-  settings    = list(include_transfers = TRUE)
+  seed          = cfg$seed,
+  # 3) Estimand metadata and 4) pre-registered sensitivity plans are
+  #    create_analysis_lock() arguments since cleanTMLE 0.3.0 (the
+  #    cleanroomGov companion folded back).
+  estimand = list(
+    description          = "Effect of Rescue.Co EMS transport on good functional outcome",
+    population           = "Trauma patients arriving by ambulance, excluding interfacility transfers",
+    treatment_strategies = c("Rescue.Co EMS", "Other ambulance"),
+    outcome_label        = "Good functional outcome at 6 months (GOSE > 4)",
+    followup             = "6 months",
+    contrast             = "risk_difference",
+    statistical_estimand = "E_W[E(Y|A=1,W) - E(Y|A=0,W)] under exchangeability + positivity"
+  ),
+  sensitivity_plans = list(
+    ps_truncation_grid = list(
+      description = "Re-estimate IPTW under alternative PS truncation thresholds",
+      settings    = list(truncation = c(0.01, 0.025, 0.05, 0.10))
+    ),
+    include_transfers = list(
+      description = "Sensitivity: include interfacility transfers with `is_transfer` covariate",
+      settings    = list(include_transfers = TRUE)
+    )
+  )
 )
 
 # 5) Register negative-control outcomes (pre-treatment covariates).
@@ -675,7 +674,7 @@ for (nc_var in nc_vars) {
   if (nc_var %in% names(lock_data)) {
     lock <- cleanTMLE:::define_negative_control(lock, nc_var,
       description = paste("Pre-treatment covariate", nc_var,
-                           "— treatment should have no causal effect"))
+                           "; treatment should have no causal effect"))
   } else {
     cr_log(paste("WARNING: NC variable", nc_var,
                   "not available even after re-add; skipping."))
@@ -722,7 +721,7 @@ audit <- .decision(audit, "Stage 1a", "outcome",
   "Pre-registered threshold for good functional recovery")
 audit <- .decision(audit, "Stage 1a", "outcome",
   "Will also report ordinal-PO and continuous GOSE as sensitivity",
-  "Wang et al. 2023 — fixed dichotomy is least powerful")
+  "Wang et al. 2023; fixed dichotomy is least powerful")
 audit <- .decision(audit, "Stage 1a", "outcome",
   "Survival proxy: hospital deaths=day 1; FU deaths=day 90; alive at FU=180; LFTU=30 (censored)",
   "Approximate scheme; flagged in report as introducing informative censoring; survtmle takes precedence")
@@ -731,7 +730,7 @@ audit <- .decision(audit, "Stage 1a", "covariates",
   "Replaces previous 0.05-absolute caliper which excluded > 90% of treated")
 audit <- .decision(audit, "Stage 1a", "covariates",
   "Excluded `was_scene_care_performed` from PS model",
-  "Post-treatment / collider — including it would absorb part of the EMS effect")
+  "Post-treatment / collider; including it would absorb part of the EMS effect")
 audit <- .decision(audit, "Stage 1a", "covariates",
   "Strike-window indicator (2024-03-15 to 2024-05-08) added as sensitivity-covariate",
   "Strike altered hospital-side care; indicator pre-treatment in dispatch sense")
@@ -753,7 +752,7 @@ audit <- .decision(audit, "Stage 1a", "merge",
   "Registry × follow-up merge on patient_id ↔ patients_id_gose",
   "record_id is independent in the two tables; patient_id is the proper join key")
 
-# 8) Stage 1b — Check Point 1: Cohort adequacy
+# 8) Stage 1b, Check Point 1: Cohort adequacy
 cp1 <- tryCatch(
   cleanTMLE:::checkpoint_cohort_adequacy(lock,
     min_n_per_arm  = 50,
@@ -821,7 +820,7 @@ tryCatch({
   cr_log("Saved analysis lock (cleanTMLE-versioned) and audit trail")
 }, error = function(e) {
   cr_log(paste("save_lock/save_audit failed:", e$message,
-               " — falling back to saveRDS"))
+               "; falling back to saveRDS"))
   save_stage_output(lock, "stage1_lock.rds")
   save_stage_output(audit, "stage1_audit.rds")
 })

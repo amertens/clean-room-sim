@@ -68,10 +68,12 @@ if ("manuscript" %in% targets) {
              label = "manuscript (docx)")
 }
 if ("vignettes" %in% targets) {
+  render_one("cleanTMLE/vignettes/cleanTMLE.qmd", to = "html",
+             label = "vignette: get started")
   render_one("cleanTMLE/vignettes/cleanTMLE-staged-analysis.qmd", to = "html",
-             label = "vignette: staged analysis")
-  render_one("cleanTMLE/vignettes/cleanTMLE-functions.qmd", to = "html",
-             label = "vignette: functions")
+             label = "vignette: full workflow")
+  # The function-index vignette retired to cleanTMLE/attic/ in WP3;
+  # the grouped pkgdown reference index replaces it.
 }
 if ("slides" %in% targets) {
   render_one("reports/cleanTMLE_presentation.qmd", to = "pptx",
