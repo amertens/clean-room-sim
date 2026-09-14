@@ -63,7 +63,10 @@ allowlist <- list(
        why  = "audit documents name the token and underscore-prefixed files"),
   list(file = "revision/(STAGE0_AUDIT|FINDINGS|DECISIONS_PENDING|CHANGELOG)\\.md$",
        line = ".", token = "highlight",
-       why  = "audit documents quote and count the banned token by design")
+       why  = "audit documents quote and count the banned token by design"),
+  list(file = "cleanTMLE/R/plots\\.R$",
+       line = "highlight <-|\\[highlight", token = "highlight",
+       why  = "local variable name in plot code, not prose")
 )
 
 contraction_re <- paste0(
