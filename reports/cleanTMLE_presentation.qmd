@@ -56,70 +56,97 @@ thm <- theme_minimal(base_size = 17) +
         plot.title = element_blank())
 ```
 
-## The problem this package works on
+## What goes wrong
 
-Two failures poison comparative analyses of routine health data. The first is analyst degrees of freedom: when the person choosing the model can see how each choice moves the answer, the estimate carries those peeks. The second is quieter and worse. Some comparisons are not estimable at all, and the estimator does not say so.
+Two things go wrong in comparative analyses of routine health data.
 
-A clean-room design fixes the first. cleanTMLE also answers the second, during the blind phase: is this comparison estimable, and with which estimand?
+Analysts can see how each modelling choice moves the answer, so the choices drift toward the answer.
+
+And some comparisons cannot be estimated from the data at hand. The estimator returns a number anyway.
+
+A clean room handles the first. cleanTMLE also answers the second, while the team is still blind: can this be estimated, and as what?
 
 ## This talk
 
-1. The two failures, and a real analysis that fell into the second one.
-2. A walkthrough of the workflow: sixteen verbs on one lock.
-3. What the simulations showed.
-4. Five ambulance-transport contrasts in Nairobi, and what the design stage refused to estimate.
-5. Where this sits among existing tools.
+1. The two failures, and the analysis where we hit the second one
+2. A walkthrough: sixteen verbs on one lock
+3. What the simulations showed
+4. Five ambulance contrasts in Nairobi
+5. Where this sits
 
 # 1. Why this matters
 
 ## Peeking
 
-Even with a written analysis plan, execution forces choices: sparse events, convergence failures, unexpected missingness. If those choices are made after the analyst has glimpsed the treatment-outcome association, the analysis is no longer prespecified, however honest the analyst.
+A written plan never covers everything. Sparse cells, say, or a model that will not converge.
 
-The clean-room design of Muntner et al. (2024) addresses this. A design team builds the cohort, the propensity model, and the diagnostics without seeing the outcome. Only then does an outcome team estimate.
+If those calls get made after a glimpse of the treatment-outcome association, the analysis is no longer prespecified.
+
+Muntner et al. (2024): a design team builds the cohort and diagnostics blind, then a separate team estimates.
 
 ## The failure blinding cannot touch
 
-The average treatment effect asks what would happen if everyone received treatment versus no one. Answering it requires every kind of patient to have had a real chance of landing in either arm.
+The ATE asks what happens if everyone is treated versus no one. That needs every kind of patient to have had a real chance of either arm.
 
-When a whole stratum essentially never receives one treatment, the estimator does not refuse. It extrapolates. Truncating the weights caps the variance without restoring information.
+When a whole stratum almost never gets one treatment, the estimator extrapolates instead of refusing. Truncating the weights shrinks the interval and restores no information.
 
-A perfectly blinded team can still promise an estimand the data cannot deliver, and the lock makes the promise binding.
+Blinding does not check whether the question is answerable. The lock just makes the question binding.
 
 ## We know because it happened to us
 
-An earlier analysis of time to ambulance arrival, on a cohort where some patients essentially never receive the studied service:
+:::: {.columns}
+::: {.column width="50%"}
+**Estimated effect on time to ambulance arrival**
 
-- estimated effect **+14,637 minutes**, tight confidence interval
-- crude difference **about 7 hours the other way**
+**+14,637 minutes**
 
-Nothing in the estimator's own output flagged it.
+tight confidence interval
+:::
+::: {.column width="50%"}
+**Crude difference**
 
-## What the blind phase should establish
+**about 7 hours**
 
-1. The cohort, treatment, outcome, and time horizon were fixed in advance.
-2. The declared comparison is estimable. If not, which neighbouring estimand is.
-3. The estimator was prespecified and screened against realistic data problems.
-4. Any switch of estimand followed a rule declared before outcome access, and everything is on the record.
+in the other direction
 
-`design_report()` bundles the evidence for all four into the document a review team reads before outcomes are unlocked.
+Same cohort. Some patients almost never receive the service, and the estimator's own output gave no warning.
+:::
+::::
+
+## What the blind phase has to settle
+
+1. Cohort, treatment, outcome, and horizon fixed in advance
+2. The declared comparison is estimable, or a named neighbour is
+3. The estimator was prespecified and screened against plausible data problems
+4. Any switch followed a rule declared before outcome access, on the record
+
+`design_report()` is the document a review team reads with those four answers in it.
 
 # 2. How the package works
 
 ## Sixteen verbs, one lock
 
-| Stage | Verbs |
-|---|---|
-| 1: lock and declarations | `create_analysis_lock`, `declare_negative_controls`, `declare_estimand_ladder` |
-| 2: design estimability | `fit_ps`, `assess_support`, `estimand_feasibility`, `simulate_support` |
-| 2b: candidates and stress test | `define_candidates`, `stress_test`, `select_candidate` |
-| 3: residual confounding | `negative_control_ladder`, `check_process_indicators` |
-| review | `design_report`, `export_design_log` |
-| 4: estimation | `estimate_effect`, `run_estimand_ladder` |
+Only the last box reads the outcome. The next slides run this on a simulated cohort.
 
-Everything above the last row runs with no outcome access. The next six slides run the workflow live on a simulated cohort.
+```{mermaid}
+%%| fig-width: 10
+flowchart LR
+    A["Lock<br/>create_analysis_lock<br/>declare_negative_controls<br/>declare_estimand_ladder"] --> B["Estimability<br/>fit_ps<br/>assess_support<br/>estimand_feasibility<br/>simulate_support"]
+    B --> C["Candidates<br/>define_candidates<br/>stress_test<br/>select_candidate"]
+    C --> D["Residual confounding<br/>negative_control_ladder<br/>check_process_indicators"]
+    D --> E["Review<br/>design_report<br/>export_design_log"]
+    E --> F["Estimate<br/>estimate_effect<br/>run_estimand_ladder"]
+    style A fill:#e6f0fa,stroke:#333,color:#000
+    style B fill:#e6f0fa,stroke:#333,color:#000
+    style C fill:#e6f0fa,stroke:#333,color:#000
+    style D fill:#e6f0fa,stroke:#333,color:#000
+    style E fill:#e6f0fa,stroke:#333,color:#000
+    style F fill:#fde8d8,stroke:#333,color:#000
+```
 
-## Walkthrough: lock the plan, rules included
+## Walkthrough: lock the plan
+
+The thresholds go into the fingerprint. The outcome column is already out of `lock$data`, in a store that only Stage 4 rejoins.
 
 ```{r wt-lock, echo = TRUE}
 dat  <- sim_func1(n = 1000, seed = 42)
@@ -131,23 +158,23 @@ lock <- create_analysis_lock(
                        min_coverage = 0.90, max_rmse_ratio = 1.5),
   nc_criteria   = list(null_band = 0.02),
   seed = 42, enforce = TRUE)
-lock <- declare_negative_controls(lock, "nc_outcome",
-          domains = "health_seeking_behavior")
 lock <- declare_estimand_ladder(lock, primary = "ATE",
           fallbacks = c("trimmed_ATE", "ATT"), trigger = "SEVERE")
-substr(lock$lock_hash, 1, 16)
 ```
 
-The thresholds are inside the fingerprint; the primary outcome column is already outside `lock$data`, in a sealed store that only Stage 4 rejoins.
+## Walkthrough: can this be estimated?
 
-## Walkthrough: is the comparison estimable?
-
-```{r wt-support, echo = TRUE}
+```{r wt-support, echo = TRUE, results = "hide"}
 ps  <- fit_ps(lock, method = "glm")
 sup <- assess_support(ps)
-sup$verdict
 fea <- estimand_feasibility(ps)
 ```
+
+```{r wt-support-fig, fig.height = 4}
+plot(sup) + thm + theme(plot.subtitle = element_text(size = 15))
+```
+
+## Walkthrough: which estimands survive this fit
 
 ```{r wt-feas-table}
 knitr::kable(fea$table[, c("estimand", "max_weight",
@@ -157,36 +184,46 @@ knitr::kable(fea$table[, c("estimand", "max_weight",
 
 ## Walkthrough: candidates under declared threats
 
-```{r wt-stress, echo = TRUE}
+```{r wt-stress, echo = TRUE, results = "hide"}
 cands <- define_candidates(grid = list(
-  truncations = c(0.01, 0.05),
-  libraries   = list(glm = "SL.glm")))
-st <- stress_test(lock, cands, reps = 10, verbose = FALSE,
-  threats = list(unmeasured_confounding = list(
-    U_prevalence = 0.2, U_treatment_OR = c(1.5, 2),
-    U_outcome_OR = c(1.5, 2))))
+  truncations = 0.01,
+  libraries   = list(glm = "SL.glm", glm_mean = c("SL.glm", "SL.mean"))))
+st <- stress_test(lock, cands, reps = 20, verbose = FALSE,
+  threats = list(
+    covariate_missingness_mnar = list(fractions = c(0.1, 0.2, 0.3)),
+    unmeasured_confounding = list(
+      U_prevalence = 0.2, U_treatment_OR = c(1.5, 2, 3),
+      U_outcome_OR = c(1.5, 2, 3))))
 ```
 
-```{r wt-verdict-table}
-knitr::kable(st$verdict, digits = 3)
+```{r wt-stress-fig, fig.height = 3.6}
+plot(st, metric = "bias") + thm +
+  scale_x_discrete(labels = function(x) sub("^OR_trt([0-9.]+)_out.*$", "OR \\1", x)) +
+  theme(strip.text = element_text(size = 15))
 ```
 
-## Walkthrough: select by the locked rule
+## Walkthrough: the verdict is a lookup, and so is the choice
 
-```{r wt-select, echo = TRUE}
+```{r wt-select, echo = TRUE, results = "hide"}
 best <- select_candidate(st, rule = "min_max_rmse")
-best$candidate_id
 lock <- declare_estimand_ladder(lock, primary = "ATE",
           fallbacks = c("trimmed_ATE", "ATT"),
           trigger = "SEVERE", candidate = best)
 ```
 
-The selection rule ran on simulated outcomes against fingerprinted thresholds; nothing about the realised effect direction could steer it.
+Selected: `r best$candidate_id`. The rule ran on simulated outcomes against thresholds fixed in the fingerprint, so the real effect direction played no part.
 
-## Walkthrough: the released record
+```{r wt-verdict-table}
+knitr::kable(st$verdict[, c("candidate", "worst_abs_bias",
+                            "worst_coverage", "verdict")], digits = 3)
+```
+
+## Walkthrough: the record
+
+There is no token and no gate object. `enforce = TRUE` withholds estimation until someone signs the unmasking, and the signature sits in the log.
 
 ```{r wt-log, echo = TRUE}
-masked <- mask_outcome(lock)          # physically outcome-free
+masked <- mask_outcome(lock)
 lock   <- unmask_outcome(masked, lock,
                          approved_by = "review team")
 ```
@@ -196,40 +233,16 @@ lg <- export_design_log(lock, format = "muntner")
 knitr::kable(tail(lg[, c("stage", "decision", "decided_by")], 3))
 ```
 
-There is no token and no gate object: the single institutional switch is `enforce = TRUE`, and the single act of authorisation is a person on the record.
-
 ## Walkthrough: estimate what was declared
 
-```{r wt-estimate, echo = TRUE}
+```{r wt-estimate, echo = TRUE, results = "hide"}
 fit <- run_estimand_ladder(lock, ps)
 ```
 
-```{r wt-estimate-table}
-knitr::kable(fit$table[, c("estimand", "estimate", "ci_lower",
-                           "ci_upper", "support_verdict")],
-             digits = 3)
+```{r wt-estimate-fig, fig.height = 3.4}
+plot(fit) + thm + labs(subtitle = NULL) +
+  theme(legend.position = "right")
 ```
-
-Each row is labelled with its estimand and its support verdict; a switch or an override would appear in the design log, never silently.
-
-## The support assessment
-
-`assess_support()` grades the overlap on the fitted propensity score. Share of the sample outside the band, largest implied weight, effective sample size, and the c-statistic, whose discrimination is bad news here. A stratum scan and a shallow tree search catch pockets where treatment is nearly deterministic.
-
-The verdict is PASS, FLAG, SEVERE, or FAIL, and its caveat sentence travels with every downstream estimate.
-
-## What severe non-overlap looks like
-
-:::: {.columns}
-::: {.column width="50%"}
-![Protocol contrast: SEVERE](../rescueCo/results/multiarm/fig_support_C1.png)
-:::
-::: {.column width="50%"}
-![Primary cohort: PASS](../rescueCo/results/multiarm/fig_support_PRIMARY.png)
-:::
-::::
-
-Treated above the axis, controls below, band shaded.
 
 ## One fitted score, four estimands, very different weights
 
@@ -260,67 +273,57 @@ if (!is.null(cs_lock1) && !is.null(cs_lite1)) {
 
 ## The estimand ladder
 
-Switching estimands after seeing results is a garden of forking paths. Refusing ever to switch wastes designs that can answer a neighbouring question.
+Switching estimands after the results are in is a garden of forking paths. Never switching wastes a design that could answer a neighbouring question.
 
-So the switch rule is pre-registered. The lock records the primary, the ordered fallbacks, and the verdict that triggers a move. Estimation runs the primary when feasible plus every feasible fallback, labels each row with its estimand and verdict, and refuses an infeasible primary unless an override reason is supplied and logged.
+So the switch rule is written down first: the primary, the ordered fallbacks, and the verdict that triggers a move. An infeasible primary is refused unless someone supplies a reason, and the reason is logged.
 
 ## The outcome-blind support map
 
-Static weight diagnostics cannot say how much the extrapolation will hurt. That depends on how the outcome behaves in the region only one arm inhabits, and the design team is blind to the outcome.
+Covariates resampled, treatment redrawn from the fitted propensity, outcomes simulated from a prespecified surface family. Truth is known on every replicate, per estimand.
 
-So the package simulates: covariates resampled, treatment redrawn from the fitted propensity, simulated outcomes drawn from a prespecified family of surfaces. The truth is known on every replicate, separately per estimand. The map shows where each estimand holds a bias tolerance at near-nominal coverage.
+![C1: the ATE fails at the mildest surface](../rescueCo/results/multiarm/fig_supportmap_C1.png)
 
 ## Redraw treatment, or keep it?
 
-Plasmode studies commonly keep each subject's observed treatment. Shaw et al. (2025) showed that this builds a positivity violation into the simulation itself: all-treated regions stay all-treated in every replicate, whatever the generating propensity.
+Most plasmode studies keep each subject's observed treatment. Shaw et al. (2025) showed this bakes a positivity violation into the simulation: all-treated regions stay all-treated in every replicate.
 
-For a support map that is disqualifying, because the violation is the thing under study. cleanTMLE redraws treatment from the fitted propensity. The case study puts the two designs side by side on real data.
+For a support map that is disqualifying, because the violation is what we are trying to measure. cleanTMLE redraws treatment. The case study compares the two designs on real data.
 
 ## The same loop stress-tests the estimator
 
-Candidate TMLE specifications are compared on simulated outcomes, then re-run under prespecified data-quality threats: covariate missingness (MCAR, MAR, MNAR), exposure and outcome misclassification, near-positivity, unmeasured confounding.
+Candidates re-run under declared threats: missingness (MCAR, MAR, MNAR), misclassification of exposure or outcome, near-positivity, unmeasured confounding. A minimax rule picks the best worst case.
 
-Each candidate gets a degradation gradient on the same bias, RMSE, and coverage scale as the baseline. A minimax rule can lock the candidate with the best worst case rather than the best clean-data average.
+![Degradation gradient, earlier single-contrast lock](../rescueCo/results/manuscript_artifacts/fig_dq_gradient.png)
 
 ## What the software controls, and what it cannot
 
-It can keep the outcome masked or physically absent from the design stage, log every declaration and switch inside the fingerprinted lock, and flag estimates that violate bounds the raw data impose.
+It can keep the outcome physically absent from the design stage, log every declaration and switch inside a fingerprinted lock, and flag estimates the raw data cannot support.
 
-It cannot stop someone with raw-data access from peeking outside the package, validate how variables were measured, or see past the measured covariates. A propensity model missing the separating covariate will not warn. Those safeguards stay institutional.
+It cannot stop someone with raw-data access from looking elsewhere, check how variables were measured, or see a confounder nobody recorded. Those stay institutional.
 
 # 3. What the simulations showed
 
 ## Three scenarios, six estimators
 
-2,000 people, 200 repetitions each. Scenario A has good overlap; B has marginal overlap; C hides a confounder the analyst cannot measure. Estimators: crude, propensity matching, IPTW, TMLE, cross-validated TMLE, matched TMLE.
+2,000 people, 200 repetitions. Scenario A has good overlap, B marginal overlap, C a confounder the analyst cannot measure. Estimators: crude, matching, IPTW, TMLE, CV-TMLE, matched TMLE.
 
-Under good overlap every adjusted estimator recovers the truth, and the workflow proceeds. That is the wiring check.
-
-## Marginal overlap strains the variance, not the bias
-
-TMLE and CV-TMLE keep bias small relative to the spread of the estimates.
-
-IPTW confidence intervals come out too wide, because the variance formula treats an estimated propensity score as known. Matched TMLE has the same problem, roughly doubling the true spread. Both are fixable with a bootstrap variance, and the workflow says so before unblinding, as a documented qualification.
-
-## Built-in confounding stops the workflow
-
-In Scenario C every estimator is biased in the same direction; TMLE is the least biased and still biased. The unmeasured-confounding row of the stress test pushes bias past the locked threshold, and the prespecified rule returns stop before any outcome is read.
-
-The software does not detect hidden confounders. It was simply willing to stop when a prespecified threat scenario failed, which is the behaviour a reviewer needs to trust the proceed decisions.
+Under good overlap every adjusted estimator recovers the truth. Under marginal overlap, bias stays small but IPTW and matched TMLE intervals come out too wide, because their variance formulas treat the propensity score as known. A bootstrap fixes that, and the workflow says so before unblinding.
 
 ## Same fits, different pipeline
+
+In scenario C every estimator is biased the same way and TMLE is merely least biased. The software did not detect the hidden confounder. It stopped because a prespecified threat scenario failed.
 
 | Scenario | Traditional analyst | Outcome-blind workflow |
 |---|---|---|
 | Good overlap | Diagnostics look fine; report. | Same, plus simulation confirms the candidates. Proceed. |
 | Marginal overlap | An attentive analyst adapts. Many do not. | Variance miscalibration quantified before unblinding. Proceed with qualification. |
-| Unmeasured confounding | All adjusted estimates agree; analyst likely publishes a misleading null. | Prespecified stress row breaches the threshold. Stop. |
+| Unmeasured confounding | All adjusted estimates agree; a misleading null gets published. | The declared confounding row breaches the bias threshold. Stop. |
 
 # 4. Case study: Rescue.Co, Nairobi
 
 ## Five contrasts, one registry
 
-8,323 trauma patients with known transport mode, three Nairobi hospitals, 2018 to 2024. Each contrast gets its own lock on the shared cohort, 90 design columns, and the same declared ladder. Outcomes: six-month mortality, and time to arrival, the outcome behind the +14,637-minute failure. The outcome columns live in a separate store until estimation.
+8,323 trauma patients with known transport mode, three Nairobi hospitals, 2018 to 2024. One lock per contrast on the shared cohort, 90 design columns, the same declared ladder. Outcomes: six-month mortality, and time to arrival.
 
 | Lock | Comparison | N | Treated |
 |---|---|---:|---:|
@@ -330,7 +333,20 @@ The software does not detect hidden confounders. It was simply willing to stop w
 | C4 | Rescue.Co vs other ambulance, transfers included | 2,197 | 1,039 |
 | Primary | Rescue.Co vs other ambulance, transfers and prior care excluded | 1,616 | 1,003 |
 
+## What severe non-overlap looks like
+
+:::: {.columns}
+::: {.column width="50%"}
+![Protocol contrast: SEVERE. Treated above the axis, controls below, band shaded.](../rescueCo/results/multiarm/fig_support_C1.png)
+:::
+::: {.column width="50%"}
+![Primary cohort: PASS](../rescueCo/results/multiarm/fig_support_PRIMARY.png)
+:::
+::::
+
 ## The support verdicts
+
+Two-fifths of the protocol sample sits outside the band. C1 and C2 meet the declared trigger before any outcome is joined.
 
 ```{r fig-support, fig.cap = "Share of each contrast outside the propensity band [0.05, 0.95]. Dotted lines mark the verdict thresholds: FLAG above 1%, SEVERE above 25%. Labels give the largest implied ATE weight."}
 if (!is.null(cs_sup)) {
@@ -353,19 +369,19 @@ if (!is.null(cs_sup)) {
 }
 ```
 
-The protocol comparison places two-fifths of the sample outside the band. The declared trigger is met on C1 and C2 before any outcome is joined.
-
 ## Who never gets a Rescue.Co ambulance?
 
-The tree search puts names on the C1 violation:
+The tree search names the C1 violation:
 
-- injured at a private home, 1,386 patients, 1.4% treated
-- other non-street injury places, 1,438 patients, 2.5% treated
-- assault victims elsewhere, 1,062 patients, 4.2% treated
+- injured at a private home: 1,386 patients, 1.4% treated
+- other non-street injury places: 1,438 patients, 2.5% treated
+- assault victims elsewhere: 1,062 patients, 4.2% treated
 
-For these patients, "what if everyone were transported by Rescue.Co" has no answer in the data. A trimmed analysis removes 3,377 people, nearly all controls, and the design report describes them: 40% home injuries against 1% of those retained, more assaults, younger, farther away.
+For these patients "what if everyone were transported by Rescue.Co" has no answer in the data. Trimming removes 3,377 people, nearly all controls: 40% home injuries against 1% of those kept, more assaults, younger, farther away.
 
 ## Which estimands survive the C1 fit
+
+The design can answer a question. It is a different question from the one in the protocol.
 
 | Estimand | Max weight | Verdict |
 |---|---:|---|
@@ -375,9 +391,9 @@ For these patients, "what if everyone were transported by Rescue.Co" has no answ
 | ATO | 1.0 | PASS |
 | Matched ATT | 1.0 | PASS, 95% of treated matched |
 
-The design supports an answer. Just not the one the protocol named.
+## The exclusions removed the confounding
 
-## The exclusions, not the adjustment, removed the confounding
+Both controls fail on the full cohort and go null after the pre-registered transfer exclusion. On C1 the urban-household control fails on every rung. Two rare controls are labelled inestimable.
 
 ```{r fig-nc, fig.cap = "Two socioeconomic negative controls on the transfers-included contrast, refit on each nested cohort. Points are unadjusted risk differences with 95% intervals."}
 if (!is.null(cs_ncl)) {
@@ -405,25 +421,25 @@ if (!is.null(cs_ncl)) {
 }
 ```
 
-Both controls fail on the full cohort and turn null after the pre-registered transfer exclusion. On C1, the urban-household control fails and no restriction repairs it. Two rare controls are labelled inestimable rather than dropped.
-
 ## Care processes stay out of the adjustment set
 
-Vitals recorded within an hour, and blood-pressure missingness, are predicted by treatment on three of the five contrasts (standardised differences up to 0.34). Transport mode changes the care process.
+Vitals within an hour, and blood-pressure missingness, are predicted by treatment on three of five contrasts (standardised differences up to 0.34). Transport mode changes the care process.
 
-Conditioning on them would open collider paths through in-hospital care, so the locks keep them out, and the check documents why.
+Conditioning on them would open collider paths through in-hospital care. The locks leave them out and the check records why.
 
 ## The pre-outcome decisions
+
+All fixed before the outcome store was joined.
 
 | Contrast | Recommendation |
 |---|---|
 | Primary | Proceed |
 | C3, C4 | Proceed, FLAG caveat attached |
-| C1, C2 | Proceed with qualification. The ATE is not supported; the ladder moves to trimmed ATE, then ATT, then ATO, and the switch is logged with the SEVERE verdict as its trigger |
-
-All fixed before the outcome store was joined.
+| C1, C2 | Proceed with qualification. ATE not supported; ladder moves to trimmed ATE, then ATT, then ATO, logged with SEVERE as the trigger |
 
 ## Six-month mortality, down the ladder
+
+C2 reports no ATE. The C1 ATE appears once, as a logged override kept for reconciliation, with its SEVERE label and a standard error several times wider than the rows beside it.
 
 ```{r fig-forest, fig.cap = "Risk differences with 95% intervals, one row per feasible estimand per contrast. Negative favours Rescue.Co."}
 if (!is.null(cs_lad) && any(grepl("death", cs_lad$outcome))) {
@@ -454,9 +470,9 @@ if (!is.null(cs_lad)) {
 }
 ```
 
-C2 reports no ATE at all. The C1 ATE appears once, as a logged override kept so the two pipelines can be reconciled; it carries its SEVERE label and a standard error several times larger than the bounded rows beside it.
-
 ## The disaster outcome, re-analysed
+
+Once +14,637 minutes; now the bounded estimands agree on three to four and a half hours sooner. The implausibility guard checks every row against the raw arm summaries and would have caught the original.
 
 ```{r tta-table, results = "asis"}
 if (!is.null(cs_lad) && any(grepl("time_to_arrival", cs_lad$outcome))) {
@@ -475,9 +491,9 @@ if (!is.null(cs_lad) && any(grepl("time_to_arrival", cs_lad$outcome))) {
 }
 ```
 
-Time to arrival once returned +14,637 minutes. Down the ladder, the bounded estimands agree that Rescue.Co arrives three to four and a half hours sooner, the override-only ATE row shows its strain in the interval width, and the implausibility guard checks every row against the raw arm summaries. Any one of its checks would have caught the original failure.
-
 ## The simulation trap, on real data
+
+A support map built on the kept-treatment design would call sound designs infeasible.
 
 ```{r fig-designcmp, fig.cap = "Coverage under the stressed outcome surface, 200 replicates per design. Keeping the observed treatment degrades every estimand, on the sound design too."}
 if (!is.null(cs_cmp)) {
@@ -502,23 +518,23 @@ if (!is.null(cs_cmp)) {
 }
 ```
 
-A support map built on the kept-treatment design would declare sound designs infeasible. It manufactures the failure it was asked to detect.
+## The workflow caught its own earlier mistake
 
-## The workflow audited its own earlier mistake
+The first single-contrast run had a design flaw: its primary outcome was the common category of a 92%-prevalence dichotomy. The cohort-adequacy check recorded a stop, and the pipeline went on through an unlogged override.
 
-The earlier single-contrast run had a design flaw. Its primary outcome was the common category of a 92%-prevalence dichotomy, the cohort-adequacy check recorded a stop, and the pipeline proceeded through an unlogged override.
-
-The rebuild's reconciliation surfaced this because the record kept both entries, the stop and the estimate, with nothing between them. The fix went to the design: mortality became the primary outcome, and overrides now require a logged reason. The record makes gaps findable, including the workflow's own.
+The rebuild's reconciliation found it because both entries were still in the record, the stop and the estimate, with nothing between them. Mortality became the primary outcome; overrides now need a logged reason.
 
 ## How a reviewer reads the case study
 
-- Every verdict, declaration, and switch was fixed and logged before the outcome store was joined.
-- The protocol's primary comparison was refused on the record, with the evidence attached, and the reported estimands are labelled with the populations they describe.
-- Where the two pipelines are comparable, the clean-room estimates agree with the parallel unblinded analysis to within fractions of a standard error, tracked row by row in a released reconciliation table.
+- Every verdict, declaration, and switch was logged before the outcome store was joined.
+- The protocol's primary comparison was refused on the record, with the evidence attached. Reported estimands carry the population they describe.
+- Where the two pipelines are comparable, the clean-room estimates match the parallel unblinded analysis to within fractions of a standard error, row by row, in a released reconciliation table.
 
 # 5. Where this sits
 
 ## Side by side
+
+TMLE is a decade old and the staged idea is published guidance. The new part is answering the estimability question inside the blind phase, with a record of when it was answered.
 
 | Feature | TMLE packages | causalRisk | Clean-room papers | cleanTMLE |
 |---|:---:|:---:|:---:|:---:|
@@ -530,29 +546,28 @@ The rebuild's reconciliation surfaced this because the record kept both entries,
 | Plasmode candidate selection, DQ stress test | -- | -- | -- | yes |
 | Fingerprinted lock and design log | -- | -- | guidance | yes |
 
-TMLE estimation is a decade old; the staged idea is published guidance. The new part is answering the estimability question inside the blind phase, with the record to prove when it was answered.
-
 ## When to use it, and its limits
 
-Use it when a reviewer will ask whether a decision was made before you saw the answer: estimator and estimand choices in observational studies, SAP development, real-world evidence work.
+Use it when a reviewer will ask whether a decision was made before you saw the answer.
 
-It does not automate design, validate data or phenotypes, guarantee assumptions, or replace negative controls and post-outcome sensitivity analysis. For confirmatory studies it belongs inside institutional governance, with role separation and independent review. An `enforce = TRUE` mode withholds estimation until a recorded design review, where institutions want that in software.
+It does not automate design, validate data or phenotypes, or replace negative controls and post-outcome sensitivity analysis. For confirmatory work it belongs inside institutional governance, with role separation and independent review. `enforce = TRUE` withholds estimation until a named person signs the unmasking, where an institution wants that in software.
 
 ## Where I want input
 
-1. The harshest support-map surfaces behave like strong unmeasured confounding, so a whole-grid pass rule conflates two threats. How should the plausible region be elicited and pre-registered?
-2. Is SEVERE the right default trigger, and trimmed ATE, ATT, ATO the right default order?
-3. How should severity ranges for the stress test be documented so a reviewer accepts them?
-4. The matched ATT is the most robust rung on every map here and the least interpretable population. Sensitivity analysis, or candidate primary?
+1. The harshest support-map surfaces look like strong unmeasured confounding, so a whole-grid pass rule mixes two threats. How should the plausible region be elicited and pre-registered?
+2. Is SEVERE the right default trigger, and trimmed ATE, ATT, ATO the right order?
+3. How should stress-test severity ranges be documented so a reviewer accepts them?
+4. The matched ATT is the most stable rung on every map and the least interpretable population. Sensitivity analysis, or candidate primary?
 
 ## Resources
 
-- Package: <https://github.com/amertens/cleanTMLE> (v0.2.0)
+- Package: <https://github.com/amertens/cleanTMLE> (v0.3.0)
 - Manuscript draft: `reports/manuscript_outcome_blind_dq.qmd`
 - Case-study artifacts: `rescueCo/results/multiarm/`
-- Vignettes: staged workflow, and the function reference
+- Vignettes: get started (five verbs), and the full workflow
+- Tutorial: `tutorials/clean_room_targeted_learning_tutorial.qmd`
 
-Thank you. Questions and pushback welcome.
+Questions and pushback welcome.
 
 # Appendix A: Concepts and alignment
 
@@ -615,11 +630,13 @@ flowchart TD
 
 ## The declared ladder, per lock
 
-Identical across the five locks, declared before outcome access: primary ATE with IPCW for missing outcomes; fallbacks trimmed ATE [0.05, 0.95], then ATT, then ATO; trigger SEVERE. The matched ATT is assessed in the feasibility table and support map as a design-stage sensitivity, not estimated on the ladder.
+Identical across the five locks, declared before outcome access: primary ATE with IPCW for missing outcomes; fallbacks trimmed ATE [0.05, 0.95], then ATT, then ATO; trigger SEVERE. The matched ATT is assessed in the feasibility table and support map as a design-stage sensitivity and is not estimated on the ladder.
 
 Propensity library: the `build_sl_library()` preset for wide registry designs (penalised logistic learners, PCA-reduced GLMs, marginal mean; no tree learners, which can separate arms on wide indicator sets), ten folds.
 
 ## Negative-control ladder, exact rows
+
+Hypertension is null on every rung. Insulin-treated diabetes and HIV on ART are inestimable (a cell below 5 events) and labelled as such. A TMLE-adjusted variant is released with a caveat: on restricted rungs it conditions on design columns that are near-copies of the socioeconomic controls.
 
 | Contrast | Cohort | Urban household | Wood or charcoal fuel |
 |---|---|---:|---:|
@@ -627,8 +644,6 @@ Propensity library: the `build_sl_library()` preset for wide registry designs (p
 | C4 | Transfers excluded (n = 1,703) | +0.001 | +0.000 |
 | C4 | Prior care also excluded (n = 1,616) | -0.003 | -0.001 |
 | C1 | Full (n = 8,323) | +0.013 | -0.006 |
-
-Hypertension is null on every rung. Insulin-treated diabetes and HIV on ART are inestimable (a cell below 5 events) and labelled as such. A TMLE-adjusted variant is released with a caveat: on restricted rungs it conditions on design columns that are near-copies of the socioeconomic controls.
 
 ## The support-map reading rule, from the design log
 
@@ -640,7 +655,7 @@ The harshest rung stresses every weighting-based estimand at once, including on 
 
 Four TMLE candidates varying propensity library and truncation tie on the clean baseline (RMSE within 0.0002), where the minimum-RMSE rule would lock `glm_t01`. Under the five-threat sweep the worst-case RMSE ratios separate: 1.82, 1.73, 1.53, and 1.27 for `ensemble_t05`.
 
-The minimax rule locks `ensemble_t05`. The candidate selected for clean-data efficiency was the most exposed under prespecified stress. Reported at 50 replicates as a workflow illustration; 200 is the inferential bar.
+The minimax rule locks `ensemble_t05`. The candidate chosen for clean-data efficiency was the most exposed under prespecified stress. Reported at 50 replicates as a workflow illustration; 200 is the inferential bar.
 
 ## Effect estimates, exact rows
 
