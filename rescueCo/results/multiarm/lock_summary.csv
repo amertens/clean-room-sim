@@ -1,0 +1,6 @@
+"contrast","label","n","n_treated","n_control","n_covariates"
+"C1","Rescue.Co vs everyone else (protocol comparator)",8323,1039,7284,90
+"C2","Rescue.Co vs non-ambulance",7165,1039,6126,90
+"C3","Any ambulance vs non-ambulance",8323,2197,6126,90
+"C4","Rescue.Co vs other ambulance (transfers included)",2197,1039,1158,90
+"PRIMARY","Rescue.Co vs other ambulance, transfers and prior care excluded",1616,1003,613,90

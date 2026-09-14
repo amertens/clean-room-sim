@@ -1,6 +1,6 @@
 ---
 title: "cleanTMLE"
-subtitle: "Software layer for an outcome-blind staged workflow with plasmode DQ stress testing"
+subtitle: "Deciding the estimand before outcomes"
 author: "Andrew Mertens"
 institute: "University of California, Berkeley"
 date: today
@@ -13,948 +13,607 @@ execute:
   echo: false
   warning: false
   message: false
+fig-width: 9.5
+fig-height: 4.3
+fig-dpi: 200
 ---
 
-## The headline
+```{r setup, include = FALSE}
+# Numbers and figures come from the multi-arm result files; the effects
+# slides fill in as the estimation chain writes its outputs.
+library(ggplot2)
+.ma <- "../rescueCo/results/multiarm"
+.rd <- function(f) {
+  p <- file.path(.ma, f)
+  if (file.exists(p)) read.csv(p, check.names = FALSE) else NULL
+}
+cs_sup <- .rd("support_by_contrast.csv")
+cs_ncl <- .rd("nc_ladder.csv")
+cs_lad <- .rd("ladder_estimates.csv")
+if (is.null(cs_lad)) {
+  ck <- list.files(.ma, pattern = "^ladder_.*\\.rds$", full.names = TRUE)
+  if (length(ck)) cs_lad <- do.call(rbind, lapply(ck, readRDS))
+}
+.rds <- function(f) {
+  p <- file.path(.ma, f)
+  if (file.exists(p)) readRDS(p) else NULL
+}
+cs_cmp <- rbind(
+  if (!is.null(x <- .rds("designcmp_C1.rds"))) cbind(contrast = "C1 (severe overlap)", x),
+  if (!is.null(x <- .rds("designcmp_PRIMARY.rds"))) cbind(contrast = "Primary cohort (good overlap)", x))
+cs_lock1 <- {
+  p <- file.path(.ma, "multiarm_locks.rds")
+  if (file.exists(p)) readRDS(p)[["C1"]] else NULL
+}
+cs_lite1 <- .rds("design_lite_C1.rds")
+okabe <- c(PASS = "#009E73", FLAG = "#E69F00", SEVERE = "#D55E00",
+           FAIL = "#B22222")
+thm <- theme_minimal(base_size = 17) +
+  theme(panel.grid.minor = element_blank(),
+        legend.position = "bottom",
+        plot.title = element_blank())
+```
 
-cleanTMLE is an R package that helps researchers analyse observational health data more carefully. It records every analytic decision before the comparative results are seen, runs realistic simulations to choose between candidate methods, and quietly stress-tests those methods against the kinds of data-quality problems real datasets carry. The point is to make the analysis easier for a reviewer to trust.
+## The problem this package works on
 
-## What this talk covers
+Two failures poison comparative analyses of routine health data. The first is analyst degrees of freedom: when the person choosing the model can see how each choice moves the answer, the estimate carries those peeks. The second is quieter and worse. Some comparisons are not estimable at all, and the estimator does not say so.
 
-1. **Why this matters.** Observational studies have a credibility problem; this is one piece of the fix.
-2. **How the package works.** A short tour of the workflow, in plain language.
-3. **What the simulations told us.** Where the methods are reliable, where they need help, and where they should stop.
-4. **A real case study.** Walking through an analysis of ambulance-transport outcomes in Nairobi.
-5. **How this improves on what's already out there**, including comparison with similar packages.
+A clean-room design fixes the first. cleanTMLE also answers the second, during the blind phase: is this comparison estimable, and with which estimand?
 
-A function-by-function walkthrough is in the appendix.
+## This talk
+
+1. The two failures, and a real analysis that fell into the second one.
+2. The design stage, in five verbs.
+3. What the simulations showed.
+4. Five ambulance-transport contrasts in Nairobi, and what the design stage refused to estimate.
+5. Where this sits among existing tools.
 
 # 1. Why this matters
 
-## The credibility problem in observational research
+## Peeking
 
-When researchers analyse routine health data to estimate the effect of a treatment, they have to make many decisions: who is in the cohort, how to define exposure, which covariates to adjust for, how to handle missing outcomes, and which statistical method to use.
+Even with a written analysis plan, execution forces choices: sparse events, convergence failures, unexpected missingness. If those choices are made after the analyst has glimpsed the treatment-outcome association, the analysis is no longer prespecified, however honest the analyst.
 
-In a typical study, these decisions are written down in three separate documents. A reviewer cannot easily tell whether the chosen method still makes sense once the analyst has seen the data, or what would happen if any of those decisions had been made differently.
+The clean-room design of Muntner et al. (2024) addresses this. A design team builds the cohort, the propensity model, and the diagnostics without seeing the outcome. Only then does an outcome team estimate.
 
-## Two specific weaknesses
+## The failure blinding cannot touch
 
-**Decisions made after seeing the results.** Even with a written analysis plan, problems show up during execution (sparse events, model convergence issues, missingness) that force choices. If those choices are made *after* the analyst has glimpsed the treatment-outcome association, the analysis is no longer fully prespecified.
+The average treatment effect asks what would happen if everyone received treatment versus no one. Answering it requires every kind of patient to have had a real chance of landing in either arm.
 
-**Standard diagnostics tell you about design, not about your estimator.** Propensity-score overlap, balance, and effective sample size tell you whether the *comparison* is feasible. They do not tell you whether the *specific method you plan to use* will produce a reliable answer on your data.
+When a whole stratum essentially never receives one treatment, the estimator does not refuse. It extrapolates. Truncating the weights caps the variance without restoring information.
 
-## What we want, before we look at the comparative answer
+A perfectly blinded team can still promise an estimand the data cannot deliver, and the lock makes the promise binding.
 
-We want to be able to tell a reviewer four things:
+## We know because it happened to us
 
-1. The cohort, treatment, outcome, and time horizon were all defined before any comparative analysis.
-2. The method choice was prespecified.
-3. The method was checked against plausible data-quality problems specific to this study.
-4. Every decision and every check was recorded.
+An earlier analysis of time to ambulance arrival, on a cohort where some patients essentially never receive the studied service:
 
-cleanTMLE produces a single artefact, a **pre-outcome study dossier**, that contains all four.
+- estimated effect **+14,637 minutes**, tight confidence interval
+- crude difference **about 7 hours the other way**
 
-## Where the package fits
+Nothing in the estimator's own output flagged it.
 
-cleanTMLE is the **software layer** of a broader idea, sometimes called a "clean room", in which the analytic team, the data managers, and the reviewers are kept separate and decisions are documented as the analysis unfolds.
+## What the blind phase should establish
 
-The software cannot enforce the institutional side of that arrangement (it cannot stop someone with raw data access from peeking at the outcome). But it can record everything the software side does and make that record auditable.
+1. The cohort, treatment, outcome, and time horizon were fixed in advance.
+2. The declared comparison is estimable. If not, which neighbouring estimand is.
+3. The estimator was prespecified and screened against realistic data problems.
+4. Any switch of estimand followed a rule declared before outcome access, and everything is on the record.
+
+`design_report()` bundles the evidence for all four into the document a review team reads before outcomes are unlocked.
 
 # 2. How the package works
 
-## A short tour of the workflow
+## Five verbs
 
-cleanTMLE runs the analysis in stages. Each stage produces a record. The comparative analysis only runs after all the records show that the prespecified checks have been passed.
+```r
+lock <- create_analysis_lock(data, "treatment", "outcome", covariates,
+                             negative_controls = ncs, mask = TRUE)
+lock <- declare_estimand_ladder(lock, primary = "ATE",
+                                fallbacks = c("trimmed_ATE", "ATT", "ATO"),
+                                trigger = "SEVERE")
 
-1. **Set up.** Write down the question, the cohort, the outcome, and the time horizon.
-2. **Lock the plan.** Choose the candidate methods. The plan is fingerprinted so any later change is detectable.
-3. **Check the cohort.** Are there enough people? Enough events?
-4. **Design diagnostics.** Does the treatment group look comparable to the comparison group on measured baseline variables?
-5. **Compare candidate methods.** Run realistic simulations using the real covariate structure but a synthetic outcome to see how each candidate method behaves.
-6. **Stress test.** Repeat the simulations under realistic data-quality problems (measurement error, missingness, hidden confounders).
-7. **Decide.** Apply a prespecified rule: GO, FLAG, or STOP.
-8. **Run the locked analysis.** Only after the previous step authorises it.
-9. **Sensitivity analyses and reporting.**
+ps  <- fit_ps(lock)                # SuperLearner, GLM, or external
+sup <- assess_support(ps)          # graded overlap verdict
+fea <- estimand_feasibility(ps)    # which estimands survive this fit
+sim <- simulate_support(lock, ps)  # the outcome-blind support map
 
-## The targeted-learning method, in one slide
+design_report(lock, sup, fea, simulation = sim)
+fit <- run_estimand_ladder(lock, ps)   # outcomes join only here
+```
 
-The package uses a method called **TMLE** (targeted maximum likelihood estimation). The plain-English idea:
+Everything above the last line runs with no outcome access.
 
-- TMLE separates the *question* (what is the treatment effect?) from the *prediction tasks* (predicting who got treatment, predicting the outcome).
-- The prediction tasks can use flexible machine learning. The treatment-effect estimate is then nudged ("targeted") so that it is properly calibrated for the *question*, not just for prediction.
-- The result is a treatment-effect estimate with a standard error and confidence interval you can interpret in the usual way.
+## The support assessment
 
-For our purposes, the important thing is that every part of the TMLE recipe (which machine-learning models, how the predictions are stabilised, how the targeting step is run) can be **written down before the analysis is run**.
+`assess_support()` grades the overlap on the fitted propensity score. Share of the sample outside the band, largest implied weight, effective sample size, and the c-statistic, whose discrimination is bad news here. A stratum scan and a shallow tree search catch pockets where treatment is nearly deterministic.
 
-## The pre-outcome study dossier
+The verdict is PASS, FLAG, SEVERE, or FAIL, and its caveat sentence travels with every downstream estimate.
 
-The dossier is the document the reviewer reads before authorising the comparative analysis.
+## What severe non-overlap looks like
 
-| Component | What it shows |
-|---|---|
-| Protocol and target-trial timing | The cohort, treatment, outcome, time zero, follow-up |
-| Cohort flow | Who was eligible, who was excluded, why |
-| Event-process classification | What is an outcome, what is a competing event, what is missingness |
-| Covariate and missingness summary | Baseline characteristics and where data are missing |
-| Overlap and balance | Do the two groups look comparable? |
-| Weight diagnostics | Are the propensity-score weights well-behaved? |
-| Baseline plasmode results | How do the candidate methods perform under a realistic synthetic outcome? |
-| Data-quality stress test | How do they hold up under realistic threats? |
-| Negative controls | Probes for residual confounding |
-| Pre-outcome decision (GO / FLAG / STOP) | The reviewer's verdict |
-| Decision and audit logs | Everything that happened |
+:::: {.columns}
+::: {.column width="50%"}
+![Protocol contrast: SEVERE](../rescueCo/results/multiarm/fig_support_C1.png)
+:::
+::: {.column width="50%"}
+![Primary cohort: PASS](../rescueCo/results/multiarm/fig_support_PRIMARY.png)
+:::
+::::
 
-## The three decision labels
+Treated above the axis, controls below, band shaded.
 
-| Label | Meaning |
-|---|---|
-| **GO** | Proceed to the locked comparative analysis. |
-| **FLAG** | Proceed, but document a concern that the report should address. |
-| **STOP** | Do not run the comparative analysis as planned. Redesign, narrow the question, or document an override. |
+## One fitted score, four estimands, very different weights
 
-A GO decision is **not** a guarantee that the answer is correct. It says: under the assumptions we wrote down, the checks did not fail.
+```{r fig-weights, fig.cap = "Implied weights on the protocol contrast, one point per patient, log scale. The ATE needs weights up to 257; the effect among the treated (ATT) is bounded at 5 by the largest propensity; the overlap-weighted ATO never exceeds 1."}
+if (!is.null(cs_lock1) && !is.null(cs_lite1)) {
+  g <- pmin(pmax(cs_lite1$ps_raw, 1e-6), 1 - 1e-6)
+  A <- as.integer(cs_lock1$data[[cs_lock1$treatment]])
+  wd <- rbind(
+    data.frame(estimand = "ATE", w = ifelse(A == 1, 1 / g, 1 / (1 - g))),
+    data.frame(estimand = "Trimmed ATE",
+               w = { keep <- g >= 0.05 & g <= 0.95
+                     ifelse(A[keep] == 1, 1 / g[keep], 1 / (1 - g[keep])) }),
+    data.frame(estimand = "ATT", w = ifelse(A == 1, 1, g / (1 - g))),
+    data.frame(estimand = "ATO", w = ifelse(A == 1, 1 - g, g)))
+  wd$estimand <- factor(wd$estimand,
+                        levels = c("ATE", "Trimmed ATE", "ATT", "ATO"))
+  mx <- aggregate(w ~ estimand, wd, max)
+  ggplot(wd, aes(estimand, w)) +
+    geom_violin(fill = "#0072B2", colour = NA, alpha = 0.5, scale = "width") +
+    geom_point(data = mx, colour = "#D55E00", size = 3) +
+    geom_text(data = mx, aes(label = sprintf("max %.1f", w)),
+              vjust = -0.8, colour = "#D55E00", size = 5) +
+    geom_hline(yintercept = 1, linetype = "dashed", colour = "grey55") +
+    scale_y_log10(limits = c(0.001, 900)) +
+    labs(x = NULL, y = "implied weight (log scale)") + thm
+}
+```
 
-## What the software does, and does not, control
+## The estimand ladder
 
-The package can:
+Switching estimands after seeing results is a garden of forking paths. Refusing ever to switch wastes designs that can answer a neighbouring question.
 
-- Record every decision and check.
-- Refuse to run a comparative analysis until the dossier is complete.
-- Apply a prespecified GO / FLAG / STOP rule on a common quantitative scale.
+So the switch rule is pre-registered. The lock records the primary, the ordered fallbacks, and the verdict that triggers a move. Estimation runs the primary when feasible plus every feasible fallback, labels each row with its estimand and verdict, and refuses an infeasible primary unless an override reason is supplied and logged.
 
-The package cannot:
+## The outcome-blind support map
 
-- Stop someone with raw-data access from looking at the outcome outside the package.
-- Validate that an exposure or outcome was *measured* correctly.
-- Replace independent review.
+Static weight diagnostics cannot say how much the extrapolation will hurt. That depends on how the outcome behaves in the region only one arm inhabits, and the design team is blind to the outcome.
 
-These remaining safeguards have to come from the institution running the study.
+So the package simulates: covariates resampled, treatment redrawn from the fitted propensity, synthetic outcomes drawn from a prespecified family of surfaces. The truth is known on every replicate, separately per estimand. The map shows where each estimand holds a bias tolerance at near-nominal coverage.
 
-# 3. Simulation results
+## Redraw treatment, or keep it?
 
-## What the simulations are for
+Plasmode studies commonly keep each subject's observed treatment. Shaw et al. (2025) showed that this builds a positivity violation into the simulation itself: all-treated regions stay all-treated in every replicate, whatever the generating propensity.
 
-We simulated three contrasting scenarios on a small dataset (2,000 people, 200 repetitions each), then ran the same six estimators in each:
+For a support map that is disqualifying, because the violation is the thing under study. cleanTMLE redraws treatment from the fitted propensity. The case study puts the two designs side by side on real data.
 
-- **Scenario A.** Easy: treatment groups overlap well, no hidden confounders.
-- **Scenario B.** Harder: groups overlap only partially.
-- **Scenario C.** Hardest: there is a hidden confounder the analyst cannot measure.
+## The same loop stress-tests the estimator
 
-We also re-ran each scenario under four kinds of data-quality stress: covariate missingness, exposure measurement error, outcome measurement error, and unmeasured confounding.
+Candidate TMLE specifications are compared on synthetic outcomes, then re-run under prespecified data-quality threats: covariate missingness (MCAR, MAR, MNAR), exposure and outcome misclassification, near-positivity, unmeasured confounding.
 
-## The six methods, in plain language
+Each candidate gets a degradation gradient on the same bias, RMSE, and coverage scale as the baseline. A minimax rule can lock the candidate with the best worst case rather than the best clean-data average.
 
-| Method | What it does |
-|---|---|
-| **Crude** | Compare outcome rates in the two groups; ignore baseline differences. |
-| **Propensity-score matching** | Pair each treated person with an untreated person who looks similar at baseline. |
-| **IPTW** (inverse-probability weighting) | Re-weight people so the two groups look balanced on baseline variables, then compare. |
-| **TMLE** | Use flexible models for who got treatment and who has the outcome, then nudge the estimate so it is properly calibrated for the *treatment effect*. |
-| **CV-TMLE** | TMLE with cross-fitting; gives more honest standard errors when the models are flexible. |
-| **Matched TMLE** | Match first, then run TMLE on the matched subset. |
+## What the software controls, and what it cannot
 
-The first three are "traditional" methods. The last three are targeted-learning methods.
+It can keep the outcome masked or physically absent from the design stage, log every declaration and switch inside the fingerprinted lock, and flag estimates that violate bounds the raw data impose.
 
-## Result 1 — under good overlap, everything works
+It cannot stop someone with raw-data access from peeking outside the package, validate how variables were measured, or see past the measured covariates. A propensity model missing the separating covariate will not warn. Those safeguards stay institutional.
 
-In Scenario A, all the adjusted estimators recover the true effect. Bias is well under the 0.02 threshold we set, and the 95 % confidence intervals cover the truth about 95 % of the time. The unadjusted comparison has substantial leftover confounding.
+# 3. What the simulations showed
 
-**Reviewer summary:** the workflow says **GO**. This is the benchmark check that the machinery is correctly wired.
+## Three scenarios, six estimators
 
-## Result 2 — under marginal overlap, TMLE holds up; some standard errors don't
+2,000 people, 200 repetitions each. Scenario A has good overlap; B has marginal overlap; C hides a confounder the analyst cannot measure. Estimators: crude, propensity matching, IPTW, TMLE, cross-validated TMLE, matched TMLE.
 
-In Scenario B, the harder of the two structural scenarios:
+Under good overlap every adjusted estimator recovers the truth, and the workflow proceeds. That is the wiring check.
 
-- **TMLE and cross-validated TMLE** keep bias small relative to the spread of the estimates.
-- **Inverse-probability weighting** (IPTW) shows confidence intervals that are too wide. The reason is technical (the variance formula assumes the propensity score is known when in fact it was estimated). A bootstrap variance is the standard fix.
-- **Matched TMLE** has the same issue, for the same reason. The standard error roughly doubles the actual spread of the estimates.
+## Marginal overlap strains the variance, not the bias
 
-**Reviewer summary:** the workflow says **GO with a FLAG** noting that IPTW and matched-TMLE confidence intervals need a bootstrap variance before they are reported as primary.
+TMLE and CV-TMLE keep bias small relative to the spread of the estimates.
 
-## Result 3 — under unmeasured confounding, the workflow correctly stops
+IPTW confidence intervals come out too wide, because the variance formula treats an estimated propensity score as known. Matched TMLE has the same problem, roughly doubling the true spread. Both are fixable with a bootstrap variance, and the workflow says so before unblinding, as a documented qualification.
 
-In Scenario C, where there is a confounder the analyst cannot measure:
+## Built-in confounding stops the workflow
 
-- Every estimator is biased in the same direction. TMLE is the *least* biased, but it is still biased.
-- The baseline plasmode coverage sits at the lower edge of the acceptable range; what makes the failure unambiguous is the unmeasured-confounder stress-test row, where bias exceeds the prespecified threshold.
+In Scenario C every estimator is biased in the same direction; TMLE is the least biased and still biased. The unmeasured-confounding row of the stress test pushes bias past the locked threshold, and the prespecified rule returns stop before any outcome is read.
 
-**Reviewer summary:** the workflow says **STOP**. The locked analysis should not be run as planned; the study needs redesign, a narrower question, additional validation, or a documented override.
+The software does not detect hidden confounders. It was simply willing to stop when a prespecified threat scenario failed, which is the behaviour a reviewer needs to trust the proceed decisions.
 
-The takeaway is not that the software "detects" hidden confounding (it cannot). The takeaway is that the prespecified rule was willing to return STOP when a built-in identification failure was present — which is what we want.
+## Same fits, different pipeline
 
-## Result 4 — the stress test is most useful for identification and measurement, not for variance
-
-The four kinds of stress behaved differently:
-
-- **Covariate missingness** produced a flat gradient — the workflow handles MCAR + median imputation correctly, but this is a weak test (MAR / MNAR variants are on the 0.2 roadmap).
-- **Exposure measurement error** attenuated the estimate toward "no effect", as expected.
-- **Outcome measurement error** produced the largest bias of the three measurement threats, especially when error rates differed between treatment groups.
-- **Unmeasured confounding** produced the largest degradation overall, and was the only threat that pushed RMSE more than 50 % above the baseline plasmode.
-
-**Reviewer summary:** the data-quality stress test is most informative when the threat targets either how well variables were measured or whether identification holds. It is less informative for ordinary sampling variability, which is already covered by the baseline simulation.
-
-## Two operational lessons for any applied user
-
-1. **IPTW standard errors are conservative when the propensity score was estimated.** This is a well-known property of the influence-function-based variance. If IPTW is primary, bootstrap the standard error.
-2. **Matched-TMLE standard errors are also conservative.** The post-match TMLE step ignores the matching draw. A block bootstrap fixes this.
-
-## Traditional approach vs the outcome-blind workflow
-
-| Scenario | What a traditional analyst would see | What the outcome-blind workflow does |
+| Scenario | Traditional analyst | Outcome-blind workflow |
 |---|---|---|
-| **A. Good overlap** | PS diagnostics look good; pick a method; report. | Same diagnostics, plus plasmode confirms all candidates behave well. **GO.** |
-| **B. Marginal overlap** | PS overlap shows the strain; weights are heavy. An attentive analyst will widen the truncation or switch methods. Many do not. | Plasmode quantifies that IPTW SE/SD ratio runs > 1 and matched-TMLE doubles it. **GO with a FLAG** explicitly recommending bootstrap variance. |
-| **C. Unmeasured confounding** | All adjusted estimates agree on a non-null effect. Without an external probe, the analyst would likely proceed and report. | The prespecified unmeasured-confounding row of the DQ stress test pushes bias above the locked threshold. **STOP.** |
-
-The contrast is sharpest in Scenario C: a traditional careful analyst can pass the standard PS diagnostics and still proceed with a biased estimator. The outcome-blind workflow flags the candidate as fragile under a prespecified threat *before* unblinding.
-
-## Method recommendations for colleagues
-
-| Situation | Primary recommendation | Why |
-|---|---|---|
-| Good overlap, well-measured covariates | **CV-TMLE** as primary; report IPTW + PS matching as concordance checks | Robust across all three scenarios; interpretable CIs; doubly robust |
-| Marginal overlap | **CV-TMLE** as primary; **bootstrap** the SE if you ever report IPTW or matched TMLE as primary | TMLE bias is well controlled; IPTW/matched SE formulas are too conservative |
-| Heavy truncation needed for positivity | **Reconsider the estimand**, not just the estimator | Heavy truncation changes the target population from "everyone eligible" to "everyone plausibly treatable" |
-| Suspected unmeasured confounder | **Collect it, narrow the question, or accept bounded sensitivity analysis** | No statistical method on measured covariates can rescue you |
-
-A baseline plasmode before unblinding is cheap and high-information. A DQ stress test is informative when you have *specific* concerns about measurement, missingness, or unmeasured confounding.
-
-## What the simulation does and does not show
-
-**Does show:**
-- The candidate-selection machinery recovers the truth on synthetic outcomes when assumptions hold.
-- TMLE / CV-TMLE bias is well controlled under marginal overlap; IPTW and matched-TMLE SE calibration is not.
-- When a hidden confounder is built into the data-generating process, the prespecified stress-test row catches the resulting bias and the locked rule returns STOP.
-- The prespecified rule arrives at the right verdict in all three scenarios *without ever inspecting the realised treatment-outcome association*.
-
-**Does not show:**
-- That the outcome-blind workflow detects an unmeasured confounder a traditional analyst would have missed. The workflow does not "detect" confounders; it scores prespecified threats.
-- That cleanTMLE delivers a numerical advantage over a careful traditional analysis on the *same* dataset. The workflow's value is operational (prespecification, auditability, gating), not a different point estimate.
-- That the small DGP used here generalises to all RWE settings. The case study exercises real-data behaviour separately.
+| Good overlap | Diagnostics look fine; report. | Same, plus simulation confirms the candidates. Proceed. |
+| Marginal overlap | An attentive analyst adapts. Many do not. | Variance miscalibration quantified before unblinding. Proceed with qualification. |
+| Unmeasured confounding | All adjusted estimates agree; analyst likely publishes a misleading null. | Prespecified stress row breaches the threshold. Stop. |
 
 # 4. Case study: Rescue.Co, Nairobi
 
-## The question
+## Five contrasts, one registry
 
-Rescue.Co operates a network of motorcycle-based emergency ambulances in Nairobi. Patients arriving by Rescue.Co versus by other ambulance services were compared on whether they had a "good functional outcome" six months after their injury.
+8,323 trauma patients with known transport mode, three Nairobi hospitals, 2018 to 2024. Each contrast gets its own lock on the shared cohort, 90 design columns, and the same declared ladder. Outcomes: six-month mortality, and time to arrival, the outcome behind the +14,637-minute failure. The outcome columns live in a separate store until estimation.
 
-- **Cohort:** 1,693 ambulance arrivals at participating hospitals, 2018–2024.
-- **Treatment:** Rescue.Co versus other ambulance services (point exposure at arrival).
-- **Outcome:** GOSE > 4 at 6 months (a standard scale of functional recovery).
-- **Missing outcomes:** 24.6 % of the cohort.
+| Lock | Comparison | N | Treated |
+|---|---|---:|---:|
+| C1 | Rescue.Co vs everyone else (protocol comparator) | 8,323 | 1,039 |
+| C2 | Rescue.Co vs non-ambulance | 7,165 | 1,039 |
+| C3 | Any ambulance vs non-ambulance | 8,323 | 2,197 |
+| C4 | Rescue.Co vs other ambulance, transfers included | 2,197 | 1,039 |
+| Primary | Rescue.Co vs other ambulance, transfers and prior care excluded | 1,616 | 1,003 |
 
-**This is a workflow demonstration on real data; it is not intended as evidence about whether Rescue.Co transport works.**
+## The support verdicts
 
-## Walking through the dossier
+```{r fig-support, fig.cap = "Share of each contrast outside the propensity band [0.05, 0.95]. Dotted lines mark the verdict thresholds: FLAG above 1%, SEVERE above 25%. Labels give the largest implied ATE weight."}
+if (!is.null(cs_sup)) {
+  sp <- cs_sup
+  sp$contrast[sp$contrast == "PRIMARY"] <- "Primary"
+  sp$contrast <- factor(sp$contrast,
+                        levels = rev(c("C1", "C2", "C3", "C4", "Primary")))
+  sp$verdict <- factor(sp$verdict, levels = names(okabe))
+  ggplot(sp, aes(pct_outside_band, contrast, colour = verdict)) +
+    geom_vline(xintercept = c(1, 25), linetype = "dotted",
+               colour = "grey55") +
+    geom_segment(aes(x = 0, xend = pct_outside_band), linewidth = 1.1) +
+    geom_point(size = 5) +
+    geom_text(aes(label = sprintf("max weight %.0f", max_iptw_weight)),
+              hjust = -0.15, vjust = -0.9, size = 5, show.legend = FALSE) +
+    scale_colour_manual(values = okabe, name = NULL) +
+    scale_x_continuous(limits = c(0, 62)) +
+    labs(x = "% of sample outside propensity band [0.05, 0.95]", y = NULL) +
+    thm
+}
+```
 
-Before any comparative analysis was run:
+The protocol comparison places two-fifths of the sample outside the band. The declared trigger is met on C1 and C2 before any outcome is joined.
 
-- **Cohort flow.** From 1,693 eligible patients to 1,277 with a complete 6-month outcome; 615 in the matched subset.
-- **Design diagnostics.** Propensity scores were well within the acceptable range. Standardised mean differences were balanced after weighting. Effective sample size retained 78 % of observations.
-- **Baseline plasmode candidate selection.** Two candidates (different propensity-score truncation levels) both passed.
-- **Data-quality stress test.** A minimax rule selected the candidate that performed best across worst-case threats.
-- **Negative controls.** Five negative-control outcomes were planned in the protocol. Three failed an automatic data-cleaning filter and were dropped; the two that remained both passed. The audit log records the drops as a documented limitation.
+## Who never gets a Rescue.Co ambulance?
 
-The prespecified rule returned **GO with a documented FLAG** about the narrower negative-control panel. The comparative analysis was then run.
+The tree search puts names on the C1 violation:
 
-## What the comparative analysis showed
+- injured at a private home, 1,386 patients, 1.4% treated
+- other non-street injury places, 1,438 patients, 2.5% treated
+- assault victims elsewhere, 1,062 patients, 4.2% treated
 
-| Method | Target population | N | Risk difference | 95 % CI |
-|---|---|---:|---:|---|
-| Unadjusted comparison | Complete-outcome | 1,277 | 0.037 | (0.003, 0.071) |
-| Propensity-score matching | Matched subset | 615 | 0.027 | (−0.020, 0.074) |
-| IPTW | Full cohort | 1,693 | 0.037 | (0.002, 0.071) |
-| Full-cohort TMLE *(primary)* | Full cohort | 1,693 | **0.031** | **(−0.001, 0.062)** |
-| Matched-cohort TMLE | Matched subset | 1,230 | 0.026 | (−0.015, 0.067) |
-| Complete-outcome TMLE with IPCW weights | Full-cohort target | 1,277 | 0.033 | (−0.000, 0.066) |
+For these patients, "what if everyone were transported by Rescue.Co" has no answer in the data. A trimmed analysis removes 3,377 people, nearly all controls, and the design report describes them: 40% home injuries against 1% of those retained, more assaults, younger, farther away.
 
-All six methods agree on direction. The prespecified primary estimate (full-cohort TMLE) just crosses zero. The data are consistent with a small, possibly real, possibly null, effect.
+## Which estimands survive the C1 fit
 
-## Matched vs full cohort: what the gap means
+| Estimand | Max weight | Verdict |
+|---|---:|---|
+| ATE | 257 | SEVERE, infeasible |
+| Trimmed ATE | 20 | PASS, population changes |
+| ATT | 5.0 | PASS |
+| ATO | 1.0 | PASS |
+| Matched ATT | 1.0 | PASS, 95% of treated matched |
 
-| Comparison | Risk difference |
-|---|---:|
-| PS matching (n = 615) | 0.027 |
-| Matched-cohort TMLE (n = 1,230) | 0.026 |
-| IPTW, full cohort (n = 1,693) | 0.037 |
-| Full-cohort TMLE, primary (n = 1,693) | 0.031 |
+The design supports an answer. Just not the one the protocol named.
 
-Under standard assumptions (no effect modification by baseline covariates, adequate overlap), the matched and full-cohort estimators target the **same** marginal treatment effect and should agree in expectation. The 0.005 to 0.011 gap here is most plausibly **sampling noise**, with the matched confidence intervals roughly 50 % wider because matching throws away controls (which is also an **efficiency cost**, not a bias signal).
+## The exclusions, not the adjustment, removed the confounding
 
-They would target *different* causal parameters in two specific situations:
+```{r fig-nc, fig.cap = "Two socioeconomic negative controls on the transfers-included contrast, refit on each nested cohort. Points are unadjusted risk differences with 95% intervals."}
+if (!is.null(cs_ncl)) {
+  nc <- cs_ncl[cs_ncl$contrast == "C4" &
+               cs_ncl$negative_control %in%
+                 c("nc_household_urban", "nc_cooking_fuel_wood_charcoal") &
+               cs_ncl$status == "estimated", ]
+  nc$control <- ifelse(grepl("urban", nc$negative_control),
+                       "urban household", "wood or charcoal fuel")
+  nc$rung <- factor(nc$cohort,
+                    levels = c("full cohort", "transfers excluded",
+                               "transfers and prior care excluded"),
+                    labels = c("full cohort\n(n = 2,197)",
+                               "transfers excluded\n(n = 1,703)",
+                               "+ prior care excluded\n(n = 1,616)"))
+  pd <- position_dodge(width = 0.35)
+  ggplot(nc, aes(rung, estimate, colour = control, group = control)) +
+    geom_hline(yintercept = 0, colour = "grey55") +
+    geom_line(position = pd, linewidth = 0.9, alpha = 0.6) +
+    geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper), width = 0.12,
+                  position = pd, linewidth = 0.9) +
+    geom_point(size = 4, position = pd) +
+    scale_colour_manual(values = c("#0072B2", "#CC79A7"), name = NULL) +
+    labs(x = NULL, y = "risk difference") + thm
+}
+```
 
-- **Effect modification by baseline covariates.** If the Rescue.Co effect were genuinely different in the overlap subset than in the full cohort, the two estimators would converge to different numbers in expectation.
-- **Positivity strain.** If propensity scores for some patients were near 0 or 1, the marginal full-cohort ATE would not be identifiable without model-based extrapolation, and the matched estimator would be the more conservative target.
+Both controls fail on the full cohort and turn null after the pre-registered transfer exclusion. On C1, the urban-household control fails and no restriction repairs it. Two rare controls are labelled inestimable rather than dropped.
 
-In rescueCo, propensity scores stayed inside [0.21, 0.81] and the gap is within roughly one standard error of each estimate, so the most parsimonious reading is sampling noise plus the efficiency cost of matching. The prespecified primary is the full-cohort TMLE because the protocol question is about all eligible ambulance patients; the matched-cohort row is a sensitivity analysis showing the answer is robust to the narrower target population.
+## Care processes stay out of the adjustment set
 
-## How a reviewer would read this
+Vitals recorded within an hour, and blood-pressure missingness, are predicted by treatment on three of the five contrasts (standardised differences up to 0.34). Transport mode changes the care process.
 
-- Every analytic decision was recorded before the comparative numbers above were produced.
-- Six methods that make different assumptions all point the same way.
-- The primary confidence interval crosses zero by a small amount; the workflow does not "confirm" the signal under prespecified diagnostics.
-- The audit log shows the three negative controls that were dropped and the reason.
+Conditioning on them would open collider paths through in-hospital care, so the locks keep them out, and the check documents why.
 
-The reviewer can reconstruct the entire analysis from the dossier and the lock fingerprint.
+## The pre-outcome decisions
 
-# 5. How cleanTMLE improves on existing tools
+| Contrast | Recommendation |
+|---|---|
+| Primary | Proceed |
+| C3, C4 | Proceed, FLAG caveat attached |
+| C1, C2 | Proceed with qualification. The ATE is not supported; the ladder moves to trimmed ATE, then ATT, then ATO, and the switch is logged with the SEVERE verdict as its trigger |
 
-## What was already available
+All fixed before the outcome store was joined.
 
-Many parts of this workflow already exist as separate tools:
+## Six-month mortality, down the ladder
 
-- The **TMLE method** has had implementations in R for over a decade (`tmle`, `tmle3`, `lmtp`, `survtmle`, `targeted`).
-- The **clean-room / staged-analysis idea** is described in published guidance papers (Muntner et al. 2024; McGrath et al. 2021), but as a workflow, not as software.
-- The **causalRisk package** (Brookhart, Breskin, Eledath) provides a cohort-specification grammar, cumulative-risk reporting, and weight diagnostics for time-to-event observational studies. It is the closest related R package and is the right point of comparison for the cumulative-risk reporting components.
-- **Propensity-score diagnostics** (overlap plots, balance tables, Love plots) are standard in most epidemiological pipelines.
+```{r fig-forest, fig.cap = "Risk differences with 95% intervals, one row per feasible estimand per contrast. Negative favours Rescue.Co."}
+if (!is.null(cs_lad) && any(grepl("death", cs_lad$outcome))) {
+  ld <- cs_lad[grepl("death", cs_lad$outcome), ]
+  ld$contrast[ld$contrast == "PRIMARY"] <- "Primary"
+  ld$estimand <- sub("^trimmed_ATE$", "Trimmed ATE", ld$estimand)
+  ld$row <- paste(ld$contrast, ld$estimand)
+  ld$row <- factor(ld$row, levels = rev(unique(ld$row)))
+  ggplot(ld, aes(estimate, row, colour = contrast)) +
+    geom_vline(xintercept = 0, colour = "grey55") +
+    geom_errorbar(aes(xmin = ci_lower, xmax = ci_upper), width = 0.18,
+                  linewidth = 0.9) +
+    geom_point(size = 4) +
+    scale_colour_manual(values = c("#0072B2", "#009E73", "#E69F00",
+                                   "#CC79A7", "#D55E00"), name = NULL) +
+    labs(x = "risk difference, six-month mortality", y = NULL) + thm
+} else {
+  plot.new(); text(0.5, 0.5, "Estimation chain running; fills on render.")
+}
+```
 
-## Where cleanTMLE adds something new
+```{r effects-note, results = "asis"}
+if (!is.null(cs_lad)) {
+  n_pairs <- length(unique(paste(cs_lad$contrast, cs_lad$outcome)))
+  if (n_pairs < 10)
+    cat("*", n_pairs, "of 10 contrast-outcome pairs completed so far;",
+        "the figure fills as the chain lands.*")
+}
+```
 
-The contribution is integrative rather than methodological. cleanTMLE provides:
+C2 reports no ATE at all. The C1 ATE appears once, as a logged override kept so the two pipelines can be reconciled; it carries its SEVERE label and a standard error several times larger than the bounded rows beside it.
 
-- A **fingerprinted analysis lock**, **audit log**, and **decision log**, so the prespecification is a code artefact, not a separate document.
-- A **pre-outcome plasmode candidate selector** that uses the real covariate and treatment structure but a synthetic outcome to compare candidate methods before unblinding.
-- A **data-quality stress test** that turns qualitative concerns about measurement error, missingness, and unmeasured confounding into quantitative reruns of the same simulation, on the same metrics.
-- A **prespecified GO / FLAG / STOP rule** that the workflow checks before allowing the comparative analysis.
-- An **outcome-access gate** inside the package: comparative-analysis functions refuse to run on an unauthorised lock.
+## The disaster outcome, re-analysed
 
-## Side-by-side comparison
+```{r tta-table, results = "asis"}
+if (!is.null(cs_lad) && any(grepl("time_to_arrival", cs_lad$outcome))) {
+  ld <- cs_lad[grepl("time_to_arrival", cs_lad$outcome),
+               intersect(c("contrast", "estimand", "estimate",
+                           "ci_lower", "ci_upper", "implausible"),
+                         names(cs_lad))]
+  for (cn in c("estimate", "ci_lower", "ci_upper"))
+    ld[[cn]] <- sprintf("%.1f", as.numeric(ld[[cn]]))
+  names(ld) <- c("Contrast", "Estimand", "Minutes", "CI lower",
+                 "CI upper", "Flagged")[seq_along(names(ld))]
+  cat(knitr::kable(ld, format = "pipe", row.names = FALSE), sep = "\n")
+} else {
+  cat("*Estimation in progress. This slide fills with the",
+      "time-to-arrival ladder rows.*")
+}
+```
 
-| Feature | TMLE-only packages | causalRisk | clean-room papers | **cleanTMLE** |
+Time to arrival once returned +14,637 minutes. Down the ladder, the bounded estimands agree that Rescue.Co arrives three to four and a half hours sooner, the override-only ATE row shows its strain in the interval width, and the implausibility guard checks every row against the raw arm summaries. Any one of its checks would have caught the original failure.
+
+## The simulation trap, on real data
+
+```{r fig-designcmp, fig.cap = "Coverage under the stressed outcome surface, 200 replicates per design. Keeping the observed treatment degrades every estimand, on the sound design too."}
+if (!is.null(cs_cmp)) {
+  dc <- cs_cmp[cs_cmp$confounding == 2 & cs_cmp$modification == 0, ]
+  dc$design <- ifelse(dc$design == "generate_treatment",
+                      "treatment redrawn", "observed treatment kept")
+  dc$estimand <- sub("^trimmed_ATE$", "Trimmed ATE",
+                     sub("^matched_ATT$", "Matched ATT", dc$estimand))
+  dc$estimand <- factor(dc$estimand, levels = rev(c(
+    "ATE", "Trimmed ATE", "ATT", "ATO", "Matched ATT")))
+  ggplot(dc, aes(coverage, estimand, colour = design)) +
+    geom_vline(xintercept = 0.95, linetype = "dashed", colour = "grey55") +
+    geom_vline(xintercept = 0.90, linetype = "dotted", colour = "grey55") +
+    geom_line(aes(group = estimand), colour = "grey70", linewidth = 0.9) +
+    geom_point(size = 4.5) +
+    facet_wrap(~ contrast) +
+    scale_colour_manual(values = c(`treatment redrawn` = "#0072B2",
+                                   `observed treatment kept` = "#D55E00"),
+                        name = NULL) +
+    scale_x_continuous(limits = c(0.55, 1)) +
+    labs(x = "95% interval coverage under stress", y = NULL) + thm
+}
+```
+
+A support map built on the kept-treatment design would declare sound designs infeasible. It manufactures the failure it was asked to detect.
+
+## The workflow audited its own earlier mistake
+
+The earlier single-contrast run had a design flaw. Its primary outcome was the common category of a 92%-prevalence dichotomy, the cohort-adequacy check recorded a stop, and the pipeline proceeded through an unlogged override.
+
+The rebuild's reconciliation surfaced this because the record kept both entries, the stop and the estimate, with nothing between them. The fix went to the design: mortality became the primary outcome, and overrides now require a logged reason. The record makes gaps findable, including the workflow's own.
+
+## How a reviewer reads the case study
+
+- Every verdict, declaration, and switch was fixed and logged before the outcome store was joined.
+- The protocol's primary comparison was refused on the record, with the evidence attached, and the reported estimands are labelled with the populations they describe.
+- Where the two pipelines are comparable, the clean-room estimates agree with the parallel unblinded analysis to within fractions of a standard error, tracked row by row in a released reconciliation table.
+
+# 5. Where this sits
+
+## Side by side
+
+| Feature | TMLE packages | causalRisk | Clean-room papers | cleanTMLE |
 |---|:---:|:---:|:---:|:---:|
-| Targeted-learning estimation | ✓ | -- | -- | ✓ |
-| Cohort-specification grammar | -- | ✓ | -- | ✓ |
-| Cumulative-risk reporting | partial | ✓ | -- | ✓ |
-| Weight diagnostics | -- | ✓ | -- | ✓ |
-| Fingerprinted analysis lock | -- | -- | guidance | ✓ |
-| Audit + decision logs | -- | -- | guidance | ✓ |
-| Outcome-blind plasmode candidate selection | -- | -- | -- | ✓ |
-| **Data-quality stress test** | -- | -- | -- | **✓** |
-| Prespecified GO / FLAG / STOP rule | -- | -- | guidance | ✓ |
-| Software outcome-access gate | -- | -- | -- | ✓ |
+| Targeted-learning estimation | yes | -- | -- | yes |
+| Cohort grammar, cumulative-risk reporting | partial | yes | -- | yes |
+| Graded support verdict, per-estimand feasibility | -- | -- | -- | yes |
+| Pre-registered estimand ladder, logged switching | -- | -- | -- | yes |
+| Outcome-blind support map | -- | -- | -- | yes |
+| Plasmode candidate selection, DQ stress test | -- | -- | -- | yes |
+| Fingerprinted lock and design log | -- | -- | guidance | yes |
 
-cleanTMLE shares the cohort-specification and cumulative-risk reporting concepts with causalRisk, then adds the prespecification, simulation, stress-test, and gate machinery on top.
+TMLE estimation is a decade old; the staged idea is published guidance. The new part is answering the estimability question inside the blind phase, with the record to prove when it was answered.
 
-## When to use cleanTMLE
+## When to use it, and its limits
 
-- Methods development around outcome-blind workflows.
-- Outcome-blind estimator selection for observational studies.
-- Protocol and statistical-analysis-plan development for real-world evidence projects.
-- Exploratory or lower-stakes RWE analyses where structured pre-outcome review is useful.
+Use it when a reviewer will ask whether a decision was made before you saw the answer: estimator and estimand choices in observational studies, SAP development, real-world evidence work.
 
-For high-stakes confirmatory studies, cleanTMLE should be embedded inside external governance — role separation, credentialed data access, an independent review team — that the software cannot provide.
-
-## What it does *not* do
-
-- It does not automate study design.
-- It does not validate the source data or the phenotypes.
-- It does not guarantee that the assumptions hold.
-- It does not replace negative controls or post-outcome sensitivity analyses.
-- It does not control raw-data access outside the package.
-
-# Open questions for collaborators
+It does not automate design, validate data or phenotypes, guarantee assumptions, or replace negative controls and post-outcome sensitivity analysis. For confirmatory studies it belongs inside institutional governance, with role separation and independent review. An `enforce = TRUE` mode withholds estimation until a recorded design review, where institutions want that in software.
 
 ## Where I want input
 
-1. **Severity ranges.** How should we elicit and document the (sensitivity, specificity), missingness, and unmeasured-confounding ranges for a new study so that a reviewer accepts them?
-2. **Decision thresholds.** Are the current defaults reasonable, or should they scale with the size of the effect being estimated and the Type-I error budget?
-3. **Role separation.** What minimum personnel structure should sit on top of the software workflow for submission-grade studies?
-4. **Plasmode faithfulness.** Is the synthetic outcome model rich enough, or do we need richer data-generating processes (effect modification, time-varying treatment)?
-5. **Negative-control policy.** When the automatic data-cleaning filter drops some of the prespecified negative controls, should we re-elicit before unblinding or accept a narrower panel and document it?
-6. **Publication venue.** Methods journal, applied RWE journal, or both?
+1. The harshest support-map surfaces behave like strong unmeasured confounding, so a whole-grid pass rule conflates two threats. How should the plausible region be elicited and pre-registered?
+2. Is SEVERE the right default trigger, and trimmed ATE, ATT, ATO the right default order?
+3. How should severity ranges for the stress test be documented so a reviewer accepts them?
+4. The matched ATT is the most robust rung on every map here and the least interpretable population. Sensitivity analysis, or candidate primary?
 
 ## Resources
 
-- Package: <https://github.com/amertens/cleanTMLE>
+- Package: <https://github.com/amertens/cleanTMLE> (v0.2.0)
 - Manuscript draft: `reports/manuscript_outcome_blind_dq.qmd`
-- Case study: `rescueCo/reports/rescueco_clean_room_case_study.qmd`
-- Vignette: `cleanTMLE/vignettes/cleanTMLE-staged-analysis.qmd`
+- Case-study artifacts: `rescueCo/results/multiarm/`
+- Vignettes: staged workflow, and the function reference
 
 Thank you. Questions and pushback welcome.
 
-# Appendix A: Conceptual tables and roadmap
+# Appendix A: Concepts and alignment
 
 ## Conceptual layers in the staged workflow
 
 | Layer | Description |
 |---|---|
-| Causal question | Clinical or policy question framed as a target trial or causal contrast. |
-| Causal estimand | Counterfactual treatment effect of interest (e.g. marginal risk difference). |
-| Identification assumptions | Conditions under which the causal estimand can be expressed as an observed-data parameter. |
-| Statistical estimand | Observed-data parameter identified under the assumptions above. |
-| Estimator | Algorithm used to estimate the statistical estimand (e.g. TMLE, IPTW, matching). |
-| Pre-outcome diagnostic | Quantity used for design checks: simulated bias, RMSE, coverage, ESS, balance, NC performance. |
-| Governance decision | Whether prespecified criteria support proceeding, require review, or require stopping. |
+| Causal question | Clinical or policy question framed as a target trial. |
+| Causal estimand | Counterfactual effect of interest, e.g. marginal risk difference. |
+| Identification assumptions | Conditions under which the estimand equals an observed-data parameter. |
+| Statistical estimand | That observed-data parameter. |
+| Estimand ladder | Pre-registered fallbacks and the verdict that triggers a switch. |
+| Estimator | TMLE, IPTW, matching. |
+| Pre-outcome diagnostic | Support verdict, feasibility, simulated bias and coverage, balance, negative controls. |
+| Governance decision | Proceed, proceed with qualification, or stop (Muntner et al. 2024). |
 
-## Causal roadmap and where cleanTMLE sits
+## The causal roadmap, and what the package covers
 
 ```{mermaid}
 flowchart TD
     A["1. Causal question and target trial"] --> B["2. Observed data and source characterisation"]
     B --> C["3. Identification assumptions"]
-    C --> D["4. Statistical estimand"]
-    D --> E["5. Lock candidate estimators and decision thresholds"]
-    E --> F["Pre-outcome checks: checkpoints, plasmode, DQ stress"]
-    F --> G["Pre-outcome decision: GO / FLAG / STOP"]
-    G -->|GO or FLAG| H["Unblind and run locked primary analysis"]
-    H --> I["At-outcome diagnostics: negative controls, balance"]
-    I --> J["Post-outcome sensitivity: E-value, QBA, causal-gap"]
-    J --> K["Interpretation and transportability"]
+    C --> D["4. Statistical estimand + declared ladder"]
+    D --> E["5. Lock candidate estimators and thresholds"]
+    E --> F["Design stage: support, feasibility, support map, plasmode, DQ stress, negative controls"]
+    F --> G["Design report: proceed / qualify / stop"]
+    G --> H["Estimate the declared primary and feasible fallbacks"]
+    H --> I["Post-outcome sensitivity: E-value, delta, QBA"]
+    I --> J["Interpretation and transportability"]
+    style C fill:#e6e6e6,stroke:#333,color:#000
+    style D fill:#e6e6e6,stroke:#333,color:#000
     style E fill:#e6e6e6,stroke:#333,color:#000
     style F fill:#e6e6e6,stroke:#333,color:#000
     style G fill:#e6e6e6,stroke:#333,color:#000
     style H fill:#e6e6e6,stroke:#333,color:#000
 ```
 
-## Governance stack
-
-```{mermaid}
-flowchart LR
-    A[Protocol and estimand] --> B[Analysis-lock object]
-    B --> C[Audit trail]
-    C --> D[Decision log]
-    D --> E[Pre-outcome decision point]
-    E --> F[Primary analysis]
-    X[External validation studies] --> E
-    Y[Independent review and role governance] --> E
-    Z[Data standards and provenance] --> E
-```
-
 ## Regulatory alignment (excerpt)
 
-| Roadmap component | FDA / EMA / ICH anchor | What cleanTMLE operationalises |
+| Roadmap component | FDA / EMA / ICH anchor | cleanTMLE |
 |---|---|---|
-| Causal question | Hernán target-trial framework; FDA RWE Framework; ICH M14 | Locked estimand, target trial timing |
-| Statistical estimand | ICH E9(R1); FDA RWE Considerations | `attach_estimand()`, lock fingerprint |
-| Estimator selection | FDA non-interventional studies; ICH M14 | `tmle_candidate()`, `lock_primary_tmle_spec()` |
-| Pre-outcome DQ stress | Source reliability (FDA/EMA); validation evidence | `run_plasmode_dq_stress()` |
-| Stage gate (GO/FLAG/STOP) | Internal protocol governance | `gate_all()`, `authorize_outcome_analysis()` |
-| Post-outcome sensitivity | FDA non-interventional; ICH E9(R1) | `compute_evalue()`, `tipping_point_sensitivity()` |
+| Causal question | Target-trial framework; FDA RWE Framework; ICH M14 | Lock record; `design_report(protocol = ...)` emulation table |
+| Identification (positivity) | ICH E9(R1) | `assess_support()`, `estimand_feasibility()` |
+| Statistical estimand | ICH E9(R1); FDA RWE Considerations | `declare_estimand_ladder()`, `run_estimand_ladder()` |
+| Estimator selection | FDA non-interventional studies; ICH M14 | `tmle_candidate()`, `select_tmle_candidate()` |
+| Pre-outcome DQ stress | Source reliability (FDA, EMA) | `run_plasmode_dq_stress()`, `simulate_support()` |
+| Post-outcome sensitivity | FDA non-interventional; ICH E9(R1) | `compute_evalue()`, `run_delta_sensitivity()` |
 
-## DQ threats and parameter inputs
+## The stress-test threat families
 
-| Threat | Mechanism | Severity parameters |
-|---|---|---|
-| Covariate missingness | MCAR on a covariate subset, median impute | proportion missing |
-| Exposure misclassification | Flip A with given (sens, spec) | (sens, spec) pairs |
-| Outcome misclassification | Flip Y with given (sens, spec), optional differential | (sens, spec) pairs |
-| Unmeasured confounding | Latent U shifts both A and Y | $\beta_{UA}$, $\beta_{UY}$ |
-
-## Threat-to-assumption matrix
-
-| Scenario | Assumption nominally probed | What it does NOT probe |
-|---|---|---|
-| Covariate MCAR | Some forms of missing-data robustness | MAR / MNAR; phenotype validity |
-| Exposure misclassification | Treatment-measurement validity | Differential misclassification by outcome |
-| Outcome misclassification | Outcome-measurement validity | Time-varying outcome ascertainment |
-| Unmeasured confounding | Exchangeability | Multiple unmeasured Us; effect modification by U |
-
-# Appendix B: Case-study setup (Rescue.Co)
-
-## Cohort flow
-
-```{mermaid}
-flowchart TD
-    A["Registry observations"]
-    B["Ambulance arrivals at participating hospitals"]
-    C["Direct-from-scene cohort<br/>(inter-facility transfers excluded)"]
-    D["Analytic cohort<br/>n = 1,693 (1,013 Rescue.Co + 680 other)"]
-    E["Complete 6-month GOSE<br/>n = 1,277"]
-    F["Matched subset<br/>n = 615 (matching) / 1,230 (matched-TMLE pseudo-cohort)"]
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    D --> F
-    D -. "missing GOSE<br/>n = 416 (24.6%)" .-> X1["Handled by IPCW"]
-```
-
-## Estimand grid (case-study estimators)
-
-| # | Estimator | Outcome | Cohort |
+| Threat | Mechanism | Probes | Does not probe |
 |---|---|---|---|
-| A | PS-matched logistic regression | Binary | Matched |
-| B | PS-matched TMLE | Binary | Matched |
-| C | Outcome-blind plasmode candidate selection | -- | -- |
-| D | Full-cohort TMLE | Binary | Full |
-| E | IPTW (stabilised) | Binary | Full |
-| F | Complete-outcome TMLE with IPCW weights | Binary | Complete-outcome |
-| G | Survival TMLE (experimental) | Survival | Full |
-| H | Cox PH (sensitivity) | Survival | Full |
+| Covariate missingness | MCAR, MAR, MNAR masks; median impute | Imputation robustness | Phenotype validity |
+| Exposure misclassification | Flip A at given sens and spec | Treatment measurement | Differential error by outcome |
+| Outcome misclassification | Flip Y, optionally per arm | Outcome measurement | Time-varying ascertainment |
+| Near-positivity | Amplify covariate-treatment association | Estimator strain | The realised design's support |
+| Unmeasured confounding | Latent U shifts A and Y | Exchangeability | Multiple latent confounders |
 
-## Target-trial timing table
+# Appendix B: Case-study detail
 
-| Design element | Rescue.Co implementation | Pre-outcome status |
-|---|---|---|
-| Index date / time zero | Trauma-related ambulance arrival at participating hospital | Locked in `identify_interval()` |
-| Treatment definition | Rescue.Co EMS (A=1) vs other ambulance (A=0) at index | Locked in `identify_treatment()` |
-| Reference group | Other ambulance services, same hospitals + period | Locked |
-| Eligibility window | 2018-2024 trauma transports, direct-from-scene only | Locked |
-| Covariate window | At or before index | Locked |
-| Outcome window | 6 months from index | Locked |
-| Outcome definition | GOSE > 4 at 6 months | Locked |
-| Missingness / censoring | Missing 6-month GOSE; primary complete-outcome + IPCW sensitivity | Locked |
-| Switching / discontinuation | Not applicable (point exposure at scene) | Locked |
-| Administrative end of FU | Fixed at 6 months | Locked |
-| Excluded intercurrent events | Inter-facility transfers excluded; recorded as `is_transfer` | Locked |
+## The declared ladder, per lock
 
-## Event-process table
+Identical across the five locks, declared before outcome access: primary ATE with IPCW for missing outcomes; fallbacks trimmed ATE [0.05, 0.95], then ATT, then ATO; trigger SEVERE. The matched ATT is assessed in the feasibility table and support map as a design-stage sensitivity, not estimated on the ladder.
 
-| Event-like quantity | Class | Handling |
-|---|---|---|
-| GOSE > 4 at 6 months | Event of interest (outcome) | Estimand: marginal RD on this binary outcome |
-| GOSE missing at 6 months | Missingness | Primary: complete-outcome; IPCW sensitivity |
-| In-hospital death before 6-month GOSE | Outcome component / intercurrent event | Coded as GOSE = 1 (worst-rank) |
-| Inter-facility transfer at index | Exclusion | Excluded from analytic cohort |
-| Treatment switching / crossover | Not applicable | Point exposure at scene |
-| 6-month follow-up window end | Administrative end of FU | Fixed at 6 months |
+Propensity library: the `build_sl_library()` preset for wide registry designs (penalised logistic learners, PCA-reduced GLMs, marginal mean; no tree learners, which can separate arms on wide indicator sets), ten folds.
 
-## Target-population table
+## Negative-control ladder, exact rows
 
-| Procedure | Target population |
-|---|---|
-| Crude (complete-case) | Complete-outcome subset (n = 1,277) |
-| PS matching | Matched overlap subset (n = 615) |
-| IPTW (stabilised) | Full eligible cohort (n = 1,693) |
-| Full-cohort TMLE | Full eligible cohort (n = 1,693) |
-| Matched-cohort TMLE | Matched overlap subset (n = 1,230) |
-| Complete-outcome TMLE w/ IPCW weights | Complete-outcome rows, weighted to full-cohort target |
+| Contrast | Cohort | Urban household | Wood or charcoal fuel |
+|---|---|---:|---:|
+| C4 | Full (n = 2,197) | +0.068 | -0.052 |
+| C4 | Transfers excluded (n = 1,703) | +0.001 | +0.000 |
+| C4 | Prior care also excluded (n = 1,616) | -0.003 | -0.001 |
+| C1 | Full (n = 8,323) | +0.013 | -0.006 |
 
-## Weight-diagnostics table
+Hypertension is null on every rung. Insulin-treated diabetes and HIV on ART are inestimable (a cell below 5 events) and labelled as such. A TMLE-adjusted variant is released with a caveat: on restricted rungs it conditions on design columns that are near-copies of the socioeconomic controls.
 
-| Weight type | Source | Reporting | Prespecified instability flag |
-|---|---|---|---|
-| Treatment weights (stabilised) | `fit_ps_superlearner()` | Mean, SD, 99th pct, max, Kish ESS | Max > 10 or > 1 % above 5 |
-| IPCW weights | `run_ipcw_tmle()` | Mean, SD, 99th pct, max | Max > 10 |
-| Combined | Product of treatment + IPCW | Mean, SD, max, ESS | Max > 15 or ESS < 30 % of n |
+## The support-map reading rule, from the design log
 
-## Estimator-estimand pairs
+Recorded before estimation: the maps are read over the moderate-confounding region (synthetic strength up to 1), with the whole-grid pass reported as a conservative bound.
 
-| Candidate | Library | Truncation | Missingness | Status |
-|---|---|---:|---|---|
-| Crude | n/a | n/a | Complete case | Reference |
-| PS matching | GLM PS | n/a | Complete case | Secondary |
-| IPTW (stabilised) | GLM PS | 0.01 | Complete case | Secondary |
-| Full-cohort TMLE | SL ensemble | 0.01 | Complete case | **Primary** |
-| Matched-cohort TMLE | SL ensemble (matched) | n/a | Complete case | Sensitivity (target pop) |
-| Complete-outcome TMLE w/ IPCW | SL ensemble + SL IPCW | 0.01 | IPCW | Sensitivity (missingness) |
+The harshest rung stresses every weighting-based estimand at once, including on the PASS-verdict primary cohort, so a whole-grid rule conflates support failure with confounding stress. The signature used instead: failure at the mildest surface means a support problem (C1's ATE, coverage 0.87 before any synthetic confounding); failure only under stress, hitting all unmatched estimands together, means stress (the primary cohort at strength 2, where the matched ATT holds 0.93 to 0.96).
 
-## Checkpoint dashboard (case study)
+## Candidate selection under stress (earlier single-contrast lock)
 
-| Stage | Evidence | Threshold | Decision |
-|---|---|---|:---:|
-| Stage 0 protocol/setup | Target-trial timing, SAP, lock fingerprint | All design elements specified before data access | GO |
-| Stage 1b cohort adequacy | `checkpoint_cohort_adequacy()`, attrition table | min_n_per_arm = 200; min_events = 50 | GO |
-| Stage 2a overlap / balance | PS in [0.21, 0.81]; balanced SMDs; ESS 78 % | PS in [0.01, 0.99]; SMD <= 0.10; max wt <= 10 | GO |
-| Stage 2b baseline plasmode | bias < 0.001; coverage 0.94 | bias <= 0.01; coverage >= 0.90; SE/SD in (0.8, 1.2) | GO |
-| Stage 2c DQ stress | Minimax rule selects `glm_t01` | Each scenario within thresholds across severities | GO |
-| Stage 3 negative controls | 2 of 5 NCs survived NZV; both pass | All analysed NCs pass at α = 0.05 | GO with FLAG |
-| Gate authorisation | `authorize_outcome_analysis()` | All preceding GO or documented FLAG | GO |
+Four TMLE candidates varying propensity library and truncation tie on the clean baseline (RMSE within 0.0002), where the minimum-RMSE rule would lock `glm_t01`. Under the five-threat sweep the worst-case RMSE ratios separate: 1.82, 1.73, 1.53, and 1.27 for `ensemble_t05`.
 
-## Decision-log example
+The minimax rule locks `ensemble_t05`. The candidate selected for clean-data efficiency was the most exposed under prespecified stress. Reported at 50 replicates as a workflow illustration; 200 is the inferential bar.
 
-| Timestamp | Stage | Issue | Decision | Y visible? |
-|---|---|---|:---:|:---:|
-| 2026-01-12 09:14 | 2a | Three NCs failed NZV filter | FLAG | No |
-| 2026-01-12 11:02 | 2c | DQ stress at n_sims = 3 (fast demo) | FLAG | No |
-| 2026-01-12 14:45 | Gate | All checkpoints GO or documented FLAG | GO | No |
+## Effect estimates, exact rows
 
-## Sensitivity analyses mapped to assumptions
-
-| Assumption | Sensitivity analysis or diagnostic |
-|---|---|
-| Exchangeability | Negative-control outcomes; E-value on primary estimate |
-| Positivity | Truncation-grid sensitivity; weight + ESS reporting |
-| Consistency | Documented exposure phenotype; direct-from-scene restriction |
-| Dependent censoring | IPCW-TMLE on binary outcome |
-| Missing outcome | IPCW-TMLE vs complete-case TMLE comparison |
-| Composite / competing | Coherence check via `clean_check_event_processes()` |
-
-## Stage 2b feasibility plasmode metrics
-
-| Candidate | Bias | RMSE | Coverage | SE/SD |
-|---|---:|---:|---:|---:|
-| `glm_t01` | < 0.001 | 0.018 | 0.94 | 1.01 |
-| `glm_t05` | < 0.001 | 0.018 | 0.94 | 1.01 |
-
-## Stage 3 negative-control TMLE
-
-| Negative control | Estimate | SE | p-value | Pass |
-|---|---:|---:|---:|:---:|
-| chronic hypertension | 0.00248 | 0.0072 | 0.73 | ✓ |
-| household urban | -0.00077 | 0.0071 | 0.91 | ✓ |
-
-## Negative-control attrition
-
-```{mermaid}
-flowchart LR
-    A["5 prespecified NCs"]
-    B["NZV filter at data-sanitisation"]
-    C["3 dropped:<br/>chronic_diabetes_insulin,<br/>chronic_hiv_art, fuel_wood"]
-    D["2 analysed:<br/>chronic_hypertension,<br/>household_urban"]
-    E["Both pass"]
-    A --> B
-    B --> C
-    B --> D
-    D --> E
+```{r effects-table-appendix, results = "asis"}
+if (!is.null(cs_lad) && any(grepl("death", cs_lad$outcome))) {
+  ld <- cs_lad[grepl("death", cs_lad$outcome),
+               intersect(c("contrast", "estimand", "n", "estimate",
+                           "ci_lower", "ci_upper", "p_value",
+                           "support_verdict"), names(cs_lad))]
+  for (cn in c("estimate", "ci_lower", "ci_upper", "p_value"))
+    ld[[cn]] <- sprintf("%.3f", as.numeric(ld[[cn]]))
+  names(ld) <- c("Contrast", "Estimand", "N", "RD", "CI lower", "CI upper",
+                 "p", "Support")[seq_along(names(ld))]
+  cat(knitr::kable(ld, format = "pipe", row.names = FALSE), sep = "\n")
+} else {
+  cat("*Fills from the estimation outputs on render.*")
+}
 ```
 
-## Rescue.Co binary-outcome estimates (six estimators)
-
-| Method | Target population | N | RD | 95% CI |
-|---|---|---:|---:|---|
-| Crude | Complete-outcome subset | 1,277 | 0.0370 | (0.003, 0.071) |
-| PS matching | Matched subset | 615 | 0.0272 | (-0.020, 0.074) |
-| IPTW (stabilised) | Full eligible cohort | 1,693 | 0.0366 | (0.002, 0.071) |
-| Full-cohort TMLE | Full eligible cohort | 1,693 | 0.0306 | (-0.001, 0.062) |
-| Matched-cohort TMLE | Matched subset | 1,230 | 0.0259 | (-0.015, 0.067) |
-| Complete-outcome TMLE w/ IPCW | Complete-outcome rows, weighted to full-cohort | 1,277 | 0.0326 | (-0.000, 0.066) |
-
-# Appendix C: Case-study diagnostic figures
-
-## PS overlap density
-
-![Propensity-score density by treatment group with truncation cutoffs marked.](../rescueCo/results/ps_overlap_density.png)
-
-## Love plot: matched vs unweighted
-
-![Standardised mean differences for retained covariates before and after PS matching.](../rescueCo/results/love_plot.png)
-
-## Three-way Love plot: unweighted vs matched vs IPTW
-
-![Three-way balance: unweighted, after matching, and after stabilised IPTW.](../rescueCo/results/weighted_love_plot.png)
-
-## IPTW weight distribution
-
-![Distribution of stabilised IPTW weights by treatment group.](../rescueCo/results/weight_distribution.png)
-
-## Plasmode simulation performance
-
-![Plasmode performance across candidate estimators (true ATE = 0).](../rescueCo/results/plasmode_performance.png)
-
-## Binary-outcome estimator forest plot
-
-![Forest plot of binary-outcome risk differences across the six prespecified estimators.](../rescueCo/results/cleanTMLE_forest_plot.png)
-
-## Influence-curve distribution (full-cohort TMLE)
-
-![Influence-curve distribution for the full-cohort TMLE primary estimator.](../rescueCo/results/ic_plot.png)
-
-## Clever covariate H_n by treatment arm
-
-![Clever covariate H_n by treatment arm (full-cohort TMLE).](../rescueCo/results/clever_covariate_plot.png)
-
-## Counterfactual cumulative-risk curves (full-cohort TMLE)
-
-![Counterfactual cumulative-risk curves with CI bands, full-cohort TMLE.](../rescueCo/results/risk_curves_full_ci.png)
-
-## Kaplan-Meier curves by treatment arm (descriptive)
-
-![KM survival curves by treatment arm; descriptive only.](../rescueCo/results/km_curves.png)
-
-# Appendix D: Helpers and outcome-access taxonomy
-
-## Outcome-access taxonomy
-
-| Label | Definition |
-|---|---|
-| No Y access | Function uses W, A, metadata, lock objects, synthetic outcomes, or diagnostics not involving Y |
-| Marginal Y only | Function uses event counts or marginal outcome support, not the A-Y association |
-| Synthetic Y only | Function uses plasmode-generated outcomes |
-| Negative-control Y only | Function uses prespecified NC outcomes, not the primary outcome |
-| Primary Y | Function uses the observed primary outcome for treatment-effect estimation |
-
-These labels describe what cleanTMLE exported functions use internally. They do not prevent a user with raw data access from inspecting outcomes outside the package.
-
-## Helper functions by dossier component
-
-| Dossier component | cleanTMLE artefact | Outcome access |
-|---|---|---|
-| Protocol and target-trial timing | `attach_estimand()` | No Y |
-| Cohort flow / attrition | `attrition_table()` | No Y |
-| Event-process classification | `clean_event_process_table()`, `clean_check_event_processes()` | No Y |
-| Covariate and missingness summary | `make_table1()`, missingness checks | No Y |
-| PS overlap and balance | `compute_ps_diagnostics()`, `love_plot()`, `love_plot_threeway()` | No Y |
-| Weight diagnostics | `clean_weight_diagnostics()`, `extreme_weights()` | No Y |
-| Event-count adequacy | `checkpoint_cohort_adequacy()` | Marginal Y only |
-| Baseline plasmode | `run_plasmode_feasibility()`, `select_tmle_candidate()` | Synthetic Y only |
-| DQ stress test | `run_plasmode_dq_stress()`, `summarize_dq_degradation()` | Synthetic Y only |
-| Negative controls | `run_residual_confounding_stage()` | Negative-control Y only |
-| Composite gate | `gate_all()` (+ planned `checkpoint_dashboard()`) | No Y |
-| Decision and audit logs | `export_decision_log()`, `save_decision_log()` | No Y |
-| Authorisation | `authorize_outcome_analysis()` | No Y |
-| Primary analysis | `run_clean_tmle()`, `fit_tmle_*()` family, `run_ipcw_tmle()` | Primary Y |
-
-# Appendix E: Step-by-step Rescue.Co walkthrough
-
-## How to read this appendix
-
-This appendix walks through the cleanTMLE analysis of the Rescue.Co data, function by function. Each slide shows one step: what we are trying to learn, the cleanTMLE function that does it, what comes back, and what the reviewer would see.
-
-You can run these in order on your own data. The full reproducible version is in `rescueCo/reports/rescueco_clean_room_case_study.qmd`.
-
-## Step 1 — Write down the question
-
-Before any code runs, the team writes down the question in target-trial language: the cohort, the treatment, the comparison group, the outcome, and the follow-up window. This becomes the **estimand** attached to the analysis lock.
-
-```r
-lock <- attach_estimand(
-  lock,
-  description           = "Effect of Rescue.Co transport on 6-month GOSE > 4",
-  population            = "Adults arriving by ambulance, direct-from-scene",
-  treatment_strategies  = c("Rescue.Co", "Other ambulance"),
-  outcome_label         = "GOSE > 4 at 6 months",
-  followup              = "6 months",
-  contrast              = "risk_difference"
-)
-```
-
-## Step 2 — Lock the analytic plan
-
-The analytic plan is captured as a single object that gets a sha256 fingerprint. Any later change to the plan changes the fingerprint, which is visible to the reviewer.
-
-```r
-lock <- create_analysis_lock(
-  data        = rescueco_cohort,
-  treatment   = "is_rescueco",
-  outcome     = "gose_good",
-  covariates  = c("age", "sex", "iss", "gcs", "distance", "..."),
-  sl_library  = c("SL.glm", "SL.glmnet", "SL.ranger"),
-  seed        = 2026
-)
-```
-
-The lock records the data shape, the covariate list, the learner library, and the seed.
-
-## Step 3 — Build a cohort-flow ledger
-
-`attrition_table()` records each inclusion and exclusion as a row, so the cohort flow is a code artefact rather than a separately maintained CONSORT figure.
-
-```r
-attr_tbl <- attrition_table(
-  raw_data, rules = list(
-    "All trauma transports"     = ~ TRUE,
-    "Ambulance arrivals"        = ~ arrival_mode == "ambulance",
-    "Direct-from-scene"         = ~ !is_transfer,
-    "Within eligibility window" = ~ between(date, "2018-01-01", "2024-12-31"),
-    "Analytic cohort"           = ~ !missing_baseline
-  )
-)
-```
-
-## Step 4 — Classify the event process
-
-`clean_event_process_table()` writes down what each event-like quantity is: the outcome, a competing event, censoring, an exclusion, an intercurrent event, or the administrative end of follow-up.
-
-```r
-events <- clean_event_process_table(
-  outcome      = "gose_good",
-  missingness  = "gose_missing",
-  intercurrent = list("in-hospital death" = "worst-rank coded as GOSE = 1"),
-  exclusions   = list("inter-facility transfer" = "is_transfer"),
-  admin_end_fu = "180 days from index"
-)
-```
-
-## Step 5 — Cohort adequacy check
-
-Before any modelling, check that the cohort has enough people and enough events to support the estimand. This is the first software-enforced checkpoint.
-
-```r
-audit <- create_audit_log(lock)
-cp1   <- checkpoint_cohort_adequacy(
-  lock,
-  min_n_per_arm = 200,
-  min_events    = 50
-)
-audit <- record_checkpoint(audit, cp1)
-```
-
-If the threshold is missed, the checkpoint returns FLAG or STOP and the reviewer sees it.
-
-## Step 6 — Design diagnostics (propensity score)
-
-Fit the propensity score and produce overlap and balance diagnostics. The fit uses the locked SuperLearner library.
-
-```r
-ps      <- fit_ps_superlearner(lock)
-ps_diag <- compute_ps_diagnostics(ps)
-plot(ps_diag)                          # overlap density
-love_plot_threeway(lock, ps$weights)   # SMDs: unweighted vs matched vs IPTW
-```
-
-The reviewer sees the overlap density and the three-way Love plot before authorisation.
-
-## Step 7 — Weight diagnostics
-
-Standardised treatment weights and IPCW weights are reviewed for stability and effective sample size. This is the weight equivalent of the cohort-adequacy check.
-
-```r
-weight_diag <- clean_weight_diagnostics(
-  weights    = ps$weights,
-  treatment  = lock$data[[lock$treatment]],
-  covariates = lock$data[, lock$covariates]
-)
-extreme_weights(ps$weights, top_n = 10)
-cp2 <- checkpoint_balance(ps_diag, max_smd = 0.10, lock_hash = lock$lock_hash)
-audit <- record_checkpoint(audit, cp2)
-```
-
-## Step 8 — Baseline plasmode candidate selection
-
-Two candidate TMLE specifications are compared on a synthetic outcome generated from the real covariate and treatment structure. The candidate-selection rule is locked in advance.
-
-```r
-candidates <- list(
-  tmle_candidate("glm_t01", "GLM PS, trunc = 0.01", truncation = 0.01),
-  tmle_candidate("glm_t05", "GLM PS, trunc = 0.05", truncation = 0.05)
-)
-plas <- run_plasmode_feasibility(
-  lock,
-  tmle_candidates = candidates,
-  effect_sizes    = c(0.03, 0.05),
-  reps            = 200
-)
-```
-
-This is the first place where a "results-like" number appears, but the outcome involved is synthetic, not the real outcome.
-
-## Step 9 — Data-quality stress test
-
-Repeat the same simulation under prespecified data-quality threats. The minimax rule chooses the candidate that performs best in its worst-case scenario.
-
-```r
-dq_results <- run_plasmode_dq_stress(
-  lock,
-  tmle_candidates = candidates,
-  scenarios       = default_dq_scenarios(),  # missingness, exposure & outcome misclass, latent U
-  n_reps          = 200
-)
-selected <- select_tmle_candidate(plas, rule = "min_max_rmse",
-                                  dq_results = dq_results)
-```
-
-`selected` is the locked primary specification.
-
-## Step 10 — Negative-control screen
-
-A small panel of pre-treatment outcomes that should not be affected by the exposure. This is a different probe of residual confounding from what plasmode or stress testing can give.
-
-```r
-nc_results <- run_residual_confounding_stage(
-  lock,
-  negative_controls = c("chronic_hypertension", "household_urban",
-                        "chronic_diabetes_insulin", "chronic_hiv_art",
-                        "fuel_wood")
-)
-cp3   <- checkpoint_residual_bias(nc_results)
-audit <- record_checkpoint(audit, cp3)
-```
-
-Three of the five NCs failed the automatic data-cleaning filter and were dropped. The drops are recorded in the audit log.
-
-## Step 11 — Decision log entry
-
-At each stage the analyst writes a short structured decision entry. The reviewer reads these alongside the checkpoint records.
-
-```r
-audit <- log_decision_entry(
-  audit,
-  stage     = "Stage 3 NC",
-  decision  = "FLAG",
-  rationale = "Three NCs dropped by NZV filter; residual-confounding probe rests on 2 of 5",
-  reviewer  = "lead_analyst",
-  y_visible = FALSE
-)
-```
-
-## Step 12 — Pre-outcome gate
-
-`gate_all()` aggregates the recorded checkpoints into a single GO / FLAG / STOP decision against the prespecified thresholds.
-
-```r
-gate <- gate_all(cp1, cp2, cp3, allow_flag = TRUE)
-# gate$decision  -> "GO with FLAG"
-```
-
-`authorize_outcome_analysis()` then turns that decision into an authorisation record that downstream estimators can verify.
-
-```r
-auth <- authorize_outcome_analysis(lock, gate)
-```
-
-## Step 13 — Locked primary analysis
-
-The primary-analysis function refuses to run on an unauthorised lock. With the authorisation in place, the locked specification is now permitted to access the real outcome.
-
-```r
-fit_primary <- run_clean_tmle(lock,
-                              spec          = selected,
-                              ps_fit        = ps,
-                              authorization = auth)
-fit_ipcw    <- run_ipcw_tmle(lock,
-                             ps_fit        = ps,
-                             authorization = auth)
-```
-
-The matched-cohort and IPTW comparators are run from the same authorised lock.
-
-## Step 14 — Cumulative-risk report
-
-The package emphasises absolute risks at a clinically meaningful time point alongside the contrast.
-
-```r
-risk_table <- clean_risk_report_table(
-  list(
-    "Rescue.Co"       = fit_primary$risk_treated,
-    "Other ambulance" = fit_primary$risk_control,
-    "Difference (RD)" = fit_primary$estimate
-  ),
-  time_point = "6 months"
-)
-```
-
-## Step 15 — Sensitivity analyses
-
-After the primary analysis runs, prespecified sensitivity analyses are added: a tipping-point sensitivity, an E-value, and a truncation-grid sweep.
-
-```r
-tipping <- tipping_point_sensitivity(fit_primary$estimate,
-                                     fit_primary$ci_lower,
-                                     fit_primary$ci_upper)
-evalue  <- compute_evalue(fit_primary$estimate, fit_primary$ci_lower)
-trunc_s <- sensitivity_truncation(lock, trunc_grid = c(0.01, 0.025, 0.05, 0.10))
-```
-
-## Step 16 — Export the dossier
-
-Every checkpoint, every decision entry, the lock, the authorisation, and the final estimates can be exported as a single bundle for an external reviewer.
-
-```r
-export_decision_log(audit, "rescueco_decision_log.csv")
-save_audit(audit,           "rescueco_audit.rds")
-save_lock(lock,             "rescueco_lock.rds")
-```
-
-The reviewer reads these in alongside the manuscript.
-
-## Summary of the walkthrough
-
-| Step | Function | What it does | Y access |
-|---|---|---|:---:|
-| 1 | `attach_estimand()` | Records the target-trial question | No |
-| 2 | `create_analysis_lock()` | Fingerprints the plan | No |
-| 3 | `attrition_table()` | Records cohort flow | No |
-| 4 | `clean_event_process_table()` | Classifies event processes | No |
-| 5 | `checkpoint_cohort_adequacy()` | Checks N and events | Marginal |
-| 6 | `fit_ps_superlearner()`, `compute_ps_diagnostics()` | PS + overlap + balance | No |
-| 7 | `clean_weight_diagnostics()`, `extreme_weights()` | Weight stability | No |
-| 8 | `run_plasmode_feasibility()` | Baseline candidate selection | Synthetic |
-| 9 | `run_plasmode_dq_stress()` | Stress test under threats | Synthetic |
-| 10 | `run_residual_confounding_stage()` | Negative-control probe | NC outcomes only |
-| 11 | `log_decision_entry()` | Records each analytic decision | No |
-| 12 | `gate_all()`, `authorize_outcome_analysis()` | Pre-outcome decision | No |
-| 13 | `run_clean_tmle()`, `run_ipcw_tmle()` | Locked primary analysis | **Yes** |
-| 14 | `clean_risk_report_table()` | Cumulative-risk report | Yes |
-| 15 | `tipping_point_sensitivity()`, `compute_evalue()` | Sensitivity analyses | Yes |
-| 16 | `export_decision_log()`, `save_audit()`, `save_lock()` | Export the dossier | No |
+# Appendix C: Figures
+
+## Support maps
+
+:::: {.columns}
+::: {.column width="50%"}
+![C1: the ATE fails at the mildest surface](../rescueCo/results/multiarm/fig_supportmap_C1.png)
+:::
+::: {.column width="50%"}
+![Primary cohort: degradation arrives only with stress](../rescueCo/results/multiarm/fig_supportmap_PRIMARY.png)
+:::
+::::
+
+## Support histograms, flagged contrasts
+
+:::: {.columns}
+::: {.column width="50%"}
+![C2: SEVERE](../rescueCo/results/multiarm/fig_support_C2.png)
+:::
+::: {.column width="50%"}
+![C3: FLAG](../rescueCo/results/multiarm/fig_support_C3.png)
+:::
+::::
+
+## Earlier single-contrast diagnostics
+
+:::: {.columns}
+::: {.column width="50%"}
+![Plasmode candidate performance](../rescueCo/results/plasmode_performance.png)
+:::
+::: {.column width="50%"}
+![DQ degradation gradient](../rescueCo/results/manuscript_artifacts/fig_dq_gradient.png)
+:::
+::::
+
+## TMLE internals (earlier lock)
+
+:::: {.columns}
+::: {.column width="50%"}
+![Influence-curve distribution](../rescueCo/results/manuscript_artifacts/fig_ic_plot.png)
+:::
+::: {.column width="50%"}
+![Clever covariate by arm](../rescueCo/results/manuscript_artifacts/fig_clever_covariate.png)
+:::
+::::

@@ -1,0 +1,16 @@
+"contrast","indicator","d_sd_units","p_value","predicts"
+"C1","vitals_1_hr_missing",0.0933,0.00492,FALSE
+"C1","pulse_Not.examined",0.0211,0.519,FALSE
+"C1","sbp_missing",0.0147,0.653,FALSE
+"C2","vitals_1_hr_missing",0.0488,0.149,FALSE
+"C2","pulse_Not.examined",0.0152,0.648,FALSE
+"C2","sbp_missing",-0.0149,0.653,FALSE
+"C3","vitals_1_hr_missing",-0.1267,4.68e-07,TRUE
+"C3","sbp_missing",-0.122,8.29e-07,TRUE
+"C3","pulse_Not.examined",-0.0156,0.529,FALSE
+"C4","vitals_1_hr_missing",0.3352,3.28e-15,TRUE
+"C4","sbp_missing",0.1901,8.55e-06,TRUE
+"C4","pulse_Not.examined",0.0764,0.0738,FALSE
+"PRIMARY","vitals_1_hr_missing",0.1698,0.000876,TRUE
+"PRIMARY","sbp_missing",0.1055,0.0395,TRUE
+"PRIMARY","pulse_Not.examined",0.0401,0.43,FALSE

@@ -1,0 +1,10 @@
+"contrast","outcome","estimand","rr","evalue_point","evalue_ci","bias_to_null_point","bias_to_null_ci","floor_declared"
+"C1","death_by_6mo","ATE",1.1914,1.669,1,0.00555,0,0.0035
+"C1","death_by_6mo","ATO",1.0139,1.133,1,0.00041,0,0.0035
+"C2","death_by_6mo","ATO",1.2348,1.773,1,0.00511,0,0.0035
+"C3","death_by_6mo","ATE",1.7716,2.941,2.017,0.01785,0.00789,0.0035
+"C3","death_by_6mo","ATO",1.6986,2.788,1.948,0.01685,0.00749,0.0035
+"C4","death_by_6mo","ATE",0.5473,3.057,1.622,0.02903,0.00943,0.0035
+"C4","death_by_6mo","ATO",0.843,1.656,1,0.00775,0,0.0035
+"PRIMARY","death_by_6mo","ATE",0.63,2.553,1,0.017,0,0.0035
+"PRIMARY","death_by_6mo","ATO",0.718,2.133,1,0.01226,0,0.0035

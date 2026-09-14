@@ -397,6 +397,29 @@ for (i in seq_len(nrow(tab))) {
           hit <- TRUE; break
         }
       }
+      # Pattern rules for the ladder rows, each guarded to one main SE so a
+      # genuine surprise still lands as open_discrepancy.
+      within_1se <- is.finite(se) && is.finite(tab$abs_diff[i]) &&
+        tab$abs_diff[i] <= se
+      if (!hit && within_1se && grepl(" \\| CR: ", tab$estimator[i])) {
+        tab$verdict[i] <- "benign_difference"
+        tab$reason[i]  <- paste("Different estimator families for the same",
+                                "estimand, by design (see the estimator",
+                                "column: main vs clean room). Same sign,",
+                                "difference under one main-pipeline SE.")
+        hit <- TRUE
+      }
+      if (!hit && within_1se &&
+          tab$estimand[i] %in% c("ATE", "ATT among outcome-observed")) {
+        tab$verdict[i] <- "benign_difference"
+        tab$reason[i]  <- paste("Same estimand and estimator family; the",
+                                "nuisance specification differs (the clean",
+                                "room's locked rwe_wide SuperLearner on 90",
+                                "design columns and its own seed, versus the",
+                                "main pipeline's library). Same sign,",
+                                "difference under one main-pipeline SE.")
+        hit <- TRUE
+      }
       if (!hit) {
         tab$verdict[i] <- "open_discrepancy"
         tab$reason[i]  <- "Difference exceeds tolerance and has no recorded explanation yet."

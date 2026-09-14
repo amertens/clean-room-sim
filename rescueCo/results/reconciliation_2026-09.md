@@ -193,3 +193,54 @@ outcome access, and estimate the full ladder, then rerunning the case study
 on all five locks. The reconciliation table is the checklist: every
 missing_in_cleanroom row is an estimate the rebuilt pipeline must produce,
 and the memo above records the five changes that produce them.
+
+## Post-rebuild status (2026-09-13, 23:05)
+
+The rebuild ran: five locks on the shared known-transport cohort, the design
+stage per contrast, the outcome-blind support maps and design comparisons for
+C1 and the primary cohort, and the full estimand-ladder estimation for
+six-month mortality and time to arrival (38 rows from 10 contrast-outcome
+pairs). Regenerating the table against the same main-pipeline CSVs gives:
+
+| Verdict | Rows | Change from baseline |
+|---|---:|---|
+| agree | 17 | was 2 |
+| benign_difference | 10 | was 2, every row now carries its reason |
+| open_discrepancy | 0 | none |
+| missing_in_cleanroom | 219 | was 242 |
+| missing_in_main | 25 | clean-room-only ladder rows (trimmed, ATO per contrast) |
+| not_comparable | 4 | unchanged (proxy survival; inestimable NCs) |
+
+Where both pipelines estimate the same quantity the same way, they agree
+within a quarter of a main-pipeline SE: the C4 mortality ATE (-0.0290 clean
+room vs -0.0272 main), the C1 and C3 mortality rows, and every negative
+control to four decimals. The ten benign rows split into three documented
+families. The ATO rows differ by estimator family on purpose (Hajek weights
+with a percentile bootstrap in the main pipeline, the augmented
+overlap-weighted estimator with influence-function variance here). The
+trimmed rows differ in who is trimmed and how g is refit. The primary-cohort
+ATE and ATT differ only in nuisance specification (the locked rwe_wide
+SuperLearner and seed here versus the main library), at 0.6 to 0.8 of a main
+SE with the same sign. Each family's reason is stamped on its rows by the
+build script, guarded to one main-pipeline SE so a genuine surprise would
+still surface as open.
+
+The design log recorded what the workflow promised it would: two C1
+overrides (the ATE estimated only as a labelled reconciliation row, with the
+recorded reason), two C2 estimand switches at the SEVERE trigger, and the
+pending amendment about the 76 unconfirmed Rescue.Co IDs stamped on every
+lock. No estimate anywhere tripped the implausibility guard, and the
+time-to-arrival ladder, the outcome that once returned +14,637 minutes,
+reports bounded estimands agreeing on 3 to 4.5 hours faster arrival on the
+population contrasts and a null within-ambulance difference on the primary
+cohort.
+
+The remaining missing_in_cleanroom rows are the main pipeline's wider
+outcome and estimator surface (the ordinal GOSE models, the survival
+estimators, the subgroup and equity analyses), which the case study does not
+reproduce by design. The C2 to C4 support maps completed at 01:39 on
+2026-09-14 and extend the design-stage record without changing any estimate
+above: C2 mirrors C1 (the ATE fails the mildest surface at coverage 0.87
+while the bounded estimands pass), C3 is robust across the grid, and C4
+shows marginal mild-surface strain (coverage 0.86 to 0.90 on the unmatched
+estimands) consistent with its FLAG verdict.

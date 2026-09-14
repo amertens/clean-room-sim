@@ -1,0 +1,10 @@
+"contrast","subgroup","n","n_treated","p_treated"
+"C1","inj_place_Private.House..Home>=0.5",1386,20,0.0144
+"C1","inj_place_Private.House..Home< 0.5 & inj_place_Other>=0.5 & hour_sin< 0.916",1438,36,0.025
+"C1","inj_place_Private.House..Home< 0.5 & inj_place_Other< 0.5 & intent_Intentional..assault.homicide..>=0.5",1062,45,0.0424
+"C2","inj_place_Private.House..Home>=0.5",1230,20,0.0163
+"C2","inj_place_Private.House..Home< 0.5 & inj_place_Other>=0.5 & hour_sin< 0.916",1283,36,0.0281
+"C2","inj_place_Private.House..Home< 0.5 & inj_place_Other< 0.5 & intent_Intentional..assault.homicide..>=0.5",927,45,0.0485
+"C3","dispo_payment_2>=0.5 & intent_Intentional..assault.homicide..>=0.5 & months_since_start< 3.893",53,3,0.0566
+"C4","inj_distance>=29.55",162,3,0.0185
+"C4","inj_distance< 29.55 & months_since_start< 6.193 & intent_Intentional..assault.homicide..>=0.5",82,5,0.061

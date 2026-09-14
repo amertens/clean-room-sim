@@ -33,9 +33,11 @@ sens <- do.call(rbind, lapply(seq_len(nrow(est)), function(i) {
   # as such; the exact RR interval lives in the tmle fit objects).
   rr_lo <- max((r$risk_treated - 1.96 * r$se) / r$risk_control, 1e-6)
   rr_hi <- (r$risk_treated + 1.96 * r$se) / r$risk_control
+  # compute_evalue() returns a named numeric vector
+  # c(e_value = , e_value_ci = ), not a list.
   ev <- tryCatch(compute_evalue(rr, ci_bound = if (rr < 1) rr_hi else rr_lo),
-                 error = function(e) list(evalue_point = NA_real_,
-                                          evalue_ci = NA_real_))
+                 error = function(e) c(e_value = NA_real_,
+                                       e_value_ci = NA_real_))
   # Additive bias-to-null: |estimate| to move the point to 0, and the
   # smaller CI distance to 0 (the bound that crosses first).
   d_point <- abs(r$estimate)
@@ -43,8 +45,8 @@ sens <- do.call(rbind, lapply(seq_len(nrow(est)), function(i) {
     -r$ci_upper else 0
   data.frame(contrast = r$contrast, outcome = r$outcome,
              estimand = r$estimand, rr = round(rr, 4),
-             evalue_point = round(as.numeric(ev$evalue_point %||% ev[[1]]), 3),
-             evalue_ci = round(as.numeric(ev$evalue_ci %||% NA_real_), 3),
+             evalue_point = round(unname(as.numeric(ev["e_value"])), 3),
+             evalue_ci = round(unname(as.numeric(ev["e_value_ci"])), 3),
              bias_to_null_point = round(d_point, 5),
              bias_to_null_ci = round(abs(d_ci), 5),
              floor_declared = 0.0035,

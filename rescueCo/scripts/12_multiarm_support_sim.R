@@ -116,11 +116,20 @@ for (cn in intersect(names(locks), run_set)) {
   }
 }
 
+# Merge with rows from earlier partial runs (other contrasts) rather than
+# overwriting the CSV with only this run_set's contrasts.
+.merge_csv <- function(new_rows, path) {
+  new <- do.call(rbind, new_rows)
+  if (file.exists(path)) {
+    old <- utils::read.csv(path, check.names = FALSE)
+    old <- old[!(old$contrast %in% unique(new$contrast)), , drop = FALSE]
+    shared <- intersect(names(old), names(new))
+    new <- rbind(old[, shared, drop = FALSE], new[, shared, drop = FALSE])
+  }
+  utils::write.csv(new, path, row.names = FALSE)
+}
 if (length(map_rows))
-  utils::write.csv(do.call(rbind, map_rows),
-                   file.path(OUT, "support_map.csv"), row.names = FALSE)
+  .merge_csv(map_rows, file.path(OUT, "support_map.csv"))
 if (length(cmp_rows))
-  utils::write.csv(do.call(rbind, cmp_rows),
-                   file.path(OUT, "plasmode_design_comparison.csv"),
-                   row.names = FALSE)
+  .merge_csv(cmp_rows, file.path(OUT, "plasmode_design_comparison.csv"))
 cr_log("Multi-arm Stage 3 complete for:", paste(run_set, collapse = ", "))
