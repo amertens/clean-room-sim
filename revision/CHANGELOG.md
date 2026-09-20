@@ -57,3 +57,14 @@ Scope: the description of the package in every document brought onto the 0.3.0 s
 * `README.md` rewritten for the current tree (the drivers and result files it pointed at moved to `archive/` in WP3) and `reports/README.md` updated (0.3.0, the tutorial's two homes, `workflow_contrast_c.qmd` on the rerun list).
 
 Pending: unchanged from WP3 (the reruns, then the numeric half of WP2, then WP4), plus the tutorial's analytic items F14 to F16.
+
+## WP2, tutorial analytic pass (2026-09-19; superproject commit follows)
+
+The three follow-ups recorded as F14 to F16 after the prose pass, implemented in `tutorials/clean_room_targeted_learning_tutorial.qmd`:
+
+* External-pilot generator (F15): a pilot cohort (same generator, n = 2000, seed 7) supplies `pilot_q0`; both locks declare `dgp_mode = "external_pilot"`, so no design-stage verb reads the study outcome. The prose explains why the hybrid mode would leak on a cohort with a propensity c-statistic of 0.86.
+* Stress test on the reported estimand (F14): the full-cohort run stays (every candidate STOP; baseline coverage 0.67 to 0.70, mean SE at 42 to 50 percent of the empirical SD) and a second run on the common-support cohort (4,242 patients, the trimmed-ATE population) gives baseline coverage 0.93, SE at 95 percent of the SD, GO for every candidate with the worst coverage on the 0.90 floor (stated as a verdict without margin at 30 replicates), and no confounding tipping point inside the declared grid. The candidate (`tmle_glm_mean_t001`) is locked from that run and `design_report(dq = )` reads it. Every number in the prose is computed from the objects at render time.
+* The duplicated ladder entry (F16) stays explained in the log paragraph.
+* Figures: `plot(sup)` (mirrored propensity histograms), `plot(st_cs, metric = "coverage")` with the locked floor added as a layer, and `plot(fit)` (the ladder as estimated). The generator chunk is folded; Stage 2b is split into the candidate run, the common-support run, and the selection.
+
+Run: renders end to end (about twenty minutes uncached; both stress chunks cached), strict style gate passes. Ladder estimates are unchanged from the earlier render (trimmed ATE -3.6 points, ATT -3.3 points), as expected since estimation does not depend on the generator mode. F18 notes the package's `aes_string()` deprecation warning surfaced by the new figure.

@@ -51,6 +51,14 @@ set.seed(NULL)
 fmt_pp <- function(x, d = 1) sprintf("%.*f", d, 100 * x)
 fmt_ci <- function(lo, hi, d = 1)
   sprintf("(%s to %s)", fmt_pp(lo, d), fmt_pp(hi, d))
+fmt_range <- function(x, d = 2) {
+  r <- sprintf("%.*f", d, range(x, na.rm = TRUE))
+  if (r[1] == r[2]) r[1] else paste(r[1], "to", r[2])
+}
+fmt_tip <- function(x) {
+  if (all(is.na(x))) "not crossed inside the declared grid"
+  else sprintf("%.1f", min(x, na.rm = TRUE))
+}
 ```
 
 ---
@@ -103,7 +111,7 @@ The cleanTMLE package is the software layer for this combined design. Its export
 
 The worked example leans on three design features of the package.
 
-**The lock is outcome-free by construction.** `create_analysis_lock()` splits its input at creation: the lock's data frame holds design data only, and the primary outcome column moves into a sealed store that only the Stage 4 estimators join back, after an outcome guard. `mask_outcome()` removes the store entirely, so a masked lock is outcome-free wherever it travels, and the package's test suite asserts that the design verbs return identical output on a masked lock and under a permuted outcome. The one qualification concerns the simulated outcomes of the stress test. In the default hybrid generator mode the baseline outcome surface is fitted on the real outcome from covariates alone, never from treatment, and the package warns when treatment is predicted well enough for that fit to approximate the crude association; the external-pilot mode, which takes the baseline surface from a separate pilot cohort, is fully outcome-blind. A SHA-256 fingerprint covers the analytic specification and a content digest of every column except the outcome, so design-data tampering is detectable while masking and unmasking leave the hash unchanged.
+**The lock is outcome-free by construction.** `create_analysis_lock()` splits its input at creation: the lock's data frame holds design data only, and the primary outcome column moves into a sealed store that only the Stage 4 estimators join back, after an outcome guard. `mask_outcome()` removes the store entirely, so a masked lock is outcome-free wherever it travels, and the package's test suite asserts that the design verbs return identical output on a masked lock and under a permuted outcome. The one qualification concerns the simulated outcomes of the stress test. In the default hybrid generator mode the baseline outcome surface is fitted on the real outcome from covariates alone, never from treatment, and the package warns when treatment is predicted well enough for that fit to approximate the crude association; the external-pilot mode, which takes the baseline surface from a separate pilot cohort, is fully outcome-blind, and it is the mode this tutorial uses. A SHA-256 fingerprint covers the analytic specification and a content digest of every column except the outcome, so design-data tampering is detectable while masking and unmasking leave the hash unchanged.
 
 **Decision rules are declared, fingerprinted, and applied mechanically.** The stress-test thresholds (`dq_thresholds`) and the negative-control criteria (`nc_criteria`) are arguments of `create_analysis_lock()`, and the resulting GO / FLAG / STOP verdicts are pure functions of the declared rules, the declared threat grid, and the computed metrics. There is no judgment call at reading time, which means there is nothing for the realised effect direction to steer.
 
@@ -122,6 +130,8 @@ Three features of the cohort matter for what follows:
 - **An unmeasured clinical judgment.** A latent fall-risk assessment `U`, never recorded in the data, nudges prescribers toward warfarin (almost entirely within the contraindicated stratum), raises stroke risk, and lowers health-seeking behaviour. A negative-control outcome, influenza vaccination, declared in the health-seeking-behaviour domain of @muntner2024staging, inherits `U` and is causally untouched by anticoagulant choice.
 
 ```{r dgp}
+#| code-fold: true
+#| code-summary: "Show the generator"
 simulate_sparc_af <- function(n, seed) {
   withr::with_seed(seed, {
     age    <- pmin(pmax(rnorm(n, 76, 6), 62), 95)
@@ -256,6 +266,15 @@ Now the same data through the sixteen-verb workflow. The narration is longer tha
 
 The lock seals the specification and the decision rules together. The stress-test thresholds and the negative-control criteria go in here, before any diagnostic is computed, so the verdicts later are readings of prespecified rules. The lock is created with `enforce = TRUE`: estimation will refuse to run until a named approver unmasks the outcome, which makes the review step structural. The estimand ladder is the pre-registered response to a support failure: the primary is the full-cohort ATE, and if the support verdict reaches SEVERE, the declared fallbacks (the trimmed ATE, then the ATT) take over, as a logged design decision.
 
+The lock also fixes where the simulated outcomes will come from. The plasmode generator needs a baseline outcome surface, the risk of stroke given covariates, and the default hybrid mode fits it on the study cohort's own outcome. That fit never sees treatment, but on a cohort like this one, with prescribing this predictable, a covariate-only outcome model approximates the outcome rate by propensity stratum, which is the crude association; the package warns when the propensity c-statistic passes 0.80. This tutorial therefore declares `dgp_mode = "external_pilot"` and takes the baseline surface from a pilot cohort, here an earlier window of the same registry simulated with a different seed, fitted from covariates alone. Every design-stage verb then reads no outcome from the study cohort.
+
+```{r pilot}
+pilot     <- simulate_sparc_af(n = 2000, seed = 7)$analysis
+pilot_fit <- glm(reformulate(covs, "stroke_12m"), data = pilot,
+                 family = binomial())
+pilot_q0  <- function(W) predict(pilot_fit, newdata = W, type = "response")
+```
+
 ```{r stage1}
 lock <- create_analysis_lock(
   data       = dat,
@@ -265,6 +284,7 @@ lock <- create_analysis_lock(
   sl_library = c("SL.glm", "SL.mean"),
   seed       = 2026,
   enforce    = TRUE,
+  dgp_mode   = "external_pilot",
   negative_controls = "nc_flu_vaccine",
   dq_thresholds = list(max_abs_bias   = 0.02,
                        min_coverage   = 0.90,
@@ -294,7 +314,11 @@ sup <- assess_support(ps)
 print(sup)
 ```
 
-The support verdict is **`r sup$verdict`**. Where the traditional analysis looked at balance on the weighted sample, `assess_support()` looks at the whole eligible cohort: the share of patients outside the prespecified propensity band, the largest implied weight, the effective sample size, and an escalation rule for covariate strata in which treatment is near-deterministic. This verdict surfaces the severe-renal channeling that the balance table absorbed: the near-deterministic stratum it names is the severe-renal group, with `r sup$near_deterministic$n_treated_in_stratum[1]` treated patients among `r sup$near_deterministic$n_in_stratum[1]`.
+The support verdict is **`r sup$verdict`**. Where the traditional analysis looked at balance on the weighted sample, `assess_support()` looks at the whole eligible cohort: the share of patients outside the prespecified propensity band, the largest implied weight, the effective sample size, and an escalation rule for covariate strata in which treatment is near-deterministic. This verdict surfaces the severe-renal channeling that the balance table absorbed: the near-deterministic stratum it names is the severe-renal group, with `r sup$near_deterministic$n_treated_in_stratum[1]` treated patients among `r sup$near_deterministic$n_in_stratum[1]`. The mirrored histogram shows it at a glance: the control mass piled against zero has no treated counterpart.
+
+```{r fig-support, fig.cap = "Mirrored propensity histograms on the whole eligible cohort: treated patients above the axis, controls below, the declared band marked by the dashed lines and the region outside it shaded. The control mass against zero is the severe-renal stratum the balance table absorbed."}
+plot(sup)
+```
 
 The feasibility table then asks the estimand question directly, for every rung of the ladder:
 
@@ -313,34 +337,71 @@ sim <- simulate_support(lock, ps, reps = 20, verbose = FALSE)
 
 ### Stage 2b: which estimator, and does it survive the declared threats?
 
-The candidate set is a factorial grid over the two decisions that matter most for a TMLE under weak overlap, the propensity truncation bound and the nuisance library. The stress test fits every candidate on every simulated replicate, first on clean data and then under the declared threat grid. The fit-for-purpose concern in this cohort is the unrecorded fall-risk judgment, so the declared unmeasured-confounding grid spans odds ratios of 1.5 and 2.0 on both the treatment and outcome sides, alongside a covariate-missingness threat for the frailty index.
+The candidate set is a factorial grid over the two decisions that matter most for a TMLE under weak overlap, the propensity truncation bound and the nuisance library. The stress test fits every candidate on every simulated replicate, first on clean data and then under the declared threat grid. The fit-for-purpose concern in this cohort is the unrecorded fall-risk judgment, so the declared unmeasured-confounding grid spans odds ratios of 1.5 and 2.0 on both the treatment and outcome sides, alongside a covariate-missingness threat for the frailty index. The baseline surface comes from the pilot cohort through `pilot_q0`.
 
 ```{r stage2b, cache = TRUE}
 cands <- define_candidates(grid = list(
   truncations = c(0.01, 0.025),
   libraries   = list(glm = "SL.glm", glm_mean = c("SL.glm", "SL.mean"))))
 
-st <- stress_test(
-  lock, cands,
-  threats = list(
-    covariate_missingness = list(fractions = c(0.10, 0.20),
-                                 variables = "frailty_index"),
-    unmeasured_confounding = list(U_prevalence   = 0.25,
-                                  U_treatment_OR = c(1.5, 2.0),
-                                  U_outcome_OR   = c(1.5, 2.0))),
-  effect_sizes = c(0.03),
-  reps         = 30,
-  verbose      = FALSE)
+threats <- list(
+  covariate_missingness  = list(fractions = c(0.10, 0.20),
+                                variables = "frailty_index"),
+  unmeasured_confounding = list(U_prevalence   = 0.25,
+                                U_treatment_OR = c(1.5, 2.0),
+                                U_outcome_OR   = c(1.5, 2.0)))
 
+st <- stress_test(lock, cands, threats = threats,
+                  effect_sizes = c(0.03), reps = 30,
+                  pilot_q0 = pilot_q0, verbose = FALSE)
 st$verdict
-st$tipping
-best <- select_candidate(st, rule = "min_max_rmse")
+```
+
+Because the thresholds were fingerprinted at lock creation, the verdict table is a lookup, and the tipping points give the first declared severity at which each candidate crosses a locked bound. On this design the verdict is `r paste(unique(st$verdict$verdict), collapse = " and ")` for every candidate, and the baseline rows say why. With no threat applied, coverage is already `r fmt_range(st$baseline$coverage)`, and the mean standard error is `r fmt_range(100 * st$baseline$se_cal, 0)` percent of the empirical standard deviation of the estimate, so a full-cohort TMLE on this cohort reports intervals that are too narrow before any data-quality threat is applied. The stress test scores the full-cohort ATE, because that is the estimand its plasmode truth is defined on, and the support verdict has already ruled that estimand out. Under the declared threats the worst absolute bias across candidates is `r sprintf("%.3f", max(abs(st$metrics$bias[st$metrics$scenario != "none"])))`, against the locked bound of `r st$thresholds$max_abs_bias`; the breach that drives the verdict is coverage, and it was there at baseline. The verdict is a second, outcome-blind reading of the support failure, and the documented review response it asks for is the estimand switch the ladder pre-registered.
+
+The question the review team wants answered is about the analysis that will be reported, the trimmed ATE, which is the ATE on the common-support cohort. So the stress test is run again on that cohort: the rows whose untruncated propensity lies inside the declared band, under the same declared rules and the same pilot surface. Nothing about this restriction touches the outcome.
+
+```{r stage2b-cs, cache = TRUE}
+in_band <- ps$ps_raw >= 0.05 & ps$ps_raw <= 0.95
+lock_cs <- create_analysis_lock(
+  data       = dat[in_band, ],
+  treatment  = "noac",
+  outcome    = "stroke_12m",
+  covariates = covs,
+  sl_library = c("SL.glm", "SL.mean"),
+  seed       = 2026,
+  enforce    = TRUE,
+  dgp_mode   = "external_pilot",
+  negative_controls = "nc_flu_vaccine",
+  dq_thresholds = list(max_abs_bias   = 0.02,
+                       min_coverage   = 0.90,
+                       max_rmse_ratio = 1.5),
+  nc_criteria   = list(null_band = 0.03))
+
+st_cs <- stress_test(lock_cs, cands, threats = threats,
+                     effect_sizes = c(0.03), reps = 30,
+                     pilot_q0 = pilot_q0, verbose = FALSE)
+st_cs$verdict
+st_cs$tipping
+```
+
+On the common-support cohort (`r sum(in_band)` patients) the baseline coverage is `r fmt_range(st_cs$baseline$coverage)` and the mean standard error is `r fmt_range(100 * st_cs$baseline$se_cal, 0)` percent of the empirical standard deviation, so the intervals a trimmed-ATE TMLE would report are honest where the full-cohort ones were not. The locked verdict reads `r paste(unique(st_cs$verdict$verdict), collapse = " and ")` across the candidates, with the worst coverage under any declared threat at `r fmt_range(st_cs$verdict$worst_coverage)` against the floor of `r sprintf("%.2f", st_cs$thresholds$min_coverage)` and the worst absolute bias at `r sprintf("%.3f", max(st_cs$verdict$worst_abs_bias))`. A worst coverage that sits on the floor is a verdict without margin: at `r st_cs$reps` replicates the Monte Carlo standard error of a coverage of 0.90 is about `r sprintf("%.2f", sqrt(0.9 * 0.1 / st_cs$reps))`, so the reading says the candidates hold under the declared threats and no more, and a real study would run several hundred replicates before locking on it. For the unmeasured-confounding family the tipping table reports the odds-ratio strength at which a locked bound is first crossed, which is what a review team is asking for when it asks how strong the unrecorded judgment would have to be before the planned analysis stops being trustworthy; across the candidates that strength is `r fmt_tip(st_cs$tipping$tipping_or)`.
+
+```{r fig-stress, fig.cap = "Coverage of the four candidates on the common-support cohort at each declared severity of each threat. The dashed line is the nominal 0.95; the dotted red line is the locked floor of 0.90. A candidate that stays above the floor across the grid survives the declared threats."}
+plot(st_cs, metric = "coverage") +
+  geom_hline(yintercept = 0.90, linetype = "dotted", colour = "red")
+```
+
+The candidate is then locked by the minimax rule on this stress test, and attached to the ladder on the study lock, which re-declares the ladder with the candidate on it.
+
+```{r stage2b-select}
+best <- select_candidate(st_cs, rule = "min_max_rmse")
 lock <- declare_estimand_ladder(lock, primary = "ATE",
                                 fallbacks = c("trimmed_ATE", "ATT"),
                                 trigger = "SEVERE", candidate = best)
 ```
 
-Because the thresholds were fingerprinted at lock creation, the verdict table is a lookup, and the tipping points give the first declared severity at which each candidate crosses a locked bound. On this design the verdict is STOP for every candidate, and the baseline rows say why. With no threat applied, coverage is already `r sprintf("%.2f", min(st$baseline$coverage))` to `r sprintf("%.2f", max(st$baseline$coverage))`, and the mean standard error is `r sprintf("%.0f", 100 * min(st$baseline$se_cal))` to `r sprintf("%.0f", 100 * max(st$baseline$se_cal))` percent of the empirical standard deviation of the estimate, so a full-cohort TMLE on this cohort reports intervals that are too narrow before any data-quality threat is applied. The stress test scores the full-cohort ATE, because that is the estimand its plasmode truth is defined on, and the support verdict has already ruled that estimand out; the tipping point at the first level of the confounding grid says the same thing. Under the declared threats the worst absolute bias across candidates is `r sprintf("%.3f", max(abs(st$metrics$bias[st$metrics$scenario != "none"])))`, at the locked bound of `r st$thresholds$max_abs_bias`; the breach that drives every verdict is coverage, and it was there at baseline. The STOP is a second, outcome-blind reading of the support failure, and the documented review response it asks for is the estimand switch the ladder pre-registered. Under the minimax rule across threats the selected candidate is `r best$candidate_id` (truncation `r best$truncation`). For the unmeasured-confounding family the tipping table reports the odds-ratio strength at which a locked bound is first crossed, which is what a review team is asking for when it asks how strong the unrecorded judgment would have to be before the planned analysis stops being trustworthy; on this design that question belongs to the estimand the ladder moved to, and the stress test that answers it for the trimmed ATE would run on the common-support cohort the ladder selected.
+Under the minimax rule across threats the selected candidate is `r best$candidate_id` (truncation `r best$truncation`).
 
 ### Stage 3: where does the residual confounding live?
 
@@ -361,11 +422,11 @@ The finding is the pattern across rungs, and the printout has two layers to read
 
 ```{r report}
 rep <- design_report(lock, sup, fea, simulation = sim,
-                     nc_ladder = ncl, dq = st)
+                     nc_ladder = ncl, dq = st_cs)
 print(rep)
 ```
 
-This object is what the review team reads: the verdicts, the feasibility table, the declared ladder, the stress-test reading for the locked candidate, and the negative-control pattern, closed by a one-line recommendation. It contains summary statistics only, and no treatment-outcome estimate exists anywhere yet.
+This object is what the review team reads: the verdicts, the feasibility table, the declared ladder, the stress-test reading for the locked candidate, and the negative-control pattern, closed by a one-line recommendation. The stress reading it carries is the common-support one, the estimand the ladder resolved to; the full-cohort verdict above is the reason the ladder moved. It contains summary statistics only, and no treatment-outcome estimate exists anywhere yet.
 
 ### Stage 4: estimate what was declared, on the record
 
@@ -380,6 +441,10 @@ print(fit)
 ```
 
 The ladder ran the pre-registered switch: the ATE row is refused on the recorded support verdict, and the declared fallbacks are estimated and labelled. For the grading table below, the trimmed-ATE row is the primary as the ladder resolved it.
+
+```{r fig-ladder, fig.cap = "The estimand ladder as estimated: one labelled row per feasible estimand, with the refused primary absent by design."}
+plot(fit)
+```
 
 ```{r grade}
 res    <- fit$table
@@ -433,7 +498,7 @@ compute_evalue(rr_apx)
 What the staged design changed, against the three questions from the opening section:
 
 1. **The estimability question was asked, and answered, before outcome access.** The support verdict and feasibility table converted a silent extrapolation into a design finding with a pre-registered response. The traditional analysis had no stage at which this question could arise.
-2. **The estimator was chosen by a locked rule under declared threats.** The candidate grid, the minimax selection, the locked verdict, and the tipping points were all computed on simulated outcomes against fingerprinted thresholds, so nothing about the realised effect direction could steer them, and the review team received operating characteristics instead of assurances. The STOP verdict itself carried information: it showed, without the outcome, that the full-cohort intervals would be too narrow.
+2. **The estimator was chosen by a locked rule under declared threats, for the estimand actually reported.** The candidate grid, the minimax selection, the locked verdict, and the tipping points were all computed on simulated outcomes from a pilot surface against fingerprinted thresholds, so nothing about the realised effect direction could steer them, and the review team received operating characteristics instead of assurances. The full-cohort verdict itself carried information: it showed, without the outcome, that the full-cohort intervals would be too narrow, and the stress test on the common-support cohort answered the question for the trimmed ATE.
 3. **The negative control gave a location as well as an alarm.** The ladder localised residual confounding to the same stratum the support analysis flagged, and the pre-registered estimand switch excised it, which turned two alarms into one design decision.
 4. **The released record supports the claim.** The lock fingerprint, the design log with the named approval, and the decision-log export in the format of @muntner2024staging let an external reviewer reconstruct every decision and verify that the rules applied were the rules declared.
 
