@@ -108,4 +108,4 @@ Stage 0 register, per operating rule 6. Each entry records the file and location
 
 * **Where:** `cleanTMLE/R/plasmode_dq.R`, `plot.plasmode_dq_results()`.
 * **Evidence:** every call emits the ggplot2 3.0.0 deprecation warning for `aes_string()`, which the tutorial's `warning = FALSE` hides.
-* **Fix (deferred, package hygiene):** replace with `aes(.data[[...]])`; no behaviour change.
+* **Fix (done 2026-09-19):** replaced with `aes(.data$...)`, matching the package's other plots; all three metrics build warning-free, `test-plasmode_dq.R` passes (27 assertions), reduced check clean.
