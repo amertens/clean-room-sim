@@ -22,12 +22,12 @@ A clean-room design blinds the analyst, and that is worth having. It does not te
 
 ::: {.callout-note}
 ## Learning objectives
-- Describe the staged clean-room design of Muntner and colleagues and what it does and does not protect against
+- Describe the staged clean-room design [@muntner2024staging] and what it does and does not protect against
 - Map the stages of a clean-room analysis onto the steps of the Causal Roadmap
 - Explain why targeted maximum likelihood estimation is a natural estimator for an outcome-blind workflow
 - Build an analysis lock with prespecified decision rules and understand what its fingerprint commits to
 - Read a support verdict and an estimand feasibility table, and explain why an infeasible ATE is a design finding, not an estimation failure
-- Run an outcome-blind candidate selection and a data-quality stress test with a locked GO / FLAG / STOP verdict and tipping points
+- Run an outcome-blind candidate selection and a data-quality stress test with a locked verdict and tipping points, and read a STOP verdict for what it is measuring
 - Use a negative-control ladder to localise residual confounding to a cohort stratum
 - Compare the traditional and staged analyses against the simulated truth and state precisely what the staged analysis improved
 :::
@@ -55,9 +55,9 @@ fmt_ci <- function(lo, hi, d = 1)
 
 ---
 
-## The Clean Room, and What It Cannot See
+## The clean room, and what it cannot see
 
-A staged, clean-room design [@muntner2024staging] is an answer to a credibility problem in real-world evidence: an analytic decision made after seeing the treatment-outcome association is not credible, however good the analyst's faith. The design responds with sequence and separation. Work proceeds in stages, each stage produces an artefact the next stage consumes, and the analyst who designs the study never sees the outcome; a review team reads the design-stage evidence and decides whether the analysis proceeds, proceeds with qualification, or stops. The published account describes the arrangement in a large distributed-database study, with a decision log recording each issue, decision, rationale, and decision-maker.
+A staged, clean-room design [@muntner2024staging] is an answer to a credibility problem in real-world evidence: an analytic decision made after seeing the treatment-outcome association is not credible, however good the analyst's faith. The design responds with sequence and separation. Work proceeds in stages, each stage produces a document the next stage consumes, and the analyst who designs the study never sees the outcome; a review team reads the design-stage evidence and decides whether the analysis proceeds, proceeds with qualification, or stops. The published account describes the arrangement in a large distributed-database study, with a decision log recording each issue, decision, rationale, and decision-maker.
 
 This is real protection, and nothing in this tutorial argues against it. The argument is about what the blinded stages contain. In a traditional implementation, the design-stage evidence is a cohort flow diagram, a Table 1, a propensity model, and a balance table. The review team looks at standardised mean differences, sees them fall below 0.1 after weighting or matching, and authorises the analysis. Three questions never get asked, because nothing in the blinded evidence can answer them:
 
@@ -65,17 +65,17 @@ This is real protection, and nothing in this tutorial argues against it. The arg
 2. **Will the chosen estimator hold up under the data problems the team already knows about?** The fit-for-purpose review names plausible threats: covariate missingness, exposure misclassification, an unmeasured clinical judgment that steered prescribing. A traditional design records these threats in prose and proceeds. Whether the chosen estimator is stable or fragile under them is a quantitative question the blinded stage never poses.
 3. **When a negative control misbehaves, what exactly has been learned?** A single negative-control estimate that excludes the null says residual confounding exists somewhere. It does not say where, whether a prespecified restriction removes it, or what that implies for the estimand.
 
-The causal roadmap and targeted learning give outcome-blind answers to all three. A clean room whose blinded stages carry those answers is a better design, and on data with a known truth the difference can be measured. That is the second half of this document.
+The causal roadmap and targeted learning give outcome-blind answers to all three. A clean room whose blinded stages carry those answers is a better design, and on data with a known truth the difference can be measured; that measurement is the second half of this tutorial.
 
 ---
 
-## The Causal Roadmap Inside the Clean Room
+## The causal roadmap inside the clean room
 
 The Causal Roadmap [@petersen2014roadmap; @dang2023roadmap] structures a causal analysis as a sequence of commitments: state the causal question and the target estimand; describe the observed data and how they came to be; assess identifiability; define the statistical estimand; choose an estimator with prespecified operating characteristics; prespecify sensitivity analyses; and interpret within the limits the earlier steps established. Two of its habits matter most here.
 
 First, the roadmap treats the estimand as a decision with alternatives. The average treatment effect over the full cohort is one choice among several; the effect in the treated, the effect in the region of covariate support, and the overlap-weighted effect are others, each answering a different clinical question and each making different demands on the data [@petersen2012positivity]. A design whose data cannot identify the ATE has not failed; it has answered a design question, and the roadmap's response is to move to an estimand the design supports and to say so.
 
-Second, the roadmap asks for the estimator's operating characteristics before the estimator is trusted, and gets them by simulation. Both habits work without outcome access. The clean room supplies the sequence and the blinding; the roadmap supplies what the blinded stages should contain [@gruber2022sap]. The closest published version of this arrangement is the blinded validity-diagnostics gate of @conover2025diagnostics, where named diagnostics are computed while effect estimates stay blinded and unblinding depends on passing them.
+Second, the roadmap asks for the estimator's operating characteristics before the estimator is trusted, and gets them by simulation. Both habits work without outcome access. The clean room supplies the sequence and the blinding; the roadmap supplies what the blinded stages should contain [@gruber2022sap]. The closest published version of this arrangement is the blinded validity-diagnostics gate of @conover2025diagnostics: named diagnostics are computed while effect estimates stay blinded, and unblinding depends on passing them.
 
 Targeted maximum likelihood estimation fits this arrangement for practical reasons:
 
@@ -84,11 +84,11 @@ Targeted maximum likelihood estimation fits this arrangement for practical reaso
 - TMLE is doubly robust: consistent if either the outcome model or the treatment model is estimated well, which is a sensible property to want when nuisance choices had to be fixed before the outcome could inform them.
 - Inference comes from the efficient influence function, so the same simulated-outcome loop that screens point estimators can also check whether the reported standard errors are honest.
 
-The estimator, in other words, is built to have its decisions made early, and a clean room is a design whose entire point is that decisions are made early.
+Each of these lets the estimator's decisions be fixed before outcome access, which is the property a clean room needs from its estimator.
 
 ---
 
-## What cleanTMLE Does
+## What cleanTMLE does
 
 The cleanTMLE package is the software layer for this combined design. Its exported surface is sixteen verbs that run in stage order against a single object, the analysis lock, and everything before the final two verbs is computable without reading the primary outcome.
 
@@ -101,9 +101,9 @@ The cleanTMLE package is the software layer for this combined design. Its export
 | Review | `design_report()`, `export_design_log()` | What does the review team read, and what record is released? |
 | 4: estimation | `estimate_effect()`, `run_estimand_ladder()` | The declared primary and its feasible fallbacks, labelled. |
 
-Three design features are worth naming before the worked example, because the example leans on all three.
+The worked example leans on three design features of the package.
 
-**The lock is physical, not procedural.** `create_analysis_lock()` splits its input at creation: the lock's data frame holds design data only, and the primary outcome column moves into a sealed store that only the Stage 4 estimators join back, after an outcome guard. `mask_outcome()` removes the store entirely, so a masked lock is outcome-free wherever it travels, and the package's test suite asserts that every design verb returns identical output on a masked lock and under a permuted outcome. A SHA-256 fingerprint covers the analytic specification and a content digest of every column except the outcome, so design-data tampering is detectable while masking and unmasking leave the hash unchanged.
+**The lock is outcome-free by construction.** `create_analysis_lock()` splits its input at creation: the lock's data frame holds design data only, and the primary outcome column moves into a sealed store that only the Stage 4 estimators join back, after an outcome guard. `mask_outcome()` removes the store entirely, so a masked lock is outcome-free wherever it travels, and the package's test suite asserts that the design verbs return identical output on a masked lock and under a permuted outcome. The one qualification concerns the simulated outcomes of the stress test. In the default hybrid generator mode the baseline outcome surface is fitted on the real outcome from covariates alone, never from treatment, and the package warns when treatment is predicted well enough for that fit to approximate the crude association; the external-pilot mode, which takes the baseline surface from a separate pilot cohort, is fully outcome-blind. A SHA-256 fingerprint covers the analytic specification and a content digest of every column except the outcome, so design-data tampering is detectable while masking and unmasking leave the hash unchanged.
 
 **Decision rules are declared, fingerprinted, and applied mechanically.** The stress-test thresholds (`dq_thresholds`) and the negative-control criteria (`nc_criteria`) are arguments of `create_analysis_lock()`, and the resulting GO / FLAG / STOP verdicts are pure functions of the declared rules, the declared threat grid, and the computed metrics. There is no judgment call at reading time, which means there is nothing for the realised effect direction to steer.
 
@@ -111,15 +111,15 @@ Three design features are worth naming before the worked example, because the ex
 
 ---
 
-## A Simulated Cohort with a Known Truth
+## A simulated cohort with a known truth
 
-The rest of this tutorial runs on SPARC-AF, a simulated pharmacoepidemiology cohort built to fail in the way the staged design is meant to catch. Read it as a claims-based comparison of a newer oral anticoagulant (`noac = 1`) against warfarin (`noac = 0`) in older adults with atrial fibrillation, with a binary outcome, ischaemic stroke or systemic embolism within twelve months (`stroke_12m`). The cohort is simulated, which is the point: every estimand has a computable truth, so both analyses can be graded against it.
+The rest of this tutorial runs on SPARC-AF, a simulated pharmacoepidemiology cohort built to fail in the way the staged design is meant to catch. Read it as a claims-based comparison of a newer oral anticoagulant (`noac = 1`) against warfarin (`noac = 0`) in older adults with atrial fibrillation, with a binary outcome, ischaemic stroke or systemic embolism within twelve months (`stroke_12m`). Because the cohort is simulated, every estimand has a computable truth, and both analyses can be graded against it.
 
-Three features make the cohort interesting rather than convenient:
+Three features of the cohort matter for what follows:
 
 - **Contraindication channeling.** Severe renal impairment steers prescribing toward warfarin almost deterministically, so one clinically coherent stratum has essentially no treated patients. The full-cohort ATE is not identified there except by extrapolation.
-- **Heterogeneity where the channeling is.** The anticoagulant is protective below severe renal impairment and mildly harmful under it, where accumulation erodes the benefit, which is exactly why prescribers channel. Extrapolation into the unsupported stratum therefore does not merely add noise; it imports a benefit where the truth is harm.
-- **An unmeasured clinical judgment.** A latent fall-risk assessment `U`, never recorded in the data, nudges prescribers toward warfarin (almost entirely within the contraindicated stratum), raises stroke risk, and lowers health-seeking behaviour. A negative-control outcome with a declared Muntner-style domain (influenza vaccination, health-seeking behaviour) inherits `U` and is causally untouched by anticoagulant choice.
+- **Heterogeneity where the channeling is.** The anticoagulant is protective below severe renal impairment and mildly harmful under it, where accumulation erodes the benefit, which is exactly why prescribers channel. Extrapolation into the unsupported stratum therefore imports a benefit where the truth is harm.
+- **An unmeasured clinical judgment.** A latent fall-risk assessment `U`, never recorded in the data, nudges prescribers toward warfarin (almost entirely within the contraindicated stratum), raises stroke risk, and lowers health-seeking behaviour. A negative-control outcome, influenza vaccination, declared in the health-seeking-behaviour domain of @muntner2024staging, inherits `U` and is causally untouched by anticoagulant choice.
 
 ```{r dgp}
 simulate_sparc_af <- function(n, seed) {
@@ -190,9 +190,9 @@ The simulated truths, on the risk-difference scale: the full-cohort ATE is `r fm
 
 ---
 
-## The Traditional Blinded Analysis
+## The traditional blinded analysis
 
-First, the analysis a careful traditional clean room would authorise. The design team is blinded to the outcome, fits a logistic propensity model, forms 1:1 nearest-neighbour matches within a caliper on the logit propensity (the most common published design in comparative pharmacoepidemiology), and inspects the balance table on the matched sample. The prespecified primary analysis is the matched risk difference, reported as the effect of treatment for the study population.
+Start with the analysis a careful traditional clean room would authorise. The design team is blinded to the outcome, fits a logistic propensity model, forms 1:1 nearest-neighbour matches within a caliper on the logit propensity (the most common published design in comparative pharmacoepidemiology), and inspects the balance table on the matched sample. The prespecified primary analysis is the matched risk difference, reported as the effect of treatment for the study population.
 
 ```{r traditional}
 covs <- c("age", "sex", "chads", "renal_moderate", "renal_severe",
@@ -237,9 +237,9 @@ n_dropped <- length(tr) - length(pairs_t)
 
 The matched balance table is what a traditional review examines, and it looks the way a passing table looks: the largest standardised mean difference is `r sprintf("%.3f", max(balance))` (for `r names(balance)[which.max(balance)]`), essentially at the conventional 0.1 rule of thumb, with the renal indicators balanced almost exactly. The blinded stage passes, the outcome is linked, and the reported primary result is a matched risk difference of `r fmt_pp(rd_trad)` percentage points, 95 percent confidence interval `r fmt_ci(ci_trad[1], ci_trad[2])`, presented as the effect of the newer anticoagulant on twelve-month stroke risk in the study population. What the balance table does not show is the denominator of the claim: the caliper silently discarded `r n_dropped` of the `r length(tr)` treated patients it could not match, and nothing in the reviewed evidence says who they were.
 
-Grade it against the truth of the population it names. The full-cohort ATE is `r fmt_pp(truth_ate_full)` percentage points; the reported interval `r if (ci_trad[2] < truth_ate_full) "excludes it from below" else if (ci_trad[1] > truth_ate_full) "excludes it from above" else "covers it in this replication"`. The estimate sits near the supported-region truth of `r fmt_pp(truth_ate_supported)` percentage points, and the reason is mechanical, not subtle: the caliper removed the treated patients who had no counterparts, so the matched analysis answers a question about the matchable, while the report speaks about the population. The number is not so much wrong as mislabelled, and the label is what the clinical reader acts on: the report claims a benefit of about `r fmt_pp(abs(rd_trad))` percentage points for a population in which one patient in `r round(1 / share_severe)` was, in truth, mildly harmed.
+Grade it against the truth of the population it names. The full-cohort ATE is `r fmt_pp(truth_ate_full)` percentage points; the reported interval `r if (ci_trad[2] < truth_ate_full) "excludes it from below" else if (ci_trad[1] > truth_ate_full) "excludes it from above" else "covers it in this replication"`. The estimate sits near the supported-region truth of `r fmt_pp(truth_ate_supported)` percentage points, and the reason is mechanical: the caliper removed the treated patients who had no counterparts, so the matched analysis answers a question about the matchable, while the report speaks about the population. The number is not so much wrong as mislabelled, and the label is what the clinical reader acts on: the report claims a benefit of about `r fmt_pp(abs(rd_trad))` percentage points for a population in which one patient in `r round(1 / share_severe)` was, in truth, mildly harmed.
 
-Nothing in the traditional blinded evidence flags any of this. The balance table is genuinely excellent. That is the sense in which blinding, alone, is not enough: the design passed every diagnostic it computed, and the diagnostics it did not compute are where the problem lived.
+Nothing in the traditional blinded evidence flags any of this; the balance table is excellent. The design passed every diagnostic it computed, and the diagnostics it did not compute are where the problem lived.
 
 ::: {.callout-important}
 ## The core lesson of the traditional arm
@@ -248,7 +248,7 @@ A clean balance table on the matched (or weighted) sample is compatible with a c
 
 ---
 
-## The Staged Targeted-Learning Analysis
+## The staged targeted-learning analysis
 
 Now the same data through the sixteen-verb workflow. The narration is longer than the code.
 
@@ -294,7 +294,7 @@ sup <- assess_support(ps)
 print(sup)
 ```
 
-The support verdict is **`r sup$verdict`**. Where the traditional analysis looked at balance on the weighted sample, `assess_support()` looks at the whole eligible cohort: the share of patients outside the prespecified propensity band, the largest implied weight, the effective sample size, and an escalation rule for covariate strata in which treatment is near-deterministic. The severe-renal channeling that the balance table absorbed is precisely what this verdict surfaces.
+The support verdict is **`r sup$verdict`**. Where the traditional analysis looked at balance on the weighted sample, `assess_support()` looks at the whole eligible cohort: the share of patients outside the prespecified propensity band, the largest implied weight, the effective sample size, and an escalation rule for covariate strata in which treatment is near-deterministic. This verdict surfaces the severe-renal channeling that the balance table absorbed: the near-deterministic stratum it names is the severe-renal group, with `r sup$near_deterministic$n_treated_in_stratum[1]` treated patients among `r sup$near_deterministic$n_in_stratum[1]`.
 
 The feasibility table then asks the estimand question directly, for every rung of the ladder:
 
@@ -303,7 +303,7 @@ fea <- estimand_feasibility(ps)
 print(fea)
 ```
 
-The reading is the design finding of this whole analysis: the full-cohort ATE is not feasible on this design, while `r paste(unique(sub(" \\[.*$", "", fea$table$estimand[fea$table$feasible])), collapse = ", ")` remain available. The ATT's weights on controls are bounded, and the trimmed ATE restricts to the region where both arms genuinely occur, so both survive the channeling that defeats the ATE. Because the ladder was declared at Stage 1, the switch this table recommends is a pre-registered decision, not an analyst's improvisation after the fact.
+The full-cohort ATE is not feasible on this design, while `r paste(unique(sub(" \\[.*$", "", fea$table$estimand[fea$table$feasible])), collapse = ", ")` remain available; this is the design finding of the whole analysis. The ATT's weights on controls are bounded, and the trimmed ATE restricts to the region where both arms occur, so both survive the channeling that defeats the ATE. Because the ladder was declared at Stage 1, the switch this table recommends is a pre-registered decision.
 
 An outcome-blind support map (`simulate_support()`) completes the estimability file: it resamples covariates, redraws treatment from the fitted generating propensity, simulates outcomes over a prespecified surface family, and scores each estimand's estimator where the truth is known. A small run keeps this tutorial light; a real study would use several hundred replicates.
 
@@ -340,7 +340,7 @@ lock <- declare_estimand_ladder(lock, primary = "ATE",
                                 trigger = "SEVERE", candidate = best)
 ```
 
-Because the thresholds were fingerprinted at lock creation, the verdict table is a lookup, and the tipping points give the first declared severity at which each candidate crosses a locked bound. Under the minimax rule across threats the selected candidate is `r best$candidate_id` (truncation `r best$truncation`). For the unmeasured-confounding family the tipping table reports the odds-ratio strength at which a locked bound is first crossed, which is what a review team is asking for when it asks how strong the unrecorded judgment would have to be before the planned analysis stops being trustworthy.
+Because the thresholds were fingerprinted at lock creation, the verdict table is a lookup, and the tipping points give the first declared severity at which each candidate crosses a locked bound. On this design the verdict is STOP for every candidate, and the baseline rows say why. With no threat applied, coverage is already `r sprintf("%.2f", min(st$baseline$coverage))` to `r sprintf("%.2f", max(st$baseline$coverage))`, and the mean standard error is `r sprintf("%.0f", 100 * min(st$baseline$se_cal))` to `r sprintf("%.0f", 100 * max(st$baseline$se_cal))` percent of the empirical standard deviation of the estimate, so a full-cohort TMLE on this cohort reports intervals that are too narrow before any data-quality threat is applied. The stress test scores the full-cohort ATE, because that is the estimand its plasmode truth is defined on, and the support verdict has already ruled that estimand out; the tipping point at the first level of the confounding grid says the same thing. Under the declared threats the worst absolute bias across candidates is `r sprintf("%.3f", max(abs(st$metrics$bias[st$metrics$scenario != "none"])))`, at the locked bound of `r st$thresholds$max_abs_bias`; the breach that drives every verdict is coverage, and it was there at baseline. The STOP is a second, outcome-blind reading of the support failure, and the documented review response it asks for is the estimand switch the ladder pre-registered. Under the minimax rule across threats the selected candidate is `r best$candidate_id` (truncation `r best$truncation`). For the unmeasured-confounding family the tipping table reports the odds-ratio strength at which a locked bound is first crossed, which is what a review team is asking for when it asks how strong the unrecorded judgment would have to be before the planned analysis stops being trustworthy; on this design that question belongs to the estimand the ladder moved to, and the stress test that answers it for the trimmed ATE would run on the common-support cohort the ladder selected.
 
 ### Stage 3: where does the residual confounding live?
 
@@ -355,7 +355,7 @@ ncl <- negative_control_ladder(
 print(ncl)
 ```
 
-The finding is the pattern across rungs, and the printout has two layers to read. The significance flags stay quiet on every rung: under the extreme full-cohort weights the negative-control confidence interval is wide, and a significance test has little power to see anything. The locked criteria read the same numbers differently. The declared rule asks whether the control's estimate sits inside the prespecified null band, and on the full cohort the health-seeking control sits outside it, so the Check Point 3 verdict for that rung is STOP; after the pre-registered restriction the estimate drops inside the band and the rung reads GO. A verdict that flips from STOP to GO across one restriction localises the residual confounding to the excluded stratum, which no single-cohort negative-control check can show. Here the localisation agrees with the support analysis: the stratum the design cannot support is also the stratum through which the unrecorded judgment acts. The two blinded diagnostics, computed through entirely different channels, point at the same patients, and the estimand switch the ladder pre-registered removes exactly those patients from the target.
+The finding is the pattern across rungs, and the printout has two layers to read. The significance flags stay quiet on every rung: under the extreme full-cohort weights the negative-control confidence interval is wide, and a significance test has little power to see anything. The locked criteria read the same numbers differently. The declared rule asks whether the control's estimate sits inside the prespecified null band, and on the full cohort the health-seeking control sits outside it, so the Check Point 3 verdict for that rung is STOP; after the pre-registered restriction the estimate drops inside the band and the rung reads GO. A verdict that flips from STOP to GO across one restriction localises the residual confounding to the excluded stratum, which no single-cohort negative-control check can show. Here the localisation agrees with the support analysis: the stratum the design cannot support is also the stratum through which the unrecorded judgment acts. The two blinded diagnostics, computed through different channels, point at the same patients, and the estimand switch the ladder pre-registered removes exactly those patients from the target.
 
 ### The review, and the record
 
@@ -412,7 +412,7 @@ log_tail <- export_design_log(lock, format = "muntner")
 knitr::kable(tail(log_tail[, c("stage", "issue", "decision", "decided_by")], 5))
 ```
 
-The released decision log carries the declarations, the ladder switch, and the named unmasking approval, in the column structure the staged-analysis literature uses for exactly this purpose.
+The released decision log carries the declarations, the ladder switch, and the named unmasking approval, in the column structure the staged-analysis literature uses for exactly this purpose. The ladder appears twice because the Stage 2b call that attached the selected candidate re-declared it; the second entry is that amendment.
 
 ### After the outcome: sensitivity, on the declared terms
 
@@ -428,16 +428,16 @@ compute_evalue(rr_apx)
 
 ---
 
-## What the Staged Design Actually Improved
+## What the staged design improved
 
 What the staged design changed, against the three questions from the opening section:
 
 1. **The estimability question was asked, and answered, before outcome access.** The support verdict and feasibility table converted a silent extrapolation into a design finding with a pre-registered response. The traditional analysis had no stage at which this question could arise.
-2. **The estimator was chosen by a locked rule under declared threats.** The candidate grid, the minimax selection, the GO / FLAG / STOP verdict, and the tipping points were all computed on simulated outcomes against fingerprinted thresholds, so nothing about the realised effect direction could steer them, and the review team received operating characteristics instead of assurances.
-3. **The negative control gave a location as well as an alarm.** The ladder localised residual confounding to the same stratum the support analysis flagged, and the pre-registered estimand switch excised it, which turned two worrying diagnostics into one coherent design decision.
-4. **The released record supports the claim.** The lock fingerprint, the design log with the named approval, and the Muntner-format export let an external reviewer reconstruct every decision and verify that the rules applied were the rules declared.
+2. **The estimator was chosen by a locked rule under declared threats.** The candidate grid, the minimax selection, the locked verdict, and the tipping points were all computed on simulated outcomes against fingerprinted thresholds, so nothing about the realised effect direction could steer them, and the review team received operating characteristics instead of assurances. The STOP verdict itself carried information: it showed, without the outcome, that the full-cohort intervals would be too narrow.
+3. **The negative control gave a location as well as an alarm.** The ladder localised residual confounding to the same stratum the support analysis flagged, and the pre-registered estimand switch excised it, which turned two alarms into one design decision.
+4. **The released record supports the claim.** The lock fingerprint, the design log with the named approval, and the decision-log export in the format of @muntner2024staging let an external reviewer reconstruct every decision and verify that the rules applied were the rules declared.
 
-None of this replaces the clean room's institutional layer. Role separation, access control, and independent review stay outside the software, and the package documentation says so. What the causal roadmap and targeted learning add is content for the blinded stages: statistical questions with outcome-blind answers, decision rules that can be fingerprinted, and an estimator that stays adaptive under full prespecification. A clean room built this way still stops the analyst from peeking. It also tells the design team, while everyone is blind, whether the study can deliver the answer they intend to claim.
+None of this replaces the clean room's institutional layer. Role separation, access control, and independent review stay outside the software, and the package documentation says so. What the causal roadmap and targeted learning add is content for the blinded stages: statistical questions with outcome-blind answers, decision rules that can be fingerprinted, and an estimator that stays adaptive under full prespecification. A clean room built this way still keeps the analyst from the outcome, and it also tells the design team, before anyone sees that outcome, whether the study can deliver the answer it intends to claim.
 
 ## Session information
 

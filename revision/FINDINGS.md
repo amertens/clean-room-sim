@@ -79,3 +79,27 @@ Stage 0 register, per operating rule 6. Each entry records the file and location
 * **Where:** `cleanTMLE/R/design_tools.R:180-198`; case-study text (manuscript lines 3153-3176) presents the unadjusted ladder as primary with the TMLE variant in the supplement.
 * **Evidence:** with `method = "tmle"` (the default), any per-rung TMLE failure falls back to the unadjusted two-proportion estimate with `status = "estimated"` and no per-row record of the method actually used; a mixed table is indistinguishable from a pure one. Separately, no locked decision criteria exist for the ladder (per-rung p < alpha only), the gap WP1 item 5's `nc_criteria` addresses, and the primary/supplement assignment inverts Muntner Section 11 (adjusted population, primary estimator).
 * **Fix (WP1 items 5; WP2 item 5):** record the realised method per row and never fall back silently; default the ladder to the locked primary estimator; declare `nc_criteria` on the lock; swap the primary and descriptive roles in Sections 6.6 and 12.4.
+
+## F14. The stress test scores the full-cohort ATE even after the ladder has moved
+
+* **Where:** `cleanTMLE/R/plasmode_dq.R` (`truth <- mean(p1_sim) - mean(p0_sim)` on the lock's cohort); `tutorials/clean_room_targeted_learning_tutorial.qmd`, Stage 2b.
+* **Evidence:** on the tutorial's SEVERE design every candidate reads STOP with the tipping point at the first grid level; the cached object shows baseline coverage 0.60 to 0.63 and mean SE at 43 to 52 percent of the empirical SD before any threat is applied, while bias under the threats never exceeds 0.020. The verdict restates the support failure of an estimand the ladder has already abandoned; nothing lets the stress test score the trimmed ATE the ladder moved to.
+* **Fix (tutorial text done; rerun phase):** the tutorial now says what the verdict measures. For the analysis to be reported, run `stress_test()` on the common-support cohort the ladder selected (the trimmed ATE is the ATE on that cohort); a package-level `estimand` argument on the stress test is a feature beyond the WPs and is not proposed here.
+
+## F15. Hybrid-mode leakage warning silenced in the tutorial; blinding contract overstated
+
+* **Where:** `tutorials/clean_room_targeted_learning_tutorial.qmd` (`warning = FALSE` in the setup chunk; the sentence on the blinding test suite); `cleanTMLE/tests/testthat/test-blinding.R` (identity on masked and permuted locks tested only for `dgp_mode = "external_pilot"`).
+* **Evidence:** the tutorial cohort's propensity c-statistic is 0.864, above the 0.80 threshold at which `.warn_hybrid_separation()` warns that the covariate-only Q0 approximates the crude association; the warning fired and was suppressed. The tutorial and the manuscript both said the suite asserts identical output for every design verb; the hybrid stress test reads the real outcome for its baseline surface.
+* **Fix (text done; rerun phase):** both documents now state the qualification. Switch the tutorial to `dgp_mode = "external_pilot"` with a `pilot_q0` from a separately simulated pilot cohort so every design verb is outcome-blind in fact.
+
+## F16. Re-declaring the ladder to attach the selected candidate duplicates the design-log entry
+
+* **Where:** `cleanTMLE/R/estimand_ladder.R` (`declare_estimand_ladder(candidate = )` logs a full `estimand_ladder` entry on every call); the tutorial's exported log shows the ladder twice.
+* **Evidence:** `lock_primary_tmle_spec()` is internal in 0.3.0, so the second declaration is the sanctioned route, and the Muntner-format export carries two identical ladder rows.
+* **Fix (deferred, outside the WPs):** log the candidate attachment as an amendment entry; the tutorial explains the duplicate for now.
+
+## F17. Manuscript statements that must be revisited when the reruns land
+
+* **Where:** `reports/manuscript_outcome_blind_dq.qmd`: "The case-study estimates in @sec-casestudy were produced under version 0.2.0" (Current scope); "All stages were run on cleanTMLE 0.2.0" (case study); the reproducibility map's `results_new/` rows; the 50-replicate case-study DQ subsection.
+* **Evidence:** the WP2 prose pass moved the manuscript's description of the package to 0.3.0 without touching any result-bearing claim; these sentences remain true of the recorded artifacts and false of the eventual 0.3.0 reruns.
+* **Fix (WP2, after the reruns):** update the version statements and the replicate counts from the rerun outputs through the source map; `UNMATCHED_NUMBERS.csv` stays the work list.

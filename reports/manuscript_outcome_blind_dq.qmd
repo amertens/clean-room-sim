@@ -171,7 +171,7 @@ good overlap (95% CI coverage `r round(mt_A_cov_if, 2)`, Monte Carlo SE
 and a full-pipeline bootstrap that re-runs matching on each resample
 raised coverage to `r round(mt_A_cov_boot, 2)` [@abadie2008bootstrap].
 `select_variance_method()` uses oracle coverage on plasmode-generated
-synthetic data to identify, for each estimator-scenario combination,
+simulated data to identify, for each estimator-scenario combination,
 which variance method achieves nominal coverage. When
 unmeasured confounding was introduced, all estimators were biased
 in the same direction, and the prespecified pre-outcome decision
@@ -301,9 +301,9 @@ this extension as a *data-quality (DQ) stress test*. It is a
 pre-outcome robustness screen rather than a substitute for
 variable validation or for post-unblinding sensitivity analysis.
 The workflow does not guarantee that estimator rankings under
-synthetic outcomes will generalise to the realised outcome
+simulated outcomes will generalise to the realised outcome
 process; the conclusions are only as credible as the
-synthetic-outcome model and the externally justified severity
+simulated-outcome model and the externally justified severity
 ranges entered into the DQ stress test.
 
 We use "data-quality stress testing" in a restricted sense: the
@@ -329,18 +329,18 @@ cohort construction, candidate estimators, simulation scenarios,
 decision thresholds, and primary-estimator selection are made
 without inspecting the observed treatment-outcome association.
 Analysts may use baseline covariates, treatment assignment,
-missingness indicators, and synthetic outcomes generated for
+missingness indicators, and simulated outcomes generated for
 plasmode simulations; the marginal mean of the observed outcome on
 covariates is also used internally to fit the plasmode generator.
 The observed treatment-outcome relationship is not used for
 estimator selection or design revision before the pre-outcome
 decision point.
 
-Standard pre-outcome review often separates three activities:
+A standard staged analysis often separates three activities:
 target-trial / protocol design, qualitative fit-for-purpose data
 review, and estimator selection. Standard plasmode simulation can
 compare estimators before outcome access, but it usually evaluates
-performance under one locked synthetic outcome mechanism. cleanTMLE
+performance under one locked simulated outcome mechanism. cleanTMLE
 extends that loop by stress-testing the selected estimator across
 prespecified data-quality threats derived from the fit-for-purpose
 review. This builds a quantitative bridge between the qualitative
@@ -369,7 +369,7 @@ targeting procedure, and the prespecified set of candidate estimators)
 can be listed in advance, while the estimator remains data-adaptive and
 still admits valid Wald-type confidence intervals under standard
 regularity conditions. This modular structure makes it possible to
-compare prespecified candidates under synthetic outcomes without
+compare prespecified candidates under simulated outcomes without
 revising the analytic plan after inspecting observed treatment-outcome
 associations.
 
@@ -383,11 +383,13 @@ three review-team recommendations of @muntner2024staging, namely
 proceeding to the comparative analysis, proceeding with a documented
 qualification or additional analysis, or stopping before it. Earlier
 versions of the package enforced this sequence by withholding the
-primary-analysis functions until every checkpoint had been recorded; in
-the current version outcome masking is always enforced, while the
-authorisation gate is an option for institutional settings rather than
-the default, because in practice the gate added ceremony without adding
-evidence (@sec-framework). This software arrangement sits inside, rather
+primary-analysis functions until every checkpoint had been recorded.
+The current version deletes that layer. The lock's data frame never
+holds the primary outcome, which lives in a separate store that only
+the estimation stage joins back, and the one enforcement option that
+remains, `enforce = TRUE`, makes estimation refuse to run until a named
+approver restores the store, an approval the design log records
+(@sec-framework). This software arrangement sits inside, rather
 than substitutes for, the personnel-based governance of a clean room
 such as role separation, credentialed data access, and an independent
 masked review team, which we return to in @sec-discussion. The "clean
@@ -427,10 +429,20 @@ under MAR and MNAR to test the default median-imputation handling
 against them. Analysts who need longitudinal estimands can compose
 cleanTMLE's prespecification functions with `survtmle`
 [@survtmlepackage2018] or `lmtp` [@lmtppackage2021]. This paper
-documents version 0.2.0 of the package, which consolidated the exported
-surface to 54 functions after earlier versions accreted governance
-helpers faster than they earned their place; a typical analysis touches
-about ten of them. The case-study estimates in @sec-casestudy were
+documents version 0.3.0 of the package, whose workflow surface is
+sixteen verbs that run in stage order against one lock object:
+`create_analysis_lock()`, `declare_negative_controls()`, and
+`declare_estimand_ladder()` seal the plan; `fit_ps()`,
+`assess_support()`, `estimand_feasibility()`, and `simulate_support()`
+answer the estimability question; `define_candidates()`,
+`stress_test()`, and `select_candidate()` choose the estimator under
+declared threats; `negative_control_ladder()` and
+`check_process_indicators()` look for residual confounding;
+`design_report()` and `export_design_log()` produce what the review
+team reads; and `estimate_effect()` and `run_estimand_ladder()`
+estimate. Earlier versions accreted governance helpers faster than
+they earned their place, and the 0.2.0 consolidation and the 0.3.0
+revision removed them. The case-study estimates in @sec-casestudy were
 produced under version 0.2.0.
 
 ## What the paper contributes
@@ -463,7 +475,7 @@ across baseline and stressed scenarios. Third, we characterise the
 screen's operating characteristics as a decision rule (@sec-gate-oc):
 how often it returns the same proceed-or-stop verdict an oracle with
 knowledge of the realised estimator's bias would return, and how that
-calibration degrades when the synthetic-outcome model is misspecified.
+calibration degrades when the simulated-outcome model is misspecified.
 
 The boundary with the FIORD framework is as follows. FIORD, the Forum
 on the Integration of Observational and Randomized Data
@@ -472,7 +484,8 @@ candidate-evaluation loop and the two-stage selector that first screens
 candidates on oracle coverage and then selects a variance method. This paper
 contributes the software implementation of that loop, the data-quality
 stress-test extension that scores each candidate under prespecified threats on
-the same decision scale, and the lock, audit, and pre-outcome-decision record.
+the same decision scale, and the lock, design-log, and pre-outcome-decision
+record.
 We hold to this division of labour throughout, and we do not claim the
 outcome-blind selection framework as original to this work.
 
@@ -481,15 +494,15 @@ review (@sec-bridge) and not a substitute for variable-validation
 studies, source-data assessment, or post-outcome quantitative bias
 analysis, and we are explicit (@sec-guarantees) about what passing it does
 and does not establish. The R implementation records the supporting
-prespecification (the SHA-256-fingerprinted analysis lock, the audit
-trail, the decision log, and the pre-outcome decision) so that the screen
-and the locked primary analysis share a single reproducible record.
+prespecification (the SHA-256-fingerprinted analysis lock, the design
+log, and the pre-outcome decision) so that the screen and the locked
+primary analysis share a single reproducible record.
 
 For an applied real-world evidence team the operational payoff is
 concrete. Prespecifying the estimand, the candidate estimators, the
 learner libraries, and the decision thresholds inside a fingerprinted
-lock, and recording every pre-outcome diagnostic in an exportable audit
-trail, gives a reviewer a record that can be reconstructed without
+lock, and recording every pre-outcome diagnostic in an exportable design
+log, gives a reviewer a record that can be reconstructed without
 relying on the analyst's recollection of which choice was made when.
 This addresses a recurring concern in real-world evidence submissions,
 that analytic choices may have been shaped by the observed
@@ -514,15 +527,14 @@ about `r round(scC_est, 3)` attenuates the true `r round(scC_truth, 3)`),
 with 95% CI coverage of the true effect near `r round(scC_cov, 2)` and
 only about `r round(100 * scC_pct_excl0)`% of replicate intervals
 excluding zero. A conventional analysis would therefore typically report
-no significant effect and publish a null that masks a real one. The contrast here is
-genuine rather than rhetorical: under this prespecified
-unmeasured-confounding scenario the realised measured-covariate analysis
-is materially biased and under-covering, so both a realised-bias oracle
-and the outcome-blind screen flag it (detection and fragility agree),
-and a conventional pipeline would publish a genuinely misleading null.
-The
-fits are identical under both pipelines; the difference is the
-prespecified decision applied before the outcome is read.
+no significant effect and publish a null that masks a real one. Under
+this prespecified unmeasured-confounding scenario the realised
+measured-covariate analysis is materially biased and under-covering, so
+both a realised-bias oracle and the outcome-blind screen flag it
+(detection and fragility agree), and a conventional pipeline would
+publish a misleading null. The fits are identical under both pipelines;
+the difference is the prespecified decision applied before the outcome
+is read.
 
 ## Why targeted learning for an outcome-blind workflow
 
@@ -543,7 +555,7 @@ either the propensity or the outcome model is correctly specified, is
 shared with augmented inverse-probability weighting. The candidate estimators are
 enumerable, which is what makes outcome-blind selection among them feasible:
 each candidate is a fixed choice of nuisance libraries, truncation, and
-cross-fitting, and the candidates can be ranked on synthetic data before the
+cross-fitting, and the candidates can be ranked on simulated data before the
 outcome is unblinded. A logistic outcome regression or an inverse-probability
 weight does not separate the target from the model in this way, which is why
 the workflow is built on targeted learning.
@@ -591,7 +603,7 @@ cleanTMLE operationalises in software, and to what still requires
 external study-level justification is given in @tbl-reg-align, and
 @tbl-event-diag lists the additional event-process and diagnostic
 helpers. We return to the regulatory correspondence in @sec-discussion
-rather than developing it in the methods, because the software
+instead of developing it in the methods, because the software
 operationalises only part of each expectation.
 
 The remaining methods sections follow the roadmap order. @sec-estimand
@@ -661,62 +673,72 @@ fit <- run_estimand_ladder(lock, ps)
 @tbl-functions summarises the functions the workflow exercises, what each
 one does, and the representative output it returns. Candidate selection
 and the data-quality stress test (@sec-dq) slot in between the support
-assessment and estimation through the same lock, and an optional
-enforcement mode (`create_analysis_lock(enforce = TRUE)`) exists for
-institutional settings where estimation must refuse to run without a
-recorded design review; outcome masking is enforced for every lock.
+assessment and estimation through the same lock. A lock created with
+`enforce = TRUE` refuses estimation until `unmask_outcome()` restores
+the outcome store with a named `approved_by`, and that approval is a
+design-log entry; whatever the setting, the lock's data frame never
+holds the primary outcome.
 
 ```{r functions-table}
 #| label: tbl-functions
 fns <- data.frame(
-  Step = c("lock", "lock", "design", "design", "design", "design",
-           "design", "design", "select", "select", "estimate", "estimate",
-           "report"),
+  Step = c("lock", "lock", "lock", "design", "design", "design", "design",
+           "select", "select", "select", "design", "design", "report",
+           "report", "estimate", "estimate"),
   `Function` = c(
     "create_analysis_lock()",
+    "declare_negative_controls()",
     "declare_estimand_ladder()",
     "fit_ps()",
     "assess_support()",
     "estimand_feasibility()",
     "simulate_support()",
-    "run_negative_control_ladder()",
+    "define_candidates()",
+    "stress_test()",
+    "select_candidate()",
+    "negative_control_ladder()",
     "check_process_indicators()",
-    "run_plasmode_feasibility()",
-    "run_plasmode_dq_stress()",
+    "design_report()",
+    "export_design_log()",
     "estimate_effect()",
-    "run_estimand_ladder()",
-    "design_report()"),
+    "run_estimand_ladder()"),
   `What it does` = c(
-    "Seal the data, variable roles, learner library and seed behind a fingerprint; register negative controls; optionally mask the outcome.",
-    "Pre-register the primary estimand, the ordered fallbacks, the switching trigger, and sensitivity floors, as a design-log entry.",
+    "Seal the design data, variable roles, learner library, seed, and the declared decision rules (dq_thresholds, nc_criteria) behind a fingerprint; move the primary outcome into a separate store; optionally require a named approval before estimation (enforce = TRUE).",
+    "Register the negative controls with their confounding domains and, if not declared at creation, the criteria they will be graded against, as a design-log entry.",
+    "Pre-register the primary estimand, the ordered fallbacks, the switching trigger, and sensitivity floors, as a design-log entry; later, attach the selected candidate.",
     "Fit the propensity score (SuperLearner, GLM, or externally supplied scores).",
     "Grade overlap on the fitted propensity: share outside the band, largest weight, ESS, c-statistic, near-deterministic strata, tree-identified violation regions; verdict PASS, FLAG, SEVERE or FAIL with a caveat that travels with every estimate.",
     "Read the same fit per estimand: the implied weights, their maximum, ESS by arm, who is removed, and each estimand's verdict; profile the patients outside the band.",
     "Generate-treatment plasmode over a prespecified outcome-surface family; per-estimand truths on every replicate; the support map the gate reads.",
-    "Fit every registered negative control on every nested cohort and name what turns null after a restriction.",
+    "Declare the candidate TMLE specifications, singly or as a factorial grid over libraries and truncation.",
+    "One outcome-blind plasmode loop: the clean-data baseline when no threats are declared, the data-quality sweep otherwise; carries the locked verdict and tipping points when the lock declares thresholds.",
+    "Lock one candidate by a declared rule (baseline RMSE, worst-case RMSE across threats, or the FIORD two-stage screen).",
+    "Fit every registered negative control on every nested cohort, name what turns null after a restriction, and grade each rung against the locked criteria.",
     "Regress each care-process indicator on treatment given severity: the collider check.",
-    "Outcome-blind candidate selection: evaluate TMLE specifications on synthetic outcomes.",
-    "Re-run the loop under prespecified data-quality threats; degradation gradients per candidate.",
+    "Assemble what the review team reads before outcomes are unlocked, with a one-line recommendation and the TARGET emulation table.",
+    "Release the design log, tidy or in the decision-log columns of the staged-analysis literature.",
     "The one estimation front door: estimand, estimator family, and missing-outcome handling as arguments; the implausibility guard on every result.",
-    "Estimate the declared primary when feasible plus every feasible fallback; label every row; log every switch and override.",
-    "Assemble what the review team reads before outcomes are unlocked, with a one-line recommendation and the TARGET emulation table."),
+    "Estimate the declared primary when feasible plus every feasible fallback; label every row; log every switch and override."),
   `Representative output` = c(
     "lock object; lock_hash 9f2c1a...",
+    "two controls registered with their domains; criteria recorded",
     "ladder: ATE, then trimmed ATE, then ATT, then ATO; trigger SEVERE",
     "ps_fit; scores and untruncated scores",
     "verdict SEVERE; 41.3% outside [0.05, 0.95]; max weight 304",
     "ATE infeasible; ATT and ATO feasible; profile of the removed",
     "support map: ATE fails beyond confounding 1; ATT and ATO hold",
+    "candidate set over libraries and truncation",
+    "per-candidate bias, RMSE, coverage; degradation gradient per threat; verdict and tipping points",
+    "the locked candidate with the rule that chose it",
     "urban household: fails on full cohort, null after exclusions",
     "no physiology indicator predicted by treatment beyond 0.1 SD",
-    "per-candidate bias, RMSE, coverage table",
-    "degradation gradient per candidate per threat",
+    "recommendation: primary not supported; ladder engaged",
+    "decision-log table: date, stage, issue, decision, rationale, decided by",
     "one labelled estimate with SE, CI, p, and flags",
-    "one labelled row per feasible estimand; logged switch",
-    "recommendation: primary not supported; ladder engaged"),
+    "one labelled row per feasible estimand; logged switch"),
   check.names = FALSE, stringsAsFactors = FALSE)
 knitr::kable(fns,
-  caption = "The cleanTMLE workflow, one row per function: what each does and representative output from the Rescue.Co protocol contrast. Everything above estimate_effect() runs with no outcome access.")
+  caption = "The cleanTMLE workflow, one row per verb: what each does and representative output from the Rescue.Co protocol contrast. Everything above estimate_effect() runs with no outcome access.")
 ```
 
 # Estimand, Causal Model, and Identifiability {#sec-estimand}
@@ -738,12 +760,13 @@ the marginal g-formula contrast [@robins1986newapproach;
 @hernan2020causal].
 
 In the workflow this specification is recorded on the lock at
-Stage 1a and is preserved on the lock object that downstream stages
-consume. The estimand fields are not part of the integrity
-fingerprint computed by `create_analysis_lock()`; analysts who want
-a tamper-evident estimand record can log it with a
-`record_decision_log_entry()` call so that any later modification is
-visible in the exported decision log.
+Stage 1a, as the `estimand` argument of `create_analysis_lock()`, and
+is preserved on the lock object that downstream stages consume. The
+estimand fields are metadata outside the integrity fingerprint, which
+digests the design data and the analytic specification; the exported
+design log carries the ladder declaration and every later switch, so
+the estimand the analysis ends up reporting can be traced from the
+declaration to the estimate.
 
 ## Causal model
 
@@ -782,7 +805,7 @@ intercurrent event requiring a treatment-policy, hypothetical,
 composite, while-on-treatment, or principal-stratum strategy,
 depending on the clinical question. This classification should be
 prespecified and linked to sensitivity analyses, and recorded as a
-structured object that the audit log can carry.
+structured object that the design log can carry.
 
 ## Identifiability assumptions {#sec-id}
 
@@ -793,7 +816,7 @@ identification assumptions hold [@hernan2020causal]:
   This holds in scenarios A and B by construction. It is violated
   by construction in scenario C, where $U$ is not in the analyst's
   adjustment set. **Probed by:** the unmeasured-confounding scenario
-  in `run_plasmode_dq_stress()`.
+  in `stress_test()`.
 - *Positivity*, $0 < \Pr(A = 1 \mid W) < 1$ for every $W$ in the
   support. Scenario A satisfies this comfortably. Scenario B
   pushes the propensity toward the boundary but does not violate
@@ -859,16 +882,19 @@ content matches the roadmap steps of @dang2023roadmap.
 | 1a | Lock covariates, learner library, candidate grid; declare the estimand ladder | No |
 | 1b | Cohort adequacy: $N$ per arm, events, design precision | Events only |
 | 2a | Propensity fit, support assessment, per-estimand feasibility, balance (@sec-support) | No |
-| 2b | Outcome-blind support map and plasmode candidate selection | No (synthetic outcome) |
-| **2c** | **Plasmode DQ stress test** | **No (synthetic outcome)** |
+| 2b | Outcome-blind support map and plasmode candidate selection | No (simulated outcome) |
+| **2c** | **Plasmode DQ stress test** | **No (simulated outcome)** |
 | 3 | Negative-control ladder, process-indicator (collider) check | NC outcomes only |
 | Pre-outcome decision | Design report: proceed, proceed with qualification, or stop | No |
 | 4 | Estimation of the declared primary and feasible fallbacks | **Yes** |
 
 Stages 1 to 3 do not access the real outcome. The plasmode at Stage
-2b generates synthetic outcomes from a parametric model fitted to
-the real covariates and treatment, which is why the same loop hosts
-both the support map of @sec-support and the DQ stress test of
+2b resamples the real covariates, redraws treatment from the fitted
+propensity, and generates simulated outcomes from a covariate-only
+baseline surface (fitted on the real outcome given covariates in the
+hybrid generator mode, or supplied from pilot data in the external-pilot
+mode) with the treatment effect injected, which is why the same loop
+hosts both the support map of @sec-support and the DQ stress test of
 @sec-dq.
 
 Within a staging-and-clean-room framework, the DQ stress test
@@ -886,8 +912,8 @@ missingness issues that require decisions after data access but
 before comparative effect estimation
 [@mcgrath2021romiplostim; @muntner2024staging]. cleanTMLE
 operationalises the software portion of this process by recording
-pre-outcome diagnostics, checkpoint decisions, deviations, and
-authorisation status before the observed primary
+pre-outcome diagnostics, decisions, deviations, and the named
+unmasking approval in the design log before the observed primary
 treatment-outcome association is estimated.
 
 ## How the workflow records and protects analytic decisions
@@ -897,16 +923,26 @@ diagnostics depend. It is created at the start of the workflow and
 records the prespecified analytic specification: the analytic
 dataset, the treatment, outcome, and covariate column names, the
 registered negative controls, the nuisance-learning library, and the
-random seed. A fingerprint of those fields is recorded so that the
-same lock can be reconciled later by an external reviewer. The
-estimand ladder is attached to the lock by
-`declare_estimand_ladder()` and is captured by the design log rather
-than by the fingerprint, so any later change to the ladder appears as
-a separate, timestamped entry. While the analysis is outcome-blind,
-the lock can hold the outcome column masked; in the case study the
-outcome columns are physically absent from the design stage and live
-in a separate store until estimation, which is the stronger
-arrangement when the data platform allows it.
+random seed, together with any decision rules declared at creation
+(the data-quality thresholds `dq_thresholds` and the negative-control
+criteria `nc_criteria`). A SHA-256 fingerprint of those fields and of
+the content of every design column is recorded so that the same lock
+can be reconciled later by an external reviewer; the primary outcome
+is excluded from the digest, so masking and unmasking leave the hash
+unchanged while any edit to the design data changes it. The estimand
+ladder is attached to the lock by `declare_estimand_ladder()` and is
+captured by the design log, not by the fingerprint, so any later
+change to the ladder appears as a separate, timestamped entry. The
+lock splits its input at creation: the data frame the design verbs
+read holds design data only, and the primary outcome lives in a
+separate store that the estimation stage joins back after its guard.
+`mask_outcome()` removes the store, so a masked lock is physically
+outcome-free wherever it travels, and the package's test suite asserts
+that the design verbs return identical output on a masked lock and
+under a permuted outcome; for the plasmode stage that identity holds
+in the external-pilot generator mode, since the hybrid mode fits its
+covariate-only baseline surface on the real outcome (see the tradeoffs
+below).
 
 The design log tracks analytic decisions through the workflow. It
 accumulates entries automatically from the diagnostics, recording
@@ -917,23 +953,25 @@ as a tidy data frame and archived alongside the lock, so deviations
 from the recorded workflow can be detected during review. The
 exported record follows the structure of the Romiplostim worked
 example [@mcgrath2021romiplostim], which @muntner2024staging take as
-the reference template for a staged outcome-blind decision record.
-Earlier versions of the package additionally withheld the
+the reference template for a staged outcome-blind decision record,
+and `export_design_log(format = "muntner")` writes it in that
+template's columns (date, stage, issue, decision, rationale, decided
+by). Earlier versions of the package additionally withheld the
 estimation functions until an authorisation token matching the lock
-and the audit record had been minted; that enforcement is now an
-option (`enforce = TRUE` on the lock) rather than the
-default. Masking is a property of the data and is always enforced.
+and an audit record had been minted. Version 0.3.0 deletes that layer.
 The token ceremony, in our experience and in the case study,
 documented compliance without changing any analytic decision, and a
-determined analyst could always have bypassed it outside the
-package; the design log records the same sequence of decisions
-without the ritual.
+determined analyst could always have bypassed it outside the package.
+What remains is one institutional switch: a lock created with
+`enforce = TRUE` refuses estimation until `unmask_outcome()` restores
+the outcome store with a named `approved_by`, and the design log
+records who approved and when.
 
-Beyond a single outcome-masking step, @muntner2024staging and
+In addition to a single outcome-masking step, @muntner2024staging and
 @kent2026fiord recommend tiered, role-based access in which
 analytic advisors see summary outputs by stage and checkpoint
-reviewers see summary outputs only by checkpoint. The exported
-audit and decision logs support that arrangement at the workflow
+reviewers see summary outputs only by checkpoint. The design report
+and the exported design log support that arrangement at the workflow
 level, providing reviewer-facing summaries that do not require
 raw-data access.
 
@@ -947,13 +985,13 @@ does a separate analyst, or another role on the same team, link
 the outcome and run the comparative analysis. Separation is
 maintained by an institutional partition of duties and a
 documented audit by a data manager who controls access to the
-outcome variable. Reviewers and regulators evaluate two artefacts
+outcome variable. Reviewers and regulators evaluate two documents
 at the end: a timestamped analysis plan and a final estimate
 produced under that plan.
 
 Outcome-blind simulation addresses the same concern through a
 different mechanism. Candidate estimators, truncation rules, and
-data-quality scenarios may be evaluated using synthetic outcomes
+data-quality scenarios may be evaluated using simulated outcomes
 generated without using the observed treatment-outcome
 association. This allows investigators to compare estimators and
 revise prespecified simulation settings before unblinding while
@@ -961,11 +999,10 @@ preserving separation from the observed comparative effect. The
 software-mediated workflow partially substitutes for
 personnel-based outcome separation by restricting outcome analysis
 until prespecified review steps have been completed. It complements
-that arrangement rather than replacing it: the audit and decision
-logs sit alongside the timestamped paper plan and the data
-manager's role, so reviewers see transparent documentation of every
-analytic decision on top of the institutional documentation that
-already exists.
+that arrangement: the design log sits
+alongside the timestamped paper plan and the data manager's role, so
+reviewers see transparent documentation of every analytic decision on
+top of the institutional documentation that already exists.
 
 The two arrangements address the same underlying concern, that
 analytic decisions made after seeing the treatment-outcome
@@ -975,7 +1012,7 @@ commitment to the partition of duties and tolerates ad-hoc
 deviation by the blinded analyst, since the only ground truth is
 the timestamped plan. Simulation-based blinding reduces the
 personnel constraint but introduces a different residual risk: the
-investigator must defend the assumption that the synthetic-outcome
+investigator must defend the assumption that the simulated-outcome
 mechanism is faithful enough to the real data-generating process
 that estimator selection on simulations generalises to the
 realised data. A defensible RWE pipeline can therefore use both,
@@ -994,7 +1031,7 @@ caveat that submission-grade studies should retain a personnel
 partition; the prespecified set of candidate estimators, the
 truncation thresholds, and the decision thresholds can be revised
 after viewing simulation results because those results use
-synthetic outcomes, so the analytic plan need not be re-frozen
+simulated outcomes, so the analytic plan need not be re-frozen
 each time a tuning choice is reconsidered; the design records
 support transparent reconstruction of every prespecified decision
 by an external reviewer; and the same simulation loop that
@@ -1010,12 +1047,12 @@ $(A, Y) \mid W$ relationship. The Dang causal-roadmap reading of
 *outcome-blind* permits this; a stricter reading of outcome blinding
 would require $E[Y \mid W]$ to come from external pilot data
 [@dang2023roadmap, p. 7], and the package supports both modes,
-recording which mode was used. The synthetic outcome is generated
+recording which mode was used. The simulated outcome is generated
 from a parametric model with a fixed risk difference, so effect
 modification is not represented; a richer data-generating process
 is possible but is not exercised here. Finally, when the analyst
 also writes the plasmode and stress-test specifications, there is
-no independent check that the synthetic-outcome mechanism is
+no independent check that the simulated-outcome mechanism is
 faithful, whereas the personnel-based arrangement provides an
 additional layer of cross-validation through the data manager.
 
@@ -1037,7 +1074,7 @@ closes with a one-line recommendation in the vocabulary of
 a TARGET-style emulation table [@cashin2024target] when the protocol
 components are supplied. Its components are:
 
-| Component | cleanTMLE artefact | Outcome access |
+| Component | cleanTMLE output | Outcome access |
 |---|---|---|
 | Protocol and target-trial timing | Lock record + `design_report(protocol = ...)` emulation table | No Y |
 | Cohort flow / attrition | `attrition_table()` | No Y |
@@ -1046,14 +1083,14 @@ components are supplied. Its components are:
 | Estimand feasibility and declared ladder | `estimand_feasibility()`, `declare_estimand_ladder()` | No Y |
 | Weight diagnostics | `clean_weight_diagnostics()` | No Y |
 | Event-count and precision adequacy | `estimate_design_precision()` | Marginal Y only |
-| Outcome-blind support map | `simulate_support()` | Synthetic Y only |
-| Plasmode candidate selection | `run_plasmode_feasibility()`, `select_tmle_candidate()` | Synthetic Y only |
-| DQ stress-test results | `run_plasmode_dq_stress()` | Synthetic Y only |
-| Negative controls across cohort restrictions | `run_negative_control_ladder()` | Negative-control Y only |
+| Outcome-blind support map | `simulate_support()` | Simulated Y only |
+| Plasmode candidate selection | `define_candidates()`, `stress_test()`, `select_candidate()` | Simulated Y only |
+| DQ stress-test results | `stress_test()` | Simulated Y only |
+| Negative controls across cohort restrictions | `negative_control_ladder()` | Negative-control Y only |
 | Care-process collider check | `check_process_indicators()` | No Y |
-| Design log export | `design_report()` + lock design log | No Y |
+| Design log export | `export_design_log()` | No Y |
 
-The dossier is the artefact the reviewer reads. Comparative
+The dossier is the document the reviewer reads. Comparative
 treatment-outcome estimates are not part of the dossier and are
 produced only after the review.
 
@@ -1101,7 +1138,7 @@ FLAG (more than 1% outside the band, or a maximum weight above 30),
 SEVERE (more than 25% outside, or a maximum weight above 150), or FAIL
 (more than 60% outside, or a maximum weight above 1000), and the
 verdict's caveat sentence travels with every downstream estimate
-rather than living in a diagnostic file nobody reopens. The default
+instead of living in a diagnostic file nobody reopens. The default
 thresholds are deliberately coarse; they are stated in the lock and
 can be overridden there, so a study that overrides them does so on the
 record.
@@ -1167,7 +1204,7 @@ depends on how the outcome behaves in the region only one arm
 inhabits, and the design team is blind to the outcome. The package's
 answer is the same plasmode device it uses for candidate selection.
 `simulate_support()` resamples the locked covariates, draws treatment
-from the fitted propensity, and generates synthetic outcomes from a
+from the fitted propensity, and generates simulated outcomes from a
 prespecified family of surfaces indexed by two knobs: how strongly the
 outcome depends on the direction that drives the non-overlap, and how
 much the treatment effect varies along that direction. Because the
@@ -1181,9 +1218,9 @@ without touching a real outcome. The map is read jointly with the
 prespecified plausible region; a whole-grid pass rule is conservative
 by construction, and the design report states which rule was declared.
 
-### Generate-treatment, not sample-treatment
+### Generate-treatment versus sample-treatment
 
-One design choice in this simulation deserves emphasis because the
+One design choice in this simulation needs stating, because the
 literature has recently shown it is easy to get wrong. Plasmode
 studies commonly resample covariate-treatment pairs, so each subject
 keeps their observed treatment. @shaw2025plasmode show that this
@@ -1196,7 +1233,7 @@ uses this is a nuisance. For a support map it is disqualifying, since
 the object under study *is* the violation. `simulate_support()` and
 the plasmode selector therefore default to the generate-treatment
 design: covariates are resampled, treatment is redrawn from the
-fitted propensity, and synthetic outcomes follow. The sample-treatment
+fitted propensity, and simulated outcomes follow. The sample-treatment
 design remains available as an explicit option for backward
 comparison, and the case study reports the two side by side on its
 primary contrast.
@@ -1284,7 +1321,7 @@ diagnostics are needed alongside them after matching or weighting
 [@austin2009ps; @zhang2019balance].
 (ii) Baseline plasmode simulation evaluates candidate-estimator
 operating characteristics (bias, RMSE, coverage) under a single
-locked synthetic outcome model conditional on the empirical
+locked simulated outcome model conditional on the empirical
 $(W, A)$ structure. (iii) Negative-control analyses probe
 residual bias for selected control outcomes against a different
 data-generating channel altogether; they do not directly evaluate
@@ -1302,7 +1339,7 @@ claims before outcome access.
 The DQ stress test is a quantitative supplement to fit-for-purpose
 review, not a substitute for validation, governance, or
 post-outcome quantitative bias analysis. The workflow does not
-guarantee that estimator rankings under synthetic outcomes will
+guarantee that estimator rankings under simulated outcomes will
 generalise to the realised outcome process. DQ stress testing
 should not be interpreted as a formal identification-region
 analysis or as a replacement for post-outcome quantitative bias
@@ -1323,7 +1360,7 @@ to plasmode parameters as follows.
 
 ```{r spifd2-table}
 #| label: tbl-spifd2-map
-#| tbl-cap: "Mapping data-quality concerns to plasmode-parameter inputs of run_plasmode_dq_stress()."
+#| tbl-cap: "Mapping data-quality concerns to plasmode-parameter inputs of stress_test()."
 spifd2_map <- data.frame(
   `SPIFD2 / Kahn category` = c(
     "Covariate measurement / availability (Kahn: completeness)",
@@ -1377,11 +1414,11 @@ decision criteria. A robust candidate has a shallow gradient and
 remains within thresholds across plausible severities. A fragile
 candidate shows a cliff, where a small increase in degradation
 moves bias or coverage beyond the threshold. The default candidate-selection
-rule (`select_tmle_candidate(rule = "min_rmse")`) chooses on RMSE in a
+rule (`select_candidate(rule = "min_rmse")`) chooses on RMSE in a
 single step. cleanTMLE also provides `rule = "fiord_two_stage"`, which
 implements the point-estimator stage of the two-stage selector
 formalised in FIORD [@nance2026fiord]: candidates are first screened to
-those that achieve nominal **oracle coverage** (a CI built from the
+those that achieve nominal oracle coverage (a CI built from the
 Monte Carlo empirical SE), and the lowest-variance survivor is locked
 in. FIORD's second stage, selecting the variance method on the locked
 point estimator to achieve nominal coverage, is provided by
@@ -1436,10 +1473,9 @@ assumption-specific diagnostic. @tbl-threat-matrix
 makes that distinction explicit: for each scenario it lists the
 identification or measurement assumption nominally probed, the
 scenario operationalisation, and the threats the scenario *does
-not* probe. The reader should treat the table as a guide to
-interpreting `run_plasmode_dq_stress()` output rather than as a
-claim that the five scenarios constitute a complete
-threat taxonomy.
+not* probe. The table is a guide to interpreting `stress_test()`
+output; the five scenarios do not constitute a complete threat
+taxonomy.
 
 ```{r threat-matrix-table}
 #| label: tbl-threat-matrix
@@ -1477,14 +1513,14 @@ knitr::kable(threat_mat,
              caption = "Threat-to-assumption matrix. For each scenario, the assumption nominally probed, the operationalisation, and the threats the scenario does NOT probe. Severity ranges must come from external validation evidence (see @sec-calibration).")
 ```
 
-A consequence is that the `run_plasmode_dq_stress()` output is
+A consequence is that the `stress_test()` output is
 useful for *robustness screening* of candidate estimators against
 prespecified threat ranges, not for *validating* the data source.
 Variable validation, source-data audit, and post-outcome
 quantitative bias analysis [@lash2014qba] remain separate
-activities anchored in the validation literature
-[@fda2024ehrclaims; @fda2021registries; @ema2026rwd] rather than
-in the simulation engine.
+activities, anchored in the validation literature
+[@fda2024ehrclaims; @fda2021registries; @ema2026rwd] and outside
+the simulation engine.
 
 ## Calibration of severity ranges from external evidence {#sec-calibration}
 
@@ -1570,16 +1606,20 @@ uniformly to the baseline plasmode and to the degraded runs. The
 prespecified candidate is required to meet those thresholds both
 under the locked data-generating process and across the plausible
 range of each threat documented in the fit-for-purpose review.
-The package ships heuristic defaults for these thresholds
-(`max_abs_bias = 0.01` on the risk-difference scale, `min_coverage
-= 0.90`, an SE-to-empirical-SD window of (0.8, 1.2), and an ESS
-floor at 30% of $n$). These are conventional rules of thumb rather
-than values derived from a regulatory specification; analysts
-should set them from the study context (the estimand magnitude,
-the prespecified Type I error budget, and the operating
-characteristics required by the receiver of the evidence) before
-the analysis lock is signed. The package records the values in
-use as part of the lock fingerprint.
+The thresholds are declared on the lock as `dq_thresholds`: a
+maximum absolute bias on the risk-difference scale, a minimum
+coverage, and a maximum RMSE ratio relative to the candidate's own
+clean-data baseline, with optional FLAG levels for the last two. The
+package ships no default, because the values belong to the study:
+analysts should set them from the estimand magnitude, the
+prespecified Type I error budget, and the operating characteristics
+required by the receiver of the evidence, before the analysis lock is
+signed. The simulation of @sec-simulation declares a bias bound of
+0.02 and the case study one of 0.01, both with a coverage floor of
+0.90. The lock fingerprints the declared values, and the verdict and
+tipping points that `stress_test()` reports are pure functions of
+those values, the declared threat grid, and the computed metrics, so
+there is no reading-time judgment for the realised effect to steer.
 
 This shifts the pre-outcome decision in three ways. First, the
 data-fitness argument becomes numeric and candidate-specific:
@@ -1591,18 +1631,19 @@ prespecified threshold of 0.010. The steeper threat is unmeasured
 confounding: at OR$_A$ = OR$_Y$ = 2.0 the same candidate's bias
 reaches 0.010, touching the threshold, and RMSE rises by 9 %
 relative to the baseline plasmode. Second, the default
-`select_tmle_candidate()` rule, which picks the RMSE-minimiser on
+`select_candidate()` rule, which picks the RMSE-minimiser on
 the baseline plasmode, gains the option `rule = "min_max_rmse"`,
 which selects the candidate with the lowest worst-case RMSE across
 the DQ scenarios; a candidate that wins on the baseline but
 collapses under a positivity violation loses to a slightly less
 efficient one that maintains acceptable performance across the
 entire plausible range. @sec-divergence exhibits a candidate grid
-under which this rule changes the locked estimator. Third, because the DQ output is recorded
-in the same audit log as the baseline plasmode, a reviewer can
-read the audit trail, see the externally derived ranges that went
-in, see the prespecified thresholds that came out, and reproduce
-the decision.
+under which this rule changes the locked estimator. Third, because the
+baseline plasmode and the stressed runs are one `stress_test()` object
+that carries the locked thresholds and the declared grid, and the
+design log records their declaration, a reviewer can see the
+externally derived ranges that went in, the prespecified thresholds
+that came out, and reproduce the decision.
 
 ## Position relative to other bias analyses
 
@@ -1621,12 +1662,12 @@ We therefore position the DQ stress test as the *first* of three
 sequential bias analyses: pre-outcome (DQ stress test), at-outcome
 (negative-control outcomes [@lipsitch2010negative]), and
 post-outcome (E-value, QBA, causal-gap). Each addresses a different
-threat, at a different stage, with a different artifact.
+threat, at a different stage, with a different output.
 
 ## Why "outcome-blind" matters here
 
-The plasmode generator and DQ stress test use **all the data
-except the outcome**: real baseline covariates $W$, real treatment
+The plasmode generator and DQ stress test use all the data except
+the outcome: real baseline covariates $W$, real treatment
 assignment $A$, real missingness indicators, real follow-up
 intervals, but not the observed primary treatment-outcome
 association. This phrasing, which we adopt from the FIORD
@@ -1650,24 +1691,24 @@ run.
 
 ## What passing the screen does and does not establish {#sec-guarantees}
 
-The screen is a heuristic, not a guarantee, and it is worth stating its
-epistemic status precisely. Passing the DQ stress test establishes only
-that, *under the analyst's synthetic-outcome model and over the
+The screen is a heuristic, not a guarantee. Passing the DQ stress test
+establishes only that, *under the analyst's simulated-outcome model and
+over the
 prespecified range of each threat*, the locked candidate maintained bias,
 coverage, and SE calibration within the prespecified thresholds. It does
 not establish that the identification assumptions hold, that the data are
 fit for purpose, or that the realised estimator will behave as the
-synthetic one did. Three caveats follow directly. First, the screen can
+simulated one did. Three caveats follow directly. First, the screen can
 only score threats the analyst names: a confounder, a misclassification
 pattern, or a missingness mechanism that is not anticipated, or is
 specified at too mild a severity, is not detected, so a STOP is evidence
 of fragility but a GO is not evidence of robustness. Second, the
-conclusions are conditional on the synthetic-outcome model; if that model
+conclusions are conditional on the simulated-outcome model; if that model
 misrepresents the covariate-outcome surface (for example by omitting
 effect modification), the simulated operating characteristics can be
 optimistic, which is why we report the screen's calibration under a
 misspecified model in @sec-gate-oc and recommend fitting the
-synthetic-outcome model with a SuperLearner library rather than a single
+simulated-outcome model with a SuperLearner library rather than a single
 GLM. Third, the screen is a *pre-outcome* device; it complements, and does
 not replace, the at-outcome negative-control check and the post-outcome
 sensitivity analyses (E-value, quantitative bias analysis, causal-gap)
@@ -1675,7 +1716,7 @@ that interrogate the realised estimate. We therefore read a passing screen
 as a necessary, prespecified, and reproducible filter, not as a
 certificate of validity.
 
-# Implementation and `run_plasmode_dq_stress()` {#sec-implementation}
+# Implementation and `stress_test()` {#sec-implementation}
 
 ## A worked workflow
 
@@ -1694,9 +1735,11 @@ cohort-adequacy checkpoint a reproducible source.
 ```{r demo-workflow, eval = FALSE, echo = TRUE}
 library(cleanTMLE)
 
-# Stage 1a: lock the analytic specification, mask the outcome, and
-# declare the estimand ladder. The estimand here is the marginal risk
-# difference for the primary event by 24 months.
+# Stage 1a: lock the analytic specification with its decision rules,
+# register the negative controls, and declare the estimand ladder. The
+# estimand here is the marginal risk difference for the primary event
+# by 24 months. The primary outcome moves into a separate store at
+# creation; enforce = TRUE makes estimation wait for a named approval.
 lock <- create_analysis_lock(
   data        = study_data,
   treatment   = "treatment",
@@ -1704,9 +1747,14 @@ lock <- create_analysis_lock(
   covariates  = c("age", "sex", "biomarker", "comorbidity", "ckd"),
   sl_library  = c("SL.glm", "SL.glmnet", "SL.ranger"),
   negative_controls = "nc_outcome",
-  mask        = TRUE,
+  dq_thresholds = list(max_abs_bias = 0.01, min_coverage = 0.90,
+                       max_rmse_ratio = 1.5),
+  nc_criteria = list(null_band = 0.02),
+  enforce     = TRUE,
   seed        = 2026
 )
+lock <- declare_negative_controls(lock, variables = "nc_outcome",
+                                  domains = "health_seeking_behavior")
 lock <- declare_estimand_ladder(lock, primary = "ATE",
                                 fallbacks = c("trimmed_ATE", "ATT", "ATO"),
                                 trigger   = "SEVERE")
@@ -1726,26 +1774,20 @@ love_plot(sup)
 # Stage 2b: outcome-blind support map and plasmode candidate selection.
 # Candidate grid: GLM PS only (trunc = 0.01 and 0.05). SL.glmnet is
 # excluded from the PS candidate grid because it produces runaway
-# computation on the near-positivity-violation synthetic designs that
+# computation on the near-positivity-violation simulated designs that
 # the DQ stress test generates; GLM and regularised PS are
 # near-equivalent on this DGP (@sec-simulation).
 sim <- simulate_support(lock, ps, reps = 200)
-candidates <- list(
-  tmle_candidate("glm_t01", "GLM PS, trunc=0.01",
-                 g_library = "SL.glm", truncation = 0.01),
-  tmle_candidate("glm_t05", "GLM PS, trunc=0.05",
-                 g_library = "SL.glm", truncation = 0.05)
-)
-plas <- run_plasmode_feasibility(lock,
-                                 tmle_candidates = candidates,
-                                 effect_sizes    = c(0.03, 0.05),
-                                 reps            = 200)
+candidates <- define_candidates(grid = list(
+  truncations = c(0.01, 0.05),
+  libraries   = list(glm = "SL.glm")))
+plas <- stress_test(lock, candidates,
+                    effect_sizes = c(0.03, 0.05), reps = 200)
 
-# Stage 2c: DQ stress test over prespecified threat scenarios.
-dq_results <- run_plasmode_dq_stress(lock,
-  tmle_candidates = candidates,
-  reps            = 50,
-  data_quality_scenarios = list(
+# Stage 2c: the same loop under the prespecified threat grid. The
+# verdict and tipping points read the thresholds declared at Stage 1a.
+dq_results <- stress_test(lock, candidates,
+  threats = list(
     covariate_missingness = list(fractions = c(0.05, 0.10, 0.20)),
     treatment_misclass    = list(sensitivity = c(0.95, 0.90),
                                  specificity = c(0.99, 0.95)),
@@ -1753,26 +1795,33 @@ dq_results <- run_plasmode_dq_stress(lock,
                                  specificity = c(0.99, 0.95)),
     unmeasured_confounding = list(U_prevalence  = 0.20,
                                   U_treatment_OR = c(1.5, 2.0),
-                                  U_outcome_OR   = c(1.5, 2.0))
-  )
-)
-selected <- select_tmle_candidate(plas, rule = "min_rmse")
+                                  U_outcome_OR   = c(1.5, 2.0))),
+  reps = 50)
+dq_results$verdict
+dq_results$tipping
+selected <- select_candidate(dq_results, rule = "min_max_rmse")
 lock     <- declare_estimand_ladder(lock, primary = "ATE",
                                     fallbacks = c("trimmed_ATE", "ATT",
                                                   "ATO"),
                                     candidate = selected)
 
-# Stage 3: negative controls across cohort restrictions, and the
-# care-process collider check.
-nc  <- run_negative_control_ladder(lock, restrictions = cohort_rungs)
+# Stage 3: negative controls across cohort restrictions, graded against
+# the locked criteria, and the care-process collider check.
+nc   <- negative_control_ladder(lock, restrictions = cohort_rungs)
 proc <- check_process_indicators(lock, indicators = process_vars)
 
-# Pre-outcome decision: the dossier the review team reads.
-design_report(lock, sup, fea, simulation = sim, nc_ladder = nc)
+# Pre-outcome decision: the dossier the review team reads, and the
+# design log released with it.
+design_report(lock, sup, fea, simulation = sim, nc_ladder = nc,
+              dq = dq_results)
+export_design_log(lock, format = "muntner")
 
-# Stage 4: estimation. Outcomes are joined only here; the ladder runs
-# the declared primary when feasible plus every feasible fallback.
-fit <- run_estimand_ladder(lock, ps)
+# Stage 4: estimation. The outcome store is restored by a named
+# approver, which the design log records; the ladder then runs the
+# declared primary when feasible plus every feasible fallback.
+lock <- unmask_outcome(mask_outcome(lock), lock,
+                       approved_by = "design review panel")
+fit  <- run_estimand_ladder(lock, ps)
 fit
 
 # Or, for a single declared estimand with the modular steps exposed:
@@ -1786,15 +1835,14 @@ make_table1(lock, smd = TRUE)
 forest_plot(fit)
 ```
 
-Two pieces above are fundamentally new relative to conventional
-targeted-learning plumbing: the support and feasibility stage of
-@sec-support, and the DQ stress test.
-`run_plasmode_dq_stress()` returns a metrics object of the same
-class as the standard plasmode and feeds the same decision, so adding
-the data-quality argument to the workflow does not require new
+Two pieces above are new relative to conventional targeted-learning
+plumbing: the support and feasibility stage of @sec-support, and the
+DQ stress test. `stress_test()` returns the same object class whether
+or not threats are declared, and both feed the same decision, so
+adding the data-quality sweep to the workflow does not require new
 infrastructure on the analyst's side.
 
-## Inside `run_plasmode_dq_stress()`
+## Inside `stress_test()`
 
 The function loops over a scenario grid, fits every candidate
 under each scenario × severity, and aggregates bias, RMSE, and
@@ -1804,7 +1852,7 @@ coverage. Pseudocode:
 for each (scenario, severity) in scenario grid:
   for each replicate r:
     set seed deterministically from (lock$seed, r, scenario index)
-    generate synthetic outcome from the lock's covariate-only Q0 model
+    generate simulated outcome from the lock's covariate-only Q0 model
     if scenario == unmeasured_confounding:
       sample latent U; modify treatment via a real PS model;
       modify outcome probabilities via OR_Y * U
@@ -1821,9 +1869,12 @@ return data frame indexed by (scenario, level, candidate)
 ```
 
 The implementation is in `R/plasmode_dq.R`. Three details matter
-for reproducibility. First, the seed is set deterministically from
-`lock$seed + rep_i + sg_i * 10000L` so that re-running the same
-lock with the same scenario list produces bit-identical metrics.
+for reproducibility. First, each replicate runs under its own seed,
+derived from the lock seed as `lock$seed + rep_i + sg_i * 10000L`
+through `withr::with_seed()`, so that re-running the same lock with
+the same scenario list produces bit-identical metrics, and a run
+parallelised over replicates (`parallel = TRUE`, under the caller's
+`future::plan()`) is identical to the sequential run.
 Second, the unmeasured-confounding scenario fits a real treatment-
 mechanism (propensity) model on the lock data once and uses it as
 the baseline propensity that $U$ shifts; earlier prototype versions
@@ -1844,22 +1895,22 @@ that arise in cumulative-risk pharmacoepidemiology workflows.
 
 *Model specification grammar.* The `identify_*()` family
 (`identify_treatment()`, `identify_outcome()`, `identify_censoring()`,
-`identify_competing_risk()`, `identify_subject()`, `identify_interval()`,
-`identify_missing()`) and the `specify_models()` constructor allow
+`identify_competing_risk()`, `identify_subject()`, `identify_interval()`)
+and the `specify_models()` constructor allow
 analysts to declare eligibility, treatment, outcome, censoring,
 competing-risk, follow-up-interval, and intercurrent-event components
-as code objects rather than prose. This lets the analysis lock
+as code objects instead of prose. This lets the analysis lock
 fingerprint the cohort definition together with the estimator.
 
 *Cumulative-risk reporting.* The workflow reports a compact table of
 cumulative risks at clinically meaningful follow-up times, paired
-with risk-difference and risk-ratio summaries, and emphasises
-absolute risks at prespecified times rather than ratio-only
-summaries.
+with risk-difference and risk-ratio summaries, and puts absolute
+risks at prespecified times ahead of ratio-only summaries.
 
 *Censoring and missingness weights as a first-class analytic object.*
-`run_ipcw_tmle()` carries inverse-probability-of-censoring weights
-through the targeting step, and `clean_weight_diagnostics()` exposes
+`estimate_effect(missing = "ipcw")` carries
+inverse-probability-of-censoring weights through the targeting step,
+and `clean_weight_diagnostics()` exposes
 effective sample size (ESS), weight percentiles, the maximum weight, and
 prespecified instability thresholds so that weight behaviour is
 auditable alongside the point estimate rather than buried inside a
@@ -1869,9 +1920,11 @@ nuisance fit.
 interest, competing event, censoring, treatment discontinuation or
 switching, transfer-driven exclusions, and administrative end of
 follow-up, and checks component-vs-composite coherence so that
-follow-up accounting is explicit rather than implicit. It records
-and checks event-process structure; v0.1 does not yet estimate
-native competing-risk cumulative-incidence estimands.
+follow-up accounting is explicit. It records and checks event-process
+structure, and the cumulative-risk grammar's inverse-probability
+estimator reports cause-specific cumulative incidence when a competing
+event is identified; the staged support-and-ladder machinery does not
+yet extend to those estimands (@sec-discussion).
 
 *Hazard-ratio de-emphasis.* Cumulative risks, risk differences,
 and risk ratios at clinically meaningful time points are more
@@ -1908,7 +1961,7 @@ events are present, cumulative incidence for the event of
 interest, the competing event, and the composite event should be
 reported together, with internal checks that component risks are
 coherent with the composite risk. The package supports these
-checks via `clean_weight_diagnostics()` for treatment and
+checks through `clean_weight_diagnostics()` for treatment and
 censoring weights; component-vs-composite coherence of cumulative
 incidences is checked explicitly. Applied to a worked
 event-process table with the event-of-interest, competing, and
@@ -1928,7 +1981,7 @@ ep$coherent      <- abs(ep$component_sum - ep$composite_risk) <= 1e-3
 ep
 ```
 
-## Reporting cumulative risks rather than hazard ratios
+## Reporting cumulative risks before hazard ratios
 
 Cumulative risks, risk differences, and risk ratios at clinically
 meaningful time points are more directly aligned with counterfactual
@@ -1983,7 +2036,7 @@ Four scenarios are run:
   whose nuisance library is flexible (generalised additive model plus
   pairwise interactions). This is the scenario the linear-logistic designs
   of A to C cannot exhibit, and it is where the value of flexible nuisance
-  estimation is testable rather than assumed.
+  estimation can be tested.
 
 For each scenario the DQ stress test is run over five threat families. The
 sweep covers covariate missingness under three mechanisms (completely at
@@ -1997,7 +2050,7 @@ with $U$ prevalence fixed at 0.20); and three near-positivity slopes
 ($\times 2$, $\times 3$, $\times 4$) that amplify the
 covariate-to-treatment association about its mean so a subgroup
 approaches deterministic treatment and the estimated propensity score
-reaches the boundary. This yields 19 severity cells per Monte Carlo
+reaches the boundary. This gives 19 severity cells per Monte Carlo
 scenario. Missing at random and missing not at random make the missingness
 threat a genuine test of robustness rather than the near-trivial MCAR case,
 in which median imputation is unbiased by construction. The PS candidate grid comprises three GLM-based
@@ -2070,10 +2123,10 @@ prespecified data-generating process that encodes an identification
 failure, and showing that flexible nuisance estimation recovers a
 nonlinear, effect-modified surface that a main-effects GLM cannot.
 
-The workflow shows a specific thing here. A STOP decision is **a
-failure of prespecified operating-characteristic thresholds under
-the simulated DGP**, not
-**detected real-data bias**. The clarity of the STOP decision in
+The workflow shows a specific thing here. A STOP decision is a
+failure of prespecified operating-characteristic thresholds under the
+simulated DGP; it is not detected real-data bias. The clarity of the
+STOP decision in
 Scenario C depends on the analyst having anticipated the threat
 (unmeasured confounding) and having encoded a corresponding latent
 $U$ scenario in the locked DGP; the package does not infer the
@@ -2089,8 +2142,8 @@ Monte Carlo noise.
 
 The simulation locks its decision thresholds at
 `max_abs_bias = 0.02` and `min_coverage = 0.90`, a deliberately looser
-bias bound than the `max_abs_bias = 0.01` package default used in the
-case study. The wider band is chosen so that the illustrative
+bias bound than the `max_abs_bias = 0.01` used in the case study. The
+wider band is chosen so that the illustrative
 scenarios separate on a scale readable against the Monte Carlo noise at
 the replicate count used here; an analyst would lock the tighter
 default (or a study-specific value) in a real prespecification. All
@@ -2128,7 +2181,7 @@ U-shift scenario exceeds the prespecified maximum) breaches the
 threshold as well, so the realised-bias oracle and the outcome-blind
 screen agree that the analysis is fragile. This illustrates the
 intended role of the DQ stress test as a quantitative supplement that
-here corroborates, rather than rescues, the baseline plasmode metrics.
+here corroborates the baseline plasmode metrics without rescuing them.
 
 Under the misspecified surface (Scenario D) the comparison is
 between estimators built on a main-effects GLM and a cross-fitted
@@ -2155,7 +2208,7 @@ problems; under a correctly specified linear model (Scenarios A
 to C) it does not need to, which is why that contrast requires a
 separate, deliberately nonlinear design.
 
-A separate pattern concerns **variance-estimator selection**, the
+A separate pattern concerns variance-estimator selection, the
 second stage of FIORD's two-stage selector [@nance2026fiord], which
 interacts with the DGP in ways that the point-estimator comparison
 does not reveal.
@@ -2216,7 +2269,7 @@ showed them anti-conservative in that regime. Under marginal overlap
 influence-function SE/SD ratio of `r round(tmle_B_ratio_if, 3)` and
 IF-based coverage of `r round(tmle_B_cov_if, 3)` (Monte Carlo SE
 `r round(tmle_B_cov_if_se, 3)`). The nonparametric full-pipeline bootstrap
-**does** repair this: bootstrap coverage rises to
+repairs this: bootstrap coverage rises to
 `r round(tmle_B_cov_boot, 3)` (SE/SD ratio `r round(tmle_B_ratio_boot, 3)`,
 Monte Carlo SE `r round(tmle_B_cov_boot_se, 3)`), reaching the nominal
 $0.95$. The reason the bootstrap succeeds for plain TMLE is that its
@@ -2226,7 +2279,7 @@ targeting step corrects less, and the resulting CI is wider. The
 cross-fitted TMLE behaves differently: TMLE\_CF has an IF-based SE/SD
 ratio of `r round(tmle_cf_B_ratio_if, 3)` and coverage of
 `r round(tmle_cf_B_cov_if, 3)` (Monte Carlo SE
-`r round(tmle_cf_B_cov_if_se, 3)`), and the bootstrap provides **no**
+`r round(tmle_cf_B_cov_if_se, 3)`), and the bootstrap provides no
 improvement: bootstrap coverage stays at `r round(tmle_cf_B_cov_boot, 3)`
 (SE/SD ratio `r round(tmle_cf_B_ratio_boot, 3)`). Cross-fitting already
 removes the in-sample overfitting bias, so the bootstrap has no residual
@@ -2280,7 +2333,7 @@ knitr::kable(disp, digits = c(NA, NA, 0, 4, 3, NA, 3, NA),
              caption = NULL)
 ```
 
-The key practical implication is estimator- and scenario-specific.
+The practical implication is estimator- and scenario-specific.
 @abadie2008bootstrap establish a negative result for matching estimators: the
 standard nonparametric bootstrap does not consistently estimate the variance
 of a nearest-neighbour matching estimator with a fixed number of matches. The
@@ -2301,7 +2354,7 @@ there. For IPTW, neither variance method removes the conservatism from treating
 the propensity score as known; analysts who require exact IPTW variance
 calibration should consider an M-estimator that jointly models PS estimation
 and outcome weighting. `select_variance_method()` addresses this by using
-oracle coverage on plasmode-generated synthetic data to identify, for the
+oracle coverage on plasmode-generated simulated data to identify, for the
 study's specific DGP and sample size, which variance method achieves nominal
 coverage.
 
@@ -2401,7 +2454,7 @@ The contrast is clearest in Scenario C: both pipelines have identical fits becau
 
 The workflow does *not* invent free bias reduction. In Scenario C the TMLE bias is the same under both pipelines (about `r round(scC_bias, 3)`, with coverage well below the 0.90 floor); the workflow's contribution is the decision rule, not a different estimator.
 
-A note on what the simulation does **not** show: it does not compare a "traditional" fixed-library TMLE against a *plasmode-selected* TMLE under varied DGPs (the workflow-contrast-C question). That comparison is reported in a standalone analysis (see `reports/workflow_contrast_c.qmd` in the project repository).
+A note on what the simulation does not show: it does not compare a "traditional" fixed-library TMLE against a *plasmode-selected* TMLE under varied DGPs (the workflow-contrast-C question). That comparison is reported in a standalone analysis (see `reports/workflow_contrast_c.qmd` in the project repository).
 
 ## Plasmode DQ stress-test results
 
@@ -2452,7 +2505,7 @@ median imputation is approximately unbiased by construction, so this
 confirms the imputation adds no bias but is not a strong test of the
 missingness handling. The missing-at-random (treatment-dependent) and
 missing-not-at-random (value-dependent) mechanisms are stronger tests,
-because under them median imputation is biased rather than merely
+because under them median imputation is biased as well as
 inefficient; their degradation gradients rise with the missingness
 fraction, with MNAR the most damaging of the three since the
 probability that a covariate is missing depends on its own unobserved
@@ -2602,21 +2655,23 @@ the two rules pick different candidates.
 
 ## Package feature: worst-case candidate selection with `min_max_rmse` {#sec-divergence}
 
-`select_tmle_candidate()` ships two selection rules. The default `min_rmse`
+`select_candidate()` ships three selection rules. The default `min_rmse`
 ranks candidates by baseline RMSE on the undisturbed plasmode. An alternative,
 `min_max_rmse`, ranks by each candidate's worst-case RMSE across all declared
 data-quality threats, so the locked estimator minimises the maximum damage any
-prespecified threat can do. The simulation grid in @sec-simulation does not
+prespecified threat can do; the third, `fiord_two_stage`, is the coverage
+screen of @sec-limitations. The simulation grid in @sec-simulation does not
 separate the candidates under this rule because the near-positivity threat at
 the severities tested does not push the aggressive candidate past its locked
 threshold. The following constructed illustration, shipped as a companion script
 in `sandbox/candidate_divergence/`, was designed specifically to exhibit the
 divergence: the threat severities were chosen to produce it, so the illustration
 establishes that divergence is possible under realistic configurations rather
-than claiming it is the common case. The full sweep runs through
-`run_plasmode_feasibility()`, `run_plasmode_dq_stress()` (with `near_positivity`
-as a first-class threat), and `select_tmle_candidate()`, on the same
-`run_simulation.R` data-generating process.
+than claiming it is the common case. The full sweep runs through the
+plasmode engine behind `stress_test()`, first without threats and then
+with `near_positivity` declared alongside the others, and through the
+selection rules of `select_candidate()`, on the same `run_simulation.R`
+data-generating process.
 
 ```{r divergence-load}
 div_path <- file.path("..", "sandbox", "candidate_divergence", "results",
@@ -2626,7 +2681,7 @@ div_fig  <- file.path("..", "sandbox", "candidate_divergence", "figures",
 div_tab  <- file.path("..", "sandbox", "candidate_divergence", "results",
                       "selection_table.csv")
 if (!file.exists(div_path) || !file.exists(div_fig) || !file.exists(div_tab)) {
-  stop("Divergence-study artifacts not found under sandbox/candidate_divergence/. ",
+  stop("Divergence-study files not found under sandbox/candidate_divergence/. ",
        "Run divergence_study.R (mode 'full') then make_figures.R before rendering.")
 }
 div    <- readRDS(div_path)
@@ -2646,7 +2701,7 @@ outcome on the odds scale across odds ratios from 3 to 8. The third is
 covariate missingness completely at random with median imputation. Decision
 thresholds were locked before the sweep, at most a doubling of root
 mean squared error relative to a candidate's own baseline. The study uses 200
-synthetic replicates per cell and five independent batches, and reports Monte
+simulated replicates per cell and five independent batches, and reports Monte
 Carlo standard errors from the between-batch spread.
 
 ```{r divergence-table, results = "asis"}
@@ -2699,8 +2754,8 @@ fragile to the replicate count, as in the rescueCo case study
 ensemble candidates as the replicate count rose. The practical recommendation
 is to report the worst-case margin alongside its Monte Carlo standard error, so
 that a reader can tell a decisive selection from a tie broken by noise; a
-margin within one or two Monte Carlo standard errors should be read as a tie
-rather than a preference.
+margin within one or two Monte Carlo standard errors should be read as a
+tie.
 
 Propensity-score truncation trades variance against robustness, and the two
 rules reward opposite ends of that trade. A rule that ranks candidates on
@@ -2708,9 +2763,9 @@ performance in an undisturbed reference sample rewards the heaviest truncation.
 The same heavy truncation is the least able to recover from strong unmeasured
 confounding, and the lightest truncation is destroyed by the positivity
 violation. The intermediate truncation has neither failure at full severity, so
-the worst-case rule selects it. This is a constructed illustration rather than a
-property of every grid, and it does not weaken the prespecification logic of the
-workflow. The threat list and its severities are declared in the locked
+the worst-case rule selects it. The illustration is constructed, other grids
+need not separate the rules, and the demonstration does not weaken the
+prespecification logic of the workflow. The threat list and its severities are declared in the locked
 analysis plan, and the demonstration shows why declaring them, and selecting
 against the worst case, can change which estimator is locked.
 
@@ -2792,7 +2847,7 @@ prespecified staged verdict in three scenarios, but it does not
 measure the screen *as a decision rule*. A reviewer is entitled to ask
 how often the gate's verdict agrees with the verdict an oracle would
 reach knowing the realised estimator's true bias, and how that agreement
-degrades when the synthetic-outcome model is misspecified. We answer this
+degrades when the simulated-outcome model is misspecified. We answer this
 with a calibration meta-simulation (`run_gate_operating_characteristics.R`
 in the companion repository).
 
@@ -2805,15 +2860,15 @@ both the treatment and the outcome. The *screen-predicted* bias
 $B_{\text{screen}}(s)$ is what the outcome-blind plasmode screen
 anticipates at the same strength: the treatment and outcome nuisance
 surfaces $g_0(W)$ and $Q_0(W)$ are fitted on the analyst's cohort, a
-what-if confounder of strength $s$ is injected into *both* the synthetic
-treatment and the synthetic outcome, and the same TMLE is scored against
-the synthetic truth. The synthetic nuisances are fitted two ways, a
+what-if confounder of strength $s$ is injected into *both* the simulated
+treatment and the simulated outcome, and the same TMLE is scored against
+the simulated truth. The simulated nuisances are fitted two ways, a
 misspecified GLM and a flexible SuperLearner (GLM, MARS, and random
 forest), under both a linear and a nonlinear true surface, and the locked
 STOP threshold is applied to both the oracle and the screen. The realised
 estimator uses a GLM nuisance library, so that under the nonlinear surface
 its bias reflects nuisance misspecification as well as the omitted
-confounder, and the screen can predict that bias only if its synthetic
+confounder, and the screen can predict that bias only if its simulated
 nuisances reproduce the nonlinearity.
 
 ```{r gate-oc, eval = file.exists("../results_new/gate_oc.rds")}
@@ -2829,7 +2884,7 @@ knitr::kable(
   caption = paste0("Calibration of the pre-outcome gate. Oracle bias is the ",
     "realised TMLE bias under a true confounder of the given strength; ",
     "screen bias is the plasmode-predicted bias at the same strength ",
-    "under a GLM and a flexible (SuperLearner) synthetic-nuisance model. ",
+    "under a GLM and a flexible (SuperLearner) simulated-nuisance model. ",
     "STOP columns apply the locked |bias| threshold (",
     oc$config$max_abs_bias, ")."))
 ```
@@ -2848,13 +2903,13 @@ g_lin <- ocfun(rl$stop_screen_glm, rl$stop_oracle)[1]
 g_non <- ocfun(rn$stop_screen_glm, rn$stop_oracle)[1]
 s_non <- ocfun(rn$stop_screen_sl,  rn$stop_oracle)[1]
 cat(sprintf(paste0("Against the oracle, over all %d cells the screen with a ",
-  "flexible (SuperLearner) synthetic-nuisance model attains sensitivity %.2f ",
-  "and specificity %.2f; with a GLM synthetic-nuisance model these are %.2f ",
+  "flexible (SuperLearner) simulated-nuisance model attains sensitivity %.2f ",
+  "and specificity %.2f; with a GLM simulated-nuisance model these are %.2f ",
   "and %.2f. The whole gap is on the nonlinear surface: the GLM screen's ",
   "sensitivity is %.2f on the linear surface but falls to %.2f on the ",
   "nonlinear surface, whereas the flexible screen holds sensitivity %.2f ",
   "there. That difference quantifies the cost of misspecifying the ",
-  "synthetic-nuisance model, the central plasmode pitfall [@schreck2024plasmode].\n"),
+  "simulated-nuisance model, the central plasmode pitfall [@schreck2024plasmode].\n"),
   nrow(res), s[1], s[2], g[1], g[2], g_lin, g_non, s_non))
 ```
 
@@ -2865,11 +2920,11 @@ specified magnitude, but a true confounder stronger than anticipated is
 not detected, so a STOP is evidence of fragility while a GO is not a
 certificate of robustness (@sec-guarantees). Second, under a nonlinear
 true surface the GLM screen under-predicts the realised bias, because its
-synthetic treatment and outcome surfaces are too simple to reproduce the
+simulated treatment and outcome surfaces are too simple to reproduce the
 nuisance misspecification that biases the realised estimator, whereas the
 flexible screen reproduces it and tracks the oracle more closely. This is
 the reason the package exposes a `q0_library` argument and why we
-recommend a flexible synthetic-nuisance model. Two limitations of this
+recommend a flexible simulated-nuisance model. Two limitations of this
 grid temper the reported numbers. The specificity of 1.00 rests on only
 the two GO cells in the sweep, both on the linear surface (the nonlinear
 surface contains no GO cell), so the screen's false-STOP behaviour on a
@@ -2893,8 +2948,8 @@ STOP verdict from the locked threshold.
 We use the Rescue.Co Kenya Trauma Registry as a real
 comparative-effectiveness study that exercises the full workflow on
 genuine registry data, while presenting the resulting estimates as an
-illustrative application rather than as confirmatory evidence about the
-causal effect of Rescue.Co transport. The simulation in @sec-simulation
+illustration; they are not confirmatory evidence about the causal effect
+of Rescue.Co transport. The simulation in @sec-simulation
 is small (5 covariates, n = 2,000, fully observed outcome) by design, so
 that each threat can be controlled analytically. A working framework
 also has to execute on real observational data: covariates drawn from
@@ -2915,8 +2970,8 @@ run on cleanTMLE 0.2.0, with the package version and the lock
 fingerprints recorded in the released case-study metadata, and the
 analysis code is available in the companion repository. The
 individual-level registry data are access-restricted (see the ethics and
-data-availability statement below), so the case study is
-code-reproducible rather than data-public. The DQ stress test reported
+data-availability statement below), so the case study can be reproduced
+from its code but not from public data. The DQ stress test reported
 in @sec-casestudy-dq comes from the earlier single-contrast run at 50
 replicates, an illustration below the 200-replicate bar used for
 inferential interpretation; the support maps and design comparison of
@@ -2932,7 +2987,7 @@ consent to be completed]. Because the registry contains identifiable and
 sensitive individual-level information (including HIV/ART status and
 socioeconomic indicators), the patient-level data cannot be shared publicly
 and are not included in the companion repository; the `rescueCo/` data and
-result artefacts are excluded from version control for this reason. The
+result files are excluded from version control for this reason. The
 analysis code, the analysis-lock fingerprint, and aggregate outputs are
 available in the companion repository, and de-identified individual-level
 data are available from the authors on reasonable request, subject to the
@@ -2941,7 +2996,7 @@ governing data-use agreement and ethics approval.
 The example is interesting for five reasons that the simulation does
 not exercise: (a) the protocol's primary comparison has a severe
 practical positivity violation, so the estimability machinery of
-@sec-support is load-bearing rather than decorative; (b) the
+@sec-support carries the analysis; (b) the
 functional outcome (Glasgow Outcome Scale Extended, GOSE 1--8)
 [@wilson1998gose] is missing for a quarter of the cohort from loss to
 6-month follow-up; (c) inter-facility transfers and patients with
@@ -2950,10 +3005,10 @@ pre-registered exclusions that remove them turn out to carry the
 measurable confounding; (d) an 8-week healthcare-worker strike
 (15 March 2024 to 8 May 2024) acts as a quasi-natural-experiment
 confounder that is not part of either SPIFD2 or the five threats
-encoded by `run_plasmode_dq_stress()`; and (e) five prespecified
+encoded by `stress_test()`; and (e) five prespecified
 negative controls, two socioeconomic and three chronic-condition,
 screen for residual confounding, with two of them too rare to
-estimate and labelled as such rather than dropped silently
+estimate and labelled as such instead of dropped silently
 [@conover2025diagnostics].
 
 ```{r casestudy-setup, echo = FALSE}
@@ -3069,8 +3124,7 @@ patients are far more often injured at home (40% versus 1% of the
 retained, standardised difference 1.10) or in assaults (39% versus
 10%), are younger, live farther away, and more often sought prior
 care. A trimmed analysis of C1 is not about those patients, and the
-design report says so in words rather than leaving the shift implicit
-[@crump2009trimming].
+design report says so in words [@crump2009trimming].
 
 ```{r cs-support-fig, eval = file.exists(file.path(.ma, "fig_support_C1.png")), echo = FALSE, fig.cap = "Mirrored propensity histograms for the protocol contrast C1 (left) and the PRIMARY cohort contrast (right). Treated propensities are plotted above the axis and controls below, with the [0.05, 0.95] band shaded. The C1 control mass piled against zero is the severe violation; the PRIMARY contrast shows the two arms sharing support.", out.width = "49%", fig.show = "hold"}
 knitr::include_graphics(c(file.path(.ma, "fig_support_C1.png"),
@@ -3080,7 +3134,7 @@ knitr::include_graphics(c(file.path(.ma, "fig_support_C1.png"),
 ### The outcome-blind support map
 
 `simulate_support()` ran 200 generate-treatment replicates per
-contrast over the prespecified surface family (synthetic confounding
+contrast over the prespecified surface family (simulated confounding
 strength 0, 1, 2 along the separating direction, crossed with effect
 modification off and on) and scored each estimand's estimator against
 a bias tolerance of 0.01 at a coverage floor of 0.90. Two readings of
@@ -3088,18 +3142,18 @@ the resulting map matter, and they answer different questions.
 
 On C1 the map corroborates the static verdict from an independent
 direction: the ATE fails at the mildest surface (coverage 0.87 while
-the bounded estimands sit at 0.95), before any synthetic confounding
+the bounded estimands sit at 0.95), before any simulated confounding
 is added, which is the signature of a support failure rather than of
 the stress. The bounded estimands (ATT, ATO, matched ATT, and with
 one marginal cell the trimmed ATE) hold through the moderate
 surfaces and degrade only at the harshest rung. On the PRIMARY
 contrast every estimand passes the mildest surface, and as the
-synthetic confounding strengthens the unmatched estimands degrade
+simulated confounding strengthens the unmatched estimands degrade
 together (coverage 0.81 to 0.89 at the harshest rung) while the
 matched ATT holds 0.93 to 0.96 throughout; degradation that arrives
 only with the stress, and hits all weighting-based estimands alike,
-reads as confounding-strength stress rather than as a positivity
-problem, consistent with the PASS verdict. These two patterns are
+reads as confounding-strength stress; a positivity problem would have
+shown at the mildest surface, and the PASS verdict says there is none. These two patterns are
 the map's value: it separates "fails because the design lacks
 support" (C1's ATE, failing at baseline) from "fails because the
 stress is harsh" (the harshest rung everywhere). A summary rule that
@@ -3141,7 +3195,7 @@ cc$design <- ifelse(cc$design == "generate_treatment",
 names(cc) <- c("Design", "Estimand", "Bias", "RMSE", "Coverage")
 knitr::kable(cc, digits = c(NA, NA, 4, 4, 2), row.names = FALSE,
   caption = "Plasmode design comparison on the C1 lock at the
-stressed outcome surface (synthetic confounding strength 2), 200
+stressed outcome surface (simulated confounding strength 2), 200
 replicates per design. The sample-treatment design reproduces the
 observed positivity violation in every replicate and degrades every
 estimand; the generate-treatment design lets the declared surface
@@ -3322,8 +3376,7 @@ $-32$ to $31$) on the primary cohort, so the gap is carried by the
 transfer and prior-care strata that the primary cohort excludes. No
 row anywhere tripped the implausibility guard.
 
-Two readings of this table belong to the workflow rather than to the
-substantive question. First, the severe-overlap contrasts do not
+Two readings of this table concern the workflow itself. First, the severe-overlap contrasts do not
 answer the protocol's original question. C2 carries no ATE row at
 all; C1 carries exactly one, estimated under a logged override whose
 recorded reason is reconciliation (the parallel unblinded pipeline
@@ -3351,9 +3404,9 @@ the reconciliation table released with the case study tracks every
 pipelines. Per-row E-values [@vanderWeele2017evalue] via
 `compute_evalue()` and outcome-missingness delta sensitivity via
 `run_delta_sensitivity()` accompany the primary rows in the released
-artifacts. The healthcare-worker strike period remains an unmodelled
+files. The healthcare-worker strike period remains an unmodelled
 threat that the prespecified threat families do not cover, and we
-carry it as a limitation rather than a quantified scenario.
+carry it as an unquantified limitation.
 
 ## What the case study tells us about the workflow
 
@@ -3370,14 +3423,14 @@ the cohort-adequacy checkpoint recorded STOP, and the pipeline
 proceeded anyway through an unlogged override, a `tryCatch` around
 the authorisation check with nothing recorded between the STOP and
 the estimate. The September reconciliation against the parallel
-unblinded analysis surfaced this precisely because the audit trail
-had preserved both records: the STOP and the estimate, with no
+unblinded analysis surfaced this because the earlier version's audit
+trail had preserved both records: the STOP and the estimate, with no
 rationale between them. The rebuild fixed the design rather than the
 log: the outcome set was aligned to the main analysis (mortality as
 primary, severe disability as the functional dichotomy, so the rare
 category is the event), and overrides now require a logged reason,
 so the record can no longer show STOP followed silently by
-estimation. We report this candidly because it is the working theory
+estimation. We report this because it is the working theory
 of the framework in miniature: the value of the record is that it
 makes such gaps findable, including gaps in the workflow's own
 conduct.
@@ -3388,19 +3441,19 @@ Stage 2b feasibility coverage of 0.94 with bias below 0.001 across
 50 replicates is the kind of design validation a reviewer would
 want, and the 200-replicate support maps of @sec-casestudy-support
 extend the same device to the estimability question. Stage 2c then
-runs the full DQ stress test (`run_plasmode_dq_stress()`) over the
+runs the full DQ stress test (`stress_test()`) over the
 prespecified threat sweep and produces a structural pass on each
 scenario at 50 replicates per threat-severity cell (an illustration
 below the 200-replicate inferential bar; see @sec-reproducibility for
 the entry point). The five threats encoded by
-`run_plasmode_dq_stress()` (covariate missingness under
+`stress_test()` (covariate missingness under
 MCAR/MAR/MNAR, exposure misclassification, outcome misclassification,
 latent $U$, and near-positivity) still do not cover one design
 challenge that mattered in the rescueCo study, the strike-window
 confounder, which motivates the time-window extension in
 @sec-future.
 
-### Synthetic-outcome fidelity
+### Simulated-outcome fidelity
 
 ```{r casestudy-fidelity}
 .fid_path <- "../rescueCo/results/plasmode_fidelity.csv"
@@ -3415,8 +3468,8 @@ if (file.exists(.fid_path)) {
 
 The plasmode resamples the empirical covariate structure of the
 rescueCo cohort, redraws treatment from the fitted propensity
-(@sec-support-map), and generates synthetic outcomes from a
-covariate-only model $Q_0(W) = E[Y \mid W]$, so the synthetic covariate
+(@sec-support-map), and generates simulated outcomes from a
+covariate-only model $Q_0(W) = E[Y \mid W]$, so the simulated covariate
 marginals match the observed ones by construction. Because a
 logistic $Q_0$ with an intercept forces the fitted mean to equal the observed
 mean, a marginal prevalence match is automatic and is not by itself evidence of
@@ -3432,17 +3485,17 @@ predicted-minus-observed deviation across risk deciles of
 `r round(fv[["calibration_max_abs_dev_cv"]], 3)`. This establishes that the
 plasmode preserves the covariate structure and a moderately discriminating,
 reasonably calibrated marginal outcome model, not that it reproduces the joint
-treatment-outcome law. The synthetic outcome carries a fixed risk difference
+treatment-outcome law. The simulated outcome carries a fixed risk difference
 and no effect modification, and the fidelity of that joint structure to the
 realised process cannot be checked before the outcome is unblinded, so the
-diagnostic is a necessary rather than a sufficient fidelity check, consistent
+diagnostic is necessary for fidelity without being sufficient, consistent
 with the limitation in @sec-discussion.
 
 ### Estimator functions and real-data robustness
 
 Applying cleanTMLE 0.1.0 to the original rescueCo lock surfaced more
 than a dozen distinct issues, six of them blocking, which the 0.1.x
-releases addressed: `run_plasmode_dq_stress()` failed outright on a
+releases addressed: `stress_test()` failed outright on a
 lock with NA in the outcome (now guarded), the step-by-step TMLE
 functions refused to fit on NA outcomes (now subset to complete cases
 with an MCAR warning), the SuperLearner propensity fit crashed on
@@ -3453,14 +3506,19 @@ direction: the support assessment, the per-estimand feasibility
 reading, the estimand ladder, and the generate-treatment plasmode all
 exist because this study needed them, and the same rebuild
 consolidated the exported surface from 149 functions to 54 after the
-governance layer grew faster than its evidential value. We document
-both directions candidly because the working theory of the framework
+governance layer grew faster than its evidential value. The September
+2026 revision (0.3.0) went further in the same direction: the workflow
+surface is sixteen verbs, the checkpoint and authorisation-token layer
+is deleted, the primary outcome lives in a store the lock's data frame
+never holds, and the decision rules the verdicts read are declared and
+fingerprinted at lock creation. We document both directions
+because the working theory of the framework
 is that the prespecification record should make problems visible,
-including problems with the package itself, rather than absorb them
+including problems with the package itself, instead of absorbing them
 into a hand-edited final table.
 
 The full release notes are in `cleanTMLE/NEWS.md`, and the case
-study's `results/multiarm/` directory contains the CSV artifacts
+study's `results/multiarm/` directory contains the CSV files
 behind every table in this section, together with the reconciliation
 table against the parallel unblinded analysis.
 
@@ -3507,8 +3565,8 @@ post-outcome sensitivity analyses [@vanderWeele2017evalue; @lash2014qba;
 ## How the workflow aligns with regulatory expectations
 
 For high-stakes regulatory or confirmatory RWE, cleanTMLE is best
-used as one layer in a broader governed workflow. The lock and audit machinery track the
-prespecification and traceability that FDA RWE program guidance,
+used as one layer in a broader governed workflow. The lock and the design
+log track the prespecification and traceability that FDA RWE program guidance,
 EMA RWD guidance, and the NICE RWE framework expect [@fda2018rwe;
 @fda2024considerations; @fda2024noninterventional; @ema2024guide;
 @nice2022rwe] and match the data-quality dimensions
@@ -3589,8 +3647,8 @@ target different threats. @muntner2024staging recommend selecting
 NCOs across four domains (confounding by indication, functional
 status, health-seeking behaviour, and access to healthcare) and
 @levintow2023nco give pragmatic guidance for choosing them; the
-cleanTMLE workflow records each declared NCO in the lock so the
-chosen domains are part of the audit trail.
+cleanTMLE workflow records each declared NCO and its domain in the
+lock and the design log, so the chosen domains are part of the record.
 
 @kent2026fiord reports a worked applied use of the staging
 framework for a comparative-effectiveness study of evolocumab
@@ -3606,7 +3664,7 @@ negative-control domains in practice.
 ## Limitations of plasmode data-quality stress testing {#sec-limitations}
 
 A plasmode data-quality stress test is only as informative as the
-synthetic outcome model and degradation mechanisms used to
+simulated outcome model and degradation mechanisms used to
 generate it. Passing the pre-outcome decision rule does not
 establish identification, remove unmeasured confounding, validate
 the data source, or demonstrate that the target population matches
@@ -3621,7 +3679,7 @@ the stress test should be interpreted as exploratory rather than
 confirmatory.
 
 The DQ stress test also depends on the same parametric
-synthetic-outcome model used by the baseline plasmode. If that
+simulated-outcome model used by the baseline plasmode. If that
 model misrepresents the joint covariate-treatment-outcome
 distribution (for example by omitting effect modification or
 mis-specifying functional form), the simulated bias and coverage
@@ -3641,13 +3699,13 @@ candidate selection into two tasks: first screen point estimators by
 oracle coverage (a CI built from the Monte Carlo empirical SE) and pick
 the lowest-variance survivor, then select the variance method on the
 locked point estimator using nominal CI coverage. cleanTMLE implements
-both stages. Stage one is `select_tmle_candidate(rule = "fiord_two_stage")`,
+both stages. Stage one is `select_candidate(rule = "fiord_two_stage")`,
 which screens candidates to those within `fiord_coverage_tol` of nominal
 oracle coverage and locks in the lowest-SE survivor (the default
 `rule = "min_rmse"`, optionally `"min_max_rmse"` over the DQ stress
 scenarios, remains available as a single-step alternative). Stage two is
 `select_variance_method()`, which, with the point estimator fixed,
-compares variance methods by their oracle coverage on synthetic data and
+compares variance methods by their oracle coverage on simulated data and
 returns the one closest to nominal; `bootstrap_rd_variance()` supplies a
 native nonparametric bootstrap standard error and percentile interval for
 the marginal risk difference under TMLE or stabilised IPTW. The bootstrap
@@ -3678,18 +3736,17 @@ not; a native cleanTMLE implementation of that path is future work.
 
 The plasmode DGP itself is parametric. The outcome is generated
 from a logistic regression of $Y$ on $W$ fitted to the lock data,
-and the synthetic effect is constant on the risk-difference scale
+and the simulated effect is constant on the risk-difference scale
 ($p_1^{\text{sim}} = p_0^{\text{sim}} + \Delta$). Effect
 modification, time-varying treatment, and competing risks would
 need a richer DGP. The package architecture permits these
 extensions; the simulation reported here does not exercise them.
-cleanTMLE 0.2.1 adds a `q0_library` argument to
-`run_plasmode_feasibility()` so the analyst can fit Q0 with a
-SuperLearner library rather than the default logistic GLM; this
-relaxes the bias of candidate selection toward linear-in-logit
+`stress_test()` takes a `q0_library` argument so the analyst can fit
+Q0 with a SuperLearner library in place of the default logistic GLM;
+this relaxes the bias of candidate selection toward linear-in-logit
 learners when the underlying outcome surface is nonlinear. A
 companion pilot simulation (`plasmode_selection_paper/`) provides
-the empirical motivation: at n = 500, a logistic-GLM Q0 yields
+the empirical motivation: at n = 500, a logistic-GLM Q0 produces
 no detectable separation between fixed-library and plasmode-
 selected TMLE workflows because both inherit the same linearity
 bias.
@@ -3702,9 +3759,9 @@ the same demand qualitatively, and the DQ stress test inherits it.
 
 ### PS candidate grid and learner stability
 
-The DQ stress test generates synthetic outcomes under degraded
+The DQ stress test generates simulated outcomes under degraded
 covariate, treatment, and confounder distributions, and then re-fits
-every candidate PS model on each synthetic dataset. The synthetic
+every candidate PS model on each simulated dataset. The simulated
 designs for Scenario B (marginal overlap, PS range 0.037--0.990)
 produced numerical instability in regularised learners: SL.glmnet
 ran away on computation with no convergence signal, inflating wall
@@ -3757,12 +3814,12 @@ records.
 The most consequential extensions, in priority order, are:
 
 1. **Single-call FIORD alignment.** Both FIORD stages are now
-   implemented (`select_tmle_candidate(rule = "fiord_two_stage")` for the
+   implemented (`select_candidate(rule = "fiord_two_stage")` for the
    point estimator, and `select_variance_method()` with
    `bootstrap_rd_variance()` for the variance method; see also
    @mertens2024danish). Folding the variance stage into a single `run_*`
-   wrapper and caching the bootstrap would make full FIORD alignment the
-   one-call default rather than two explicit steps.
+   wrapper and caching the bootstrap would make full FIORD alignment a
+   one-call default in place of two explicit steps.
 2. **Operating-characteristic validation of the variance selector** at
    scale, paired with the gate validation in @sec-gate-oc, so the
    variance-method choice is itself shown to recover nominal coverage
@@ -3778,15 +3835,15 @@ The most consequential extensions, in priority order, are:
    data-use agreement is signed.
 5. **DGP-spectrum argument** for the plasmode generator: structural-
    equation (`simcausal`-style), hybrid (current default), and
-   parametric-bootstrap modes, with synthetic-data fidelity metrics
+   parametric-bootstrap modes, with simulated-data fidelity metrics
    (Hellinger / Wasserstein, or covariate SMDs between real and
-   synthetic samples) so the analyst can judge whether the DGP is
+   simulated samples) so the analyst can judge whether the DGP is
    faithful enough to base candidate selection on.
 6. **Matched-cohort vs full-cohort plasmode diagnostic:** under a
-   known synthetic truth, compare the two estimators side by side
+   known simulated truth, compare the two estimators side by side
    to diagnose whether observed real-data gaps are sampling noise
    or positivity-driven.
-7. **Richer synthetic-outcome models:** effect modification, time-
+7. **Richer simulated-outcome models:** effect modification, time-
    varying treatment, and competing risks (the current DGP is a
    logistic regression with a constant additive effect on the
    risk-difference scale).
@@ -3798,7 +3855,7 @@ The most consequential extensions, in priority order, are:
 9. **Survival and competing-risk estimands:** wrapping `survtmle`
    [@survtmlepackage2018] and `lmtp` [@lmtppackage2021] (and
    `ltmle` for the longitudinal FIORD setting) inside the lock
-   and audit machinery so that hazard-ratio and cumulative-
+   and design-log machinery so that hazard-ratio and cumulative-
    incidence estimands inherit the same governance.
 10. **Transportability and decision-population shift:** the
     plasmode framework can in principle simulate covariate-
@@ -3807,8 +3864,8 @@ The most consequential extensions, in priority order, are:
 11. **Calibration helpers for severity ranges:** small helpers that
     read validation-literature parameters (PPV, sensitivity, claims-
     accuracy ranges) from a YAML file and translate them into
-    `data_quality_scenarios` lists, with the citations attached to
-    the audit log.
+    `threats` lists for `stress_test()`, with the citations attached
+    to the design log.
 
 ## When to use cleanTMLE inside a broader governance arrangement
 
@@ -3816,7 +3873,7 @@ For exploratory or lower-stakes RWE studies, cleanTMLE used on
 its own may be adequate to document and audit outcome-blind
 estimator selection: the analyst prespecifies the analytic plan,
 runs the workflow inside a single R session, and archives the
-analysis lock together with the audit and decision logs. For
+analysis lock together with the exported design log. For
 high-stakes regulatory or confirmatory studies (FDA, EMA, or HTA
 submission contexts), cleanTMLE should be embedded within
 personnel-based outcome-blinding and access-control arrangements.
@@ -3840,7 +3897,7 @@ The template walks the analyst through the eight-section structure
 (estimand under ICH E9(R1), identifiability assumptions and DQ
 mappings, candidate grid, decision thresholds, NC domain coverage,
 sensitivity plan, decision log, reporting checklist) so that the
-prespecification is filed in the same form that the audit log will
+prespecification is filed in the same form that the design log will
 later reference.
 
 We recommend a five-step pre-outcome workflow when the analyst is
@@ -3855,9 +3912,9 @@ preparing a TL-RWE study.
    `estimand_feasibility()`, and `simulate_support()`. If the
    declared primary is unsupported, the ladder, not the analyst's
    discretion, chooses what replaces it.
-4. Run `run_plasmode_feasibility()` and `run_plasmode_dq_stress()`
-   on the surviving estimand. Use the SPIFD2-derived ranges as the
-   inputs to `data_quality_scenarios`.
+4. Run `stress_test()` on the surviving estimand, first with no
+   threats and then with the SPIFD2-derived ranges declared as
+   `threats`, and lock the candidate with `select_candidate()`.
 5. Assemble `design_report()` and score the pre-outcome decision. If
    a candidate is robust to the SPIFD2 plausible ranges, lock it. If
    no candidate is robust, the correct decision is to stop, and the
@@ -3903,8 +3960,9 @@ the companion repository <https://github.com/amertens/clean-room-sim>.
 
 # Reproducibility {#sec-reproducibility}
 
-The cleanTMLE package ships 22 testthat test files covering the core
-workflow: analysis-lock creation and validation, the support assessment
+The cleanTMLE package ships
+`r length(list.files("../cleanTMLE/tests/testthat", pattern = "^test-.*[.]R$"))`
+testthat test files covering the core workflow: analysis-lock creation and validation, the support assessment
 and per-estimand feasibility functions, the estimand ladder and its
 estimators (including recovery of known ATT and ATO truths and the
 Shaw-artifact design comparison), the DQ stress-test mechanics and
@@ -3912,13 +3970,13 @@ degradation gradients, bootstrap and influence-function variance
 estimators (including the `"match_tmle"` estimator), event-process
 helpers, plasmode simulation, estimator ground-truth comparisons
 against `tmle::tmle()`, and reporting tables. Tests are run on every
-push via the repository's continuous-integration configuration
+push through the repository's continuous-integration configuration
 (`cleanTMLE/tests/testthat/`). The experimental time-to-event
 estimators have separate test files and are tagged accordingly.
 
 ## Estimator validation against a reference implementation {#sec-validation}
 
-Beyond the unit tests, we validate the package's targeted-learning estimator
+In addition to the unit tests, we validate the package's targeted-learning estimator
 against the reference `tmle` package on a single large sample ($n = 20{,}000$)
 from the Scenario A data-generating process, where the analytic marginal risk
 difference is known. The results show the cleanTMLE TMLE and `tmle::tmle()`
@@ -3959,7 +4017,7 @@ the `SIM_REPS`, `SIM_NOBS`, and `SIM_RESULTS` environment variables (see
 | `rescueCo/scripts/13_multiarm_estimation.R`, `14_multiarm_report.R` | `ladder_estimates.csv`, `ladder_design_log.csv` | @tbl-cs-ladder |
 | `rescueCo/scripts/build_reconciliation_table.R` | `rescueCo/results/reconciliation_table.csv` | Reconciliation against the parallel unblinded analysis |
 | `rescueCo/scripts/rescueco_dq_full.R` | `rescueCo/results/plasmode_dq_stress.rds`, `rescueCo/results/plasmode_dq_degradation.csv` | Case-study DQ subsection (@sec-casestudy-dq) |
-| `sandbox/rescueco_fidelity/plasmode_fidelity.R` | `rescueCo/results/plasmode_fidelity.csv` | Case-study synthetic-outcome fidelity subsection |
+| `sandbox/rescueco_fidelity/plasmode_fidelity.R` | `rescueCo/results/plasmode_fidelity.csv` | Case-study simulated-outcome fidelity subsection |
 | `sandbox/candidate_divergence/divergence_study.R` | `candidate_divergence_full.rds`, `degradation_gradient.png` | @sec-divergence (@fig-divergence) |
 
 : Script-to-output map. Running the scripts in order fully
@@ -4076,11 +4134,11 @@ reg_align <- data.frame(
     "Lock fingerprint of column names + data shape",
     "assess_support, estimand_feasibility (practical positivity); other assumptions recorded on the lock",
     "declare_estimand_ladder, run_estimand_ladder",
-    "tmle_candidate, select_tmle_candidate, save_lock",
-    "run_plasmode_dq_stress, simulate_support",
-    "design_report and the design log",
+    "define_candidates, select_candidate, save_lock",
+    "stress_test, simulate_support",
+    "design_report, export_design_log",
     "estimate_effect, run_estimand_ladder",
-    "run_negative_control_ladder, check_process_indicators",
+    "negative_control_ladder, check_process_indicators",
     "compute_evalue, run_delta_sensitivity"
   ),
   `External study-level work still required` = c(

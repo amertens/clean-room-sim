@@ -11,19 +11,24 @@ removed in September 2026 and live in git history if ever needed.
 - `manuscript_outcome_blind_dq.qmd` (+ `.html`, `.docx`): the manuscript.
   Two-failures framing, the estimability methods section, and the
   multi-arm Rescue.Co case study, with every case-study table computed
-  from `rescueCo/results/multiarm/*.csv` at render time.
+  from `rescueCo/results/multiarm/*.csv` at render time. The prose and
+  code listings describe cleanTMLE 0.3.0 (the sixteen-verb surface); the
+  simulation sections read `results_new/`, which the revision protocol
+  is regenerating under 0.3.0, so those sections render only once the
+  reruns exist (see `revision/CHANGELOG.md`).
 - `cleanTMLE_presentation.qmd` (+ `.pptx`): the talk. Same result files,
-  five data-drawn figures; renders with the `templates/lab_template.pptx`
+  data-drawn figures; renders with the `templates/lab_template.pptx`
   reference doc.
-- `references.bib`: the shared bibliography.
+- `references.bib`: the shared bibliography, also used by the tutorial in
+  `tutorials/`.
 
 ## Companion analyses the manuscript cites
 
 - `workflow_contrast_c.qmd` (+ `.html`): does plasmode candidate
   selection beat a fixed-library TMLE across DGPs (the workflow-contrast-C
-  question)? Source updated to the 0.2.0 API in September 2026; the
-  rendered `.html` is the May run under the pre-consolidation calls,
-  which fit the same estimators. Re-render to refresh.
+  question)? The rendered `.html` is the May run under the
+  pre-consolidation calls, which fit the same estimators; the source
+  predates the 0.3.0 verbs and is on the rerun list.
 - `cleanTMLE_vs_causalRisk_actg.qmd` (+ `.html`, `.docx`): side-by-side
   reproduction of causalRisk's ACTG 320 analysis with the cumulative-risk
   grammar. Grammar verbs only, current API.
@@ -34,7 +39,8 @@ removed in September 2026 and live in git history if ever needed.
   (roadmap, governance) used where mermaid cannot render (docx).
 - `templates/`: the pptx reference document.
 
-The plain-language tutorial formerly at
-`cleanTMLE_for_applied_analysts.qmd` was consolidated into the package
-vignettes: the staged-analysis vignette's first half is the applied
-walkthrough, and the function reference carries the dictionary.
+The plain-language walkthrough that used to live here as
+`cleanTMLE_for_applied_analysts.qmd` now has two homes: the package's
+Get-started vignette (`vignette("cleanTMLE")`) and Full workflow article
+cover the software surface, and `tutorials/clean_room_targeted_learning_tutorial.qmd`
+covers the reasoning on a simulated cohort with a known truth.
