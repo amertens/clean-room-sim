@@ -47,3 +47,7 @@ renv/sandbox/
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# Simulation study: cache and project library
+simulation/cache/
+simulation/lib/
