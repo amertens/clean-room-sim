@@ -141,6 +141,6 @@ Contrast pilot, per scenario: 100 map runs of both variants plus 200 key dataset
 ## Commits (branch `simulation-pilot`, not pushed)
 
 - 74488b2 Simulation pilot code: DGPs, support map (generate and sample treatment), answer key, cached runner, summaries
-- A second commit adds the pilot outputs and this report (see `git log`).
+- 82ad787 Simulation pilot steps 1 and 2: calibration, DGP diagnostics, smoke runs, report
 
 PLAN.md and BUILD-BRIEF.md are still untracked; I did not commit them. Unrelated changes (rescueCo, the cleanTMLE submodule pointer) are untouched and unstaged.
