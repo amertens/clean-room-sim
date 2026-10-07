@@ -105,29 +105,31 @@ calibrate <- function(model, gamma_grid, Xp = pop_covariates()) {
   }))
 }
 
-# Pick gamma for each overlap level from a calibration table (same for every
-# model, since the treatment model does not depend on the outcome model):
-# good: share closest to 0.02 among shares < 0.05; moderate: closest to 0.15
-# among 0.10 to 0.20; severe: closest to 0.40 among > 0.30.
-pick_gamma <- function(cal) {
-  s <- unique(cal[c("gamma", "share_outside")])
-  pick <- function(ok, target) {
-    if (!any(ok)) return(NA_real_)
-    d <- s[ok, ]
-    d$gamma[which.min(abs(d$share_outside - target))]
-  }
-  c(good = pick(s$share_outside < 0.05, 0.02),
-    moderate = pick(s$share_outside >= 0.10 & s$share_outside <= 0.20, 0.15),
-    severe = pick(s$share_outside > 0.30, 0.40))
+# Overlap levels (PLAN.md, revisions after pilot steps 1 and 2): gamma 1.25,
+# 1.5, 1.75, 2.0 and 2.5. Each level is named by its population share of
+# patients with true pi outside the band, in whole percent ("out04" is about
+# 4% outside), and labelled with the share itself.
+OVERLAP_GAMMAS <- c(1.25, 1.5, 1.75, 2.0, 2.5)
+
+overlap_levels <- function(gammas = OVERLAP_GAMMAS, Xp = pop_covariates()) {
+  share <- vapply(gammas, function(gm) {
+    pi <- true_pi(Xp, gm)
+    mean(pi < TRIM_BAND[1] | pi > TRIM_BAND[2])
+  }, numeric(1))
+  data.frame(id = sprintf("out%02d", round(100 * share)), gamma = gammas,
+             share_outside = share,
+             label = sprintf("%s%% outside", formatC(100 * share, format = "fg", digits = 2)),
+             stringsAsFactors = FALSE)
 }
 
-# The scenario table: overlap x model x effect, with everything needed to draw.
-scenario_table <- function(gammas, Xp = pop_covariates()) {
+# The scenario table: overlap level x model x effect, with everything needed
+# to draw. `levels` is overlap_levels().
+scenario_table <- function(levels, Xp = pop_covariates()) {
   g <- expand.grid(effect = c("effect", "null"), model = c("inside", "near", "outside"),
-                   overlap = c("good", "moderate", "severe"), stringsAsFactors = FALSE)
+                   overlap = levels$id, stringsAsFactors = FALSE)
   g <- g[c("overlap", "model", "effect")]
   g$id <- paste(g$overlap, g$model, g$effect, sep = "_")
-  g$gamma <- unname(gammas[g$overlap])
+  g$gamma <- levels$gamma[match(g$overlap, levels$id)]
   rows <- lapply(seq_len(nrow(g)), function(i) {
     r <- g[i, ]
     pi <- true_pi(Xp, r$gamma)
@@ -187,17 +189,29 @@ dgp_diagnostics <- function(scenario, Xp = pop_covariates()) {
              row.names = NULL)
 }
 
-# One dataset of a scenario. The seed comes from the name (scenario id, n, idx)
-# only, so the map and the answer key read the same dataset.
-data_seed <- function(scenario, n, idx) seed_from("data", scenario$id, n, idx)
+# Datasets. Covariates and treatment depend on the overlap level only, seeded
+# from ("data", overlap, n, idx): the map, which never sees the outcome, then
+# depends on (overlap, n, idx) only and is shared by every outcome model and
+# effect at that level. Each scenario draws its outcome on those covariates
+# and treatment with its own seed ("outcome", scenario id, n, idx). Seeds come
+# from names, never from loop positions.
+design_seed <- function(overlap, n, idx) seed_from("data", overlap, n, idx)
+
+# `level` is a row with `id` (the overlap id) and `gamma`; a scenario row works
+# too, through its `overlap` column.
+level_id <- function(level) if (!is.null(level$overlap)) level$overlap else level$id
+
+draw_design <- function(level, n, idx) {
+  s <- design_seed(level_id(level), n, idx)
+  X <- gen_covariates(n, s)
+  pi <- true_pi(X, level$gamma)
+  A <- with_seed(s + 1L, stats::rbinom(n, 1L, pi))
+  data.frame(id = seq_len(n), a = A, X, pi = pi)
+}
 
 draw_data <- function(scenario, n, idx) {
-  X <- gen_covariates(n, data_seed(scenario, n, idx))
-  pi <- true_pi(X, scenario$gamma)
-  ay <- with_seed(data_seed(scenario, n, idx) + 1L, {
-    A <- stats::rbinom(n, 1L, pi)
-    Y <- stats::rbinom(n, 1L, scen_mu(scenario, A, X, pi))
-    list(A = A, Y = Y)
-  })
-  data.frame(id = seq_len(n), a = ay$A, X, y = ay$Y, pi = pi)
+  d <- draw_design(scenario, n, idx)
+  mu <- scen_mu(scenario, d$a, d, d$pi)
+  d$y <- with_seed(seed_from("outcome", scenario$id, n, idx), stats::rbinom(n, 1L, mu))
+  d
 }

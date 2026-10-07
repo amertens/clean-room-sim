@@ -1,6 +1,6 @@
 # The answer key on one dataset: the candidates fitted on the real (simulated)
 # outcome with the same fitter the map uses, for every estimand and truncation.
-# Folds and seed are those of the map run on the same dataset.
+# Folds and seed are those of the map run on the same covariates and treatment.
 
 run_key <- function(scenario, n, idx) {
   t0 <- Sys.time()
@@ -14,7 +14,8 @@ run_key <- function(scenario, n, idx) {
       X, d$a, d$y, plan$candidates$library$glm, ESTIMANDS, plan$candidates$truncation,
       plan, folds, seed)),
     error = function(e) cleanTMLE:::.failed_rows(plan, conditionMessage(e)))
-  out <- data.frame(scenario = scenario$id, n = n, idx = idx, estimand = res$estimand,
+  out <- data.frame(scenario = scenario$id, overlap = scenario$overlap, n = n, idx = idx,
+                    estimand = res$estimand,
                     truncation = res$truncation,
                     candidate = sprintf("glm_t%s", res$truncation),
                     estimate = res$estimate, se = res$se, ci_lower = res$ci_lower,

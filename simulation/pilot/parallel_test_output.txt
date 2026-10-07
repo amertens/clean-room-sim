@@ -1,0 +1,4 @@
+Sequential: 12 runs in 509.0 s
+Parallel (6 workers): 12 runs in 103.0 s; speed-up 4.94
+Parallel rows equal sequential rows: TRUE 
+Seconds per repetition (generate, one truncation): n=500 2.12, n=2000 3.63

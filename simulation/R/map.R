@@ -7,12 +7,19 @@
 
 COVARIATES <- c("X1", "X2", "X3", "X4")
 
-plan_seed <- function(scenario, n, idx) seed_from("plan", scenario$id, n, idx)
+# The plan seed, like the design, depends on the overlap level only, so the
+# answer key on any scenario uses the folds of the map run on its dataset.
+plan_seed <- function(level, n, idx) seed_from("plan", level_id(level), n, idx)
 
+TRUNCATIONS <- 0.01  # main grid: one truncation level (PLAN.md revisions)
+
+# Surfaces: package defaults except the baseline risk, set to the true
+# control-arm risk (PLAN.md revisions).
 make_plan <- function(seed, reps) {
   cleanTMLE::analysis_plan(
     outcome = "y", estimands = ESTIMANDS, ps_library = "glm",
-    candidates = list(library = list(glm = "glm"), truncation = c(0.01, 0.05)),
+    candidates = list(library = list(glm = "glm"), truncation = TRUNCATIONS),
+    surfaces = list(baseline_risk = BASE_RISK),
     trim_band = TRIM_BAND, K = 5L, reps = reps, max_reps = reps, seed = seed)
 }
 
@@ -87,11 +94,13 @@ design_diagnostics <- function(design, n) {
              c_statistic = design$c_statistic, stringsAsFactors = FALSE)
 }
 
-run_map <- function(scenario, n, idx, variant = c("generate", "sample"), reps = 200L) {
+# One map run on dataset idx of an overlap level (a row of overlap_levels()).
+# It never draws or reads an outcome.
+run_map <- function(level, n, idx, variant = c("generate", "sample"), reps = 200L) {
   variant <- match.arg(variant)
   t0 <- Sys.time()
-  d <- draw_data(scenario, n, idx)
-  plan <- make_plan(plan_seed(scenario, n, idx), reps)
+  d <- draw_design(level, n, idx)
+  plan <- make_plan(plan_seed(level, n, idx), reps)
   lock <- cleanTMLE::create_analysis_lock(d[c("id", "a", COVARIATES)], treatment = "a",
                                           covariates = COVARIATES, plan = plan, id = "id")
   design <- cleanTMLE::assess_design(lock)
@@ -105,12 +114,12 @@ run_map <- function(scenario, n, idx, variant = c("generate", "sample"), reps = 
   out <- merge(v[c("estimand", "status", "selected", "ci_halfwidth", "unresolved")],
                design_diagnostics(design, n), by = "estimand", sort = FALSE)
   out <- out[match(ESTIMANDS, out$estimand), ]
-  out <- cbind(scenario = scenario$id, n = n, idx = idx, variant = variant, reps = reps,
+  out <- cbind(overlap = level$id, n = n, idx = idx, variant = variant, reps = reps,
                out, sec_assess = as.numeric(difftime(t1, t0, units = "secs")),
                sec_total = as.numeric(difftime(t2, t0, units = "secs")),
                stringsAsFactors = FALSE)
   rownames(out) <- NULL
-  attr(out, "metrics") <- cbind(scenario = scenario$id, n = n, idx = idx, variant = variant,
+  attr(out, "metrics") <- cbind(overlap = level$id, n = n, idx = idx, variant = variant,
                                 sim$metrics, stringsAsFactors = FALSE)
   out
 }
