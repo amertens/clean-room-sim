@@ -1,0 +1,198 @@
+---
+title: "Methods"
+format: docx
+bibliography: ../writing/references.bib
+---
+
+```{r}
+#| include: false
+reg <- jsonlite::read_json(here::here("writing", "registry.json"))
+```
+
+## Data structure, estimands and identification
+
+We consider a point-treatment study with observed data $O = (W, A, Y)$ on $n$ independent patients, where $W$ is a vector of baseline covariates, $A \in \{0, 1\}$ is the treatment and $Y \in \{0, 1\}$ is the outcome.
+Let $g_0(w) = P(A = 1 \mid W = w)$ denote the true propensity score and $Q_0(a, w) = P(Y = 1 \mid A = a, W = w)$ the true outcome regression, and let $Y^a$ denote the potential outcome under treatment $a$ [@laanTargetedLearningCausal2011].
+Estimates of the propensity score appear in two forms below: $\hat g$, fitted once on all patients, and $\hat g^{\mathrm{cf}}$, fitted by $K$-fold cross-fitting, in which each patient's score comes from a model fitted without that patient's fold.
+A notation table is given in the Supplement.
+
+All four estimands we study are risk differences, and they differ in the population they describe.
+The average treatment effect (ATE) is $\psi_{\mathrm{ATE}} = E[Y^1 - Y^0]$, the effect in the whole population.
+The trimmed ATE is the same contrast in the patients whose propensity score lies in a prespecified band, $\psi_{\mathrm{trim}} = E[Y^1 - Y^0 \mid g_0(W) \in [0.05, 0.95]]$ [@crump2009].
+The average treatment effect among the treated (ATT) is $\psi_{\mathrm{ATT}} = E[Y^1 - Y^0 \mid A = 1]$.
+The overlap-weighted effect (ATO) weights each patient by $g_0(W)\{1 - g_0(W)\} = \operatorname{Var}(A \mid W)$, so that $\psi_{\mathrm{ATO}} = E[g_0(W)\{1 - g_0(W)\}(Y^1 - Y^0)] / E[g_0(W)\{1 - g_0(W)\}]$ [@li2017].
+In the terms of the ICH E9(R1) estimand framework, moving between these estimands changes the population attribute, while the treatment, the outcome and the summary measure stay the same [@internationalcouncilforharmonisationoftechnicalrequirementsforpharmaceuticalsforhumanuse2019].
+In practice the trimmed population is defined by the estimated score, so the trimmed ATE we estimate is the effect in the patients whose cross-fitted score $\hat g^{\mathrm{cf}}(W)$ lies in the band, and its confidence interval is conditional on that estimated band.
+
+Each estimand is identified under consistency, no unmeasured confounding given $W$ (for the ATT, only for $Y^0$), and a positivity condition that depends on the estimand [@petersenDiagnosingRespondingViolations2012].
+Strict positivity requires $0 < g_0(W) < 1$ for the ATE, the same only inside the band for the trimmed ATE, $g_0(W) < 1$ for the ATT, and nothing for the ATO, whose weights vanish where treatment is deterministic.
+Estimation also needs practical positivity: when the propensity score approaches 0 or 1 in part of the covariate space, an estimator of the ATE must extrapolate the outcome regression $Q_0(a, W)$ into regions where one treatment is rarely observed, and truncating the estimated propensity score limits the variance of the weights but does not remove this extrapolation [@petersenDiagnosingRespondingViolations2012].
+The propensity score can be estimated without the outcome, but how much a near-violation biases an estimator depends on the outcome regression, which is why we assess estimability by simulation rather than from the propensity score alone.
+
+## The staged workflow
+
+We implemented the workflow in the R package cleanTMLE, following the staging and clean-room constructs of Muntner and colleagues [@muntner2024], in which the people who design an observational comparison work without access to the association between treatment and outcome until the design is fixed [@rubin2008].
+The analyst first specifies the full analysis plan: the estimands in order of preference, the candidate estimators, the tolerances that define an acceptable estimator, the family of simulated outcome models, the negative-control outcomes and their criteria, and the roles of the people involved.
+The plan and the design data, which contain the covariates, the treatment and any negative-control outcomes but not the primary outcome, are then locked together under a cryptographic hash.
+The design is assessed and simulated without the outcome, the negative controls are estimated, and the results, together with the primary estimand and estimator they select, are collected into a statistical analysis plan (SAP) that a review team approves before the outcome is admitted.
+Only then is the selected estimator applied to the outcome.
+Separating the design from the outcome keeps the outcome out of every design choice, and any later departure from the SAP, such as reporting an estimand other than the primary, is labelled as such in the results and the log.
+
+The lock makes changes detectable rather than impossible: any later change to the plan, the design data or the decision changes a hash, and every later step refuses an object whose hash does not match, but the lock cannot prevent an analyst from analysing the outcome outside the package.
+
+## The outcome-blind plasmode simulation
+
+To learn which estimands the design can deliver without using the outcome, we simulate outcomes on the study's own covariates and treatment mechanism, a plasmode simulation [@franklin2014].
+Each simulated dataset resamples the rows of $W$ with replacement, draws a new treatment $A^* \sim \text{Bernoulli}\{\hat g(W)\}$ from the propensity score $\hat g$ fitted once on all patients, and draws an outcome from one of a prespecified family of outcome models.
+We draw new treatments rather than keeping each patient's observed treatment because, with observed treatments and an outcome model that varies with the propensity score, the simulated data inherit the study's regions without one treatment, which builds a positivity violation into the simulation [@shaw2026].
+The score $\hat g$ that drives the simulated world is fitted without cross-fitting so that it depends on the covariates alone; a cross-fitted score would make each patient's simulated treatment depend on the fold the patient was assigned to, a variable the estimators cannot see.
+
+The simulated outcome models are not fitted to the outcome; they are a family prespecified in the plan.
+Outcome model $s$ in the family is
+$$
+\operatorname{logit} Q_s(a, w) = \beta_s + \gamma_s\, m_s(w) + a\{\tau_s + \delta_s\, h(w)\},
+$$
+where $m_s(w)$ is a standardized prognostic index, $h(w)$ is the standardized logit of the propensity score $\hat g(w)$, $\tau_s$ is the treatment effect on the log-odds scale, $\delta_s$ is the heterogeneity of that effect in the propensity score, $\gamma_s$ is the strength of the prognostic index, and the intercept $\beta_s$ is set so that the mean control-arm risk $Q_s(0, W)$ equals a baseline risk set in the plan.
+The prognostic index $m_s(w)$ combines the standardized logit of the propensity score with a fixed linear combination of the standardized covariates whose coefficients are drawn once from a standard normal distribution under the plan's seed; its nonlinear form adds the square of the covariate with the largest coefficient and its interaction with the covariate with the second largest.
+The values in the plan for the effect $\tau_s$, the heterogeneity $\delta_s$ and the prognostic strength $\gamma_s$ are crossed with the linear and nonlinear forms of the prognostic index, and an effect that does not vary with the propensity score ($\delta_s = 0$) is always included.
+Because the effect is set on the log-odds scale, the risk difference varies with $W$ even when $\delta_s = 0$, so the ATE, ATT and ATO generally differ; heterogeneity in the propensity score adds variation that falls where overlap is poor, which is where an extrapolating estimator is penalized.
+The simulation's verdict therefore holds only over this family and the estimated treatment mechanism $\hat g$; a true outcome model that the family cannot reproduce can make an estimand fail that the simulation judged feasible, and we test this boundary in the simulation study.
+
+Because each simulated outcome model is known, the true value of each estimand in the simulated world is computed exactly from $Q_s(1, W) - Q_s(0, W)$ over the design rows, weighted for the ATT by $\hat g(W)$ and for the ATO by $\hat g(W)\{1 - \hat g(W)\}$, and restricted for the trimmed ATE to the rows with $\hat g(W)$ in the band.
+These true values involve no outcome and no Monte Carlo error; for the trimmed ATE they refer to the band on $\hat g$, while each simulated estimate trims on its own cross-fitted score, a difference that the bias of the trimmed ATE absorbs.
+
+Each candidate estimator is a library of learners for the outcome regression together with a truncation level for the propensity score.
+The simulation fits every candidate with the same fitter, the same number of cross-fitting folds, the same library and truncation and the same targeting steps that the final analysis later uses, so that the candidate the simulation selects is the estimator applied to the outcome.
+
+We call a combination of an estimand, a candidate and a simulated outcome model a cell.
+An estimand is judged feasible when at least one candidate meets the prespecified tolerances in every cell for that estimand: an absolute bias of at most 0.02 on the risk difference scale, and coverage of its nominal 95% confidence interval (CI) of at least 0.90, both judged on their point estimates over the simulated datasets.
+Feasibility is thus the simulation's prediction, without the outcome, that the estimand is estimable in our sense: that some candidate meets these tolerances at this sample size on the true outcome model.
+We set the tolerances on the decision scale, the risk difference, before any data were seen; a bias tolerance should sit well below the smallest effect that would change a decision.
+We set the coverage tolerance at 0.90, below the nominal 0.95, to allow for Monte Carlo error over a few hundred simulated datasets while still failing the marked undercoverage that extrapolation produces; this choice is somewhat arbitrary, and tying the tolerance to the number of simulated datasets is a possible improvement.
+Among the candidates that meet the tolerances, the one with the smallest worst-case root mean squared error across the simulated outcome models is selected, so that the selected estimator performs acceptably whichever member of the family is closest to the truth.
+An optional tolerance on the expected half-width of the CI makes feasibility also require an informative estimate; when it is set, a cell fails if its mean half-width exceeds the tolerance.
+A fit that fails, through an error or a non-finite estimate, is excluded from that cell's summaries, and a candidate with more than 5% failed fits in any cell is not counted toward feasibility.
+
+Every bias and coverage is itself an estimate from a finite number of simulated datasets.
+We report the Monte Carlo standard error of each bias and a Wilson 95% interval for each coverage [@morris2019; @wilson1927].
+A cell is unresolved when the 95% interval for its absolute bias contains the bias tolerance or the Wilson interval for its coverage contains the coverage tolerance.
+Once the primary estimand is determined, defined in the next section, unresolved cells of that estimand and of the estimands above it in the order receive further batches of simulated datasets up to a prespecified maximum when they could change the decision, and the SAP flags any decision that still rests on unresolved cells.
+
+The simulation also forecasts precision before the outcome is seen.
+For each candidate it reports the mean estimated standard error, the empirical standard deviation of the estimates and the mean half-width of the CI.
+For each estimand it reports the expected number of events in each arm among the patients the estimator uses, computed from the simulated outcome models and the observed treatment, because these counts describe the information in the cohort that will be analysed.
+
+## The prespecified order of estimands and the decision
+
+The analyst specifies the estimands in order of preference, starting with the estimand that answers the study question.
+The primary estimand is the first one that the outcome-blind plasmode simulation judges feasible, and the remaining feasible estimands are reported as secondary.
+We fix the order before any outcome is seen because a choice among estimands made after seeing their estimates selects on the outcome and can invalidate the nominal coverage of the reported CI; we quantify this in the simulation study.
+Because a move down the order changes the population the answer describes, the SAP reports, for each estimand, the mean of each covariate in its target population and its standardized mean difference from the full cohort, and the covariate means of the patients that trimming removes; means over fewer than five patients are not shown.
+
+## Negative-control outcomes
+
+A negative-control outcome is an outcome that treatment should not affect, assigned in the plan to a domain, the kind of confounding it can detect, such as health care use [@lipsitch2010].
+A control that is one of the adjustment covariates, or is derived from one, is fitted without that covariate, because adjusting for its source would force its estimate to zero.
+Each prespecified negative-control outcome is estimated for every estimand in the prespecified order, on the full cohort and under each prespecified cohort restriction, with the candidate the simulation selected for that estimand, so that the controls test the adjustment the analysis will use; for an estimand with no feasible candidate, the candidate with the smallest worst-case root mean squared error is used and its verdict is labelled as not feasible.
+A control reads inside when its 95% CI lies within a prespecified null band, the range of residual bias the analyst would accept on the risk difference scale; outside when the CI lies entirely outside the band; and inconclusive otherwise.
+For each estimand the verdict is GO (proceed) when every control reads inside, STOP (do not proceed without a written reason) when any control reads outside, and FLAG (proceed, with the uncertainty reported) otherwise, which includes an inconclusive control and too few estimable controls in a domain.
+A STOP verdict on the full cohort for the primary estimand blocks access to the outcome, as does the absence of any feasible estimand; either block can be overridden only with a written reason, which is recorded.
+We grade the controls on the primary estimand because a control estimated on an estimand the design cannot deliver mixes extrapolation error with confounding, so it cannot isolate confounding, and we grade them by their CI rather than their point estimate because a null band narrower than the precision of the cohort would otherwise fail controls with no effect.
+Neither GO nor FLAG rules out residual confounding: a FLAG means the controls could not exclude bias as large as the null band.
+
+## Estimation after approval
+
+To flexibly adjust for confounding and reduce the risk of model misspecification, we estimated each estimand with targeted maximum likelihood estimation (TMLE) [@vanderlaan2006], using $K$-fold cross-fitted estimates of the propensity score and the outcome regression [@zheng2011].
+The ATE and the ATT were targeted with the tmle package from the supplied cross-fitted estimates, with the propensity score truncated at the selected candidate's level; for the ATT, the package refits a logistic model for the treatment when many controls fall below the smallest treated score.
+The trimmed ATE used the same targeting on the patients whose cross-fitted score lay in the band.
+The ATO used a TMLE that fluctuates the outcome regression along the covariate $A\{1 - \hat g^{\mathrm{cf}}(W)\} - (1 - A)\hat g^{\mathrm{cf}}(W)$ and the propensity score along $\{1 - 2\hat g^{\mathrm{cf}}(W)\}\{\hat Q(1, W) - \hat Q(0, W) - \hat\psi_{\mathrm{ATO}}\}$, iterating until the efficient influence function equations are solved, where $\hat Q$ is the cross-fitted outcome regression and $\hat\psi_{\mathrm{ATO}}$ the current estimate of the ATO [@lee2026]; because its weights are bounded, it does not use a truncation level.
+For every estimand, the CI was based on the variance of the estimated efficient influence function.
+
+The nuisance functions were estimated with a super learner [@vanderlaanSuperLearner2007] whose members are an elastic net at three mixing values, multivariate adaptive regression splines with interactions of degree two, gradient-boosted trees at ten combinations of depth (1 to 5) and learning rate (0.1 and 0.3), and a small neural network at three values of weight decay.
+The members' predictions were combined on the logit scale with weights on the simplex chosen to minimize the cross-validated negative log-likelihood, with five inner folds.
+The number of boosting rounds and the elastic net penalty were tuned on the inner folds, and we report the share of fits in which a tuned value sat on the edge of its grid [R: edge-check shares].
+Inverse probability weighting and propensity-score matching (which estimates the ATT only) are reported as comparators, to show whether an estimate depends on the estimator; they were not evaluated in the outcome-blind simulation, and their estimates are labelled accordingly.
+
+## Simulation study
+
+We designed the simulation to test the four claims stated in the Introduction, and we describe it using the aims, data-generating mechanisms, estimands, methods and performance measures of Morris and colleagues [@morris2019].
+
+### Aims
+
+The simulation asks whether the outcome-blind plasmode simulation's verdict for each estimand agrees with whether the estimand is estimable on the true outcome model, more often than overlap diagnostics that do not simulate; whether drawing new treatments matters for that agreement; whether choosing the estimand before the outcome keeps CI coverage nominal; and whether the forecast CI half-width predicts the realized one.
+
+### Data-generating mechanisms
+
+The covariates were $W = (W_1, W_2, W_3, W_4)$ with $W_1 \sim \text{Uniform}(-2, 2)$, the main confounder; $W_2 \sim \text{Bernoulli}(0.5)$; and $W_3, W_4 \sim \text{Uniform}(-1, 1)$, of which $W_4$ is unrelated to treatment.
+Treatment followed $\operatorname{logit} g_0(W) = -0.2 + \alpha W_1 + 0.3 W_2 + 0.3 W_3$, with five values of the coefficient $\alpha$ chosen so that the share of patients with $g_0(W)$ outside 0.05 to 0.95 ranged from almost none to about two fifths [R: the five coefficients and shares outside the band].
+Three of these levels were planned; the two levels between them were added after a pilot showed that the planned levels gave few cases in which estimability was in doubt, and we report this choice as made after seeing the pilot.
+Outcomes were binary, with intercepts $b$ set so that the mean control-arm risk was 0.15, from three true outcome models chosen for their relation to the simulated family (Supplementary Table S3):
+the inside model, $\operatorname{logit} Q_0(a, w) = b + m(w) + a\{0.5 + 0.5\, z(w)\}$, where $z(w)$ is the standardized logit of $g_0(w)$ and $m(w)$ is a standardized index combining $z(w)$ and a fixed linear combination of $W$, which has the family's own form;
+the near model, $\operatorname{logit} Q_0(a, w) = b + 0.8 w_1 + 0.6 w_1^2 + 0.4 w_3 + a(0.5 + 0.6 w_1)$, with a nonlinear prognostic term and an effect that varies in the main confounder;
+and the outside model, $\operatorname{logit} Q_0(a, w) = b + 0.8 w_1 + 0.4 w_3 + a\{0.5 + 1.0 w_4 + 0.8\, \mathbb{1}(w_1 > 1.5)\}$, with an effect that varies in a covariate unrelated to treatment and a threshold in the region of poor overlap, which the family's smooth heterogeneity in the propensity score cannot reproduce.
+Each model also had a null version without the terms in $a$, for the analysis of choosing the estimand after the outcome.
+Sample sizes were 500 and 2,000.
+The covariates and treatment of each dataset were drawn once for each overlap level, sample size and dataset index, and each true outcome model drew its outcome on those same covariates and treatment, so that every comparison across outcome models is paired.
+
+### Estimands and estimability on the true model
+
+The true value of each estimand in each scenario was computed from one draw of $10^6$ patients, with the trimmed ATE defined on the band of $g_0$.
+An estimand was defined as estimable in a scenario if at least one candidate met the same tolerances, an absolute bias of at most 0.02 and coverage of at least 0.90, when it was applied to datasets drawn from the true model with the outcome [R: number of datasets M].
+Estimability is thus relative to the candidate set and the sample size, and it is itself estimated with Monte Carlo error from these datasets.
+We used 1,000 datasets per scenario, report the share of scenario and estimand combinations whose bias or coverage lies within two Monte Carlo standard errors of a tolerance [R: that share], and repeat the agreement analysis without them as a sensitivity analysis.
+
+### Methods compared
+
+On each of the first [R: number of datasets per overlap level] datasets per overlap level and sample size, without the outcome, we ran the outcome-blind plasmode simulation as implemented, the same simulation with each patient's observed treatment kept, and four overlap diagnostics computed from the same cross-fitted propensity score: the share of patients outside the band, the largest weight for the estimand, the effective sample size as a fraction of $n$, and the share of patients with a preference score between 0.3 and 0.7 [@walker2013].
+Each simulation used the package's default family of four outcome models (the linear and nonlinear prognostic index, crossed with $\delta_s$ equal to 0 and 0.5, with $\tau_s = 0.5$ and $\gamma_s = 1$), a baseline risk of 0.15, which equals the true control-arm risk and so favors the simulation, and 200 simulated datasets per outcome model, without further batches for unresolved cells.
+To show the cost of a wrong baseline risk, we repeated the simulation with the baseline risk set to 0.10 and to 0.30, with everything else unchanged.
+Because the simulations do not use the outcome, one simulation per dataset serves all the true outcome models at its overlap level and sample size.
+Each diagnostic was given the threshold that best matched estimability on the true model, chosen separately for each estimand by Youden's index across all scenarios, so that it was compared at its best.
+To assess choosing the estimand after the outcome, we compared, on the same datasets with the outcome, the estimate of the primary estimand from the prespecified order with the estimate of whichever feasible estimand had the narrowest CI, each against the true value of the estimand it reports, on the datasets for which the simulation judged at least one estimand feasible.
+The candidates were the main-terms logistic regression for the outcome and the propensity score, with the propensity score truncated at 0.01 and five-fold cross-fitting, across the whole grid; the package's default super learner was used in the scenarios with the middle level of overlap at $n = 2{,}000$.
+
+### Performance measures
+
+We report, for each estimand, the sensitivity and specificity of each verdict, taking estimable as the positive class and comparing each dataset's verdict with its scenario's estimability, by the true outcome model's relation to the simulated family, with Monte Carlo standard errors that treat datasets as clustered within scenarios; the receiver operating characteristic curve of each diagnostic; the coverage of the CI and, under the null models, the rejection rate at the 0.05 level for each way of choosing the estimand; and the ratio of the forecast to the realized CI half-width and their correlation.
+The numbers of datasets were chosen in a pilot so that each contrast the displays are meant to show exceeds three Monte Carlo standard errors [R: pilot contrasts and final numbers].
+
+## Application: the Rescue.Co Kenya trauma registry
+
+The Rescue.Co Kenya Trauma Registry enrols injured patients at three public hospitals in Nairobi County, Kenya: Kenyatta National Hospital, the national referral hospital, and Mama Lucy Kibaki Hospital and Mbagathi County Hospital, two county hospitals.
+Study research assistants enrolled patients of any age treated in the emergency department for a traumatic injury between 19 February 2024 and 23 June 2025.
+Patients were excluded if they left before treatment or against medical advice, if the injury was a poisoning, hanging or asphyxiation, or a heat or cold injury, or if neither they nor a contact had a telephone for follow-up.
+Rescue.Co, a private emergency dispatch and ambulance service, had no role in the study.
+Transport by Rescue.Co was confirmed against Rescue.Co's dispatch records, and patients recorded as transported by Rescue.Co with no dispatch record were excluded [R: number excluded].
+We compared transport by Rescue.Co with other modes of transport to hospital in five contrasts specified before outcome access.
+The primary contrast, the protocol's comparison, was Rescue.Co transport versus all other transport.
+The others were Rescue.Co transport versus arrival without an ambulance; any ambulance versus arrival without an ambulance; and Rescue.Co transport versus other ambulances, with transfers included and, in the primary cohort, with transfers and patients who had received prior care excluded.
+The cohort sizes are given in the Results.
+Because the registry enrols patients on arrival at hospital, after the transport being compared, patients who died before arrival are largely absent, and the estimand is the effect of transport mode among patients who reach a participating hospital alive; this equals the effect in all injured patients only if transport mode does not change survival to arrival.
+The primary adjustment set was restricted to covariates fixed before transport (demographics, socioeconomic measures, the mechanism and severity of the injury, and the location and timing of the injury); arrival physiology, which transport could affect, was added in a sensitivity analysis.
+The design stage was run on the complete-case cohort the analysis uses, because which patients lack follow-up is known before the outcome is seen and is not the outcome itself.
+The primary outcome was a poor functional outcome at the six-month follow-up interview, a score of 4 or less on the Glasgow Outcome Scale-Extended [@wilson2021], on which death is the lowest score; it is the protocol's primary outcome and the outcome on which the study was powered.
+Patients who died in hospital were scored as dead whether or not they were interviewed, so death before the interview is part of the outcome rather than an event that prevents its observation.
+Death within 180 days of arrival was a secondary outcome.
+The primary adjustment set comprised age, sex, marital status, education and occupation; household assets, cooking fuel and home ownership; the injury severity score, the number of body regions injured, head injury severity, the mechanism, intent, place and activity of the injury, and whether the wound was penetrating; alcohol and tobacco use, medical history, chronic illness and prior surgery; and the sub-county of the injury, calendar time since the start of enrolment, the hour of day, weekends and a period of health-worker strikes.
+Payment method, recorded at discharge, and the distance from the injury to the receiving hospital, which depends on where transport took the patient, were not adjusted for.
+The sensitivity analysis added heart rate, blood pressure, the components of the Glasgow Coma Scale and palpable pulse on arrival.
+The causal diagram is in the supplement (Figure S[X]).
+In the diagram, no set of measured covariates is sufficient for adjustment, because access to a telephone, awareness of the service, wealth and injury severity not captured by the injury severity score are unmeasured; we therefore report the E-value for the primary estimate, the smallest risk ratio that an unmeasured confounder would need with both treatment and the outcome, conditional on the measured covariates, to move the estimate to the null [@vanderweele2017].
+The negative controls were five characteristics recorded in the registry at enrolment that transport cannot affect: living in an urban household, cooking with wood or charcoal, hypertension, diabetes treated with insulin, and HIV infection treated with antiretroviral therapy.
+Because they describe the patient before transport, they test whether the treatment groups remain imbalanced, after adjustment, on characteristics that unmeasured socioeconomic and health factors would also affect, rather than serving as negative-control outcomes in the strict sense.
+Each was fitted without the covariate it is derived from: cooking fuel for the second, and chronic illness for the last three.
+[TO FILL: the bias analysis for deaths before arrival, if the protocol analysis adopts it.]
+For each contrast, the plan specified the estimands in the order ATE, trimmed ATE, ATT and ATO, the candidates, the tolerances and the negative-control outcomes with their cohort restrictions, and the outcome was joined only after the SAP was approved.
+The analyst had seen the outcomes of the same registry in a parallel analysis that was not blinded, so this application re-executes the blinded design with the outcome withheld from the software, rather than being an analysis by analysts blind to the outcomes, and we report it as such.
+
+Outcomes missing at follow-up were handled by complete case analysis [R: number and share of missing outcomes by arm].
+Because patients without an observed outcome are dropped before estimation, the estimate refers to patients with an observed outcome, and it equals the effect in the full cohort if outcomes are missing completely at random.
+This is a change from the study protocol (version 1, 9 May 2023; Supplementary Material), which specified inverse probability of censoring weighting, an approach that assumes outcomes are missing at random given treatment and the measured covariates; we made the change so that the estimator run after unblinding was the one the design stage had evaluated, on the complete-case cohort.
+We report inverse probability of censoring weighting as a sensitivity analysis, with the probability of an observed outcome estimated from treatment and the primary adjustment set by the super learner used for the propensity score.
+Patients recorded as transported by Rescue.Co whose identity Rescue.Co had not yet confirmed [R: number] were kept in the primary analysis and excluded in a sensitivity analysis.
+Other deviations from the protocol, each with its reason, are listed in Supplementary Table S[X]: estimation in the full cohort rather than in a matched sample, three hospitals instead of five, a shorter enrolment period, calendar time and the strike period added to the adjustment set, and the exclusion of transfers and patients with prior care from the primary cohort.
+
+## Software
+
+Analyses used R version 4.4.2 [@rcoreteam2024] with the cleanTMLE package version 0.4.1, which uses the tmle package version 2.1.1 for targeting the ATE and the ATT [@gruber2012]; xgboost 1.7.8.1, glmnet 4.1.8, earth 5.3.4 and nnet 7.3.19 for the super learner; WeightIt 1.3.2 and MatchIt 4.7.0 for the comparators [@ho2005]; and cobalt 4.5.5 for covariate balance.
+The package, the simulation code and the code for the application are available at https://github.com/amertens/cleanTMLE and https://github.com/amertens/clean-room-sim, archived at [TO FILL: Zenodo DOI at submission].

@@ -1,0 +1,31 @@
+---
+title: "Introduction"
+format: docx
+bibliography: ../writing/references.bib
+---
+
+Observational comparisons of treatments now inform clinical and regulatory decisions, and their credibility depends on fixing the question and the analysis before the outcome is seen, as a trial protocol does [@kahanHowDesignPrespecified2020; @hernan2016].
+In a meta-epidemiological study of registered cohort studies of interventions, the primary outcome in the publication differed from the registered one in 48% of studies, and most of the changes favoured outcomes with P values below 0.05 [cite: Song 2026 outcome switching in cohort studies].
+The target trial framework and the causal roadmap ask the analyst to specify the causal estimand first [@hernan2016; @dangStartTargetTrial2023], and staging and clean-room constructs let a team change the design in response to what the data show, provided the change is made before anyone sees the association between treatment and outcome [@muntner2024; @rubin2008].
+These frameworks leave one decision that is hard to make in advance: whether the data can deliver the estimand the protocol asks for.
+The estimand a protocol names, often the average treatment effect, may not be estimable with acceptable bias in the cohort that is assembled, and if this is discovered after the outcome has been analysed, any change of estimand is made with the results in view.
+
+The usual causal estimands describe different populations and need different amounts of overlap between treated and untreated patients.
+The average treatment effect (ATE) needs every patient to have some chance of receiving either treatment; the ATE in patients whose propensity score lies within a band, the trimmed ATE, needs this only inside the band [@crump2009]; the average treatment effect among the treated (ATT) needs it only for the treated; and the overlap-weighted effect (ATO) weights each patient by the variance of treatment given the covariates, so it needs no overlap at all [@li2017].
+Moving from one of these estimands to another changes the population the answer describes rather than the treatment or the outcome [@internationalcouncilforharmonisationoftechnicalrequirementsforpharmaceuticalsforhumanuse2019; @chenEstimandsRealWorldEvidence2023], and recent guidance describes how to choose among them when positivity is violated [cite: Liu 2025 weighting under positivity violations].
+When the propensity score approaches 0 or 1, however, the bias of an estimator depends on how the outcome regression behaves where one treatment is rare, not on the propensity score alone [@petersenDiagnosingRespondingViolations2012; @wiederkehr2026].
+Overlap diagnostics, such as the share of patients with extreme propensity scores, the largest weight, the effective sample size or the share of patients in clinical equipoise [@walker2013], read only the propensity score, and the parametric bootstrap that does estimate the resulting bias fits an outcome model to the observed outcome [@petersenDiagnosingRespondingViolations2012].
+Before the outcome is seen, these diagnostics can describe the overlap in a cohort, but they cannot say whether that overlap is enough for a given estimand.
+
+Simulations built on a study's own covariates can evaluate estimators without the outcome.
+Plasmode simulations keep the real covariates and generate outcomes from a chosen model [@franklin2014], and simulations of this kind are used in the causal roadmap to choose the estimator before the real analysis is run [@nanceCausalRoadmapSimulations2024a; @williamsonApplicationCausalRoadmap2023].
+How such a simulation generates treatment matters: keeping each patient's observed treatment can build a positivity violation into the simulated data [@shaw2026], and a plasmode simulation can show that an estimator fails but cannot certify that it will succeed in the population the data came from [cite: Karim 2026 plasmode refutes but cannot certify].
+For choosing the estimand itself, design-based metrics can weigh the statistical bias of an estimator against departure from the population of interest [cite: Barnard 2026 estimand selection under positivity violations], and prespecified objective diagnostics, read before the results are unblinded, can screen out analyses likely to be biased [cite: Conover 2025 objective study validity diagnostics].
+These approaches read the design through the propensity score, the weights or negative controls, while under poor overlap the bias and coverage of an estimator also depend on the outcome regression.
+Whether a simulation that never uses the outcome can say which estimand a design can deliver, and what choosing the estimand at that stage does to inference, are the questions this paper takes up.
+
+Here, we propose choosing the estimand at the design stage with an outcome-blind plasmode simulation, inside a staged workflow implemented in the R package cleanTMLE.
+The simulation draws new treatments from the propensity score estimated on the study's covariates and outcomes from a prespecified family of outcome models, judges an estimand feasible when some candidate estimator meets prespecified tolerances for bias and coverage on every model in the family, and makes the first feasible estimand in a prespecified order the primary estimand, all before the outcome is joined to the data.
+Our objectives were to estimate, in a simulation study, the sensitivity and specificity for estimability on the true outcome model of this verdict, of the same simulation with each patient's observed treatment kept, and of overlap diagnostics, by estimand and by how closely the true outcome model resembles the simulated family; the coverage and type I error of the estimate when the estimand is chosen before rather than after the outcome is seen; and the agreement between the confidence-interval half-width forecast before the outcome and the half-width realized after it.
+We also show the workflow in a re-execution of a trauma registry analysis from Nairobi, Kenya, with the outcome withheld from the software.
+The aims are methodological; the application estimates a causal effect, whose estimand and identifying assumptions are given in the Methods.

@@ -1,0 +1,81 @@
+# Internal labels and the words readers see. Every 'internal' value is banned in drafts.
+# Entries marked (proposed) wait for Andrew's confirmation.
+terms:
+  # Rescue.Co case-study contrasts (rescueCo/scripts/10_multiarm_build.R)
+  - internal: "C1"
+    reader: "Rescue.Co transport versus all other transport (the protocol's comparison)"
+  - internal: "C2"
+    reader: "Rescue.Co transport versus arrival without an ambulance"
+  - internal: "C3"
+    reader: "any ambulance versus arrival without an ambulance"
+  - internal: "C4"
+    reader: "Rescue.Co transport versus other ambulances, transfers included"
+  - internal: "PRIMARY"
+    reader: "the primary cohort: Rescue.Co versus other ambulances, excluding transfers and patients with prior care"
+  # Earlier simulation and revision labels (old manuscript, revision/ folder)
+  - internal: "Scenario A"
+    reader: "the simulation scenario with good overlap (describe its design)"
+  - internal: "Scenario B"
+    reader: "the simulation scenario with marginal overlap (describe its design)"
+  - internal: "Scenario C"
+    reader: "the simulation scenario with an unmeasured confounder (describe its design)"
+  - internal: "Scenario D"
+    reader: "the simulation scenario with a misspecified outcome model (describe its design)"
+  - internal: "VG"
+    reader: "very good overlap"
+  - internal: "TMLE_CF"
+    reader: "cross-validated TMLE"
+  - internal: "Match_TMLE"
+    reader: "TMLE in the propensity-score-matched cohort"
+  - internal: "TL-RWE"
+    reader: "the targeted learning roadmap for real-world evidence"
+  - internal: "FIORD"
+    reader: "the Forum on the Integration of Observational and Randomized Data (a meeting, not a method)"
+  - internal: "Shaw-artifact"
+    reader: "the positivity violation built into a plasmode simulation that keeps each patient's observed treatment"
+  - internal: "WP0"
+    reader: "(revision work package; never in prose)"
+  - internal: "WP1"
+    reader: "(revision work package; never in prose)"
+  - internal: "WP2"
+    reader: "(revision work package; never in prose)"
+  - internal: "WP3"
+    reader: "(revision work package; never in prose)"
+  - internal: "WP4"
+    reader: "(revision work package; never in prose)"
+  # Package and simulation labels (cleanTMLE 0.4.1, simulation/PLAN.md)
+  - internal: "glm_t0.01"
+    reader: "the main-terms logistic regression candidate with the propensity score truncated at 0.01"
+  - internal: "glm_t0.05"
+    reader: "the main-terms logistic regression candidate with the propensity score truncated at 0.05"
+  - internal: "trimmed_ATE"
+    reader: "the trimmed ATE (the ATE among patients whose propensity score lies in the trim band)"
+  - internal: "health_seeking"
+    reader: "the negative-control outcome for health care use"
+  - internal: "answer key"
+    reader: "whether the estimand was estimable on the true outcome model"
+  - internal: "support map"
+    reader: "the outcome-blind plasmode simulation"
+  - internal: "estimand ladder"
+    reader: "the prespecified order of estimands"
+  - internal: "rung"
+    reader: "(proposed) an estimand in the prespecified order; for negative controls, a cohort restriction"
+  - internal: "outcome surface"
+    reader: "(proposed) a simulated outcome model"
+  - internal: "dossier"
+    reader: "the statistical analysis plan (SAP) reviewed before outcome access"
+  - internal: "inside the family"
+    reader: "a true outcome model of the same form as the simulated outcome models"
+  - internal: "outside the family"
+    reader: "a true outcome model that the simulated outcome models cannot reproduce"
+allow:                  # tokens that look like labels but are standard terms in this project
+  - "cleanTMLE"
+  - "Rescue.Co"
+abbreviations:          # approved abbreviations
+  ATE: average treatment effect
+  ATT: average treatment effect among the treated
+  ATO: overlap-weighted average treatment effect
+  TMLE: targeted maximum likelihood estimation
+  CI: confidence interval
+  RWE: real-world evidence
+  SAP: statistical analysis plan

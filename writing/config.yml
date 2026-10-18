@@ -1,0 +1,16 @@
+# Paths are relative to the project root unless absolute.
+drafts:                 # files the hook checks on every write (glob patterns)
+  - "manuscript/**/*.qmd"
+results:                # CSV files that numbers may be traced to
+  - "simulation/results/**/*.csv"      # the estimability simulation (built from simulation/PLAN.md)
+  - "rescueCo/results/**/*.csv"        # the Rescue.Co case study, re-run on cleanTMLE 0.4.1
+registry: "writing/registry.json"
+bibliography: "writing/references.bib"   # exported by Better BibTeX from the project's Zotero collection
+overlap_sources:        # published papers and other projects the draft must not reuse text from; never this project's own plan or report
+  - "C:/Users/andre/OneDrive/Documents/mertens-publications/papers/2025_Nance_Applying-Causal-Roadmap-longitudinal-national-registry-data__PREPRINT.pdf"
+  - "C:/Users/andre/OneDrive/Documents/mertens-publications/papers/2023_Williamson_application-Causal-Roadmap-two-safety-monitoring-case.pdf"
+  - "C:/Users/andre/OneDrive/Documents/mertens-publications/papers/2023_Coyle_Targeted-Learning__PREPRINT.pdf"
+  - "C:/Users/andre/OneDrive/Documents/mertens-publications/preprints/2026_Qiu_Considerations-Integration-Randomized-Controlled-Trials-Real-World.pdf"
+  - "C:/Users/andre/OneDrive/Documents/causal-learning-handbook/03-08-staged-clean-room.qmd"   # another project (the handbook's clean-room chapter)
+  - "C:/Users/andre/OneDrive/Documents/rescueCo_analysis/reports/manuscript_rescueco.qmd"     # another project on the same registry (the unblinded analysis)
+allow_words: []         # words the pattern checks allow in this project, e.g. ["landscape"]
