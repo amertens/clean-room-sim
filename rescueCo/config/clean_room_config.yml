@@ -16,6 +16,10 @@ data:
   raw_rds:           "rescueCo/data/RescueCoKenyaTraumaR_DATA_clean.rds"
   merged_rds:        "rescueCo/data/merged_clean.rds"
   analysis_ready_rds: "rescueCo/data/analysis_ready.rds"
+  # Rescue.co's Flare cross-reference of the 78 Rescue.Co-classified patients
+  # with no rescue_id (Sept 2026). Holds patient names; data/ is gitignored and
+  # only patient_id and match_status are read. See treatment$unmatched_policy.
+  rescue_crossref_xlsx: "rescueCo/data/id_reconciliation/rescue_case_id_crossref_2026-09.xlsx"
 
 # --- Output paths (relative to project root) ---
 paths:
@@ -40,6 +44,12 @@ treatment:
   # with interfacility transfers (union flag pre_hospital_care).
   prior_care_column: "prior_care"             # 0 = No, 1 = Yes, 99 = Unknown
   exclude_transfers: true                      # Primary: true; Sensitivity: false
+
+  # The 14 Rescue.Co-classified patients Rescue.co could not match to any
+  # dispatch record (tier 5). All arrived by ambulance; the operator cannot be
+  # confirmed either way. Decided 2026-10-02 to match the main pipeline:
+  #   exclude | reclassify (A = 0) | retain (A = 1)
+  unmatched_policy: "exclude"
 
 # --- Binary outcome (GOSE-based) ---
 binary_outcome:

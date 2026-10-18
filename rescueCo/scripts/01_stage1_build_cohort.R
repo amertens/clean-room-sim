@@ -99,6 +99,35 @@ decisions <- log_decision(decisions, "stage1",
                           "Restrict to ambulance patients (Rescue.Co vs Other)",
                           "Non-ambulance patients excluded (rcvamb == NA)",
                           type = "pre-specified")
+n_registry  <- n_before
+n_ambulance <- nrow(reg)
+
+# ============================================================
+# PART C1: Rescue.co attribution check (Flare cross-reference)
+# ============================================================
+# Rescue.co looked up every Rescue.Co-classified patient without a rescue_id in
+# its dispatch records; 14 had no plausible booking. Exposure records only, no
+# outcomes, so this is a design-stage decision and Stage 1 stays blind.
+unmatched_policy <- cfg$treatment$unmatched_policy %||% "retain"
+stopifnot(unmatched_policy %in% c("exclude", "reclassify", "retain"))
+unmatched <- flag_unmatched_rescueco(reg, cfg)
+n_unmatched <- 0L
+if (any(unmatched)) {
+  if (unmatched_policy == "exclude") {
+    reg <- reg[!unmatched, ]
+    n_unmatched <- sum(unmatched)
+  } else if (unmatched_policy == "reclassify") {
+    reg$A[unmatched] <- 0L
+  }
+  decisions <- log_decision(decisions, "stage1",
+    paste0("Unmatched Rescue.Co attribution (", sum(unmatched), " patients): ",
+           unmatched_policy),
+    paste("Rescue.co found no dispatch record for these Rescue.Co-classified patients",
+          "(Flare cross-reference, Sept 2026). All arrived by ambulance; the operator",
+          "cannot be confirmed either way. Decided 2026-10-02 from exposure records",
+          "only, to match the main pipeline."),
+    type = "design-stage")
+}
 
 # ============================================================
 # PART C2: Handle Inter-Facility Transfers
@@ -792,19 +821,20 @@ if (!is.null(evt_supp)) {
 
 # 10) Attrition table from raw registry → analytic cohort. cleanTMLE v0.1.1
 #     accepts a named list directly per Issue #1 in the improvement prompt.
+#     Counts are carried from the steps above rather than typed. Written as a
+#     plain step/n table: cleanTMLE::attrition_table() reads every row as a
+#     further exclusion, which reports the two arm rows as exclusions.
 attrition_steps <- list(
-  "Total trauma registry"                          = 8326,
-  "Ambulance arrivals"                             = 2197,
-  "Excluding pre-hospital care (transfer/prior)"   = nrow(dat),
-  "Treated (Rescue.Co)"                            = sum(dat$A == 1),
-  "Control (other ambulance)"                      = sum(dat$A == 0))
-attrition <- tryCatch(
-  cleanTMLE::attrition_table(attrition_steps),
-  error = function(e) {
-    # Fallback if running on cleanTMLE pre-0.1.1
-    data.frame(step = names(attrition_steps),
-                n   = unlist(attrition_steps), row.names = NULL)
-  })
+  "Total trauma registry"                          = n_registry,
+  "Ambulance arrivals"                             = n_ambulance)
+if (n_unmatched > 0)
+  attrition_steps[["Excluding Rescue.Co with no Rescue.co dispatch record"]] <-
+    n_ambulance - n_unmatched
+attrition_steps[["Excluding pre-hospital care (transfer/prior)"]] <- nrow(dat)
+attrition_steps[["Treated (Rescue.Co)"]]       <- sum(dat$A == 1)
+attrition_steps[["Control (other ambulance)"]] <- sum(dat$A == 0)
+attrition <- data.frame(step = names(attrition_steps),
+                        n    = unlist(attrition_steps), row.names = NULL)
 write.csv(attrition, file.path(cfg$paths$results, "attrition_table.csv"),
           row.names = FALSE)
 cr_log("Saved attrition_table.csv")

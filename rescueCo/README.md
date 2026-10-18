@@ -24,6 +24,18 @@ below (which remain the legacy line):
 | `13_multiarm_estimation.R` | The declared ladder per lock and outcome (ATE where feasible, trimmed ATE, ATT, ATO), IPCW primary for follow-up outcomes; checkpointed per pair |
 | `14_multiarm_report.R` | E-values from adjusted arm risks, bias-to-null against the pre-registered floor, artifact regeneration, reconciliation rebuild, report render |
 
+**Rescue.co attribution exclusion (2026-10-02).** Rescue.co checked the 78
+Rescue.Co-classified patients with no `rescue_id` against its Flare dispatch
+records: 64 matched, 14 had no booking. Matching the main pipeline, those 14
+are excluded from every arm (`treatment.unmatched_policy` in
+`config/clean_room_config.yml`; the cross-reference holds patient names and is
+read from the gitignored `data/id_reconciliation/`). Known transport is now
+8,309 and PRIMARY 1,604 (991 Rescue.Co / 613); the 90-column design matrix is
+unchanged because the filters still see the 14, as in the main pipeline.
+Scripts 01 and 10 share `flag_unmatched_rescueco()` in `R/utils.R`. The legacy
+Stage 1 cannot complete on cleanTMLE 0.3.0 (`create_audit_log` was removed);
+scripts 11 to 14 were rerun on a 0.2.0 build.
+
 Outputs live in `results/multiarm/`; the report is
 `reports/rescueco_estimability_case_study.qmd`; the reconciliation
 against the main pipeline is `results/reconciliation_2026-09.md` plus the
