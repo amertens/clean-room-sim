@@ -1,0 +1,3 @@
+key: 6000 cells in 324.6 s (4 workers)
+map_generate: 500 cells in 26.2 s (4 workers)
+map_sample: 500 cells in 28013.2 s (4 workers)

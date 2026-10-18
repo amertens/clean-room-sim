@@ -111,6 +111,14 @@ Evidence: simulation/pilot/pilot-report.md.
 - **Overlap levels near the boundary of estimability.** Two levels are added between the existing ones, at gamma 1.5 (about 4% outside the band) and 2.0 (about 26%), because with good, moderate and severe overlap alone the ATO was feasible everywhere and the ATE and ATT infeasible at moderate and severe overlap, cases any diagnostic gets right. Table 1 is reported per estimand, not pooled. This choice was made to make the comparison informative, after seeing the pilot, and the paper says so.
 - **Compute.** Main grid with one truncation level (0.01): the claims concern feasibility, not truncation choice, and the pilot's trimmed-ATE estimates did not differ between 0.01 and 0.05. Parallel workers (6 to 8) after a stability test. reps stays 200. The number of map runs per scenario R is set by the contrast pilot.
 
+### Revisions after the Methods review (2026-10-07, approved by Andrew)
+
+- **Misspecified baseline risk.** The generate-treatment map is run twice more on the same datasets with the family's baseline risk set to 0.10 (the package default, an underestimate) and 0.30 (an overestimate), to show the cost of misjudging the baseline risk. Table 1 gets a row for each.
+- **Answer key.** M = 1,000 key datasets per scenario. Report the share of scenario-estimand combinations whose bias or coverage lies within 2 Monte Carlo SEs of a tolerance, and a sensitivity analysis of Table 1 that excludes them.
+- **To implement after the contrast pilot finishes** (the cache keys include the code's text, so the code must not change during a run): the narrowest-CI rule for claim 3, M = 1,000, the two baseline variants, and the ambiguity sensitivity analysis.
+- **Claim 3 comparator.** The outcome-informed choice is the feasible estimand with the narrowest CI (a milder rule than the smallest P value).
+- **Coverage tolerance 0.90** is kept and described in the paper as somewhat arbitrary.
+
 ## 5. Build (to do after the pilot plan is agreed)
 
 One function per stage, each runnable for any subset of scenarios, datasets and methods; each dataset seeded from (scenario, n, dataset index); per-dataset results cached under `simulation/cache/` (git-ignored).
