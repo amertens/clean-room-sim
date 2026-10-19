@@ -99,3 +99,10 @@ Status: decided 2026-10-18 (Andrew; recommended option).
 Andrew makes both changes himself in `rescueCo_analysis`, so the rule that this work never writes to that repository stays intact: archive `clean_room/` with a pointer to `clean-room-sim/rescueCo/`, and remove the `rm -rf clean_room/results/*` allowance from `.claude/settings.local.json` (line 25).
 
 Reason: `clean_room/` is an unmaintained fork written for cleanTMLE 0.1.1 that nothing live reads, and the allowance pre-approves deleting its results.
+
+## Decisions after P1 (Andrew, 2026-10-19)
+
+- P1 merged into cleanTMLE main with nc-exclude (52b8c07); main is pushed to GitHub, and merged local branches are deleted.
+- A refusal of a column recorded before the attribute it describes is fixed is not added. Reason: Andrew refused it; it is outside the approved P1 design.
+- `design_report()` re-runs the dictionary checks, as `.check_nc_not_covariate()` is re-run, so a lock re-hashed by hand cannot carry a bad dictionary into the dossier. To be built in P2.
+- Next item: P2 (how the outcome is observed).
