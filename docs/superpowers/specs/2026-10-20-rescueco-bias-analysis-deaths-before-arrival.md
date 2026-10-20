@@ -1,6 +1,6 @@
 # Rescue.Co: prespecified bias analysis for deaths before arrival
 
-Draft, 2026-10-20, for Andrew's approval. This is decision D6 of `2026-10-18-outcome-blind-design-stage.md`, made concrete for the re-execution on cleanTMLE 0.5.0 (`2026-10-20-rescueco-reexecution-0.5.0.md`). Once approved, it is part of the analysis plan, written before unblinding: "registered" in D6 now means written into the plan document before unblinding ("Governance in the demonstration", 2026-10-20). The commit that fixes this document is recorded in `rescueCo/BLINDING_LEDGER.md` before script 24 builds the outcome store, and its hash is reported in the supplement with the lock and dossier hashes **[call 10]**. Choices made without Andrew are marked **[call]** and listed in section 10.
+Approved by Andrew, 2026-10-20 (calls 1 to 10, the sources below and the Methods wording). This is decision D6 of `2026-10-18-outcome-blind-design-stage.md`, made concrete for the re-execution on cleanTMLE 0.5.0 (`2026-10-20-rescueco-reexecution-0.5.0.md`). Once approved, it is part of the analysis plan, written before unblinding: "registered" in D6 now means written into the plan document before unblinding ("Governance in the demonstration", 2026-10-20). The commit that fixes this document is recorded in `rescueCo/BLINDING_LEDGER.md` before script 24 builds the outcome store, and its hash is reported in the supplement with the lock and dossier hashes **[call 10]**. Choices made without Andrew are marked **[call]** and listed in section 10.
 
 Nothing here reads an outcome. Every rule and every number fixed before unblinding comes from design data (arm, cohort flags, injury severity score, head injury severity, penetrating wound) or from published sources found by logged searches (`writing/lit/dba_*`).
 
@@ -67,12 +67,12 @@ No source reports the quantity directly: deaths in transit among patients for wh
 | Source | Setting | What it gives | Used for |
 |---|---|---|---|
 | Reid et al. 2018, World J Surg, doi:10.1007/s00268-018-4577-y (in bib: `reid2018`) | Kamuzu Central Hospital, Lilongwe, Malawi, 2008 to 2015; no prehospital system | 701 of 85,806 trauma patients presenting died in transit (0.8%); head injury and gunshot wounds most associated | total rate (about 8 per 1,000); severe-tail rule |
-| Purcell et al. 2020, World J Surg, doi:10.1007/s00268-020-05470-w (to add) | same hospital, adults, 2008 to 2018 | 1,130 deaths before arrival among 131,020 adults presenting (about 9 per 1,000), 56% of the hospital's trauma deaths; police transport RR 1.97 (1.52 to 2.55) against minibus, adjusted | total rate; relative risk between two kinds of transport |
-| Mulima et al. 2021, Afr J Emerg Med, doi:10.1016/j.afjem.2021.03.011 (to add) | same hospital, all ages, 2008 to 2019 | 1,889 of 106,198 trauma records brought in dead (1.8%); mostly carried by police (58%) or private vehicles (27%) | upper total rate (about 18 per 1,000) |
-| Henry and Reingold 2012, J Trauma Acute Care Surg, doi:10.1097/TA.0b013e31824bde1e (to add) | meta-analysis of prehospital trauma systems in low- and middle-income countries | RR of death 0.75 (0.66 to 0.85); urban 0.79 | lower anchor for the effect of an ambulance |
+| Purcell et al. 2020, World J Surg, doi:10.1007/s00268-020-05470-w (in bib: `purcell2020`) | same hospital, adults, 2008 to 2018 | 1,130 deaths before arrival among 131,020 adults presenting (about 9 per 1,000), 56% of the hospital's trauma deaths; police transport RR 1.97 (1.52 to 2.55) against minibus, adjusted | total rate; relative risk between two kinds of transport |
+| Mulima et al. 2021, Afr J Emerg Med, doi:10.1016/j.afjem.2021.03.011 (in bib: `mulima2021`) | same hospital, all ages, 2008 to 2019 | 1,889 of 106,198 trauma records brought in dead (1.8%); mostly carried by police (58%) or private vehicles (27%) | upper total rate (about 18 per 1,000) |
+| Henry and Reingold 2012, J Trauma Acute Care Surg, doi:10.1097/TA.0b013e31824bde1e (in bib: `henry2012`) | meta-analysis of prehospital trauma systems in low- and middle-income countries | RR of death 0.75 (0.66 to 0.85); urban 0.79 | lower anchor for the effect of an ambulance |
 | Gathecha et al. 2017, BMC Public Health, doi:10.1186/s12889-016-3958-0 (in bib: `gathecha2017`) | Nairobi death certificates, January to June 2014 | 51.4% of injury deaths occurred before hospital | that Nairobi's share of injury deaths before hospital resembles Lilongwe's |
 | Saidi and Oduor 2013, J Forensic Leg Med, doi:10.1016/j.jflm.2013.04.016 (in bib: `saidi2013`) | Nairobi city mortuary autopsies, 2009 to 2010 | deaths before hospital more often intentional, at night, and by gunshot than hospital deaths | context for the severe-tail rule |
-| Mock et al. 1998, J Trauma, doi:10.1097/00005373-199805000-00011 (to add) | Kumasi, Monterrey, Seattle | among seriously injured patients (injury severity score 9 or more, or dead), 51%, 40% and 21% died in the field with no, basic and advanced EMS | direction of the effect of EMS; the threshold of the restriction (section 6) |
+| Mock et al. 1998, J Trauma, doi:10.1097/00005373-199805000-00011 (in bib: `mock1998`) | Kumasi, Monterrey, Seattle | among seriously injured patients (injury severity score 9 or more, or dead), 51%, 40% and 21% died in the field with no, basic and advanced EMS | direction of the effect of EMS; the threshold of the restriction (section 6) |
 
 Not used: the two US analyses of patients dead on arrival by injury severity score (Elkbuli et al. 2021 and 2022), which would have anchored the rate within the severe tail, because the 2022 paper carries an expression of concern (Am Surg 2025) and both come from the same group; a cross-sectional study from Addis Ababa (low-quality venue); conference abstracts.
 
@@ -137,10 +137,10 @@ Run after the design-stage job and before unblinding, alone as an R job, as a sc
 
 If the check shows the prespecified estimate biased or under-covering where the claim says it should not, the computation is fixed before unblinding and the change is recorded here.
 
-## 9. Proposed change to `manuscript/methods.qmd` (for approval; not yet made)
+## 9. Change to `manuscript/methods.qmd` (approved 2026-10-20 and made)
 
-1. Line 178, the placeholder. Replace the sentence, which says the two analyses were registered, with the wording shown in chat, which says they were prespecified in the analysis plan, citing `foxApplyingQuantitativeBias2021`, `reid2018`, and the keys Zotero gives Purcell et al. 2020, Mulima et al. 2021, Henry and Reingold 2012 and Mock et al. 1998 once added.
-2. Line 177, optional. The registry identifies the effect among patients who would arrive alive by either transport; the effect among all patients for whom a transport choice was made differs from it by the share of patients who would die before arrival by any transport (section 1).
+1. Line 178, the placeholder. The sentence that said the two analyses were registered is replaced by four sentences that say they were prespecified in the analysis plan, citing `foxApplyingQuantitativeBias2021`, `reid2018`, `purcell2020`, `mulima2021`, `henry2012` and `mock1998`.
+2. Line 177, optional and not approved, so not made. The registry identifies the effect among patients who would arrive alive by either transport; the effect among all patients for whom a transport choice was made differs from it by the share of patients who would die before arrival by any transport (section 1).
 
 ## 10. Calls for Andrew
 
