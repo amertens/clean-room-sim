@@ -106,3 +106,7 @@ Reason: `clean_room/` is an unmaintained fork written for cleanTMLE 0.1.1 that n
 - A refusal of a column recorded before the attribute it describes is fixed is not added. Reason: Andrew refused it; it is outside the approved P1 design.
 - `design_report()` re-runs the dictionary checks, as `.check_nc_not_covariate()` is re-run, so a lock re-hashed by hand cannot carry a bad dictionary into the dossier. To be built in P2.
 - Next item: P2 (how the outcome is observed).
+
+## Release scope (Andrew, 2026-10-20)
+
+The first public release of cleanTMLE is main as it stands, with item P1, as version 0.5.0. Items P2 to P7 and the features that would match causalRisk move to `cleanTMLE/WISHLIST.md`. This supersedes the package part of D1 (which put P1 to P4 in 0.5.0). Reason: the package was taking too long to share with collaborators and was becoming too complex to show cleanly why it is useful; a first release about the size of causalRisk, with a wishlist, comes first. The decisions that depended on P2 to P4 (D2, D4, D5, D7, D8, and the comparison rungs of D10) are reopened for the case study and the paper.
