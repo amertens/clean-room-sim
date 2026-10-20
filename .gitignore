@@ -54,3 +54,6 @@ simulation/lib/
 
 # Superpowers scratch (review packages, brainstorm mockups)
 .superpowers/
+
+# Project library for the re-execution (cleanTMLE 0.5.0)
+rescueCo/lib/

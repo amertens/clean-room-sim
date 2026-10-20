@@ -34,3 +34,11 @@ No pooled outcome quantity has been approved for the design stage.
 |---|---|---|---|
 | 2026-10-18 | Inventory of departures | Andrew | `rescueCo/deviations_inventory.md` |
 | 2026-10-18 | Decisions D1 to D11 | Andrew | `docs/superpowers/specs/2026-10-18-outcome-blind-design-stage.md` |
+
+## 4. Entries
+
+| Date | Entry |
+|---|---|
+| 2026-10-20 | The steward script (20) linked the follow-up file to the registry (7,784 linked, as in the unblinded analysis), scored the outcomes in memory, and wrote only two indicators per patient: disposition recorded, and six-month status recorded (the primary outcome is known, counting a death at disposition as known). Registry-wide totals were logged: disposition recorded 8,281 of 8,326; six-month status recorded 6,519 of 8,326. No outcome value was written, printed or logged. |
+| 2026-10-20 | What the six-month indicator reveals: a patient with status not recorded did not die at emergency-department disposition (a death there is always recorded). It does not separate deaths from survivors among patients with status recorded. |
+| 2026-10-20 | The analyst's design build (21) read registry columns from a whitelist and never opened the follow-up file; it joined the two indicators by patient id. |

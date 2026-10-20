@@ -20,6 +20,15 @@ data:
   # with no rescue_id (Sept 2026). Holds patient names; data/ is gitignored and
   # only patient_id and match_status are read. See treatment$unmatched_policy.
   rescue_crossref_xlsx: "rescueCo/data/id_reconciliation/rescue_case_id_crossref_2026-09.xlsx"
+  # Follow-up linkage audits from the unblinded analysis (study ids only),
+  # read by the steward scripts (R/steward.R) to link follow-up records the
+  # same way (re-execution on 0.5.0, 2026-10-20).
+  followup_typo_audit: "../rescueCo_analysis/analysis_outputs/01_ingest_merge_clean/typo_correction_audit.csv"
+  followup_recon_actions: "../rescueCo_analysis/analysis_outputs/id_reconciliation_actions_2026-08-31.csv"
+  # Re-execution on 0.5.0: patient-level design data, steward indicators and
+  # (after approval) the outcome store. All under data/, which is git-ignored.
+  design_dir: "rescueCo/data/design"
+  outcome_dir: "rescueCo/data/outcomes"
 
 # --- Output paths (relative to project root) ---
 paths:

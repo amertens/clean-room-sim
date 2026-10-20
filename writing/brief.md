@@ -18,7 +18,7 @@ status: draft
 2. (proposed) Drawing new treatments from the estimated propensity score grades estimability correctly; keeping each patient's observed treatment misgrades it. (Table 1)
 3. (proposed) Choosing the estimand from the prespecified order of estimands before outcome access keeps 95% CI coverage nominal; choosing it after seeing outcomes, as the estimand with the narrowest CI, undercovers and inflates the type I error. (Table S1)
 4. (proposed) The pre-outcome expected CI half-width predicts the realized half-width. (Figure 2)
-5. (proposed) In the Rescue.Co Kenya trauma registry, the design stage found the protocol's ATE not estimable and moved to estimands the data could support, before any outcome was joined.
+5. (proposed) In the Rescue.Co Kenya trauma registry, the outcome-blind design stage, run on the first four months of enrolment and on the final cohort, flagged before any outcome was joined the identification problems and design choices that the unblinded analysis changed while its estimates were available, and chose the confirmatory comparison, the estimand and the estimator by rules fixed in advance. (To be rewritten to what the re-execution shows, once it has run.)
 
 # Objective or estimand
 Methods paper. The objects of study are (a) the agreement between pre-outcome verdicts and estimability on the true outcome model, by scenario and estimand, and (b) the coverage and type I error of the estimate for an estimand chosen before versus after outcome access. Estimands in the simulation and the case study: risk differences for the ATE, the trimmed ATE (band 0.05 to 0.95), the ATT and the ATO. Design and settings: simulation/PLAN.md.
@@ -30,7 +30,8 @@ Methods paper. The objects of study are (a) the agreement between pre-outcome ve
 - Not that the simulation certifies estimability: it supports it over the declared family of simulated outcome models only.
 - A FLAG negative-control verdict is not evidence of no residual confounding.
 - The case study re-executes the blinded design with the outcome withheld from the software; the analyst had seen the outcomes in the parallel unblinded analysis. Say so, using the word blinding.
-- The Rescue.Co case study's missing outcomes are handled by complete case analysis, a change from the protocol's IPCW; say so and report IPCW as a sensitivity analysis.
+- The Rescue.Co case study's missing outcomes are handled by complete case, the estimator the design stage evaluated; say why it is weaker here than a longitudinal TMLE (early deaths are always observed, only survivors can be lost), and report the longitudinal TMLE as a sensitivity analysis not evaluated in the design stage.
+- Not that the identification table shows identification holds: it lists what was declared.
 - No results from the 0.1.x to 0.3.0 runs (archive/); every number comes from the 0.4.1 runs through the registry.
 
 # Notes for this document
