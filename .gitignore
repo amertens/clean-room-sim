@@ -51,3 +51,6 @@ renv/sandbox/
 # Simulation study: cache and project library
 simulation/cache/
 simulation/lib/
+
+# Superpowers scratch (review packages, brainstorm mockups)
+.superpowers/
