@@ -129,7 +129,16 @@ DOMAINS <- c(nc_household_urban = "household and wealth",
              nc_diabetes_insulin = "health and access to care",
              nc_hiv_art = "health and access to care")
 
-make_plan <- function(spec, covs, data, reps, max_reps = 3L * reps) {
+# The reviewers text of the plan as each finished lock was built. The first
+# four months' L3 was locked on 20 October before the text took the governance
+# decision's wording, and its lock hash covers the plan, so it keeps the
+# earlier text; every other lock uses the current one.
+REVIEWERS <- "Andrew Mertens (the demonstration has no outside approver)"
+REVIEWERS_AS_BUILT <- list(first4m = c(L3 = "To be named before approval (D9)"))
+
+make_plan <- function(spec, covs, data, reps, max_reps = 3L * reps, name = NULL) {
+  rv <- unname(REVIEWERS_AS_BUILT[[RUN]][name])
+  if (!length(rv) || is.na(rv)) rv <- REVIEWERS
   el <- list(arrived_alive = ELIG_ALIVE, arm_known = ELIG_ARM)
   if (isTRUE(spec$direct)) el$direct_arrival <- ELIG_DIRECT
   if (isTRUE(spec$no_walkin)) el$no_walk_in <- ELIG_WALKIN
@@ -154,7 +163,7 @@ make_plan <- function(spec, covs, data, reps, max_reps = 3L * reps) {
     negative_controls = DOMAINS, nc_exclude = if (length(ex)) ex else NULL,
     nc_criteria = list(null_band = c(-band, band), rule = "interval", min_per_domain = 1L),
     roles = list(analyst = "Andrew Mertens", data_steward = "Andrew Mertens (steward scripts 20 and 24)",
-                 reviewers = "Andrew Mertens (the demonstration has no outside approver)"),
+                 reviewers = rv),
     K = 5L, V = 5L, reps = reps, max_reps = max(reps, max_reps), seed = 20261020L)
 }
 
@@ -193,7 +202,7 @@ build_lock <- function(name, spec, reps, max_reps = 3L * reps) {
     data.frame(column = "A", variable = "transport", follow_up = FALSE,
                source = "registry transport section, confirmed against dispatch records",
                recorded = "after", fixed = "at", role = "treatment", reason = "", sensitivity = ""))
-  plan <- make_plan(spec, covs, x, reps, max_reps)
+  plan <- make_plan(spec, covs, x, reps, max_reps, name)
   create_analysis_lock(x, treatment = "A", covariates = covs, plan = plan,
                        id = "patient_id", dictionary = dic)
 }
