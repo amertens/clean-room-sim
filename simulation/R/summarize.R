@@ -102,7 +102,35 @@ add_diagnostic_calls <- function(rt) {
   rt
 }
 
-SOURCES <- c("generate", "sample", names(DIAGNOSTICS))
+# Calls an analyst could make without the answer key of their own study
+# (PLAN.md decision rules, claim 1a's second and third comparators): the
+# package's overlap grade (good below 5% outside the band, moderate below 20%;
+# cleanTMLE assess_design()), read as estimable for the ATE and ATT when good
+# and for the trimmed ATE and ATO when good or moderate; and the diagnostic
+# that was best at the other sample size, with the threshold tuned there. With
+# one sample size in rt, as in the contrast pilot, the carried calls stay NA.
+add_analyst_calls <- function(rt) {
+  thr <- attr(rt, "thresholds")
+  rt$call_grade <- ifelse(rt$estimand %in% c("ATE", "ATT"), rt$share_outside < 0.05,
+                          rt$share_outside < 0.20)
+  rt$call_carried <- NA
+  ns <- unique(rt$n)
+  for (nn in ns) for (e in unique(rt$estimand)) {
+    other <- setdiff(ns, nn)
+    if (!length(other)) next
+    t <- thr[thr$n == other[1] & thr$estimand == e & is.finite(thr$threshold), ]
+    if (!nrow(t)) next
+    t <- t[which.max(t$youden), ]
+    k <- rt$n == nn & rt$estimand == e
+    x <- rt[[t$diagnostic]][k]
+    rt$call_carried[k] <- if (DIAGNOSTICS[[t$diagnostic]]) x >= t$threshold else x <= t$threshold
+  }
+  attr(rt, "thresholds") <- thr
+  rt
+}
+
+SOURCES <- c("generate", "sample", names(DIAGNOSTICS), "grade", "carried")
+sources_in <- function(rt) SOURCES[paste0("call_", SOURCES) %in% names(rt)]
 
 # Per-index mean of "call correct" over the rows `k` of rt, for one source.
 per_idx_correct <- function(rt, k, src) {
@@ -117,7 +145,7 @@ agreement_table <- function(rt) {
   do.call(rbind, lapply(seq_len(nrow(grp)), function(i) {
     g <- grp[i, ]
     base <- rt$n == g$n & rt$estimand == g$estimand & rt$model == g$model
-    do.call(rbind, lapply(SOURCES, function(src) {
+    do.call(rbind, lapply(sources_in(rt), function(src) {
       one <- function(lab) {
         k <- base & rt$estimable == lab
         if (!any(k)) return(c(NA_real_, NA_real_, 0))
@@ -137,96 +165,233 @@ check_d <- function(d, what, a, b, k = 5) {
   .pilot_verdict(d, what, a, b, k, NULL)
 }
 
-# The contrasts Table 1 needs, per (n, estimand) and measure (sensitivity,
-# specificity): generate map vs the best diagnostic of that relation, and
-# generate vs sample, per relation; and inside vs outside for the generate map.
-table1_contrasts <- function(rt, agree, k = 5) {
+# ---------------------------------------------------------------------------
+# PLAN.md, "Decision rules, fixed before the contrast pilot is summarized"
+# (2026-10-23). Every rule reads a per-index difference d, paired on the same
+# datasets, and its 95% interval mean(d) +/- 1.96 sd(d) / sqrt(R). Sizing for
+# the full run: k = 3 for each "better" or "falls" comparison (n_sim_safe), and
+# the equivalence bound (2 * 2 * sd(d) / margin)^2 of pilot_equivalence() for
+# each margin (n_sim_margin).
+# ---------------------------------------------------------------------------
+
+MARGIN_CLAIM1 <- 0.05
+MARGIN_CLAIM3 <- 0.03
+INSIDE_NEAR <- c("inside", "near")
+OUTSIDE <- c("outside", "nonlinear")
+
+paired_interval <- function(d) {
+  d <- d[is.finite(d)]
+  R <- length(d)
+  m <- if (R) mean(d) else NA_real_
+  se <- if (R > 1) stats::sd(d) / sqrt(R) else NA_real_
+  data.frame(datasets = R, diff = m, diff_mcse = se, lower = m - 1.96 * se,
+             upper = m + 1.96 * se)
+}
+
+sizing <- function(d, measure, a, b, margin, k = 3) {
+  pv <- check_d(d, measure, a, b, k)
+  data.frame(pilot_z = pv$pilot_z, n_sim_safe = pv$n_sim_safe,
+             n_sim_margin = if (is.finite(pv$sd_d) && pv$sd_d > 0)
+               ceiling((2 * 2 * pv$sd_d / margin)^2) else NA_real_)
+}
+
+# Per-index balanced accuracy of a source over the rows k of rt: the mean of
+# its sensitivity and specificity within each dataset index, across the
+# overlap levels and truths in k. NULL when k holds one label class only, so
+# the estimand tests nothing there.
+per_idx_balanced <- function(rt, k, src) {
+  if (length(unique(rt$estimable[k])) < 2L) return(NULL)
+  sens <- per_idx_correct(rt, k & rt$estimable, src)
+  spec <- per_idx_correct(rt, k & !rt$estimable, src)
+  ids <- intersect(names(sens), names(spec))
+  (sens[ids] + spec[ids]) / 2
+}
+
+# Claim 1a, per (n, estimand), over the truths inside or near the family: the
+# verdict's balanced accuracy against the best tuned diagnostic (chosen in
+# this cell, generous to the comparator), the diagnostic carried over from the
+# other sample size, and the package's grade. "better" when the interval's
+# lower bound is above 0; against the best tuned diagnostic also "no worse"
+# when it is above -margin; otherwise "unresolved".
+claim1a_rules <- function(rt, margin = MARGIN_CLAIM1, k = 3) {
   out <- list()
-  for (nn in unique(rt$n)) for (e in unique(rt$estimand)) for (lab in c(TRUE, FALSE)) {
-    measure <- if (lab) "sensitivity" else "specificity"
-    for (rel in c("inside", "near", "outside")) {
-      kk <- rt$n == nn & rt$estimand == e & rt$model == rel & rt$estimable == lab
-      if (!any(kk)) next
-      ag <- agree[agree$n == nn & agree$estimand == e & agree$model == rel &
-                    agree$source %in% names(DIAGNOSTICS), ]
-      score <- ifelse(is.na(ag$sensitivity), 0, ag$sensitivity) +
-        ifelse(is.na(ag$specificity), 0, ag$specificity)
-      best <- ag$source[which.max(score)]
-      vg <- per_idx_correct(rt, kk, "generate")
-      for (other in c(best, "sample")) {
-        vo <- per_idx_correct(rt, kk, other)
-        out[[length(out) + 1L]] <- cbind(
-          data.frame(n = nn, estimand = e, relation = rel, measure = measure,
-                     comparison = if (other == "sample") "generate vs sample" else
-                       "generate vs best diagnostic", other = other,
-                     a_value = mean(vg), b_value = mean(vo), stringsAsFactors = FALSE),
-          check_d(vg - vo[names(vg)], measure, "generate", other, k))
-      }
+  for (nn in unique(rt$n)) for (e in unique(rt$estimand)) {
+    kin <- rt$n == nn & rt$estimand == e & rt$model %in% INSIDE_NEAR
+    vg <- per_idx_balanced(rt, kin, "generate")
+    if (is.null(vg)) {
+      out[[length(out) + 1L]] <- data.frame(n = nn, estimand = e, comparator = NA_character_,
+                                            source = NA_character_, verdict_value = NA_real_,
+                                            comparator_value = NA_real_,
+                                            rule = "uninformative: the label does not vary")
+      next
     }
-    ki <- rt$n == nn & rt$estimand == e & rt$model == "inside" & rt$estimable == lab
-    ko <- rt$n == nn & rt$estimand == e & rt$model == "outside" & rt$estimable == lab
-    if (any(ki) && any(ko)) {
-      vi <- per_idx_correct(rt, ki, "generate")
-      vo <- per_idx_correct(rt, ko, "generate")
-      ids <- intersect(names(vi), names(vo))
+    ba <- vapply(names(DIAGNOSTICS), function(dg) {
+      v <- per_idx_balanced(rt, kin, dg)
+      if (is.null(v)) NA_real_ else mean(v)
+    }, numeric(1))
+    comps <- c(best_tuned = names(which.max(ba)), carried = "carried", grade = "grade")
+    for (cn in names(comps)) {
+      src <- comps[[cn]]
+      calls <- rt[[paste0("call_", src)]]
+      if (is.null(calls) || all(is.na(calls[kin]))) {
+        out[[length(out) + 1L]] <- data.frame(n = nn, estimand = e, comparator = cn, source = src,
+                                              verdict_value = mean(vg), comparator_value = NA_real_,
+                                              rule = "not available")
+        next
+      }
+      vo <- per_idx_balanced(rt, kin, src)
+      ids <- intersect(names(vg), names(vo))
+      d <- vg[ids] - vo[ids]
+      iv <- paired_interval(d)
+      rule <- if (!is.finite(iv$lower)) "unresolved" else if (iv$lower > 0) "better" else
+        if (cn == "best_tuned" && iv$lower > -margin) "no worse" else "unresolved"
       out[[length(out) + 1L]] <- cbind(
-        data.frame(n = nn, estimand = e, relation = "inside - outside", measure = measure,
-                   comparison = "inside vs outside (generate)", other = "generate",
-                   a_value = mean(vi), b_value = mean(vo), stringsAsFactors = FALSE),
-        check_d(vi[ids] - vo[ids], measure, "inside", "outside", k))
+        data.frame(n = nn, estimand = e, comparator = cn, source = src,
+                   verdict_value = mean(vg[ids]), comparator_value = mean(vo[ids]), rule = rule),
+        iv, sizing(d, "balanced accuracy", "generate", src, margin, k))
     }
   }
-  do.call(rbind, out)
+  rx_bind(out)
+}
+
+# Claim 1a per sample size: the stronger form needs "better" against all three
+# comparators for every informative estimand; the weaker form needs "better"
+# or "no worse" against the best tuned diagnostic and "better" against the
+# other two. A comparator that is "not available" leaves the form undecided.
+claim1a_summary <- function(r1) {
+  do.call(rbind, lapply(unique(r1$n), function(nn) {
+    s <- r1[r1$n == nn & !startsWith(r1$rule, "uninformative"), ]
+    if (!nrow(s)) return(data.frame(n = nn, informative = "", stronger = NA, weaker = NA))
+    avail <- !any(s$rule == "not available")
+    strong <- all(s$rule == "better")
+    weak <- all(s$rule[s$comparator == "best_tuned"] %in% c("better", "no worse")) &&
+      all(s$rule[s$comparator != "best_tuned"] == "better")
+    data.frame(n = nn, informative = paste(unique(s$estimand), collapse = ", "),
+               stronger = if (avail) strong else NA, weaker = if (avail) weak else NA)
+  }))
+}
+
+# Claim 1b, per (n, estimand): the verdict's balanced accuracy for the truths
+# outside the family minus that for the truths inside or near it. "falls" when
+# the upper bound is below 0; "not shown to fall" when the interval lies within
+# +/- margin; otherwise "unresolved".
+claim1b_rule <- function(rt, margin = MARGIN_CLAIM1, k = 3) {
+  out <- list()
+  for (nn in unique(rt$n)) for (e in unique(rt$estimand)) {
+    base <- rt$n == nn & rt$estimand == e
+    vin <- per_idx_balanced(rt, base & rt$model %in% INSIDE_NEAR, "generate")
+    vout <- per_idx_balanced(rt, base & rt$model %in% OUTSIDE, "generate")
+    if (is.null(vin) || is.null(vout)) {
+      out[[length(out) + 1L]] <- data.frame(n = nn, estimand = e,
+                                            rule = "uninformative: a label does not vary")
+      next
+    }
+    ids <- intersect(names(vin), names(vout))
+    d <- vout[ids] - vin[ids]
+    iv <- paired_interval(d)
+    rule <- if (!is.finite(iv$upper)) "unresolved" else if (iv$upper < 0) "falls" else
+      if (iv$lower > -margin && iv$upper < margin) "not shown to fall" else "unresolved"
+    out[[length(out) + 1L]] <- cbind(
+      data.frame(n = nn, estimand = e, inside_near = mean(vin[ids]), outside = mean(vout[ids]),
+                 rule = rule),
+      iv, sizing(d, "balanced accuracy", "outside", "inside or near", margin, k))
+  }
+  rx_bind(out)
+}
+
+# Binds data frames whose columns differ, filling the missing ones with NA.
+rx_bind <- function(l) {
+  cols <- unique(unlist(lapply(l, names)))
+  do.call(rbind, lapply(l, function(x) { x[setdiff(cols, names(x))] <- NA; x[cols] }))
 }
 
 # Claim 3: per scenario and dataset, the prespecified choice (the first
-# feasible estimand of the ladder in that dataset's generate map) and the
-# outcome-informed choice (smallest p-value), with coverage of the chosen
-# estimand's truth and rejection of zero at 0.05. One candidate (glm_t0.01).
+# feasible estimand of the ladder in that dataset's generate map) and two
+# outcome-informed choices among the same feasible estimands, the smallest
+# p-value and the narrowest CI, with coverage of the chosen estimand's truth
+# and rejection of zero at 0.05. One candidate (glm_t0.01). key.R's min_p flag
+# is not read, because it ranges over all four estimands, feasible or not; the
+# choice is made here so that key.R, whose text is in the label fits' cache
+# key, stays unchanged.
 claim3_rows <- function(key_rows, map_rows, truths, scenarios) {
   g <- map_rows[map_rows$variant == "generate", ]
   k <- merge(key_rows[key_rows$candidate == sprintf("glm_t%s", TRUNCATIONS[1]), ],
              truths, by = c("scenario", "estimand"))
+  k <- k[is.finite(k$p_value) & is.finite(k$ci_lower) & is.finite(k$ci_upper), ]
   k$covers <- k$ci_lower <= k$truth & k$truth <= k$ci_upper
   k$rejects <- k$p_value <= 0.05
   keys <- unique(k[c("scenario", "overlap", "n", "idx")])
   keys <- merge(keys, unique(g[c("overlap", "n", "idx")]), by = c("overlap", "n", "idx"))
+  pick <- function(x) list(estimand = if (nrow(x)) x$estimand[1] else NA_character_,
+                                covers = if (nrow(x)) x$covers[1] else NA,
+                                rejects = if (nrow(x)) x$rejects[1] else NA)
   do.call(rbind, lapply(seq_len(nrow(keys)), function(i) {
     r <- keys[i, ]
     kr <- k[k$scenario == r$scenario & k$n == r$n & k$idx == r$idx, ]
     gm <- g[g$overlap == r$overlap & g$n == r$n & g$idx == r$idx, ]
     feas <- ESTIMANDS[ESTIMANDS %in% gm$estimand[gm$status == "feasible"]]
-    pre <- if (length(feas)) kr[kr$estimand == feas[1], ] else kr[0, ]
-    mp <- kr[kr$min_p %in% TRUE, ]
+    kf <- kr[kr$estimand %in% feas, ]
+    kf <- kf[order(match(kf$estimand, ESTIMANDS)), ]   # ties go to the earlier estimand
+    pre <- pick(kf[kf$estimand %in% feas[1], ])
+    mp <- pick(kf[which.min(kf$p_value), ])
+    nw <- pick(kf[which.min(kf$ci_upper - kf$ci_lower), ])
     data.frame(r, effect = scenarios$effect[match(r$scenario, scenarios$id)],
                model = scenarios$model[match(r$scenario, scenarios$id)],
-               pre_estimand = if (nrow(pre)) pre$estimand else NA_character_,
-               pre_covers = if (nrow(pre)) pre$covers else NA,
-               pre_rejects = if (nrow(pre)) pre$rejects else NA,
-               minp_estimand = if (nrow(mp)) mp$estimand[1] else NA_character_,
-               minp_covers = if (nrow(mp)) mp$covers[1] else NA,
-               minp_rejects = if (nrow(mp)) mp$rejects[1] else NA,
+               n_feasible = length(feas),
+               pre_estimand = pre$estimand, pre_covers = pre$covers, pre_rejects = pre$rejects,
+               minp_estimand = mp$estimand, minp_covers = mp$covers, minp_rejects = mp$rejects,
+               narrow_estimand = nw$estimand, narrow_covers = nw$covers, narrow_rejects = nw$rejects,
                stringsAsFactors = FALSE)
   }))
 }
 
-# Claim 3 per (n, overlap, effect): coverage (effect) or rejection (null) of
-# each choice, and the pilot check of the per-index difference prespecified
-# minus smallest-p (averaged over the three outcome models of the level).
-claim3_summary <- function(c3, k = 5) {
-  c3 <- c3[!is.na(c3$pre_estimand) & !is.na(c3$minp_estimand), ]
-  grp <- unique(c3[c("n", "overlap", "effect")])
-  do.call(rbind, lapply(seq_len(nrow(grp)), function(i) {
+# The share of scenario-datasets with 0 to 4 feasible estimands, per (n,
+# overlap); the claim 3 rules use those with at least two.
+claim3_feasible <- function(c3) {
+  tab <- stats::aggregate(list(rows = c3$n_feasible), c3[c("n", "overlap", "n_feasible")], length)
+  tab$share <- tab$rows / stats::ave(tab$rows, tab$n, tab$overlap, FUN = sum)
+  tab
+}
+
+# Claim 3 rules, on the scenario-datasets with at least two feasible
+# estimands, per (n, overlap, effect) and pooled over overlap levels per (n,
+# effect). Each rule's difference is its rate minus the prespecified choice's,
+# averaged over the scenarios of a dataset index. Smallest p-value, null
+# scenarios: "inflates the type I error" when the lower bound is above 0.
+# Narrowest CI: "within margin" when the interval lies within +/- margin; the
+# claim that selecting on width changes neither measure needs "within margin"
+# for both coverage (effect) and rejection (null).
+claim3_rules <- function(c3, margin = MARGIN_CLAIM3, k = 3) {
+  c3 <- c3[c3$n_feasible >= 2 & !is.na(c3$pre_estimand) & !is.na(c3$minp_estimand) &
+             !is.na(c3$narrow_estimand), ]
+  per_level <- unique(c3[c("n", "overlap", "effect")])
+  pooled <- unique(c3[c("n", "effect")]); pooled$overlap <- "pooled"
+  grp <- rbind(per_level, pooled[names(per_level)])
+  out <- list()
+  for (i in seq_len(nrow(grp))) {
     g <- grp[i, ]
-    s <- c3[c3$n == g$n & c3$overlap == g$overlap & c3$effect == g$effect, ]
+    s <- c3[c3$n == g$n & c3$effect == g$effect & (g$overlap == "pooled" | c3$overlap == g$overlap), ]
+    if (!nrow(s)) next
     what <- if (g$effect == "null") "rejects" else "covers"
-    pre <- s[[paste0("pre_", what)]]; mp <- s[[paste0("minp_", what)]]
-    d <- tapply(as.numeric(pre) - as.numeric(mp), s$idx, mean)
-    cbind(g, measure = if (what == "covers") "coverage" else "rejection",
-          prespecified = mean(pre), smallest_p = mean(mp), datasets = length(pre),
-          check_d(d, if (what == "covers") "coverage" else "rejection",
-                  "prespecified", "smallest p", k))
-  }))
+    measure <- if (what == "covers") "coverage" else "rejection"
+    pre <- as.numeric(s[[paste0("pre_", what)]])
+    for (rl in c("minp", "narrow")) {
+      oth <- as.numeric(s[[paste0(rl, "_", what)]])
+      d <- tapply(oth - pre, s$idx, mean)
+      iv <- paired_interval(d)
+      rule <- if (rl == "minp") {
+        if (what == "rejects" && is.finite(iv$lower) && iv$lower > 0) "inflates the type I error" else
+          if (what == "rejects") "not shown" else "reported"
+      } else if (is.finite(iv$lower) && iv$lower > -margin && iv$upper < margin) "within margin" else
+        "no claim"
+      out[[length(out) + 1L]] <- cbind(
+        data.frame(g, measure = measure, choice = if (rl == "minp") "smallest p" else "narrowest CI",
+                   prespecified = mean(pre), outcome_informed = mean(oth), rows = nrow(s),
+                   rule = rule, stringsAsFactors = FALSE),
+        iv, sizing(d, measure, rl, "prespecified", margin, k))
+    }
+  }
+  rx_bind(out)
 }
 
 # Claim 4: the map's expected half-width for its selected candidate against the

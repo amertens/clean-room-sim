@@ -123,21 +123,34 @@ if (step == "3a") {
   maps <- maps[maps$n == 500 & maps$idx <= 100 & maps$reps == 200, ]
   truths <- truth_table(scen)
   ak <- answer_key(key, truths)
-  rt <- add_diagnostic_calls(run_table(maps, ak$estimable, scen))
+  # The rules of PLAN.md, "Decision rules, fixed before the contrast pilot is
+  # summarized" (2026-10-23). Table 1 and claims 1a and 1b read the effect
+  # scenarios only; the null scenarios serve claim 3. The contrast pilot has
+  # one sample size, so the comparator carried over from the other sample size
+  # is "not available" here and the stronger and weaker forms of claim 1a stay
+  # undecided; the pilot sizes the contrasts, it does not decide the claims.
+  rt <- run_table(maps, ak$estimable, scen)
+  rt <- add_analyst_calls(add_diagnostic_calls(rt[rt$effect == "effect", ]))
   agree <- agreement_table(rt)
-  con <- table1_contrasts(rt, agree, k = 5)
+  r1a <- claim1a_rules(rt)
+  s1a <- claim1a_summary(r1a)
+  r1b <- claim1b_rule(rt)
   c3 <- claim3_rows(key, maps, truths, scen)
-  c3s <- claim3_summary(c3, k = 5)
+  f3 <- claim3_feasible(c3)
+  r3 <- claim3_rules(c3)
   c4 <- claim4_rows(key, maps, scen)
   c4s <- claim4_summary(c4)
   saveRDS(list(answer_key = ak, run_table = rt, thresholds = attr(rt, "thresholds"),
-               agreement = agree, contrasts = con, claim3 = c3, claim3_summary = c3s,
+               agreement = agree, claim1a = r1a, claim1a_summary = s1a, claim1b = r1b,
+               claim3 = c3, claim3_feasible = f3, claim3_rules = r3,
                claim4 = c4, claim4_summary = c4s),
           file.path(PILOT, "step3.rds"))
   utils::write.csv(ak$candidates, file.path(PILOT, "step3_answer_key.csv"), row.names = FALSE)
   utils::write.csv(agree, file.path(PILOT, "step3_agreement.csv"), row.names = FALSE)
-  utils::write.csv(con, file.path(PILOT, "step3_contrasts.csv"), row.names = FALSE)
-  utils::write.csv(c3s, file.path(PILOT, "step3_claim3.csv"), row.names = FALSE)
+  utils::write.csv(r1a, file.path(PILOT, "step3_claim1a.csv"), row.names = FALSE)
+  utils::write.csv(r1b, file.path(PILOT, "step3_claim1b.csv"), row.names = FALSE)
+  utils::write.csv(f3, file.path(PILOT, "step3_claim3_feasible.csv"), row.names = FALSE)
+  utils::write.csv(r3, file.path(PILOT, "step3_claim3.csv"), row.names = FALSE)
   utils::write.csv(c4s, file.path(PILOT, "step3_claim4.csv"), row.names = FALSE)
   cat("\nAnswer key (estimable) by scenario and estimand:\n")
   print(stats::xtabs(estimable ~ scenario + estimand, ak$estimable))
@@ -145,12 +158,17 @@ if (step == "3a") {
   print(stats::aggregate(sec_total ~ variant + overlap, unique(maps[c("variant", "overlap", "idx", "sec_total")]), mean))
   cat("\nThresholds:\n"); print(attr(rt, "thresholds"))
   cat("\nAgreement:\n"); print(format(agree, digits = 3), row.names = FALSE)
-  cat("\nTable 1 contrasts:\n")
-  print(format(con[c("estimand", "relation", "measure", "comparison", "other", "a_value",
-                     "b_value", "gap", "sd_d", "pilot_z", "n_sim_safe")], digits = 3),
-        row.names = FALSE)
-  cat("\nClaim 3:\n"); print(format(c3s[c("overlap", "effect", "measure", "prespecified",
-                                           "smallest_p", "datasets", "gap", "sd_d", "pilot_z",
-                                           "n_sim_safe")], digits = 3), row.names = FALSE)
+  show <- function(x, cols) print(format(x[intersect(cols, names(x))], digits = 3), row.names = FALSE)
+  cat("\nClaim 1a (balanced accuracy, inside or near the family):\n")
+  show(r1a, c("estimand", "comparator", "source", "verdict_value", "comparator_value", "diff",
+              "lower", "upper", "rule", "pilot_z", "n_sim_safe", "n_sim_margin"))
+  cat("\nClaim 1a by sample size (undecided while a comparator is not available):\n"); show(s1a, names(s1a))
+  cat("\nClaim 1b (outside minus inside or near):\n")
+  show(r1b, c("estimand", "inside_near", "outside", "diff", "lower", "upper", "rule",
+              "pilot_z", "n_sim_safe", "n_sim_margin"))
+  cat("\nClaim 3, datasets by number of feasible estimands:\n"); show(f3, names(f3))
+  cat("\nClaim 3 (datasets with at least two feasible estimands):\n")
+  show(r3, c("overlap", "effect", "measure", "choice", "prespecified", "outcome_informed", "rows",
+             "diff", "lower", "upper", "rule", "pilot_z", "n_sim_safe", "n_sim_margin"))
   cat("\nClaim 4:\n"); print(format(c4s, digits = 3), row.names = FALSE)
 }
