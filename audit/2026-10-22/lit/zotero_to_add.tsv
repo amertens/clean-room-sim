@@ -1,0 +1,66 @@
+priority	first_author_year	add_by	strand
+1	Haynes 2026 ASSURE safety-signal program	DOI 10.1002/pds.70435; PMID 42494324	a
+1	Small 2024 Protocols for observational studies	DOI 10.1214/24-STS945	b
+1	Thibault 2023 Explore and Confirm Analysis Workflow	DOI 10.1098/rsos.230568; PMID 37830032	b
+1	Fisher 2020 Blinding outcomes is neither necessary nor sufficient	arXiv:2007.02514	b
+1	Rubin 2007 Design versus analysis of observational studies	DOI 10.1002/sim.2739	b
+1	Mac Grory 2026 AHA statement on observational comparative research	DOI 10.1161/cir.0000000000001440; PMID 42158988	c
+1	EMA 2025 Reflection paper on RWD in non-interventional studies	https://www.ema.europa.eu/en/documents/other/reflection-paper-use-real-world-data-non-interventional-studies-generate-real-world-evidence-regulatory-purposes_en.pdf	c
+1	ICH 2025 M14 guideline on RWD safety studies	https://www.ema.europa.eu/en/documents/scientific-guideline/ich-m14-guideline-general-principles-planning-designing-analysing-reporting-non-interventional-studies-utilise-real-world-data-safety-assessment-medicines-step-5_en.pdf	c
+1	Simonsen 2025 Preregistration: a key to credible RWE	DOI 10.1002/pds.70215; PMID 40883867	c
+1	van Hal 2025 Review of tools for target trial studies	DOI 10.1016/j.jbi.2025.104897; PMID 41016623	c
+1	U.S. FDA 2024 Draft guidance on non-interventional studies	https://www.fda.gov/regulatory-information/search-fda-guidance-documents/real-world-evidence-considerations-regarding-non-interventional-studies-drug-and-biological-products	c
+1	Wang 2024 Transparency statement for RWE studies	DOI 10.1093/aje/kwae087; PMID 38794897	c
+1	ISPOR et al. 2021 Real-World Evidence Registry on OSF	https://www.ispor.org/strategic-initiatives/real-world-evidence/real-world-evidence-registry	c
+1	Wang 2026 Meta-analysis of trial emulations against trials	DOI 10.1136/bmj-2025-086810; PMID 42156120	d
+1	Weckstein 2026 Data-adaptive versus investigator-specified adjustment	DOI 10.1093/jamia/ocaf204; PMID 41338229	d
+1	Wang 2023 RCT-DUPLICATE results for 32 trials	DOI 10.1001/jama.2023.4221; PMID 37097356	d
+1	Karim 2026 A plasmode benchmark can refute but not certify	arXiv:2609.26186	e
+1	Li 2026 Negative controls in GLP-1 studies, scoping review	DOI 10.1002/pds.70420; PMID 42432825	e
+1	Meng 2026 REFINE2 plasmode simulation app	DOI 10.1093/aje/kwaf195; PMID 40899648	e
+1	OHDSI 2026 CohortMethod 6.0.3 documentation	https://ohdsi.github.io/CohortMethod/reference/createCmDiagnosticThresholds.html	e
+1	OHDSI 2026 Strategus 1.6.0 documentation	https://ohdsi.github.io/Strategus/reference/index.html	e
+1	Vereijken 2026 Large-scale propensity scores in small samples	DOI 10.1093/jamia/ocag133; PMID 42550071	e
+1	Wyss 2026 Tuning LASSO for propensity weighting; synthetic negative controls	DOI 10.1002/sim.70503; PMID 41944633	e
+1	Conover 2025 Objective study validity diagnostics	DOI 10.1093/jamia/ocae317	e
+1	Hripcsak 2025 Covariate balance with small samples	DOI 10.1002/sim.70212	e
+1	Schreck 2024 Statistical plasmode simulations	DOI 10.1002/sim.10012	e
+1	Wyss 2024 Undersmoothed LASSO propensity score with targeted learning	DOI 10.1093/aje/kwae023; PMID 38517025	e
+1	Schuemie 2020 LEGEND principles	DOI 10.1093/jamia/ocaa103	e
+1	Balzer 2026 Prespecified yet data-adaptive learning in trials	DOI 10.1177/17407745261417227; PMID 41762058	f
+1	Phillips 2023 Specifying a super learner	DOI 10.1093/ije/dyad023; PMID 36905602	f
+1	Gruber 2022 Data-adaptive propensity score truncation level	DOI 10.1093/aje/kwac087; PMID 35512316	f
+1	Barnard 2026 Causal estimand selection under positivity violations	DOI 10.1093/biomtc/ujag014; PMID 41669864	g
+1	PHUSE 2026 Causal roadmap, targeted learning and TMLE (event page)	https://events.phuse.global/2PvrW0	g
+1	Cafri 2025 Prioritizing the ATT for drug and device safety	DOI 10.1093/aje/kwaf175; PMID 40826904	g
+1	Liu 2025 Tutorial on weighting under positivity violations	DOI 10.1002/sim.70329; PMID 41307408	g
+2	Jin 2026 Evolocumab cohort with controls before outcome analysis	DOI 10.1161/jaha.126.049323; PMID 42757900	a
+2	Mayne 2026 Practical guide to using RWE as primary basis for approval	DOI 10.1002/cpt.70487; PMID 42778975	a
+2	Hernandez 2025 Principled pharmacoepidemiology in the era of RWE	DOI 10.1002/cpt.3563; PMID 39807817	a
+2	Rathnayaka 2024 Clean Room Committee approach (conference abstract)	DOI 10.1016/j.jval.2024.03.2426	a
+2	Hanada 2026 Outcome-blinded sample size re-estimation	arXiv:2607.25159	b
+2	Aikens 2020 A pilot design for observational studies	DOI 10.1002/sim.8754; PMID 33015867	b
+2	MacCoun 2015 Blind analysis: hide results to seek the truth	DOI 10.1038/526187a	b
+2	Klein 2005 Blind analysis in nuclear and particle physics	DOI 10.1146/annurev.nucl.55.090704.151521	b
+2	Liu 2026 Open science practices in RWE reports	DOI 10.23889/ijpds.v10i2.2960; PMID 42016902	c
+2	Vart 2026 Commentary on the target trial label	DOI 10.1002/pds.70485; PMID 42888900	c
+2	Voulgaridou 2026 TITAN design assistant	DOI 10.1016/j.jclinepi.2026.112476; PMID 42617760	c
+2	ENCePP 2024 HMA-EMA Catalogues replace EU PAS Register	https://encepp.europa.eu/newsroom/news/launch-hma-ema-real-world-data-rwd-catalogues-and-new-encepp-website-2024-02-15_en	c
+2	Orsini 2020 Transparency roadmap of the RWE Transparency Initiative	DOI 10.1016/j.jval.2020.04.002 and DOI 10.1002/pds.5079	c
+2	Htoo 2026 Population standardization of trial emulations	DOI 10.1002/cpt.70241; PMID 41733244	d
+2	Weberpals 2026 ENCORE oncology trial emulations	DOI 10.1002/cpt.70208; PMID 41577635	d
+2	Wang 2025 BenchExCal benchmark-expand-calibrate design	DOI 10.1002/cpt.3621; PMID 40067205	d
+2	Wang 2022 REPEAT reproducibility of 150 database studies	DOI 10.1038/s41467-022-32310-3; PMID 36045130	d
+2	Franklin 2021 RCT-DUPLICATE first results	DOI 10.1161/CIRCULATIONAHA.120.051718	d
+2	Desai 2026 Plasmode-based bias analysis for unmeasured confounding	DOI 10.1002/pds.70383; PMID 42093129	e
+2	Karim 2026 Flaws in the Plasmode 0.1.0 generator	arXiv:2609.24053	e
+2	Lee 2026 TMLE in regulatory submissions	DOI 10.1515/ijb-2026-0055; PMID 42307456	e
+2	Schuemie 2020 Benchmark of observational designs and calibration	DOI 10.1162/99608f92.147cc28e	e
+2	Sentinel 2020 Targeted learning evaluation in Sentinel	https://sentinelinitiative.org/methods-data-tools/methods/enhancing-causal-inference-sentinel-system-evaluation-targeted-learning	e
+2	Keele 2025 Guide to selecting among adjustment methods	DOI 10.1002/sim.10336; PMID 39947224	f
+2	Nance 2025 Roadmap on Danish registry data, published version	DOI 10.1515/jci-2024-0014	f
+2	Qiu 2025 Estimator-robust design with outcome-blind matching	arXiv:2501.17835	f
+2	Williamson 2025 Variable screening in the super learner	DOI 10.51387/25-nejsds82	f
+2	Gruber 2023 Evaluating and improving RWE with targeted learning	DOI 10.1186/s12874-023-01998-2	f
+2	Li 2022 Realistic simulations to test TMLE robustness	DOI 10.1002/sim.9348; PMID 35172378	f
+2	Balzer 2016 Adaptive prespecification in randomized trials	DOI 10.1002/sim.7023	f

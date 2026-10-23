@@ -1,0 +1,744 @@
+[p1]  
+55680653dft 
+Real-World Evidence: 
+Considerations Regarding 
+Non-Interventional Studies 
+for Drug and Biological 
+Products 
+Guidance for Industry 
+ 
+DRAFT GUIDANCE 
+ 
+ 
+This guidance document is being distributed for comment purposes only. 
+ 
+Comments and suggestions regarding this draft document should be submitted within 90 days of 
+publication in the Federal Register of the notice announcing the availability of the draft 
+guidance.  Submit electronic comments to https://www.regulations.gov.  Submit written 
+comments to the Dockets Management Staff (HFA-305), Food and Drug Administration, 5630 
+Fishers Lane, Rm. 1061, Rockville, MD  20852.  All comments should be identified with the 
+docket number listed in the notice of availability that publishes in the Federal Register. 
+ 
+For questions regarding this draft document, contact (CDER) Tala Fakhouri, 301-837-7407, or 
+(CBER) Office of Communication, Outreach and Development, 800-835-4709 or 240-402-8010.  
+ 
+ 
+ 
+U.S. Department of Health and Human Services 
+Food and Drug Administration 
+Center for Drug Evaluation and Research (CDER) 
+Center for Biologics Evaluation and Research (CBER) 
+Oncology Center of Excellence (OCE) 
+ 
+March 2024 
+Real World Data/Real World Evidence (RWD/RWE) 
+
+[p2]  
+ 
+Real-World Evidence: 
+Considerations Regarding 
+Non-Interventional Studies 
+for Drug and Biological 
+Products 
+Guidance for Industry 
+ 
+Additional copies are available from: 
+ 
+Office of Communications, Division of Drug Information  
+Center for Drug Evaluation and Research 
+Food and Drug Administration 
+10001 New Hampshire Ave., Hillandale Bldg., 4th Floor  
+Silver Spring, MD 20993-0002  
+Phone: 855-543-3784 or 301-796-3400; Fax: 301-431-6353 
+Email: druginfo@fda.hhs.gov  
+https://www.fda.gov/drugs/guidance-compliance-regulatory-information/guidances-drugs  
+ 
+and/or 
+ 
+Office of Communication, Outreach and Development  
+Center for Biologics Evaluation and Research 
+ Food and Drug Administration 
+10903 New Hampshire Ave., Bldg. 71, Room 3128 
+Silver Spring, MD 20993-0002 
+Phone: 800-835-4709 or 240-402-8010 
+Email: ocod@fda.hhs.gov 
+https://www.fda.gov/vaccines-blood-biologics/guidance-compliance-regulatory-information-biologics/biologics-guidances     
+ 
+ 
+U.S. Department of Health and Human Services 
+Food and Drug Administration 
+Center for Drug Evaluation and Research (CDER) 
+Center for Biologics Evaluation and Research (CBER) 
+Oncology Center of Excellence (OCE) 
+ 
+March 2024 
+Real World Data/Real World Evidence (RWD/RWE) 
+
+[p3] Contains Nonbinding Recommendations 
+Draft — Not for Implementation 
+ 
+TABLE OF CONTENTS 
+ 
+ 
+ 
+I. 
+INTRODUCTION............................................................................................................. 1 
+II. 
+BACKGROUND ............................................................................................................... 3 
+III. 
+CONSIDERATIONS FOR NON-INTERVENTIONAL STUDIES ............................ 4 
+A. 
+Overview ......................................................................................................................................... 4 
+B. 
+Summary of the Proposed Approach ........................................................................................... 4 
+C. 
+Study Design ................................................................................................................................... 5 
+D. 
+Data Sources ................................................................................................................................... 6 
+E. 
+Analytic Approach ......................................................................................................................... 7 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+[p4] Contains Nonbinding Recommendations 
+Draft — Not for Implementation 
+1 
+Real-World Evidence:  Considerations Regarding  
+1 
+Non-Interventional Studies for Drug and Biological Products 
+2 
+Guidance for Industry1 
+3 
+ 
+4 
+ 
+5 
+This draft guidance, when finalized, will represent the current thinking of the Food and Drug 
+6 
+Administration (FDA or Agency) on this topic.  It does not establish any rights for any person and is not 
+7 
+binding on FDA or the public.  You can use an alternative approach if it satisfies the requirements of the 
+8 
+applicable statutes and regulations.  To discuss an alternative approach, contact the FDA staff responsible 
+9 
+for this guidance as listed on the title page. 
+10 
+ 
+11 
+ 
+12 
+ 
+13 
+ 
+14 
+I. 
+INTRODUCTION  
+15 
+ 
+16 
+This guidance provides recommendations to sponsors and investigators who are considering 
+17 
+submitting a non-interventional study, also referred to as an observational study, to FDA to 
+18 
+contribute to a demonstration of substantial evidence of effectiveness2 and/or evidence of safety 
+19 
+of a drug.3  Specifically, this guidance discusses attributes regarding the design and analysis of a 
+20 
+non-interventional study that sponsors should consider when proposing a non-interventional 
+21 
+study for such regulatory purposes.  
+22 
+ 
+23 
+In this guidance, a non-interventional study is a type of study in which patients receive the 
+24 
+marketed drug of interest during routine medical practice and are not assigned to an intervention 
+25 
+according to a protocol.4  Examples of non-interventional study designs for evaluating the 
+26 
+effectiveness and/or safety of a drug include, but are not limited to, (1) observational cohort 
+27 
+studies in which patients are identified as belonging to a study group according to the drug or 
+28 
+drugs received or not received during routine medical practice, and subsequent biomedical or 
+29 
+health outcomes are identified; (2) case-control studies in which patients are first identified as 
+30 
+ 
+1 This guidance has been prepared by the Center for Drug Evaluation and Research in cooperation with the Center 
+for Biologics Evaluation and Research and the Oncology Center of Excellence at the Food and Drug Administration.  
+ 
+2 For more information on demonstrating substantial evidence of effectiveness for applicants planning to file new 
+drug applications (NDAs), biologics license applications (BLAs) or applications for supplemental indications, see 
+the draft guidance for industry Demonstrating Substantial Evidence of Effectiveness for Human Drug and Biological 
+Products (December 2019).  When final, this guidance will represent FDA’s current thinking on this topic.  We 
+update guidances periodically.  For the most recent version of a guidance, check the FDA guidance web page at 
+https://www.fda.gov/regulatory-information/search-fda-guidance-documents. 
+ 
+3 In this guidance, the term drug includes both human drugs and biological products. 
+ 
+4 In this guidance, in contrast to non-interventional studies, interventional studies (also referred to as clinical trials) 
+are a type of study in which participants, either healthy volunteers or volunteers with the condition or disease being 
+studied, are assigned to one or more interventions with a drug, according to a study protocol, to evaluate the effects 
+of those interventions on subsequent health-related biomedical or behavioral outcomes. 
+ 
+
+[p5] Contains Nonbinding Recommendations 
+Draft — Not for Implementation 
+2 
+belonging to a study group based on having or not having a health-related biomedical or 
+31 
+behavioral outcome, and antecedent treatments received are then identified; and (3) self-
+32 
+controlled studies (e.g., case-crossover5 and self-controlled case series6), where the same person 
+33 
+serves as their own control.  
+34 
+ 
+35 
+The reliability and relevance of real-world data (RWD)7 used in a non-interventional study8 are 
+36 
+critical for making appropriate causal inferences and are essential to establishing the data’s 
+37 
+fitness for use in generating real-world evidence to support a labeling change or address a safety 
+38 
+concern.  When considering RWD, the term reliability includes accuracy, completeness, and 
+39 
+traceability;9 the term relevance includes the availability of data for key study variables 
+40 
+(exposures, outcomes, covariates) and sufficient numbers of representative patients for the study.  
+41 
+FDA has published guidances addressing corresponding issues related to fitness for use (i.e., 
+42 
+reliability and relevance) when using electronic health records (EHRs) and medical claims data 
+43 
+as well as data from registries to support regulatory decision-making.10  The Agency has also 
+44 
+published a guidance on considerations for using data standards that are currently supported by 
+45 
+FDA in applicable drug submissions containing study data derived from RWD sources.11  
+46 
+Additionally, FDA published a guidance that describes regulatory considerations for non-
+47 
+interventional studies involving the use of RWD, including RWD access, study monitoring, 
+48 
+safety reporting, and other sponsor responsibilities.12  Two issues discussed in the previously 
+49 
+ 
+5 In this guidance, a case-crossover study is a type of non-interventional study design in which study subjects are 
+selected based on experiencing an event of interest (cases), and study subjects serve as their own comparators 
+(controls) during a previous period of time.  In this study design, the odds of exposure in the period immediately 
+preceding the event of interest (case period) are compared with those in an earlier period that did not result in an 
+event (control period). 
+ 
+6 In this guidance, a self-controlled case series is a type of non-interventional study design used to investigate the 
+association between a transient exposure and an event of interest.  This study design is similar to case-crossover 
+studies, but each case’s observation time is divided into exposure (case) and non-exposure (control) periods. 
+ 
+7 In this guidance, RWD are data relating to patient health status and/or the delivery of health care routinely collected 
+from a variety of sources. 
+ 
+8 Non-interventional studies often repurpose electronic health record-based or medical claims-based data obtained 
+from clinical practice, but a non-interventional design can also include the collection of additional (primary) data.  
+For example, data collection in a non-interventional context when done according to a research protocol (e.g., for a 
+registry) represents primary data collection. 
+ 
+9 In this guidance, traceability is the method (e.g., audit trail) that allows for knowledge of data provenance (i.e., the 
+origin of a piece of data and how it got to the RWD source). 
+ 
+10 See the draft guidance for industry Real-World Data: Assessing Electronic Health Records and Medical Claims 
+Data To Support Regulatory Decision-Making for Drug and Biological Products (September 2021).  When final, 
+this guidance will represent FDA’s current thinking on this topic.  See also the guidance for industry Real-World 
+Data:  Assessing Registries To Support Regulatory Decision-Making for Drug and Biological Products (December 
+2023).   
+ 
+11 See the guidance for industry Data Standards for Drug and Biological Product Submissions Containing Real-
+World Data (December 2023).   
+ 
+ 
+
+[p6] Contains Nonbinding Recommendations 
+Draft — Not for Implementation 
+3 
+published guidance are particularly relevant in the design phase of a non-interventional study:  
+50 
+the importance of (1) prespecification of study design and conduct and (2) early engagement 
+51 
+with FDA to help address the appropriateness of using a non-interventional study design to 
+52 
+address the research question of interest for the proposed indication.  The topics discussed here 
+53 
+should be considered in conjunction with the recommendations in all of these other guidances. 
+54 
+ 
+55 
+This guidance addresses the growing interest in the potential use of non-interventional studies to 
+56 
+support the demonstration of the effectiveness of a drug.  FDA has previously published a 
+57 
+guidance describing best practices specific to conducting and reporting on 
+58 
+pharmacoepidemiologic safety studies that use electronic health care data to assess the risk 
+59 
+associated with a drug exposure.13 The broad epidemiologic principles presented here may also 
+60 
+be relevant to pharmacoepidemiologic safety studies.  
+61 
+ 
+62 
+In general, FDA’s guidance documents do not establish legally enforceable responsibilities.  
+63 
+Instead, guidances describe the Agency’s current thinking on a topic and should be viewed only 
+64 
+as recommendations, unless specific regulatory or statutory requirements are cited.  The use of 
+65 
+the word should in Agency guidances means that something is suggested or recommended, 
+66 
+but not required. 
+67 
+ 
+68 
+ 
+69 
+II. 
+BACKGROUND 
+ 
+70 
+ 
+71 
+The objective of conducting clinical studies of a drug is to distinguish the effect of the drug from 
+72 
+other influences, such as spontaneous change in the course of the disease, placebo effect, or 
+73 
+biased observation.  When relying on a non-interventional study (e.g., EHR data generated 
+74 
+during routine clinical care analyzed using a cohort study design), the inference(s) drawn may be 
+75 
+incorrect if based on estimates that are affected by (1) confounding (e.g., due to noncomparable 
+76 
+treatment groups) or (2) other forms of bias (e.g., how patients are selected for the study, if 
+77 
+follow-up periods for assessing outcomes are incorrectly specified, when the accuracy for 
+78 
+measuring the outcome is different in exposed and unexposed patients, data on key variables are 
+79 
+missing not at random).  Identifying and addressing the presence of such confounding and other 
+80 
+sources of bias is critical when planning and conducting non-interventional studies.  
+81 
+Accordingly, before choosing a non-interventional study design for a study intended to support 
+82 
+regulatory decisions regarding the safety and effectiveness of a product, sponsors and researchers 
+83 
+should consider how likely it is that such a study design and its conduct will be able to 
+84 
+distinguish a true treatment effect from other influences.  
+85 
+ 
+86 
+The remainder of this guidance assists sponsors in identifying and addressing commonly 
+87 
+encountered challenges when considering the use of a non-interventional study for regulatory 
+88 
+decision-making, including topics sponsors should consider before developing a prespecified 
+89 
+protocol and statistical analysis plan (SAP). 
+90 
+ 
+12 See the guidance for industry Considerations for the Use of Real-World Data and Real-World Evidence To 
+Support Regulatory Decision-Making for Drug and Biological Products (August 2023).   
+ 
+13 See the guidance for industry and FDA staff Best Practices for Conducting and Reporting 
+Pharmacoepidemiologic Safety Studies Using Electronic Healthcare Data (May 2013).   
+
+[p7] Contains Nonbinding Recommendations 
+Draft — Not for Implementation 
+4 
+ 
+91 
+ 
+92 
+III. 
+CONSIDERATIONS FOR NON-INTERVENTIONAL STUDIES 
+93 
+ 
+94 
+A. 
+Overview 
+95 
+ 
+96 
+This section describes important attributes of a non-interventional study design and analysis that 
+97 
+sponsors should consider when using these types of studies to support the demonstration of 
+98 
+substantial evidence of effectiveness and/or evidence of safety.  Other attributes that are not 
+99 
+mentioned in this guidance could also be important for a specific study.  FDA strongly 
+100 
+encourages sponsors to engage with the Agency in the early stages of designing a non-
+101 
+interventional study and to provide sufficient information needed to clarify expectations related 
+102 
+to the design and proposed conduct of their study.  Although detailed information on every 
+103 
+attribute described may not be available or feasible to include at the time of early engagement 
+104 
+with FDA, successful proposals for non-interventional study designs should satisfactorily 
+105 
+address each of the elements listed below, as applicable.  When the available data sources do not 
+106 
+support proposals that can satisfactorily address each of these attributes, alternative study designs 
+107 
+should be considered. 
+108 
+ 
+109 
+B. 
+Summary of the Proposed Approach  
+110 
+ 
+111 
+Sponsors should finalize the study protocol, including the research question of interest and 
+112 
+rationale for the study design, before initiating study conduct.  Sponsors should also briefly 
+113 
+summarize alternative study approaches and candidate data sources they considered before 
+114 
+deciding on the proposed approach and discuss why alternative approaches (e.g., randomized 
+115 
+trials, single-arm trials) were not feasible in answering the specific study questions.  The 
+116 
+discussion should reflect an in-depth understanding of the use of the drug(s) of interest and the 
+117 
+outcome(s) of interest, as well as the capture of exposure, outcome(s), and relevant covariates in 
+118 
+the proposed study population.   
+119 
+ 
+120 
+To enable FDA to evaluate proposals for non-interventional studies, sponsors should provide 
+121 
+information on each of the study attributes listed below: 
+122 
+ 
+123 
+• Research question (study objective) and hypothesis 
+124 
+ 
+125 
+• Rationale for using the proposed non-interventional study design  
+126 
+ 
+127 
+• Choice of study design (e.g., cohort, case-control, self-controlled)14 
+128 
+ 
+129 
+ 
+14 Additional terms are sometimes used to further describe non-interventional study designs.  For example, the terms 
+prospective and retrospective are commonly but variably used to indicate whether timing of the cause-effect 
+association occurs prior to or concurrent with the investigation that is examining it, whether inferential reasoning is 
+from cause-to-effect or vice versa, whether sample selection is based on exposure or outcome status, or whether a 
+study hypothesis is established prior to or after the corresponding data were collected.  These terms are used 
+sparingly in this guidance.  
+
+[p8] Contains Nonbinding Recommendations 
+Draft — Not for Implementation 
+5 
+• Proposed selection of data sources to address the study objective and hypotheses, as 
+130 
+well as alternative data sources considered 
+131 
+ 
+132 
+• Results of any preliminary or feasibility studies conducted to assess which data 
+133 
+source is fit for use to address the research question being posed and to estimate the 
+134 
+statistical precision of a potential study without evaluating outcomes for treatment 
+135 
+arms  
+136 
+ 
+137 
+• Proposed approach to support causal inference (e.g., target trial emulation15 or other 
+138 
+conceptual approach) and to address confounding and other types of bias 
+139 
+ 
+140 
+• Description of how ethical considerations (e.g., issues related to human subject 
+141 
+protection) are addressed. 
+142 
+ 
+143 
+C. 
+Study Design  
+144 
+ 
+145 
+Based on the prespecified research question(s) identified, the sponsor should develop study 
+146 
+design elements.  Each protocol should concisely describe each of the critical elements listed 
+147 
+below: 
+148 
+ 
+149 
+• Schema to describe overall study design as well as a causal diagram16 to specify the 
+150 
+theorized causal relationship  
+151 
+ 
+152 
+• Source population (i.e., the population from which the study population will be 
+153 
+drawn)  
+154 
+ 
+155 
+• Eligibility criteria and the study population (i.e., the population for which analyses 
+156 
+will be conducted) 
+157 
+ 
+158 
+• Conceptual and operational definitions17 for key variables of interest and the status of 
+159 
+validation efforts for operational definitions, as relevant 
+160 
+ 
+161 
+• Relevant covariates (e.g., concomitant treatments) and corresponding strategies to 
+162 
+address potential bias 
+163 
+ 
+15 Several conceptual approaches can be used to address concerns regarding causality when designing a non-
+interventional study, including, but not limited to, the emulation of a hypothetical clinical trial that addresses the 
+research question of interest.  FDA does not endorse any particular conceptual approach. 
+ 
+16 Examples of causal diagrams include directed acyclic graphs (DAGs) or single-world intervention graphs 
+(SWIGs).  For DAGs, see Greenland, S, J Pearl, and JM Robins, 1999, Causal Diagrams for Epidemiologic 
+Research, Epidemiology, 10(1):37–48.  For SWIGs, see Richardson, TS and JM Robins, 2013, Single World 
+Intervention Graphs (SWIGs): A Unification of the Counterfactual and Graphical Approaches to Causality, Working 
+Paper 128, Center for the Statistics and the Social Sciences, University of Washington Series. 
+ 
+17 In this guidance, conceptual definitions explain a study construct (e.g., exposure, outcomes, covariates) or feature 
+in general or qualitative terms; operational definitions are the data-specific operation or procedure a researcher 
+followed to measure constructs in a particular study. 
+
+[p9] Contains Nonbinding Recommendations 
+Draft — Not for Implementation 
+6 
+ 
+164 
+• Index date18 (time zero) for all study arms and the approach to assigning an index 
+165 
+date, including strategies to address potential bias introduced by issues related to 
+166 
+immortal time19  
+167 
+ 
+168 
+• Start and end of follow-up (at-risk) period, planned approach to censoring, and 
+169 
+anticipated losses to follow-up (including depletion of susceptible patients) 
+170 
+ 
+171 
+D. 
+Data Sources  
+172 
+ 
+173 
+Sponsors should demonstrate the appropriateness of the proposed data source(s) to address 
+174 
+specific hypotheses and research questions.  Given that data sources used in a non-interventional 
+175 
+study design are often generated for purposes other than research, it is important that sponsors 
+176 
+understand the potential limitations of such data sources and determine whether those limitations 
+177 
+can be addressed or if another data source should be pursued.  Each protocol or accompanying 
+178 
+documents should concisely describe each of the elements listed below:  
+179 
+ 
+180 
+• Description of the proposed data source(s), including how the data were originally 
+181 
+collected  
+182 
+ 
+183 
+• Rationale for choosing the data source(s) 
+184 
+ 
+185 
+• Relevance of the data to the drug-outcome association of interest 
+186 
+ 
+187 
+• Appropriateness of the information on relevant confounding factors  
+188 
+ 
+189 
+• Available information on data reliability (including method of accrual from source 
+190 
+data)  
+191 
+ 
+192 
+• Description of common data models used to provide a standard structure for sharing 
+193 
+data from various sources and the rationale behind the choice of the specific model 
+194 
+ 
+195 
+• Available information on the timing of assessments for key data elements and 
+196 
+completeness of these key data elements 
+197 
+ 
+198 
+• Explanation of how the proposed coding is appropriate based on operational 
+199 
+definitions of key variables 
+200 
+ 
+201 
+• Appropriateness of the data relative to the target patient population 
+202 
+ 
+203 
+ 
+18 In this guidance, the index date (time zero) for follow-up for each participant is the time when they meet the 
+eligibility criteria and are assigned to the intended treatment strategy, which can include no treatment. 
+ 
+19 In this guidance, immortal time is follow-up time in a study during which participants must “survive” to be 
+evaluated for an outcome event.  
+
+[p10] Contains Nonbinding Recommendations 
+Draft — Not for Implementation 
+7 
+• Quality assurance activities that will be performed on the extracted original source 
+204 
+data   
+205 
+ 
+206 
+• Existing or potential links to other data sources, as applicable (e.g., merging data 
+207 
+from EHRs and claims databases, linking an RWD source to a mortality database to 
+208 
+confirm outcomes) 
+209 
+ 
+210 
+• Plans for additional data collection, as applicable 
+211 
+ 
+212 
+E. 
+Analytic Approach 
+213 
+ 
+214 
+The prespecified SAP should address the specific study objectives and detail the primary 
+215 
+analysis and any secondary analyses.  The plan should include information on each of the 
+216 
+elements listed below: 
+217 
+ 
+218 
+• Assessment of feasibility, including sample size calculation and anticipated operating 
+219 
+characteristics (e.g., statistical power) 
+220 
+ 
+221 
+• Statistical approach or method used to evaluate the treatment effect, including 
+222 
+specification of the estimand20 (e.g., handling of intercurrent events21 and rules for 
+223 
+censoring) 
+224 
+ 
+225 
+• Specific approach to account for potential confounding factors, including assessment 
+226 
+of unmeasured confounding 
+227 
+ 
+228 
+• Evaluation of potential overadjustment of intermediate variables on the causal 
+229 
+pathway 
+230 
+ 
+231 
+• Approach and rationale for subgroup analyses, as applicable 
+232 
+ 
+233 
+• Approach to address the potential for unequal detection of outcomes across compared 
+234 
+groups (i.e., differential surveillance or differential misclassification) 
+235 
+ 
+236 
+• Approach to evaluate the potential for early manifestation of the outcome prompting 
+237 
+the exposure (i.e., reverse causality)  
+238 
+ 
+20 An estimand defines the target of estimation to address the scientific question of interest posed by the study 
+objective (i.e., what is to be estimated).  Attributes of an estimand include the population of interest, the variable (or 
+endpoint) of interest, the specification of how intercurrent events are reflected in the scientific question of interest, 
+and the population-level summary for the variable of interest.  For further information, see the ICH guidance for 
+industry E9(R1) Statistical Principles for Clinical Trials:  Addendum:  Estimands and Sensitivity Analysis in 
+Clinical Trials (May 2021). 
+ 
+21 Intercurrent events are events occurring after treatment initiation that affect either the interpretation or the 
+existence of the measurements associated with the clinical question of interest.  Intercurrent events should be 
+addressed when describing the clinical question of interest to precisely define the treatment effect that is to be 
+estimated.  For further information, see ICH E9(R1). 
+
+[p11] Contains Nonbinding Recommendations 
+Draft — Not for Implementation 
+8 
+ 
+239 
+• Approach to handling missing or misclassified data 
+240 
+ 
+241 
+• Approach to handling multiplicity (i.e., possible inflation of type I error due to 
+242 
+multiple statistical tests, including analysis of multiple exposures or multiple 
+243 
+outcomes) 
+244 
+ 
+245 
+• Description of planned sensitivity analyses, including details on which factors are 
+246 
+proposed to be changed and rationale for such changes 
+247 

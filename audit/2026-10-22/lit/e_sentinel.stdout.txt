@@ -1,0 +1,6 @@
+Q1     pubmed          hits=2      returned=2    status=200  doi=2/2; pmid=2/2; abstract=2/2; year=2/2; venue=2/2; citation_count=0/2
+Q1     europepmc       hits=2      returned=2    status=200  doi=2/2; pmid=2/2; abstract=2/2; year=2/2; venue=2/2; citation_count=2/2
+Q1     openalex        hits=8      returned=8    status=200  doi=8/8; pmid=2/8; abstract=7/8; year=8/8; venue=8/8; citation_count=8/8
+Q1     semanticscholar hits=0      returned=0    status=200  n=0
+raw records=12; unique after de-duplication=8; duplicates removed=4; unique records per source={"europepmc": 2, "openalex": 8, "pubmed": 2}; unique records found by that source only={"europepmc": 0, "openalex": 6, "pubmed": 0}; clusters joining a preprint and a published version=0; records flagged as possible near-duplicates for human check=0
+wrote audit/2026-10-22/lit/e_sentinel.jsonl (8 records) and audit/2026-10-22/lit/e_sentinel-log.csv (5 rows)

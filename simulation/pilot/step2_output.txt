@@ -1,0 +1,112 @@
+map_generate moderate_inside_effect n=500: 640.4 s for 2 datasets
+map_sample moderate_inside_effect n=500: 800.9 s for 2 datasets
+key moderate_inside_effect n=500: 1.3 s for 2 datasets
+map_generate severe_outside_effect n=2000: 1459.3 s for 2 datasets
+map_sample severe_outside_effect n=2000: 1882.6 s for 2 datasets
+key severe_outside_effect n=2000: 2.8 s for 2 datasets
+Cache hit: 0.01 s, identical rows: TRUE
+
+Map verdicts and diagnostics:
+               scenario    n idx  variant    estimand     status  selected ci_halfwidth unresolved share_outside max_weight ess_frac pref_share sec_total
+ moderate_inside_effect  500   1 generate         ATE infeasible        NA           NA       TRUE         0.208     68.079   0.2096      0.244       323
+ moderate_inside_effect  500   1 generate trimmed_ATE   feasible glm_t0.01       0.0860       TRUE         0.208     16.222   0.4440      0.244       323
+ moderate_inside_effect  500   1 generate         ATT infeasible        NA           NA      FALSE         0.208     38.994   0.5249      0.244       323
+ moderate_inside_effect  500   1 generate         ATO   feasible glm_t0.01       0.0756       TRUE         0.208      0.985   0.5185      0.244       323
+ moderate_inside_effect  500   2 generate         ATE infeasible        NA           NA       TRUE         0.148     23.586   0.4409      0.260       318
+ moderate_inside_effect  500   2 generate trimmed_ATE infeasible        NA           NA       TRUE         0.148     13.871   0.4486      0.260       318
+ moderate_inside_effect  500   2 generate         ATT infeasible        NA           NA      FALSE         0.148     22.586   0.5528      0.260       318
+ moderate_inside_effect  500   2 generate         ATO   feasible glm_t0.01       0.0734       TRUE         0.148      0.958   0.5541      0.260       318
+  severe_outside_effect 2000   1 generate         ATE infeasible        NA           NA      FALSE         0.440    184.478   0.0796      0.164       816
+  severe_outside_effect 2000   1 generate trimmed_ATE   feasible glm_t0.01       0.0506       TRUE         0.440     19.734   0.2452      0.164       816
+  severe_outside_effect 2000   1 generate         ATT infeasible        NA           NA      FALSE         0.440    151.420   0.5110      0.164       816
+  severe_outside_effect 2000   1 generate         ATO   feasible glm_t0.01       0.0431       TRUE         0.440      0.995   0.3781      0.164       816
+  severe_outside_effect 2000   2 generate         ATE infeasible        NA           NA      FALSE         0.442    223.682   0.0734      0.150       644
+  severe_outside_effect 2000   2 generate trimmed_ATE infeasible        NA           NA       TRUE         0.442     19.096   0.2512      0.150       644
+  severe_outside_effect 2000   2 generate         ATT infeasible        NA           NA      FALSE         0.442    222.682   0.5162      0.150       644
+  severe_outside_effect 2000   2 generate         ATO   feasible glm_t0.01       0.0456       TRUE         0.442      0.996   0.3740      0.150       644
+ moderate_inside_effect  500   1   sample         ATE infeasible        NA           NA      FALSE         0.208     68.079   0.2096      0.244       370
+ moderate_inside_effect  500   1   sample trimmed_ATE infeasible        NA           NA       TRUE         0.208     16.222   0.4440      0.244       370
+ moderate_inside_effect  500   1   sample         ATT infeasible        NA           NA      FALSE         0.208     38.994   0.5249      0.244       370
+ moderate_inside_effect  500   1   sample         ATO   feasible glm_t0.01       0.0747       TRUE         0.208      0.985   0.5185      0.244       370
+ moderate_inside_effect  500   2   sample         ATE infeasible        NA           NA       TRUE         0.148     23.586   0.4409      0.260       430
+ moderate_inside_effect  500   2   sample trimmed_ATE   feasible glm_t0.01       0.0883       TRUE         0.148     13.871   0.4486      0.260       430
+ moderate_inside_effect  500   2   sample         ATT infeasible        NA           NA      FALSE         0.148     22.586   0.5528      0.260       430
+ moderate_inside_effect  500   2   sample         ATO   feasible glm_t0.01       0.0750       TRUE         0.148      0.958   0.5541      0.260       430
+  severe_outside_effect 2000   1   sample         ATE infeasible        NA           NA       TRUE         0.440    184.478   0.0796      0.164       704
+  severe_outside_effect 2000   1   sample trimmed_ATE   feasible glm_t0.01       0.0501       TRUE         0.440     19.734   0.2452      0.164       704
+  severe_outside_effect 2000   1   sample         ATT infeasible        NA           NA      FALSE         0.440    151.420   0.5110      0.164       704
+  severe_outside_effect 2000   1   sample         ATO   feasible glm_t0.01       0.0427       TRUE         0.440      0.995   0.3781      0.164       704
+  severe_outside_effect 2000   2   sample         ATE infeasible        NA           NA      FALSE         0.442    223.682   0.0734      0.150      1178
+  severe_outside_effect 2000   2   sample trimmed_ATE   feasible glm_t0.01       0.0564       TRUE         0.442     19.096   0.2512      0.150      1178
+  severe_outside_effect 2000   2   sample         ATT infeasible        NA           NA      FALSE         0.442    222.682   0.5162      0.150      1178
+  severe_outside_effect 2000   2   sample         ATO   feasible glm_t0.01       0.0462       TRUE         0.442      0.996   0.3740      0.150      1178
+
+Answer-key fits:
+               scenario    n idx    estimand candidate estimate     se ci_lower ci_upper failed  p_value min_p sec_total
+ moderate_inside_effect  500   1         ATE glm_t0.01   0.2407 0.0642   0.1149    0.367  FALSE 1.76e-04 FALSE     0.511
+ moderate_inside_effect  500   1         ATE glm_t0.05   0.2410 0.0476   0.1477    0.334  FALSE 4.11e-07  TRUE     0.511
+ moderate_inside_effect  500   1 trimmed_ATE glm_t0.01   0.1562 0.0314   0.0946    0.218  FALSE 6.68e-07  TRUE     0.511
+ moderate_inside_effect  500   1 trimmed_ATE glm_t0.05   0.1562 0.0314   0.0946    0.218  FALSE 6.68e-07 FALSE     0.511
+ moderate_inside_effect  500   1         ATT glm_t0.01   0.2816 0.1032   0.0793    0.484  FALSE 6.36e-03 FALSE     0.511
+ moderate_inside_effect  500   1         ATT glm_t0.05   0.2832 0.0728   0.1404    0.426  FALSE 1.01e-04 FALSE     0.511
+ moderate_inside_effect  500   1         ATO glm_t0.01   0.1298 0.0396   0.0523    0.207  FALSE 1.04e-03 FALSE     0.511
+ moderate_inside_effect  500   1         ATO glm_t0.05   0.1298 0.0396   0.0523    0.207  FALSE 1.04e-03 FALSE     0.511
+ moderate_inside_effect  500   2         ATE glm_t0.01   0.2056 0.0584   0.0911    0.320  FALSE 4.34e-04 FALSE     0.730
+ moderate_inside_effect  500   2         ATE glm_t0.05   0.2101 0.0552   0.1019    0.318  FALSE 1.42e-04 FALSE     0.730
+ moderate_inside_effect  500   2 trimmed_ATE glm_t0.01   0.2329 0.0507   0.1336    0.332  FALSE 4.31e-06  TRUE     0.730
+ moderate_inside_effect  500   2 trimmed_ATE glm_t0.05   0.2329 0.0507   0.1336    0.332  FALSE 4.31e-06  TRUE     0.730
+ moderate_inside_effect  500   2         ATT glm_t0.01   0.2223 0.1293  -0.0312    0.476  FALSE 8.56e-02 FALSE     0.730
+ moderate_inside_effect  500   2         ATT glm_t0.05   0.2288 0.0801   0.0719    0.386  FALSE 4.27e-03 FALSE     0.730
+ moderate_inside_effect  500   2         ATO glm_t0.01   0.1848 0.0490   0.0887    0.281  FALSE 1.64e-04 FALSE     0.730
+ moderate_inside_effect  500   2         ATO glm_t0.05   0.1848 0.0490   0.0887    0.281  FALSE 1.64e-04 FALSE     0.730
+  severe_outside_effect 2000   1         ATE glm_t0.01   0.2455 0.0474   0.1527    0.338  FALSE 2.17e-07 FALSE     1.562
+  severe_outside_effect 2000   1         ATE glm_t0.05   0.2191 0.0229   0.1741    0.264  FALSE 1.22e-21 FALSE     1.562
+  severe_outside_effect 2000   1 trimmed_ATE glm_t0.01   0.1435 0.0328   0.0792    0.208  FALSE 1.24e-05 FALSE     1.562
+  severe_outside_effect 2000   1 trimmed_ATE glm_t0.05   0.1435 0.0328   0.0792    0.208  FALSE 1.24e-05 FALSE     1.562
+  severe_outside_effect 2000   1         ATT glm_t0.01   0.3166 0.0251   0.2673    0.366  FALSE 2.46e-36  TRUE     1.562
+  severe_outside_effect 2000   1         ATT glm_t0.05   0.3180 0.0249   0.2692    0.367  FALSE 2.96e-37  TRUE     1.562
+  severe_outside_effect 2000   1         ATO glm_t0.01   0.1407 0.0280   0.0858    0.196  FALSE 5.00e-07 FALSE     1.562
+  severe_outside_effect 2000   1         ATO glm_t0.05   0.1407 0.0280   0.0858    0.196  FALSE 5.00e-07 FALSE     1.562
+  severe_outside_effect 2000   2         ATE glm_t0.01   0.1026 0.0372   0.0297    0.175  FALSE 5.79e-03 FALSE     1.171
+  severe_outside_effect 2000   2         ATE glm_t0.05   0.1131 0.0224   0.0693    0.157  FALSE 4.24e-07  TRUE     1.171
+  severe_outside_effect 2000   2 trimmed_ATE glm_t0.01   0.1172 0.0287   0.0609    0.173  FALSE 4.52e-05  TRUE     1.171
+  severe_outside_effect 2000   2 trimmed_ATE glm_t0.05   0.1172 0.0287   0.0609    0.173  FALSE 4.52e-05 FALSE     1.171
+  severe_outside_effect 2000   2         ATT glm_t0.01   0.1745 0.0631   0.0508    0.298  FALSE 5.71e-03 FALSE     1.171
+  severe_outside_effect 2000   2         ATT glm_t0.05   0.1747 0.0353   0.1056    0.244  FALSE 7.30e-07 FALSE     1.171
+  severe_outside_effect 2000   2         ATO glm_t0.01   0.0999 0.0253   0.0502    0.150  FALSE 8.01e-05 FALSE     1.171
+  severe_outside_effect 2000   2         ATO glm_t0.05   0.0999 0.0253   0.0502    0.150  FALSE 8.01e-05 FALSE     1.171
+
+Answer key on 2 datasets (code check only):
+                scenario    n    estimand estimable
+1 moderate_inside_effect  500         ATE     FALSE
+2  severe_outside_effect 2000         ATE     FALSE
+3 moderate_inside_effect  500         ATO     FALSE
+4  severe_outside_effect 2000         ATO     FALSE
+5 moderate_inside_effect  500         ATT     FALSE
+6  severe_outside_effect 2000         ATT     FALSE
+7 moderate_inside_effect  500 trimmed_ATE     FALSE
+8  severe_outside_effect 2000 trimmed_ATE     FALSE
+
+Agreement on 2 datasets (code check only):
+       verdict threshold   group n_estimable n_not sensitivity sensitivity_mcse specificity specificity_mcse
+1 map generate        NA  inside           0     8          NA               NA       0.625        0.1711633
+2 map generate        NA outside           0     8          NA               NA       0.625        0.1711633
+3   map sample        NA  inside           0     8          NA               NA       0.625        0.1711633
+4   map sample        NA outside           0     8          NA               NA       0.500        0.1767767
+
+Seconds per call (mean of 2 datasets):
+     n map_generate map_sample       key
+1  500     320.1464   400.4497 0.6207759
+2 2000     729.6126   941.2652 1.3664130
+
+Projected sequential hours, full grid (18 scenarios x 2 n), R = 100 map runs per variant, M = 500 key datasets:
+     n map_hours key_hours total_hours
+1  500  360.2980  1.551940    361.8500
+2 2000  835.4389  3.416032    838.8549
+Total: 1200.7 h
+Map hours if map datasets were shared across models and effects: 199.3 h
+
+Contrast pilot: 100 map runs (both variants) and 200 key datasets, per scenario:
+     n map100_hours key200_hours
+1  500     20.01656   0.03448755
+2 2000     46.41327   0.07591183

@@ -1,0 +1,3589 @@
+{
+ "final_ambulance_vs_other_means_ate_max_weight": {
+  "text": "64.3",
+  "value": 64.2691541247438,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L5&col=ate_max_weight"
+ },
+ "final_ambulance_vs_other_means_ato_max_shift": {
+  "text": "0.27",
+  "value": 0.270755051958779,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L5&where=estimand:ATO&col=max_abs_shift"
+ },
+ "final_ambulance_vs_other_means_att_ess_comparator": {
+  "text": "1,271",
+  "value": 1271.02900688912,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L5&col=att_ess_comparator"
+ },
+ "final_ambulance_vs_other_means_att_max_shift": {
+  "text": "0.33",
+  "value": 0.326669093398849,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L5&where=estimand:ATT&col=max_abs_shift"
+ },
+ "final_ambulance_vs_other_means_c_statistic": {
+  "text": "0.77",
+  "value": 0.771775843204415,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L5&col=c_statistic"
+ },
+ "final_ambulance_vs_other_means_comparator_before_complete_case": {
+  "text": "3,854",
+  "value": 3854.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L5.csv#where=arm:comparator&col=patients"
+ },
+ "final_ambulance_vs_other_means_comparator_disposition_not_recorded": {
+  "text": "0.4%",
+  "value": 0.0044,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L5.csv#where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_ambulance_vs_other_means_comparator_n_disposition_not_recorded": {
+  "text": "17",
+  "value": 17.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L5&where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_ambulance_vs_other_means_comparator_n_six_month_not_recorded": {
+  "text": "851",
+  "value": 851.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L5&where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_ambulance_vs_other_means_comparator_six_month_not_recorded": {
+  "text": "22.1%",
+  "value": 0.2208,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L5.csv#where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_ambulance_vs_other_means_n": {
+  "text": "4,207",
+  "value": 4207.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L5&col=n"
+ },
+ "final_ambulance_vs_other_means_n_comparator": {
+  "text": "3,003",
+  "value": 3003.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L5&col=n_comparator"
+ },
+ "final_ambulance_vs_other_means_n_outside": {
+  "text": "456",
+  "value": 456.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L5&col=outside"
+ },
+ "final_ambulance_vs_other_means_n_outside_comparator": {
+  "text": "444",
+  "value": 444.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L5&col=outside_comparator"
+ },
+ "final_ambulance_vs_other_means_n_outside_treated": {
+  "text": "12",
+  "value": 12.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L5&col=outside_treated"
+ },
+ "final_ambulance_vs_other_means_n_treated": {
+  "text": "1,204",
+  "value": 1204.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L5&col=n_treated"
+ },
+ "final_ambulance_vs_other_means_no_walkin_ate_max_weight": {
+  "text": "45.7",
+  "value": 45.6722300777646,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S3&col=ate_max_weight"
+ },
+ "final_ambulance_vs_other_means_no_walkin_ato_max_shift": {
+  "text": "0.25",
+  "value": 0.25095793919937,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S3&where=estimand:ATO&col=max_abs_shift"
+ },
+ "final_ambulance_vs_other_means_no_walkin_att_ess_comparator": {
+  "text": "1,311",
+  "value": 1310.83491736785,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S3&col=att_ess_comparator"
+ },
+ "final_ambulance_vs_other_means_no_walkin_att_max_shift": {
+  "text": "0.31",
+  "value": 0.307524600979515,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S3&where=estimand:ATT&col=max_abs_shift"
+ },
+ "final_ambulance_vs_other_means_no_walkin_c_statistic": {
+  "text": "0.77",
+  "value": 0.767006889265298,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S3&col=c_statistic"
+ },
+ "final_ambulance_vs_other_means_no_walkin_comparator_before_complete_case": {
+  "text": "3,498",
+  "value": 3498.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S3.csv#where=arm:comparator&col=patients"
+ },
+ "final_ambulance_vs_other_means_no_walkin_comparator_disposition_not_recorded": {
+  "text": "0.4%",
+  "value": 0.004,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S3.csv#where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_ambulance_vs_other_means_no_walkin_comparator_n_disposition_not_recorded": {
+  "text": "14",
+  "value": 14.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S3&where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_ambulance_vs_other_means_no_walkin_comparator_n_six_month_not_recorded": {
+  "text": "756",
+  "value": 756.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S3&where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_ambulance_vs_other_means_no_walkin_comparator_six_month_not_recorded": {
+  "text": "21.6%",
+  "value": 0.2161,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S3.csv#where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_ambulance_vs_other_means_no_walkin_n": {
+  "text": "3,946",
+  "value": 3946.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S3&col=n"
+ },
+ "final_ambulance_vs_other_means_no_walkin_n_comparator": {
+  "text": "2,742",
+  "value": 2742.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S3&col=n_comparator"
+ },
+ "final_ambulance_vs_other_means_no_walkin_n_outside": {
+  "text": "307",
+  "value": 307.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S3&col=outside"
+ },
+ "final_ambulance_vs_other_means_no_walkin_n_outside_comparator": {
+  "text": "298",
+  "value": 298.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S3&col=outside_comparator"
+ },
+ "final_ambulance_vs_other_means_no_walkin_n_outside_treated": {
+  "text": "9",
+  "value": 9.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S3&col=outside_treated"
+ },
+ "final_ambulance_vs_other_means_no_walkin_n_treated": {
+  "text": "1,204",
+  "value": 1204.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S3&col=n_treated"
+ },
+ "final_ambulance_vs_other_means_no_walkin_share_outside_band": {
+  "text": "7.8%",
+  "value": 0.0778003041054232,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S3&col=share_outside_band"
+ },
+ "final_ambulance_vs_other_means_no_walkin_treated_before_complete_case": {
+  "text": "1,595",
+  "value": 1595.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S3.csv#where=arm:treated&col=patients"
+ },
+ "final_ambulance_vs_other_means_no_walkin_treated_disposition_not_recorded": {
+  "text": "0.8%",
+  "value": 0.0075,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S3.csv#where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_ambulance_vs_other_means_no_walkin_treated_n_disposition_not_recorded": {
+  "text": "12",
+  "value": 12.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S3&where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_ambulance_vs_other_means_no_walkin_treated_n_six_month_not_recorded": {
+  "text": "391",
+  "value": 391.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S3&where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_ambulance_vs_other_means_no_walkin_treated_six_month_not_recorded": {
+  "text": "24.5%",
+  "value": 0.2451,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S3.csv#where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_ambulance_vs_other_means_no_walkin_trimmed_ate_max_shift": {
+  "text": "0.16",
+  "value": 0.164111645447252,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S3&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "final_ambulance_vs_other_means_no_walkin_trimmed_kept_comparator": {
+  "text": "2,444",
+  "value": 2444.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S3&col=trimmed_kept_comparator"
+ },
+ "final_ambulance_vs_other_means_no_walkin_trimmed_kept_treated": {
+  "text": "1,195",
+  "value": 1195.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S3&col=trimmed_kept_treated"
+ },
+ "final_ambulance_vs_other_means_no_walkin_trimmed_share_kept_comparator": {
+  "text": "89.1%",
+  "value": 0.891320204230489,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S3&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "final_ambulance_vs_other_means_no_walkin_trimmed_share_kept_treated": {
+  "text": "99.3%",
+  "value": 0.992524916943522,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S3&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "final_ambulance_vs_other_means_share_outside_band": {
+  "text": "10.8%",
+  "value": 0.108390777275969,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L5&col=share_outside_band"
+ },
+ "final_ambulance_vs_other_means_treated_before_complete_case": {
+  "text": "1,595",
+  "value": 1595.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L5.csv#where=arm:treated&col=patients"
+ },
+ "final_ambulance_vs_other_means_treated_disposition_not_recorded": {
+  "text": "0.8%",
+  "value": 0.0075,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L5.csv#where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_ambulance_vs_other_means_treated_n_disposition_not_recorded": {
+  "text": "12",
+  "value": 12.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L5&where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_ambulance_vs_other_means_treated_n_six_month_not_recorded": {
+  "text": "391",
+  "value": 391.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L5&where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_ambulance_vs_other_means_treated_six_month_not_recorded": {
+  "text": "24.5%",
+  "value": 0.2451,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L5.csv#where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_ambulance_vs_other_means_trimmed_ate_max_shift": {
+  "text": "0.20",
+  "value": 0.19636397531591,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L5&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "final_ambulance_vs_other_means_trimmed_kept_comparator": {
+  "text": "2,559",
+  "value": 2559.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L5&col=trimmed_kept_comparator"
+ },
+ "final_ambulance_vs_other_means_trimmed_kept_treated": {
+  "text": "1,192",
+  "value": 1192.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L5&col=trimmed_kept_treated"
+ },
+ "final_ambulance_vs_other_means_trimmed_share_kept_comparator": {
+  "text": "85.2%",
+  "value": 0.852147852147852,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L5&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "final_ambulance_vs_other_means_trimmed_share_kept_treated": {
+  "text": "99.0%",
+  "value": 0.990033222591362,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L5&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "final_count_ambulance_operator_unknown": {
+  "text": "12",
+  "value": 12.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:ambulance_operator_unknown&col=n"
+ },
+ "final_count_arm_other_means": {
+  "text": "6,118",
+  "value": 6118.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:arm_other_means&col=n"
+ },
+ "final_count_arm_other_operator": {
+  "text": "1,146",
+  "value": 1146.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:arm_other_operator&col=n"
+ },
+ "final_count_arm_rescueco": {
+  "text": "1,039",
+  "value": 1039.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:arm_rescueco&col=n"
+ },
+ "final_count_arm_unknown": {
+  "text": "23",
+  "value": 23.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:arm_unknown&col=n"
+ },
+ "final_count_arrival_state_columns": {
+  "text": "9",
+  "value": 9.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:arrival_state_columns&col=n"
+ },
+ "final_count_covariate_columns": {
+  "text": "75",
+  "value": 75.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:covariate_columns&col=n"
+ },
+ "final_count_patients": {
+  "text": "8,326",
+  "value": 8326.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:patients&col=n"
+ },
+ "final_count_rescueco_no_dispatch_record": {
+  "text": "14",
+  "value": 14.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:rescueco_no_dispatch_record&col=n"
+ },
+ "final_count_rescueco_probable_match": {
+  "text": "13",
+  "value": 13.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:rescueco_probable_match&col=n"
+ },
+ "final_count_rescueco_probable_match_direct": {
+  "text": "13",
+  "value": 13.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:rescueco_probable_match_direct&col=n"
+ },
+ "final_count_rescueco_probable_match_direct_followed": {
+  "text": "9",
+  "value": 9.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:rescueco_probable_match_direct_followed&col=n"
+ },
+ "final_count_transfer_or_prior_care": {
+  "text": "2,850",
+  "value": 2850.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:transfer_or_prior_care&col=n"
+ },
+ "final_count_walked_in": {
+  "text": "467",
+  "value": 467.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:final&where=item:walked_in&col=n"
+ },
+ "final_operators_arrival_state_ate_max_weight": {
+  "text": "8.0",
+  "value": 8.0316769730318,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S1&col=ate_max_weight"
+ },
+ "final_operators_arrival_state_ato_max_shift": {
+  "text": "0.03",
+  "value": 0.0297763254823999,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S1&where=estimand:ATO&col=max_abs_shift"
+ },
+ "final_operators_arrival_state_att_ess_comparator": {
+  "text": "320",
+  "value": 319.640069643003,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S1&col=att_ess_comparator"
+ },
+ "final_operators_arrival_state_att_max_shift": {
+  "text": "0.13",
+  "value": 0.126211038814612,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S1&where=estimand:ATT&col=max_abs_shift"
+ },
+ "final_operators_arrival_state_c_statistic": {
+  "text": "0.67",
+  "value": 0.665688289669268,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S1&col=c_statistic"
+ },
+ "final_operators_arrival_state_comparator_before_complete_case": {
+  "text": "604",
+  "value": 604.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S1.csv#where=arm:comparator&col=patients"
+ },
+ "final_operators_arrival_state_comparator_disposition_not_recorded": {
+  "text": "0.3%",
+  "value": 0.0033,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S1.csv#where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_operators_arrival_state_comparator_n_disposition_not_recorded": {
+  "text": "2",
+  "value": 2.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S1&where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_operators_arrival_state_comparator_n_six_month_not_recorded": {
+  "text": "136",
+  "value": 136.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S1&where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_operators_arrival_state_comparator_six_month_not_recorded": {
+  "text": "22.5%",
+  "value": 0.2252,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S1.csv#where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_operators_arrival_state_n": {
+  "text": "1,204",
+  "value": 1204.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S1&col=n"
+ },
+ "final_operators_arrival_state_n_comparator": {
+  "text": "468",
+  "value": 468.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S1&col=n_comparator"
+ },
+ "final_operators_arrival_state_n_outside": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S1&col=outside"
+ },
+ "final_operators_arrival_state_n_outside_comparator": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S1&col=outside_comparator"
+ },
+ "final_operators_arrival_state_n_outside_treated": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S1&col=outside_treated"
+ },
+ "final_operators_arrival_state_n_treated": {
+  "text": "736",
+  "value": 736.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S1&col=n_treated"
+ },
+ "final_operators_arrival_state_share_outside_band": {
+  "text": "0.0%",
+  "value": 0.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S1&col=share_outside_band"
+ },
+ "final_operators_arrival_state_treated_before_complete_case": {
+  "text": "991",
+  "value": 991.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S1.csv#where=arm:treated&col=patients"
+ },
+ "final_operators_arrival_state_treated_disposition_not_recorded": {
+  "text": "1.0%",
+  "value": 0.0101,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S1.csv#where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_operators_arrival_state_treated_n_disposition_not_recorded": {
+  "text": "10",
+  "value": 10.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S1&where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_operators_arrival_state_treated_n_six_month_not_recorded": {
+  "text": "255",
+  "value": 255.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S1&where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_operators_arrival_state_treated_six_month_not_recorded": {
+  "text": "25.7%",
+  "value": 0.2573,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S1.csv#where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_operators_arrival_state_trimmed_ate_max_shift": {
+  "text": "0.00",
+  "value": 0.0,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S1&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "final_operators_arrival_state_trimmed_kept_comparator": {
+  "text": "468",
+  "value": 468.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S1&col=trimmed_kept_comparator"
+ },
+ "final_operators_arrival_state_trimmed_kept_treated": {
+  "text": "736",
+  "value": 736.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S1&col=trimmed_kept_treated"
+ },
+ "final_operators_arrival_state_trimmed_share_kept_comparator": {
+  "text": "100.0%",
+  "value": 1.0,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S1&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "final_operators_arrival_state_trimmed_share_kept_treated": {
+  "text": "100.0%",
+  "value": 1.0,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S1&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "final_operators_ate_max_weight": {
+  "text": "8.0",
+  "value": 8.04685476435629,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L3&col=ate_max_weight"
+ },
+ "final_operators_ate_selected_halfwidth": {
+  "text": "0.0518",
+  "value": 0.0517776083179277,
+  "source": "writing/results-export/simulation_verdicts.csv#where=run:final&where=lock:L3&where=estimand:ATE&col=ci_halfwidth"
+ },
+ "final_operators_ate_selected_truncation": {
+  "text": "0.05",
+  "value": 0.05,
+  "source": "writing/results-export/simulation_verdicts.csv#where=run:final&where=lock:L3&where=estimand:ATE&col=truncation"
+ },
+ "final_operators_ato_max_shift": {
+  "text": "0.03",
+  "value": 0.0300790346291245,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L3&where=estimand:ATO&col=max_abs_shift"
+ },
+ "final_operators_ato_selected_halfwidth": {
+  "text": "0.0511",
+  "value": 0.0511166522500044,
+  "source": "writing/results-export/simulation_verdicts.csv#where=run:final&where=lock:L3&where=estimand:ATO&col=ci_halfwidth"
+ },
+ "final_operators_ato_selected_truncation": {
+  "text": "0.01",
+  "value": 0.01,
+  "source": "writing/results-export/simulation_verdicts.csv#where=run:final&where=lock:L3&where=estimand:ATO&col=truncation"
+ },
+ "final_operators_att_ess_comparator": {
+  "text": "315",
+  "value": 315.057905888716,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L3&col=att_ess_comparator"
+ },
+ "final_operators_att_max_shift": {
+  "text": "0.13",
+  "value": 0.126211038814612,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L3&where=estimand:ATT&col=max_abs_shift"
+ },
+ "final_operators_c_statistic": {
+  "text": "0.67",
+  "value": 0.666588280379041,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L3&col=c_statistic"
+ },
+ "final_operators_comparator_before_complete_case": {
+  "text": "604",
+  "value": 604.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L3.csv#where=arm:comparator&col=patients"
+ },
+ "final_operators_comparator_disposition_not_recorded": {
+  "text": "0.3%",
+  "value": 0.0033,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L3.csv#where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_operators_comparator_n_disposition_not_recorded": {
+  "text": "2",
+  "value": 2.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L3&where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_operators_comparator_n_six_month_not_recorded": {
+  "text": "136",
+  "value": 136.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L3&where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_operators_comparator_six_month_not_recorded": {
+  "text": "22.5%",
+  "value": 0.2252,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L3.csv#where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_operators_expected_events_control_max": {
+  "text": "95",
+  "value": 94.6265507761226,
+  "source": "writing/results-export/expected_events_range.csv#where=run:final&where=lock:L3&col=control_max"
+ },
+ "final_operators_expected_events_control_min": {
+  "text": "75",
+  "value": 75.1462459949845,
+  "source": "writing/results-export/expected_events_range.csv#where=run:final&where=lock:L3&col=control_min"
+ },
+ "final_operators_expected_events_treated_max": {
+  "text": "296",
+  "value": 295.518178469749,
+  "source": "writing/results-export/expected_events_range.csv#where=run:final&where=lock:L3&col=treated_max"
+ },
+ "final_operators_expected_events_treated_min": {
+  "text": "230",
+  "value": 229.799021189305,
+  "source": "writing/results-export/expected_events_range.csv#where=run:final&where=lock:L3&col=treated_min"
+ },
+ "final_operators_n": {
+  "text": "1,204",
+  "value": 1204.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L3&col=n"
+ },
+ "final_operators_n_comparator": {
+  "text": "468",
+  "value": 468.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L3&col=n_comparator"
+ },
+ "final_operators_n_outside": {
+  "text": "2",
+  "value": 2.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L3&col=outside"
+ },
+ "final_operators_n_outside_comparator": {
+  "text": "2",
+  "value": 2.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L3&col=outside_comparator"
+ },
+ "final_operators_n_outside_treated": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L3&col=outside_treated"
+ },
+ "final_operators_n_treated": {
+  "text": "736",
+  "value": 736.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L3&col=n_treated"
+ },
+ "final_operators_nc_controls": {
+  "text": "5",
+  "value": 5.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=controls"
+ },
+ "final_operators_nc_cooking_wood_charcoal_ate": {
+  "text": "0.007 (95% CI: -0.021, 0.036)",
+  "value": 0.00748130248957982,
+  "lower": -0.0206170738134468,
+  "upper": 0.0355796787926065,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATE&where=negative_control:nc_cooking_wood_charcoal&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_cooking_wood_charcoal_ato": {
+  "text": "0.005 (95% CI: -0.022, 0.033)",
+  "value": 0.00533301689338296,
+  "lower": -0.0223419222293002,
+  "upper": 0.0330079560160661,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATO&where=negative_control:nc_cooking_wood_charcoal&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_cooking_wood_charcoal_att": {
+  "text": "0.020 (95% CI: -0.011, 0.051)",
+  "value": 0.0198568657213047,
+  "lower": -0.0108034984885417,
+  "upper": 0.0505172299311512,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATT&where=negative_control:nc_cooking_wood_charcoal&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_cooking_wood_charcoal_trimmed_ate": {
+  "text": "0.007 (95% CI: -0.021, 0.036)",
+  "value": 0.00748566945331961,
+  "lower": -0.0206626149631194,
+  "upper": 0.0356339538697586,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:trimmed_ATE&where=negative_control:nc_cooking_wood_charcoal&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_estimated": {
+  "text": "3",
+  "value": 3.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=estimated"
+ },
+ "final_operators_nc_household_urban_ate": {
+  "text": "0.001 (95% CI: -0.020, 0.022)",
+  "value": 0.000914082212544187,
+  "lower": -0.0199300756359599,
+  "upper": 0.0217582400610482,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATE&where=negative_control:nc_household_urban&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_household_urban_ato": {
+  "text": "-0.003 (95% CI: -0.025, 0.020)",
+  "value": -0.00258042545165375,
+  "lower": -0.0252145893565477,
+  "upper": 0.0200537384532402,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATO&where=negative_control:nc_household_urban&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_household_urban_att": {
+  "text": "-0.013 (95% CI: -0.037, 0.010)",
+  "value": -0.0134580094641217,
+  "lower": -0.0369148172046608,
+  "upper": 0.00999879827641738,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATT&where=negative_control:nc_household_urban&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_household_urban_trimmed_ate": {
+  "text": "0.001 (95% CI: -0.020, 0.022)",
+  "value": 0.000915591305776897,
+  "lower": -0.0199633309880678,
+  "upper": 0.0217945135996216,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:trimmed_ATE&where=negative_control:nc_household_urban&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_hypertension_ate": {
+  "text": "0.007 (95% CI: -0.011, 0.025)",
+  "value": 0.0067910733529462,
+  "lower": -0.0112126449240171,
+  "upper": 0.0247947916299095,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATE&where=negative_control:nc_hypertension&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_hypertension_ato": {
+  "text": "0.011 (95% CI: -0.012, 0.035)",
+  "value": 0.0113680209039261,
+  "lower": -0.0124091012818721,
+  "upper": 0.0351451430897243,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATO&where=negative_control:nc_hypertension&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_hypertension_att": {
+  "text": "-0.007 (95% CI: -0.037, 0.023)",
+  "value": -0.0072516042791386,
+  "lower": -0.0372512127188348,
+  "upper": 0.0227480041605576,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATT&where=negative_control:nc_hypertension&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_hypertension_trimmed_ate": {
+  "text": "0.007 (95% CI: -0.011, 0.025)",
+  "value": 0.0067910733529462,
+  "lower": -0.0112126449240171,
+  "upper": 0.0247947916299095,
+  "source": "writing/results-export/negative_controls.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:trimmed_ATE&where=negative_control:nc_hypertension&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "final_operators_nc_inconclusive": {
+  "text": "3",
+  "value": 3.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=inconclusive"
+ },
+ "final_operators_nc_inestimable": {
+  "text": "2",
+  "value": 2.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=inestimable"
+ },
+ "final_operators_nc_inside": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=inside"
+ },
+ "final_operators_nc_null_band_upper": {
+  "text": "0.02",
+  "value": 0.02,
+  "source": "writing/results-export/nc_verdict_final_L3.csv#row=1&col=null_band_upper"
+ },
+ "final_operators_nc_outside": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:final&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=outside"
+ },
+ "final_operators_no_probable_match_ate_max_weight": {
+  "text": "13.7",
+  "value": 13.7161124655177,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S4&col=ate_max_weight"
+ },
+ "final_operators_no_probable_match_ato_max_shift": {
+  "text": "0.04",
+  "value": 0.0395743286506565,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S4&where=estimand:ATO&col=max_abs_shift"
+ },
+ "final_operators_no_probable_match_att_ess_comparator": {
+  "text": "329",
+  "value": 329.467349539868,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S4&col=att_ess_comparator"
+ },
+ "final_operators_no_probable_match_att_max_shift": {
+  "text": "0.14",
+  "value": 0.137177066247937,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S4&where=estimand:ATT&col=max_abs_shift"
+ },
+ "final_operators_no_probable_match_c_statistic": {
+  "text": "0.67",
+  "value": 0.671248780258409,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S4&col=c_statistic"
+ },
+ "final_operators_no_probable_match_comparator_before_complete_case": {
+  "text": "604",
+  "value": 604.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S4.csv#where=arm:comparator&col=patients"
+ },
+ "final_operators_no_probable_match_comparator_disposition_not_recorded": {
+  "text": "0.3%",
+  "value": 0.0033,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S4.csv#where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_operators_no_probable_match_comparator_n_disposition_not_recorded": {
+  "text": "2",
+  "value": 2.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S4&where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_operators_no_probable_match_comparator_n_six_month_not_recorded": {
+  "text": "136",
+  "value": 136.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S4&where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_operators_no_probable_match_comparator_six_month_not_recorded": {
+  "text": "22.5%",
+  "value": 0.2252,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S4.csv#where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_operators_no_probable_match_n": {
+  "text": "1,195",
+  "value": 1195.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S4&col=n"
+ },
+ "final_operators_no_probable_match_n_comparator": {
+  "text": "468",
+  "value": 468.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S4&col=n_comparator"
+ },
+ "final_operators_no_probable_match_n_outside": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S4&col=outside"
+ },
+ "final_operators_no_probable_match_n_outside_comparator": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S4&col=outside_comparator"
+ },
+ "final_operators_no_probable_match_n_outside_treated": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S4&col=outside_treated"
+ },
+ "final_operators_no_probable_match_n_treated": {
+  "text": "727",
+  "value": 727.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S4&col=n_treated"
+ },
+ "final_operators_no_probable_match_share_outside_band": {
+  "text": "0.0%",
+  "value": 0.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S4&col=share_outside_band"
+ },
+ "final_operators_no_probable_match_treated_before_complete_case": {
+  "text": "978",
+  "value": 978.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S4.csv#where=arm:treated&col=patients"
+ },
+ "final_operators_no_probable_match_treated_disposition_not_recorded": {
+  "text": "1.0%",
+  "value": 0.0102,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S4.csv#where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_operators_no_probable_match_treated_n_disposition_not_recorded": {
+  "text": "10",
+  "value": 10.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S4&where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_operators_no_probable_match_treated_n_six_month_not_recorded": {
+  "text": "251",
+  "value": 251.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S4&where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_operators_no_probable_match_treated_six_month_not_recorded": {
+  "text": "25.7%",
+  "value": 0.2566,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S4.csv#where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_operators_no_probable_match_trimmed_ate_max_shift": {
+  "text": "0.00",
+  "value": 0.0,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S4&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "final_operators_no_probable_match_trimmed_kept_comparator": {
+  "text": "468",
+  "value": 468.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S4&col=trimmed_kept_comparator"
+ },
+ "final_operators_no_probable_match_trimmed_kept_treated": {
+  "text": "727",
+  "value": 727.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S4&col=trimmed_kept_treated"
+ },
+ "final_operators_no_probable_match_trimmed_share_kept_comparator": {
+  "text": "100.0%",
+  "value": 1.0,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S4&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "final_operators_no_probable_match_trimmed_share_kept_treated": {
+  "text": "100.0%",
+  "value": 1.0,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S4&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "final_operators_share_outside_band": {
+  "text": "0.2%",
+  "value": 0.00166112956810631,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L3&col=share_outside_band"
+ },
+ "final_operators_sim_datasets_ate": {
+  "text": "300",
+  "value": 300.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:final&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATE&col=reps_min"
+ },
+ "final_operators_sim_datasets_ato": {
+  "text": "100",
+  "value": 100.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:final&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATO&col=reps_min"
+ },
+ "final_operators_sim_datasets_att": {
+  "text": "100",
+  "value": 100.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:final&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATT&col=reps_min"
+ },
+ "final_operators_sim_datasets_per_model": {
+  "text": "300",
+  "value": 300.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:final&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATE&col=reps_min"
+ },
+ "final_operators_sim_datasets_trimmed_ate": {
+  "text": "100",
+  "value": 100.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:final&where=lock:L3&where=candidate:sl_t0.01&where=estimand:trimmed_ATE&col=reps_min"
+ },
+ "final_operators_sim_main_terms_ate_bias_mcse_max": {
+  "text": "0.002",
+  "value": 0.00164357314766165,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=bias_mcse_max"
+ },
+ "final_operators_sim_main_terms_ate_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=cells"
+ },
+ "final_operators_sim_main_terms_ate_coverage_lower_min": {
+  "text": "0.88",
+  "value": 0.883726759566526,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=coverage_lower_min"
+ },
+ "final_operators_sim_main_terms_ate_coverage_max": {
+  "text": "0.93",
+  "value": 0.93,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=coverage_max"
+ },
+ "final_operators_sim_main_terms_ate_coverage_min": {
+  "text": "0.92",
+  "value": 0.92,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=coverage_min"
+ },
+ "final_operators_sim_main_terms_ate_coverage_upper_max": {
+  "text": "0.95",
+  "value": 0.953763055172824,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=coverage_upper_max"
+ },
+ "final_operators_sim_main_terms_ate_emp_se_max": {
+  "text": "0.028",
+  "value": 0.0284675219770589,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=emp_se_max"
+ },
+ "final_operators_sim_main_terms_ate_emp_se_min": {
+  "text": "0.027",
+  "value": 0.0268177487643006,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=emp_se_min"
+ },
+ "final_operators_sim_main_terms_ate_halfwidth_max": {
+  "text": "0.0518",
+  "value": 0.0517776439301247,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=halfwidth_max"
+ },
+ "final_operators_sim_main_terms_ate_halfwidth_min": {
+  "text": "0.0493",
+  "value": 0.0493377804689256,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=halfwidth_min"
+ },
+ "final_operators_sim_main_terms_ate_se_mean_max": {
+  "text": "0.026",
+  "value": 0.0264176507010027,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=se_mean_max"
+ },
+ "final_operators_sim_main_terms_ate_se_mean_min": {
+  "text": "0.025",
+  "value": 0.0251727995300402,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=se_mean_min"
+ },
+ "final_operators_sim_main_terms_ate_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=unresolved_cells"
+ },
+ "final_operators_sim_main_terms_ate_worst_bias_max": {
+  "text": "0.011",
+  "value": 0.0105158971742059,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=worst_bias_max"
+ },
+ "final_operators_sim_main_terms_ate_worst_bias_min": {
+  "text": "0.011",
+  "value": 0.0105156904696519,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATE&col=worst_bias_min"
+ },
+ "final_operators_sim_main_terms_ato_bias_mcse_max": {
+  "text": "0.003",
+  "value": 0.00277972822082262,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=bias_mcse_max"
+ },
+ "final_operators_sim_main_terms_ato_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=cells"
+ },
+ "final_operators_sim_main_terms_ato_coverage_lower_min": {
+  "text": "0.83",
+  "value": 0.825634338495086,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=coverage_lower_min"
+ },
+ "final_operators_sim_main_terms_ato_coverage_max": {
+  "text": "0.95",
+  "value": 0.95,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=coverage_max"
+ },
+ "final_operators_sim_main_terms_ato_coverage_min": {
+  "text": "0.90",
+  "value": 0.9,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=coverage_min"
+ },
+ "final_operators_sim_main_terms_ato_coverage_upper_max": {
+  "text": "0.98",
+  "value": 0.978456320845632,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=coverage_upper_max"
+ },
+ "final_operators_sim_main_terms_ato_emp_se_max": {
+  "text": "0.028",
+  "value": 0.0277972822082262,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=emp_se_max"
+ },
+ "final_operators_sim_main_terms_ato_emp_se_min": {
+  "text": "0.026",
+  "value": 0.0257574306331063,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=emp_se_min"
+ },
+ "final_operators_sim_main_terms_ato_halfwidth_max": {
+  "text": "0.0511",
+  "value": 0.0511166522500044,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=halfwidth_max"
+ },
+ "final_operators_sim_main_terms_ato_halfwidth_min": {
+  "text": "0.0488",
+  "value": 0.0487961326208052,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=halfwidth_min"
+ },
+ "final_operators_sim_main_terms_ato_se_mean_max": {
+  "text": "0.026",
+  "value": 0.0260799246173492,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=se_mean_max"
+ },
+ "final_operators_sim_main_terms_ato_se_mean_min": {
+  "text": "0.025",
+  "value": 0.0248959860310231,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=se_mean_min"
+ },
+ "final_operators_sim_main_terms_ato_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=unresolved_cells"
+ },
+ "final_operators_sim_main_terms_ato_worst_bias_max": {
+  "text": "0.011",
+  "value": 0.0109310492175377,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=worst_bias_max"
+ },
+ "final_operators_sim_main_terms_ato_worst_bias_min": {
+  "text": "0.011",
+  "value": 0.0109310492175377,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATO&col=worst_bias_min"
+ },
+ "final_operators_sim_main_terms_att_bias_mcse_max": {
+  "text": "0.003",
+  "value": 0.0030631706617581,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=bias_mcse_max"
+ },
+ "final_operators_sim_main_terms_att_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=cells"
+ },
+ "final_operators_sim_main_terms_att_coverage_lower_min": {
+  "text": "0.83",
+  "value": 0.825634338495086,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=coverage_lower_min"
+ },
+ "final_operators_sim_main_terms_att_coverage_max": {
+  "text": "0.94",
+  "value": 0.94,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=coverage_max"
+ },
+ "final_operators_sim_main_terms_att_coverage_min": {
+  "text": "0.90",
+  "value": 0.9,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=coverage_min"
+ },
+ "final_operators_sim_main_terms_att_coverage_upper_max": {
+  "text": "0.97",
+  "value": 0.972213876036812,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=coverage_upper_max"
+ },
+ "final_operators_sim_main_terms_att_emp_se_max": {
+  "text": "0.031",
+  "value": 0.030631706617581,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=emp_se_max"
+ },
+ "final_operators_sim_main_terms_att_emp_se_min": {
+  "text": "0.028",
+  "value": 0.0279293256147001,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=emp_se_min"
+ },
+ "final_operators_sim_main_terms_att_halfwidth_max": {
+  "text": "0.0551",
+  "value": 0.0551462139606933,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=halfwidth_max"
+ },
+ "final_operators_sim_main_terms_att_halfwidth_min": {
+  "text": "0.0513",
+  "value": 0.0512614960328224,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=halfwidth_min"
+ },
+ "final_operators_sim_main_terms_att_se_mean_max": {
+  "text": "0.028",
+  "value": 0.0281363404611919,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=se_mean_max"
+ },
+ "final_operators_sim_main_terms_att_se_mean_min": {
+  "text": "0.026",
+  "value": 0.0261543050980357,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=se_mean_min"
+ },
+ "final_operators_sim_main_terms_att_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=unresolved_cells"
+ },
+ "final_operators_sim_main_terms_att_worst_bias_max": {
+  "text": "0.010",
+  "value": 0.0104967015921468,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=worst_bias_max"
+ },
+ "final_operators_sim_main_terms_att_worst_bias_min": {
+  "text": "0.010",
+  "value": 0.0104967015921468,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:ATT&col=worst_bias_min"
+ },
+ "final_operators_sim_main_terms_bias_mcse_max": {
+  "text": "0.003",
+  "value": 0.0030631706617581,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=bias_mcse_max"
+ },
+ "final_operators_sim_main_terms_cells": {
+  "text": "32",
+  "value": 32.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=cells"
+ },
+ "final_operators_sim_main_terms_coverage_lower_min": {
+  "text": "0.83",
+  "value": 0.825634338495086,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=coverage_lower_min"
+ },
+ "final_operators_sim_main_terms_coverage_max": {
+  "text": "0.95",
+  "value": 0.95,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=coverage_max"
+ },
+ "final_operators_sim_main_terms_coverage_min": {
+  "text": "0.90",
+  "value": 0.9,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=coverage_min"
+ },
+ "final_operators_sim_main_terms_coverage_upper_max": {
+  "text": "0.98",
+  "value": 0.978456320845632,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=coverage_upper_max"
+ },
+ "final_operators_sim_main_terms_emp_se_max": {
+  "text": "0.031",
+  "value": 0.030631706617581,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=emp_se_max"
+ },
+ "final_operators_sim_main_terms_emp_se_min": {
+  "text": "0.026",
+  "value": 0.0255459283102144,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=emp_se_min"
+ },
+ "final_operators_sim_main_terms_halfwidth_max": {
+  "text": "0.0551",
+  "value": 0.0551462139606933,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=halfwidth_max"
+ },
+ "final_operators_sim_main_terms_halfwidth_min": {
+  "text": "0.0488",
+  "value": 0.0487961326208052,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=halfwidth_min"
+ },
+ "final_operators_sim_main_terms_se_mean_max": {
+  "text": "0.028",
+  "value": 0.0281363404611919,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=se_mean_max"
+ },
+ "final_operators_sim_main_terms_se_mean_min": {
+  "text": "0.025",
+  "value": 0.0248959860310231,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=se_mean_min"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_bias_mcse_max": {
+  "text": "0.003",
+  "value": 0.00279183720037158,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=bias_mcse_max"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=cells"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_coverage_lower_min": {
+  "text": "0.83",
+  "value": 0.825634338495086,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=coverage_lower_min"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_coverage_max": {
+  "text": "0.94",
+  "value": 0.94,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=coverage_max"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_coverage_min": {
+  "text": "0.90",
+  "value": 0.9,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=coverage_min"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_coverage_upper_max": {
+  "text": "0.97",
+  "value": 0.972213876036812,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=coverage_upper_max"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_emp_se_max": {
+  "text": "0.028",
+  "value": 0.0279183720037158,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=emp_se_max"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_emp_se_min": {
+  "text": "0.026",
+  "value": 0.0255459283102144,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=emp_se_min"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_halfwidth_max": {
+  "text": "0.0517",
+  "value": 0.0516559694372408,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=halfwidth_max"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_halfwidth_min": {
+  "text": "0.0492",
+  "value": 0.0491812062768913,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=halfwidth_min"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_se_mean_max": {
+  "text": "0.026",
+  "value": 0.0263555707373689,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=se_mean_max"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_se_mean_min": {
+  "text": "0.025",
+  "value": 0.0250929132702572,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=se_mean_min"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=unresolved_cells"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_worst_bias_max": {
+  "text": "0.011",
+  "value": 0.0113120308786521,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=worst_bias_max"
+ },
+ "final_operators_sim_main_terms_trimmed_ate_worst_bias_min": {
+  "text": "0.011",
+  "value": 0.0113120308786521,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=worst_bias_min"
+ },
+ "final_operators_sim_main_terms_unresolved_cells": {
+  "text": "32",
+  "value": 32.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=unresolved_cells"
+ },
+ "final_operators_sim_main_terms_worst_bias_max": {
+  "text": "0.011",
+  "value": 0.0113120308786521,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=worst_bias_max"
+ },
+ "final_operators_sim_main_terms_worst_bias_min": {
+  "text": "0.010",
+  "value": 0.0104967015921468,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:glm&col=worst_bias_min"
+ },
+ "final_operators_sim_outcome_models": {
+  "text": "4",
+  "value": 4.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:final&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATE&col=models"
+ },
+ "final_operators_sim_super_learner_ate_bias_mcse_max": {
+  "text": "0.002",
+  "value": 0.00161067960648478,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=bias_mcse_max"
+ },
+ "final_operators_sim_super_learner_ate_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=cells"
+ },
+ "final_operators_sim_super_learner_ate_coverage_lower_min": {
+  "text": "0.84",
+  "value": 0.842066856675844,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=coverage_lower_min"
+ },
+ "final_operators_sim_super_learner_ate_coverage_max": {
+  "text": "0.93",
+  "value": 0.933333333333333,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=coverage_max"
+ },
+ "final_operators_sim_super_learner_ate_coverage_min": {
+  "text": "0.88",
+  "value": 0.883333333333333,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=coverage_min"
+ },
+ "final_operators_sim_super_learner_ate_coverage_upper_max": {
+  "text": "0.96",
+  "value": 0.956432484454842,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=coverage_upper_max"
+ },
+ "final_operators_sim_super_learner_ate_emp_se_max": {
+  "text": "0.028",
+  "value": 0.0278977891314668,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=emp_se_max"
+ },
+ "final_operators_sim_super_learner_ate_emp_se_min": {
+  "text": "0.025",
+  "value": 0.0252302013990472,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=emp_se_min"
+ },
+ "final_operators_sim_super_learner_ate_halfwidth_max": {
+  "text": "0.0506",
+  "value": 0.05061193889686,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=halfwidth_max"
+ },
+ "final_operators_sim_super_learner_ate_halfwidth_min": {
+  "text": "0.0474",
+  "value": 0.0473899627086109,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=halfwidth_min"
+ },
+ "final_operators_sim_super_learner_ate_se_mean_max": {
+  "text": "0.026",
+  "value": 0.0258228923062263,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=se_mean_max"
+ },
+ "final_operators_sim_super_learner_ate_se_mean_min": {
+  "text": "0.024",
+  "value": 0.0241789966970908,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=se_mean_min"
+ },
+ "final_operators_sim_super_learner_ate_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=unresolved_cells"
+ },
+ "final_operators_sim_super_learner_ate_worst_bias_max": {
+  "text": "0.018",
+  "value": 0.0180450402129106,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=worst_bias_max"
+ },
+ "final_operators_sim_super_learner_ate_worst_bias_min": {
+  "text": "0.018",
+  "value": 0.0180152167213533,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATE&col=worst_bias_min"
+ },
+ "final_operators_sim_super_learner_ato_bias_mcse_max": {
+  "text": "0.003",
+  "value": 0.0026092878525517,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=bias_mcse_max"
+ },
+ "final_operators_sim_super_learner_ato_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=cells"
+ },
+ "final_operators_sim_super_learner_ato_coverage_lower_min": {
+  "text": "0.78",
+  "value": 0.778628117890362,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=coverage_lower_min"
+ },
+ "final_operators_sim_super_learner_ato_coverage_max": {
+  "text": "0.90",
+  "value": 0.9,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=coverage_max"
+ },
+ "final_operators_sim_super_learner_ato_coverage_min": {
+  "text": "0.86",
+  "value": 0.86,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=coverage_min"
+ },
+ "final_operators_sim_super_learner_ato_coverage_upper_max": {
+  "text": "0.94",
+  "value": 0.944770862939325,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=coverage_upper_max"
+ },
+ "final_operators_sim_super_learner_ato_emp_se_max": {
+  "text": "0.026",
+  "value": 0.026092878525517,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=emp_se_max"
+ },
+ "final_operators_sim_super_learner_ato_emp_se_min": {
+  "text": "0.025",
+  "value": 0.0247389144329657,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=emp_se_min"
+ },
+ "final_operators_sim_super_learner_ato_halfwidth_max": {
+  "text": "0.0497",
+  "value": 0.0497488670352423,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=halfwidth_max"
+ },
+ "final_operators_sim_super_learner_ato_halfwidth_min": {
+  "text": "0.0466",
+  "value": 0.0466379058170642,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=halfwidth_min"
+ },
+ "final_operators_sim_super_learner_ato_se_mean_max": {
+  "text": "0.025",
+  "value": 0.0253820750179808,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=se_mean_max"
+ },
+ "final_operators_sim_super_learner_ato_se_mean_min": {
+  "text": "0.024",
+  "value": 0.0237948499066654,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=se_mean_min"
+ },
+ "final_operators_sim_super_learner_ato_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=unresolved_cells"
+ },
+ "final_operators_sim_super_learner_ato_worst_bias_max": {
+  "text": "0.019",
+  "value": 0.018641533657029,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=worst_bias_max"
+ },
+ "final_operators_sim_super_learner_ato_worst_bias_min": {
+  "text": "0.019",
+  "value": 0.018641533657029,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATO&col=worst_bias_min"
+ },
+ "final_operators_sim_super_learner_att_bias_mcse_max": {
+  "text": "0.003",
+  "value": 0.0029339701460115,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=bias_mcse_max"
+ },
+ "final_operators_sim_super_learner_att_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=cells"
+ },
+ "final_operators_sim_super_learner_att_coverage_lower_min": {
+  "text": "0.81",
+  "value": 0.813687034969197,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=coverage_lower_min"
+ },
+ "final_operators_sim_super_learner_att_coverage_max": {
+  "text": "0.93",
+  "value": 0.93,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=coverage_max"
+ },
+ "final_operators_sim_super_learner_att_coverage_min": {
+  "text": "0.89",
+  "value": 0.89,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=coverage_min"
+ },
+ "final_operators_sim_super_learner_att_coverage_upper_max": {
+  "text": "0.97",
+  "value": 0.965680738932727,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=coverage_upper_max"
+ },
+ "final_operators_sim_super_learner_att_emp_se_max": {
+  "text": "0.029",
+  "value": 0.029339701460115,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=emp_se_max"
+ },
+ "final_operators_sim_super_learner_att_emp_se_min": {
+  "text": "0.026",
+  "value": 0.0263444819970083,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=emp_se_min"
+ },
+ "final_operators_sim_super_learner_att_halfwidth_max": {
+  "text": "0.0541",
+  "value": 0.0540657286897384,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=halfwidth_max"
+ },
+ "final_operators_sim_super_learner_att_halfwidth_min": {
+  "text": "0.0496",
+  "value": 0.0495906644088649,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=halfwidth_min"
+ },
+ "final_operators_sim_super_learner_att_se_mean_max": {
+  "text": "0.028",
+  "value": 0.0275850623359419,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=se_mean_max"
+ },
+ "final_operators_sim_super_learner_att_se_mean_min": {
+  "text": "0.025",
+  "value": 0.0253018243192374,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=se_mean_min"
+ },
+ "final_operators_sim_super_learner_att_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=unresolved_cells"
+ },
+ "final_operators_sim_super_learner_att_worst_bias_max": {
+  "text": "0.015",
+  "value": 0.0153400197819075,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=worst_bias_max"
+ },
+ "final_operators_sim_super_learner_att_worst_bias_min": {
+  "text": "0.015",
+  "value": 0.0153400197819075,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:ATT&col=worst_bias_min"
+ },
+ "final_operators_sim_super_learner_bias_mcse_max": {
+  "text": "0.003",
+  "value": 0.0029339701460115,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=bias_mcse_max"
+ },
+ "final_operators_sim_super_learner_cells": {
+  "text": "32",
+  "value": 32.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=cells"
+ },
+ "final_operators_sim_super_learner_coverage_lower_min": {
+  "text": "0.78",
+  "value": 0.778628117890362,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=coverage_lower_min"
+ },
+ "final_operators_sim_super_learner_coverage_max": {
+  "text": "0.93",
+  "value": 0.933333333333333,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=coverage_max"
+ },
+ "final_operators_sim_super_learner_coverage_min": {
+  "text": "0.86",
+  "value": 0.86,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=coverage_min"
+ },
+ "final_operators_sim_super_learner_coverage_upper_max": {
+  "text": "0.97",
+  "value": 0.965680738932727,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=coverage_upper_max"
+ },
+ "final_operators_sim_super_learner_emp_se_max": {
+  "text": "0.029",
+  "value": 0.029339701460115,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=emp_se_max"
+ },
+ "final_operators_sim_super_learner_emp_se_min": {
+  "text": "0.025",
+  "value": 0.0247389144329657,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=emp_se_min"
+ },
+ "final_operators_sim_super_learner_halfwidth_max": {
+  "text": "0.0541",
+  "value": 0.0540657286897384,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=halfwidth_max"
+ },
+ "final_operators_sim_super_learner_halfwidth_min": {
+  "text": "0.0466",
+  "value": 0.0466379058170642,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=halfwidth_min"
+ },
+ "final_operators_sim_super_learner_se_mean_max": {
+  "text": "0.028",
+  "value": 0.0275850623359419,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=se_mean_max"
+ },
+ "final_operators_sim_super_learner_se_mean_min": {
+  "text": "0.024",
+  "value": 0.0237948499066654,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=se_mean_min"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_bias_mcse_max": {
+  "text": "0.003",
+  "value": 0.002686304009628,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=bias_mcse_max"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=cells"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_coverage_lower_min": {
+  "text": "0.79",
+  "value": 0.790196485599236,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=coverage_lower_min"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_coverage_max": {
+  "text": "0.93",
+  "value": 0.93,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=coverage_max"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_coverage_min": {
+  "text": "0.87",
+  "value": 0.87,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=coverage_min"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_coverage_upper_max": {
+  "text": "0.97",
+  "value": 0.965680738932727,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=coverage_upper_max"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_emp_se_max": {
+  "text": "0.027",
+  "value": 0.02686304009628,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=emp_se_max"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_emp_se_min": {
+  "text": "0.025",
+  "value": 0.0249951531043403,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=emp_se_min"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_halfwidth_max": {
+  "text": "0.0505",
+  "value": 0.0504851580864909,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=halfwidth_max"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_halfwidth_min": {
+  "text": "0.0474",
+  "value": 0.0473820526570662,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=halfwidth_min"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_se_mean_max": {
+  "text": "0.026",
+  "value": 0.0257582070306962,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=se_mean_max"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_se_mean_min": {
+  "text": "0.024",
+  "value": 0.0241749608823477,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=se_mean_min"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=unresolved_cells"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_worst_bias_max": {
+  "text": "0.018",
+  "value": 0.0183908348456983,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=worst_bias_max"
+ },
+ "final_operators_sim_super_learner_trimmed_ate_worst_bias_min": {
+  "text": "0.018",
+  "value": 0.0183908348456983,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:final&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=worst_bias_min"
+ },
+ "final_operators_sim_super_learner_unresolved_cells": {
+  "text": "32",
+  "value": 32.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=unresolved_cells"
+ },
+ "final_operators_sim_super_learner_worst_bias_max": {
+  "text": "0.019",
+  "value": 0.018641533657029,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=worst_bias_max"
+ },
+ "final_operators_sim_super_learner_worst_bias_min": {
+  "text": "0.015",
+  "value": 0.0153400197819075,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:final&where=lock:L3&where=library:sl&col=worst_bias_min"
+ },
+ "final_operators_treated_before_complete_case": {
+  "text": "991",
+  "value": 991.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L3.csv#where=arm:treated&col=patients"
+ },
+ "final_operators_treated_disposition_not_recorded": {
+  "text": "1.0%",
+  "value": 0.0101,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L3.csv#where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_operators_treated_n_disposition_not_recorded": {
+  "text": "10",
+  "value": 10.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L3&where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_operators_treated_n_six_month_not_recorded": {
+  "text": "255",
+  "value": 255.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L3&where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_operators_treated_six_month_not_recorded": {
+  "text": "25.7%",
+  "value": 0.2573,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L3.csv#where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_operators_trimmed_ate_selected_halfwidth": {
+  "text": "0.0517",
+  "value": 0.0516559694372408,
+  "source": "writing/results-export/simulation_verdicts.csv#where=run:final&where=lock:L3&where=estimand:trimmed_ATE&col=ci_halfwidth"
+ },
+ "final_operators_trimmed_ate_selected_truncation": {
+  "text": "0.01",
+  "value": 0.01,
+  "source": "writing/results-export/simulation_verdicts.csv#where=run:final&where=lock:L3&where=estimand:trimmed_ATE&col=truncation"
+ },
+ "final_operators_trimmed_kept_comparator": {
+  "text": "466",
+  "value": 466.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L3&col=trimmed_kept_comparator"
+ },
+ "final_operators_trimmed_kept_treated": {
+  "text": "736",
+  "value": 736.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L3&col=trimmed_kept_treated"
+ },
+ "final_operators_trimmed_share_kept_comparator": {
+  "text": "99.6%",
+  "value": 0.995726495726496,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L3&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "final_operators_trimmed_share_kept_treated": {
+  "text": "100.0%",
+  "value": 1.0,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L3&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "final_protocol_all_arrivals_ate_max_weight": {
+  "text": "248",
+  "value": 248.395342558938,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L1&col=ate_max_weight"
+ },
+ "final_protocol_all_arrivals_ato_max_shift": {
+  "text": "0.39",
+  "value": 0.390022640360463,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L1&where=estimand:ATO&col=max_abs_shift"
+ },
+ "final_protocol_all_arrivals_att_ess_comparator": {
+  "text": "2,404",
+  "value": 2404.0907032418,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L1&col=att_ess_comparator"
+ },
+ "final_protocol_all_arrivals_att_max_shift": {
+  "text": "0.41",
+  "value": 0.409771239950464,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L1&where=estimand:ATT&col=max_abs_shift"
+ },
+ "final_protocol_all_arrivals_c_statistic": {
+  "text": "0.80",
+  "value": 0.799270396462085,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L1&col=c_statistic"
+ },
+ "final_protocol_all_arrivals_comparator_before_complete_case": {
+  "text": "7,264",
+  "value": 7264.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L1.csv#where=arm:comparator&col=patients"
+ },
+ "final_protocol_all_arrivals_comparator_disposition_not_recorded": {
+  "text": "0.5%",
+  "value": 0.0047,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L1.csv#where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_protocol_all_arrivals_comparator_n_disposition_not_recorded": {
+  "text": "34",
+  "value": 34.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L1&where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_protocol_all_arrivals_comparator_n_six_month_not_recorded": {
+  "text": "1,534",
+  "value": 1534.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L1&where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_protocol_all_arrivals_comparator_six_month_not_recorded": {
+  "text": "21.1%",
+  "value": 0.2112,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L1.csv#where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_protocol_all_arrivals_n": {
+  "text": "6,494",
+  "value": 6494.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L1&col=n"
+ },
+ "final_protocol_all_arrivals_n_comparator": {
+  "text": "5,730",
+  "value": 5730.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L1&col=n_comparator"
+ },
+ "final_protocol_all_arrivals_n_outside": {
+  "text": "2,702",
+  "value": 2702.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L1&col=outside"
+ },
+ "final_protocol_all_arrivals_n_outside_comparator": {
+  "text": "2,651",
+  "value": 2651.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L1&col=outside_comparator"
+ },
+ "final_protocol_all_arrivals_n_outside_treated": {
+  "text": "51",
+  "value": 51.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L1&col=outside_treated"
+ },
+ "final_protocol_all_arrivals_n_treated": {
+  "text": "764",
+  "value": 764.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L1&col=n_treated"
+ },
+ "final_protocol_all_arrivals_share_outside_band": {
+  "text": "41.6%",
+  "value": 0.416076378195257,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L1&col=share_outside_band"
+ },
+ "final_protocol_all_arrivals_treated_before_complete_case": {
+  "text": "1,025",
+  "value": 1025.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L1.csv#where=arm:treated&col=patients"
+ },
+ "final_protocol_all_arrivals_treated_disposition_not_recorded": {
+  "text": "1.0%",
+  "value": 0.0098,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L1.csv#where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_protocol_all_arrivals_treated_n_disposition_not_recorded": {
+  "text": "10",
+  "value": 10.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L1&where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_protocol_all_arrivals_treated_n_six_month_not_recorded": {
+  "text": "261",
+  "value": 261.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L1&where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_protocol_all_arrivals_treated_six_month_not_recorded": {
+  "text": "25.5%",
+  "value": 0.2546,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L1.csv#where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_protocol_all_arrivals_trimmed_ate_max_shift": {
+  "text": "0.43",
+  "value": 0.434914942597413,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L1&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "final_protocol_all_arrivals_trimmed_kept_comparator": {
+  "text": "3,079",
+  "value": 3079.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L1&col=trimmed_kept_comparator"
+ },
+ "final_protocol_all_arrivals_trimmed_kept_treated": {
+  "text": "713",
+  "value": 713.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L1&col=trimmed_kept_treated"
+ },
+ "final_protocol_all_arrivals_trimmed_share_kept_comparator": {
+  "text": "53.7%",
+  "value": 0.537347294938918,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L1&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "final_protocol_all_arrivals_trimmed_share_kept_treated": {
+  "text": "93.3%",
+  "value": 0.933246073298429,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L1&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "final_protocol_direct_ate_max_weight": {
+  "text": "257",
+  "value": 256.797348770508,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L2&col=ate_max_weight"
+ },
+ "final_protocol_direct_ato_max_shift": {
+  "text": "0.37",
+  "value": 0.366915294024756,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L2&where=estimand:ATO&col=max_abs_shift"
+ },
+ "final_protocol_direct_att_ess_comparator": {
+  "text": "1,388",
+  "value": 1388.0430154308,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L2&col=att_ess_comparator"
+ },
+ "final_protocol_direct_att_max_shift": {
+  "text": "0.38",
+  "value": 0.381794066080788,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L2&where=estimand:ATT&col=max_abs_shift"
+ },
+ "final_protocol_direct_c_statistic": {
+  "text": "0.78",
+  "value": 0.780234599100623,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L2&col=c_statistic"
+ },
+ "final_protocol_direct_comparator_before_complete_case": {
+  "text": "4,458",
+  "value": 4458.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L2.csv#where=arm:comparator&col=patients"
+ },
+ "final_protocol_direct_comparator_disposition_not_recorded": {
+  "text": "0.4%",
+  "value": 0.0043,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L2.csv#where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_protocol_direct_comparator_n_disposition_not_recorded": {
+  "text": "19",
+  "value": 19.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L2&where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_protocol_direct_comparator_n_six_month_not_recorded": {
+  "text": "987",
+  "value": 987.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L2&where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_protocol_direct_comparator_six_month_not_recorded": {
+  "text": "22.1%",
+  "value": 0.2214,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L2.csv#where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_protocol_direct_n": {
+  "text": "4,207",
+  "value": 4207.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L2&col=n"
+ },
+ "final_protocol_direct_n_comparator": {
+  "text": "3,471",
+  "value": 3471.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L2&col=n_comparator"
+ },
+ "final_protocol_direct_n_outside": {
+  "text": "1,259",
+  "value": 1259.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L2&col=outside"
+ },
+ "final_protocol_direct_n_outside_comparator": {
+  "text": "1,229",
+  "value": 1229.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L2&col=outside_comparator"
+ },
+ "final_protocol_direct_n_outside_treated": {
+  "text": "30",
+  "value": 30.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L2&col=outside_treated"
+ },
+ "final_protocol_direct_n_treated": {
+  "text": "736",
+  "value": 736.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L2&col=n_treated"
+ },
+ "final_protocol_direct_share_outside_band": {
+  "text": "29.9%",
+  "value": 0.299263132873782,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L2&col=share_outside_band"
+ },
+ "final_protocol_direct_treated_before_complete_case": {
+  "text": "991",
+  "value": 991.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L2.csv#where=arm:treated&col=patients"
+ },
+ "final_protocol_direct_treated_disposition_not_recorded": {
+  "text": "1.0%",
+  "value": 0.0101,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L2.csv#where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_protocol_direct_treated_n_disposition_not_recorded": {
+  "text": "10",
+  "value": 10.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L2&where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_protocol_direct_treated_n_six_month_not_recorded": {
+  "text": "255",
+  "value": 255.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L2&where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_protocol_direct_treated_six_month_not_recorded": {
+  "text": "25.7%",
+  "value": 0.2573,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L2.csv#where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_protocol_direct_trimmed_ate_max_shift": {
+  "text": "0.39",
+  "value": 0.390649393628933,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L2&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "final_protocol_direct_trimmed_kept_comparator": {
+  "text": "2,242",
+  "value": 2242.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L2&col=trimmed_kept_comparator"
+ },
+ "final_protocol_direct_trimmed_kept_treated": {
+  "text": "706",
+  "value": 706.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L2&col=trimmed_kept_treated"
+ },
+ "final_protocol_direct_trimmed_share_kept_comparator": {
+  "text": "64.6%",
+  "value": 0.645923365024489,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L2&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "final_protocol_direct_trimmed_share_kept_treated": {
+  "text": "95.9%",
+  "value": 0.959239130434783,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L2&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "final_rescueco_vs_other_means_ate_max_weight": {
+  "text": "722",
+  "value": 722.304031623739,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L4&col=ate_max_weight"
+ },
+ "final_rescueco_vs_other_means_ato_max_shift": {
+  "text": "0.38",
+  "value": 0.381114635970452,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L4&where=estimand:ATO&col=max_abs_shift"
+ },
+ "final_rescueco_vs_other_means_att_ess_comparator": {
+  "text": "994",
+  "value": 993.574628557688,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L4&col=att_ess_comparator"
+ },
+ "final_rescueco_vs_other_means_att_max_shift": {
+  "text": "0.40",
+  "value": 0.39879782333284,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L4&where=estimand:ATT&col=max_abs_shift"
+ },
+ "final_rescueco_vs_other_means_c_statistic": {
+  "text": "0.81",
+  "value": 0.808721622580318,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L4&col=c_statistic"
+ },
+ "final_rescueco_vs_other_means_comparator_before_complete_case": {
+  "text": "3,854",
+  "value": 3854.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L4.csv#where=arm:comparator&col=patients"
+ },
+ "final_rescueco_vs_other_means_comparator_disposition_not_recorded": {
+  "text": "0.4%",
+  "value": 0.0044,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L4.csv#where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_rescueco_vs_other_means_comparator_n_disposition_not_recorded": {
+  "text": "17",
+  "value": 17.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L4&where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_rescueco_vs_other_means_comparator_n_six_month_not_recorded": {
+  "text": "851",
+  "value": 851.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L4&where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_rescueco_vs_other_means_comparator_six_month_not_recorded": {
+  "text": "22.1%",
+  "value": 0.2208,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L4.csv#where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_rescueco_vs_other_means_n": {
+  "text": "3,739",
+  "value": 3739.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L4&col=n"
+ },
+ "final_rescueco_vs_other_means_n_comparator": {
+  "text": "3,003",
+  "value": 3003.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L4&col=n_comparator"
+ },
+ "final_rescueco_vs_other_means_n_outside": {
+  "text": "1,128",
+  "value": 1128.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L4&col=outside"
+ },
+ "final_rescueco_vs_other_means_n_outside_comparator": {
+  "text": "1,108",
+  "value": 1108.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L4&col=outside_comparator"
+ },
+ "final_rescueco_vs_other_means_n_outside_treated": {
+  "text": "20",
+  "value": 20.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:L4&col=outside_treated"
+ },
+ "final_rescueco_vs_other_means_n_treated": {
+  "text": "736",
+  "value": 736.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L4&col=n_treated"
+ },
+ "final_rescueco_vs_other_means_no_walkin_ate_max_weight": {
+  "text": "197",
+  "value": 196.831721579676,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S2&col=ate_max_weight"
+ },
+ "final_rescueco_vs_other_means_no_walkin_ato_max_shift": {
+  "text": "0.36",
+  "value": 0.364872261488182,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S2&where=estimand:ATO&col=max_abs_shift"
+ },
+ "final_rescueco_vs_other_means_no_walkin_att_ess_comparator": {
+  "text": "1,003",
+  "value": 1002.92544497765,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S2&col=att_ess_comparator"
+ },
+ "final_rescueco_vs_other_means_no_walkin_att_max_shift": {
+  "text": "0.39",
+  "value": 0.385373592437837,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S2&where=estimand:ATT&col=max_abs_shift"
+ },
+ "final_rescueco_vs_other_means_no_walkin_c_statistic": {
+  "text": "0.80",
+  "value": 0.800625039641011,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S2&col=c_statistic"
+ },
+ "final_rescueco_vs_other_means_no_walkin_comparator_before_complete_case": {
+  "text": "3,498",
+  "value": 3498.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S2.csv#where=arm:comparator&col=patients"
+ },
+ "final_rescueco_vs_other_means_no_walkin_comparator_disposition_not_recorded": {
+  "text": "0.4%",
+  "value": 0.004,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S2.csv#where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_rescueco_vs_other_means_no_walkin_comparator_n_disposition_not_recorded": {
+  "text": "14",
+  "value": 14.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S2&where=arm:comparator&col=disposition_not_recorded"
+ },
+ "final_rescueco_vs_other_means_no_walkin_comparator_n_six_month_not_recorded": {
+  "text": "756",
+  "value": 756.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S2&where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_rescueco_vs_other_means_no_walkin_comparator_six_month_not_recorded": {
+  "text": "21.6%",
+  "value": 0.2161,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S2.csv#where=arm:comparator&col=six_month_not_recorded"
+ },
+ "final_rescueco_vs_other_means_no_walkin_n": {
+  "text": "3,478",
+  "value": 3478.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S2&col=n"
+ },
+ "final_rescueco_vs_other_means_no_walkin_n_comparator": {
+  "text": "2,742",
+  "value": 2742.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S2&col=n_comparator"
+ },
+ "final_rescueco_vs_other_means_no_walkin_n_outside": {
+  "text": "911",
+  "value": 911.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S2&col=outside"
+ },
+ "final_rescueco_vs_other_means_no_walkin_n_outside_comparator": {
+  "text": "896",
+  "value": 896.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S2&col=outside_comparator"
+ },
+ "final_rescueco_vs_other_means_no_walkin_n_outside_treated": {
+  "text": "15",
+  "value": 15.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:final&where=lock:S2&col=outside_treated"
+ },
+ "final_rescueco_vs_other_means_no_walkin_n_treated": {
+  "text": "736",
+  "value": 736.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S2&col=n_treated"
+ },
+ "final_rescueco_vs_other_means_no_walkin_share_outside_band": {
+  "text": "26.2%",
+  "value": 0.261932144910868,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S2&col=share_outside_band"
+ },
+ "final_rescueco_vs_other_means_no_walkin_treated_before_complete_case": {
+  "text": "991",
+  "value": 991.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S2.csv#where=arm:treated&col=patients"
+ },
+ "final_rescueco_vs_other_means_no_walkin_treated_disposition_not_recorded": {
+  "text": "1.0%",
+  "value": 0.0101,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S2.csv#where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_rescueco_vs_other_means_no_walkin_treated_n_disposition_not_recorded": {
+  "text": "10",
+  "value": 10.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S2&where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_rescueco_vs_other_means_no_walkin_treated_n_six_month_not_recorded": {
+  "text": "255",
+  "value": 255.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:S2&where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_rescueco_vs_other_means_no_walkin_treated_six_month_not_recorded": {
+  "text": "25.7%",
+  "value": 0.2573,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_S2.csv#where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_rescueco_vs_other_means_no_walkin_trimmed_ate_max_shift": {
+  "text": "0.39",
+  "value": 0.388104076007039,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S2&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "final_rescueco_vs_other_means_no_walkin_trimmed_kept_comparator": {
+  "text": "1,846",
+  "value": 1846.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S2&col=trimmed_kept_comparator"
+ },
+ "final_rescueco_vs_other_means_no_walkin_trimmed_kept_treated": {
+  "text": "721",
+  "value": 721.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:S2&col=trimmed_kept_treated"
+ },
+ "final_rescueco_vs_other_means_no_walkin_trimmed_share_kept_comparator": {
+  "text": "67.3%",
+  "value": 0.673231218088986,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S2&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "final_rescueco_vs_other_means_no_walkin_trimmed_share_kept_treated": {
+  "text": "98.0%",
+  "value": 0.979619565217391,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:S2&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "final_rescueco_vs_other_means_share_outside_band": {
+  "text": "30.2%",
+  "value": 0.301684942497994,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L4&col=share_outside_band"
+ },
+ "final_rescueco_vs_other_means_treated_before_complete_case": {
+  "text": "991",
+  "value": 991.0,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L4.csv#where=arm:treated&col=patients"
+ },
+ "final_rescueco_vs_other_means_treated_disposition_not_recorded": {
+  "text": "1.0%",
+  "value": 0.0101,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L4.csv#where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_rescueco_vs_other_means_treated_n_disposition_not_recorded": {
+  "text": "10",
+  "value": 10.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L4&where=arm:treated&col=disposition_not_recorded"
+ },
+ "final_rescueco_vs_other_means_treated_n_six_month_not_recorded": {
+  "text": "255",
+  "value": 255.0,
+  "source": "writing/results-export/loss_counts.csv#where=lock:L4&where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_rescueco_vs_other_means_treated_six_month_not_recorded": {
+  "text": "25.7%",
+  "value": 0.2573,
+  "source": "rescueCo/results/reexec_050/final/loss_by_arm_L4.csv#where=arm:treated&col=six_month_not_recorded"
+ },
+ "final_rescueco_vs_other_means_trimmed_ate_max_shift": {
+  "text": "0.41",
+  "value": 0.408202318539276,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L4&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "final_rescueco_vs_other_means_trimmed_kept_comparator": {
+  "text": "1,895",
+  "value": 1895.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L4&col=trimmed_kept_comparator"
+ },
+ "final_rescueco_vs_other_means_trimmed_kept_treated": {
+  "text": "716",
+  "value": 716.0,
+  "source": "rescueCo/results/reexec_050/final/design/design_summary.csv#where=lock:L4&col=trimmed_kept_treated"
+ },
+ "final_rescueco_vs_other_means_trimmed_share_kept_comparator": {
+  "text": "63.1%",
+  "value": 0.631035631035631,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L4&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "final_rescueco_vs_other_means_trimmed_share_kept_treated": {
+  "text": "97.3%",
+  "value": 0.972826086956522,
+  "source": "writing/results-export/population_gate.csv#where=run:final&where=lock:L4&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "first_four_months_ambulance_vs_other_means_ate_max_weight": {
+  "text": "74.1",
+  "value": 74.0706740989575,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L5&col=ate_max_weight"
+ },
+ "first_four_months_ambulance_vs_other_means_ato_max_shift": {
+  "text": "0.33",
+  "value": 0.325655935922319,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L5&where=estimand:ATO&col=max_abs_shift"
+ },
+ "first_four_months_ambulance_vs_other_means_att_ess_comparator": {
+  "text": "316",
+  "value": 315.81956180319,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L5&col=att_ess_comparator"
+ },
+ "first_four_months_ambulance_vs_other_means_att_max_shift": {
+  "text": "0.41",
+  "value": 0.411014167867349,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L5&where=estimand:ATT&col=max_abs_shift"
+ },
+ "first_four_months_ambulance_vs_other_means_c_statistic": {
+  "text": "0.75",
+  "value": 0.752047721743565,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L5&col=c_statistic"
+ },
+ "first_four_months_ambulance_vs_other_means_n": {
+  "text": "1,059",
+  "value": 1059.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L5&col=n"
+ },
+ "first_four_months_ambulance_vs_other_means_n_comparator": {
+  "text": "833",
+  "value": 833.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L5&col=n_comparator"
+ },
+ "first_four_months_ambulance_vs_other_means_n_outside": {
+  "text": "154",
+  "value": 154.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L5&col=outside"
+ },
+ "first_four_months_ambulance_vs_other_means_n_outside_comparator": {
+  "text": "147",
+  "value": 147.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L5&col=outside_comparator"
+ },
+ "first_four_months_ambulance_vs_other_means_n_outside_treated": {
+  "text": "7",
+  "value": 7.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L5&col=outside_treated"
+ },
+ "first_four_months_ambulance_vs_other_means_n_treated": {
+  "text": "226",
+  "value": 226.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L5&col=n_treated"
+ },
+ "first_four_months_ambulance_vs_other_means_share_outside_band": {
+  "text": "14.5%",
+  "value": 0.145420207743154,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L5&col=share_outside_band"
+ },
+ "first_four_months_ambulance_vs_other_means_trimmed_ate_max_shift": {
+  "text": "0.24",
+  "value": 0.239167695350218,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L5&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "first_four_months_ambulance_vs_other_means_trimmed_kept_comparator": {
+  "text": "686",
+  "value": 686.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L5&col=trimmed_kept_comparator"
+ },
+ "first_four_months_ambulance_vs_other_means_trimmed_kept_treated": {
+  "text": "219",
+  "value": 219.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L5&col=trimmed_kept_treated"
+ },
+ "first_four_months_ambulance_vs_other_means_trimmed_share_kept_comparator": {
+  "text": "82.4%",
+  "value": 0.823529411764706,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L5&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "first_four_months_ambulance_vs_other_means_trimmed_share_kept_treated": {
+  "text": "96.9%",
+  "value": 0.969026548672566,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L5&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "first_four_months_count_ambulance_operator_unknown": {
+  "text": "3",
+  "value": 3.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:ambulance_operator_unknown&col=n"
+ },
+ "first_four_months_count_arm_other_means": {
+  "text": "1,324",
+  "value": 1324.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:arm_other_means&col=n"
+ },
+ "first_four_months_count_arm_other_operator": {
+  "text": "221",
+  "value": 221.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:arm_other_operator&col=n"
+ },
+ "first_four_months_count_arm_rescueco": {
+  "text": "116",
+  "value": 116.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:arm_rescueco&col=n"
+ },
+ "first_four_months_count_arm_unknown": {
+  "text": "4",
+  "value": 4.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:arm_unknown&col=n"
+ },
+ "first_four_months_count_arrival_state_columns": {
+  "text": "9",
+  "value": 9.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:arrival_state_columns&col=n"
+ },
+ "first_four_months_count_covariate_columns": {
+  "text": "67",
+  "value": 67.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:covariate_columns&col=n"
+ },
+ "first_four_months_count_patients": {
+  "text": "1,665",
+  "value": 1665.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:patients&col=n"
+ },
+ "first_four_months_count_rescueco_no_dispatch_record": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:rescueco_no_dispatch_record&col=n"
+ },
+ "first_four_months_count_rescueco_probable_match": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:rescueco_probable_match&col=n"
+ },
+ "first_four_months_count_rescueco_probable_match_direct": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:rescueco_probable_match_direct&col=n"
+ },
+ "first_four_months_count_rescueco_probable_match_direct_followed": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:rescueco_probable_match_direct_followed&col=n"
+ },
+ "first_four_months_count_transfer_or_prior_care": {
+  "text": "603",
+  "value": 603.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:transfer_or_prior_care&col=n"
+ },
+ "first_four_months_count_walked_in": {
+  "text": "148",
+  "value": 148.0,
+  "source": "writing/results-export/cohort_counts.csv#where=run:first4m&where=item:walked_in&col=n"
+ },
+ "first_four_months_operators_ate_max_weight": {
+  "text": "4.2",
+  "value": 4.23187564998952,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L3&col=ate_max_weight"
+ },
+ "first_four_months_operators_ato_max_shift": {
+  "text": "0.02",
+  "value": 0.0199755700557472,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L3&where=estimand:ATO&col=max_abs_shift"
+ },
+ "first_four_months_operators_att_ess_comparator": {
+  "text": "89",
+  "value": 88.5504702616715,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L3&col=att_ess_comparator"
+ },
+ "first_four_months_operators_att_max_shift": {
+  "text": "0.17",
+  "value": 0.168226583569801,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L3&where=estimand:ATT&col=max_abs_shift"
+ },
+ "first_four_months_operators_c_statistic": {
+  "text": "0.58",
+  "value": 0.579981180898612,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L3&col=c_statistic"
+ },
+ "first_four_months_operators_expected_events_control_max": {
+  "text": "25",
+  "value": 24.7862730146941,
+  "source": "writing/results-export/expected_events_range.csv#where=run:first4m&where=lock:L3&col=control_max"
+ },
+ "first_four_months_operators_expected_events_control_min": {
+  "text": "21",
+  "value": 20.5217025936196,
+  "source": "writing/results-export/expected_events_range.csv#where=run:first4m&where=lock:L3&col=control_min"
+ },
+ "first_four_months_operators_expected_events_treated_max": {
+  "text": "45",
+  "value": 45.3080509518018,
+  "source": "writing/results-export/expected_events_range.csv#where=run:first4m&where=lock:L3&col=treated_max"
+ },
+ "first_four_months_operators_expected_events_treated_min": {
+  "text": "35",
+  "value": 34.8733403175423,
+  "source": "writing/results-export/expected_events_range.csv#where=run:first4m&where=lock:L3&col=treated_min"
+ },
+ "first_four_months_operators_n": {
+  "text": "226",
+  "value": 226.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L3&col=n"
+ },
+ "first_four_months_operators_n_comparator": {
+  "text": "117",
+  "value": 117.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L3&col=n_comparator"
+ },
+ "first_four_months_operators_n_outside": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L3&col=outside"
+ },
+ "first_four_months_operators_n_outside_comparator": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L3&col=outside_comparator"
+ },
+ "first_four_months_operators_n_outside_treated": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L3&col=outside_treated"
+ },
+ "first_four_months_operators_n_treated": {
+  "text": "109",
+  "value": 109.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L3&col=n_treated"
+ },
+ "first_four_months_operators_nc_controls": {
+  "text": "5",
+  "value": 5.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=controls"
+ },
+ "first_four_months_operators_nc_cooking_wood_charcoal_ate": {
+  "text": "-0.050 (95% CI: -0.135, 0.034)",
+  "value": -0.0504361542013313,
+  "lower": -0.135225396356138,
+  "upper": 0.0343530879534753,
+  "source": "writing/results-export/negative_controls.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:ATE&where=negative_control:nc_cooking_wood_charcoal&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "first_four_months_operators_nc_cooking_wood_charcoal_ato": {
+  "text": "-0.050 (95% CI: -0.136, 0.036)",
+  "value": -0.0502964068990706,
+  "lower": -0.136205724287839,
+  "upper": 0.0356129104896981,
+  "source": "writing/results-export/negative_controls.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:ATO&where=negative_control:nc_cooking_wood_charcoal&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "first_four_months_operators_nc_cooking_wood_charcoal_att": {
+  "text": "-0.063 (95% CI: -0.162, 0.035)",
+  "value": -0.0634306825269503,
+  "lower": -0.162013237756184,
+  "upper": 0.0351518727022834,
+  "source": "writing/results-export/negative_controls.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:ATT&where=negative_control:nc_cooking_wood_charcoal&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "first_four_months_operators_nc_cooking_wood_charcoal_trimmed_ate": {
+  "text": "-0.050 (95% CI: -0.135, 0.034)",
+  "value": -0.0504361542013313,
+  "lower": -0.135225396356138,
+  "upper": 0.0343530879534753,
+  "source": "writing/results-export/negative_controls.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:trimmed_ATE&where=negative_control:nc_cooking_wood_charcoal&col=estimate&lower_col=ci_lower&upper_col=ci_upper"
+ },
+ "first_four_months_operators_nc_estimated": {
+  "text": "1",
+  "value": 1.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=estimated"
+ },
+ "first_four_months_operators_nc_inconclusive": {
+  "text": "1",
+  "value": 1.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=inconclusive"
+ },
+ "first_four_months_operators_nc_inestimable": {
+  "text": "4",
+  "value": 4.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=inestimable"
+ },
+ "first_four_months_operators_nc_inside": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=inside"
+ },
+ "first_four_months_operators_nc_null_band_upper": {
+  "text": "0.02",
+  "value": 0.02,
+  "source": "writing/results-export/nc_verdict_first4m_L3.csv#row=1&col=null_band_upper"
+ },
+ "first_four_months_operators_nc_outside": {
+  "text": "0",
+  "value": 0.0,
+  "source": "writing/results-export/negative_controls_summary.csv#where=run:first4m&where=lock:L3&where=rung:full cohort&where=estimand:ATE&col=outside"
+ },
+ "first_four_months_operators_share_outside_band": {
+  "text": "0.0%",
+  "value": 0.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L3&col=share_outside_band"
+ },
+ "first_four_months_operators_sim_datasets_ate": {
+  "text": "100",
+  "value": 100.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:first4m&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATE&col=reps_min"
+ },
+ "first_four_months_operators_sim_datasets_ato": {
+  "text": "100",
+  "value": 100.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:first4m&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATO&col=reps_min"
+ },
+ "first_four_months_operators_sim_datasets_att": {
+  "text": "100",
+  "value": 100.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:first4m&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATT&col=reps_min"
+ },
+ "first_four_months_operators_sim_datasets_per_model": {
+  "text": "100",
+  "value": 100.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:first4m&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATE&col=reps_min"
+ },
+ "first_four_months_operators_sim_datasets_trimmed_ate": {
+  "text": "100",
+  "value": 100.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:first4m&where=lock:L3&where=candidate:sl_t0.01&where=estimand:trimmed_ATE&col=reps_min"
+ },
+ "first_four_months_operators_sim_main_terms_ate_bias_mcse_max": {
+  "text": "0.023",
+  "value": 0.0234921040864101,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_main_terms_ate_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=cells"
+ },
+ "first_four_months_operators_sim_main_terms_ate_coverage_lower_min": {
+  "text": "0.43",
+  "value": 0.432888569700994,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_main_terms_ate_coverage_max": {
+  "text": "0.69",
+  "value": 0.69,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=coverage_max"
+ },
+ "first_four_months_operators_sim_main_terms_ate_coverage_min": {
+  "text": "0.53",
+  "value": 0.53,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=coverage_min"
+ },
+ "first_four_months_operators_sim_main_terms_ate_coverage_upper_max": {
+  "text": "0.77",
+  "value": 0.772203027876239,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_main_terms_ate_emp_se_max": {
+  "text": "0.235",
+  "value": 0.234921040864101,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_main_terms_ate_emp_se_min": {
+  "text": "0.166",
+  "value": 0.165636897691076,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_main_terms_ate_halfwidth_max": {
+  "text": "0.156",
+  "value": 0.155681593522234,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_main_terms_ate_halfwidth_min": {
+  "text": "0.143",
+  "value": 0.14293093317767,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_main_terms_ate_se_mean_max": {
+  "text": "0.079",
+  "value": 0.0794308440105179,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_main_terms_ate_se_mean_min": {
+  "text": "0.073",
+  "value": 0.073289706884974,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_main_terms_ate_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_main_terms_ate_worst_bias_max": {
+  "text": "0.059",
+  "value": 0.0587723059818658,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_main_terms_ate_worst_bias_min": {
+  "text": "0.050",
+  "value": 0.0504143475406035,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATE&col=worst_bias_min"
+ },
+ "first_four_months_operators_sim_main_terms_ato_bias_mcse_max": {
+  "text": "0.009",
+  "value": 0.00908853729835839,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_main_terms_ato_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=cells"
+ },
+ "first_four_months_operators_sim_main_terms_ato_coverage_lower_min": {
+  "text": "0.77",
+  "value": 0.767164404091676,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_main_terms_ato_coverage_max": {
+  "text": "0.97",
+  "value": 0.97,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=coverage_max"
+ },
+ "first_four_months_operators_sim_main_terms_ato_coverage_min": {
+  "text": "0.85",
+  "value": 0.85,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=coverage_min"
+ },
+ "first_four_months_operators_sim_main_terms_ato_coverage_upper_max": {
+  "text": "0.99",
+  "value": 0.989745475975961,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_main_terms_ato_emp_se_max": {
+  "text": "0.091",
+  "value": 0.0908853729835839,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_main_terms_ato_emp_se_min": {
+  "text": "0.077",
+  "value": 0.076668490031136,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_main_terms_ato_halfwidth_max": {
+  "text": "0.165",
+  "value": 0.16523212787014,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_main_terms_ato_halfwidth_min": {
+  "text": "0.152",
+  "value": 0.15207052046012,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_main_terms_ato_se_mean_max": {
+  "text": "0.084",
+  "value": 0.0843021060561937,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_main_terms_ato_se_mean_min": {
+  "text": "0.078",
+  "value": 0.077587000234755,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_main_terms_ato_unresolved_cells": {
+  "text": "6",
+  "value": 6.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_main_terms_ato_worst_bias_max": {
+  "text": "0.050",
+  "value": 0.0501878880502043,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_main_terms_ato_worst_bias_min": {
+  "text": "0.050",
+  "value": 0.0501878880502043,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATO&col=worst_bias_min"
+ },
+ "first_four_months_operators_sim_main_terms_att_bias_mcse_max": {
+  "text": "0.009",
+  "value": 0.00873942567083531,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_main_terms_att_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=cells"
+ },
+ "first_four_months_operators_sim_main_terms_att_coverage_lower_min": {
+  "text": "0.93",
+  "value": 0.929988209271456,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_main_terms_att_coverage_max": {
+  "text": "1.00",
+  "value": 1.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=coverage_max"
+ },
+ "first_four_months_operators_sim_main_terms_att_coverage_min": {
+  "text": "0.98",
+  "value": 0.98,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=coverage_min"
+ },
+ "first_four_months_operators_sim_main_terms_att_coverage_upper_max": {
+  "text": "1.00",
+  "value": 1.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_main_terms_att_emp_se_max": {
+  "text": "0.087",
+  "value": 0.0873942567083531,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_main_terms_att_emp_se_min": {
+  "text": "0.051",
+  "value": 0.0512126693695979,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_main_terms_att_halfwidth_max": {
+  "text": "0.227",
+  "value": 0.227210619632775,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_main_terms_att_halfwidth_min": {
+  "text": "0.195",
+  "value": 0.195132779067996,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_main_terms_att_se_mean_max": {
+  "text": "0.116",
+  "value": 0.115925915692831,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_main_terms_att_se_mean_min": {
+  "text": "0.100",
+  "value": 0.0995593697675968,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_main_terms_att_unresolved_cells": {
+  "text": "4",
+  "value": 4.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_main_terms_att_worst_bias_max": {
+  "text": "0.067",
+  "value": 0.0670902980034328,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_main_terms_att_worst_bias_min": {
+  "text": "0.067",
+  "value": 0.0670430186039801,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:ATT&col=worst_bias_min"
+ },
+ "first_four_months_operators_sim_main_terms_bias_mcse_max": {
+  "text": "0.023",
+  "value": 0.0234921040864101,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_main_terms_cells": {
+  "text": "32",
+  "value": 32.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=cells"
+ },
+ "first_four_months_operators_sim_main_terms_coverage_lower_min": {
+  "text": "0.43",
+  "value": 0.432888569700994,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_main_terms_coverage_max": {
+  "text": "1.00",
+  "value": 1.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=coverage_max"
+ },
+ "first_four_months_operators_sim_main_terms_coverage_min": {
+  "text": "0.53",
+  "value": 0.53,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=coverage_min"
+ },
+ "first_four_months_operators_sim_main_terms_coverage_upper_max": {
+  "text": "1.00",
+  "value": 1.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_main_terms_emp_se_max": {
+  "text": "0.235",
+  "value": 0.234921040864101,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_main_terms_emp_se_min": {
+  "text": "0.051",
+  "value": 0.0512126693695979,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_main_terms_halfwidth_max": {
+  "text": "0.227",
+  "value": 0.227210619632775,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_main_terms_halfwidth_min": {
+  "text": "0.141",
+  "value": 0.141376371311913,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_main_terms_se_mean_max": {
+  "text": "0.116",
+  "value": 0.115925915692831,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_main_terms_se_mean_min": {
+  "text": "0.072",
+  "value": 0.072496548501443,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_bias_mcse_max": {
+  "text": "0.023",
+  "value": 0.022857635491775,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=cells"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_coverage_lower_min": {
+  "text": "0.46",
+  "value": 0.46228104651677,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_coverage_max": {
+  "text": "0.67",
+  "value": 0.67,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=coverage_max"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_coverage_min": {
+  "text": "0.56",
+  "value": 0.56,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=coverage_min"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_coverage_upper_max": {
+  "text": "0.75",
+  "value": 0.75436877265872,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_emp_se_max": {
+  "text": "0.229",
+  "value": 0.22857635491775,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_emp_se_min": {
+  "text": "0.167",
+  "value": 0.167391754404474,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_halfwidth_max": {
+  "text": "0.151",
+  "value": 0.150757392553411,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_halfwidth_min": {
+  "text": "0.141",
+  "value": 0.141376371311913,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_se_mean_max": {
+  "text": "0.077",
+  "value": 0.0769184504116228,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_se_mean_min": {
+  "text": "0.072",
+  "value": 0.072496548501443,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_worst_bias_max": {
+  "text": "0.056",
+  "value": 0.0558903844755227,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_main_terms_trimmed_ate_worst_bias_min": {
+  "text": "0.056",
+  "value": 0.0558903844755227,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:glm&where=estimand:trimmed_ATE&col=worst_bias_min"
+ },
+ "first_four_months_operators_sim_main_terms_unresolved_cells": {
+  "text": "26",
+  "value": 26.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_main_terms_worst_bias_max": {
+  "text": "0.067",
+  "value": 0.0670902980034328,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_main_terms_worst_bias_min": {
+  "text": "0.050",
+  "value": 0.0501878880502043,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:glm&col=worst_bias_min"
+ },
+ "first_four_months_operators_sim_outcome_models": {
+  "text": "4",
+  "value": 4.0,
+  "source": "writing/results-export/simulation_summary.csv#where=run:first4m&where=lock:L3&where=candidate:sl_t0.01&where=estimand:ATE&col=models"
+ },
+ "first_four_months_operators_sim_super_learner_ate_bias_mcse_max": {
+  "text": "0.006",
+  "value": 0.00606131810902582,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_super_learner_ate_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=cells"
+ },
+ "first_four_months_operators_sim_super_learner_ate_coverage_lower_min": {
+  "text": "0.88",
+  "value": 0.875231845541041,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_super_learner_ate_coverage_max": {
+  "text": "0.96",
+  "value": 0.96,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=coverage_max"
+ },
+ "first_four_months_operators_sim_super_learner_ate_coverage_min": {
+  "text": "0.94",
+  "value": 0.94,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=coverage_min"
+ },
+ "first_four_months_operators_sim_super_learner_ate_coverage_upper_max": {
+  "text": "0.98",
+  "value": 0.984336696008452,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_super_learner_ate_emp_se_max": {
+  "text": "0.061",
+  "value": 0.0606131810902582,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_super_learner_ate_emp_se_min": {
+  "text": "0.059",
+  "value": 0.0587197569814183,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_super_learner_ate_halfwidth_max": {
+  "text": "0.129",
+  "value": 0.129297405679304,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_super_learner_ate_halfwidth_min": {
+  "text": "0.123",
+  "value": 0.123342995608965,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_super_learner_ate_se_mean_max": {
+  "text": "0.066",
+  "value": 0.0659692763230269,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_super_learner_ate_se_mean_min": {
+  "text": "0.063",
+  "value": 0.0629312561770923,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_super_learner_ate_unresolved_cells": {
+  "text": "6",
+  "value": 6.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_super_learner_ate_worst_bias_max": {
+  "text": "0.024",
+  "value": 0.0237032930085989,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_super_learner_ate_worst_bias_min": {
+  "text": "0.023",
+  "value": 0.0233343674202618,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATE&col=worst_bias_min"
+ },
+ "first_four_months_operators_sim_super_learner_ato_bias_mcse_max": {
+  "text": "0.006",
+  "value": 0.00608592522993797,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_super_learner_ato_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=cells"
+ },
+ "first_four_months_operators_sim_super_learner_ato_coverage_lower_min": {
+  "text": "0.86",
+  "value": 0.862504852609265,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_super_learner_ato_coverage_max": {
+  "text": "0.95",
+  "value": 0.95,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=coverage_max"
+ },
+ "first_four_months_operators_sim_super_learner_ato_coverage_min": {
+  "text": "0.93",
+  "value": 0.93,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=coverage_min"
+ },
+ "first_four_months_operators_sim_super_learner_ato_coverage_upper_max": {
+  "text": "0.98",
+  "value": 0.978456320845632,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_super_learner_ato_emp_se_max": {
+  "text": "0.061",
+  "value": 0.0608592522993797,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_super_learner_ato_emp_se_min": {
+  "text": "0.059",
+  "value": 0.0592038325096123,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_super_learner_ato_halfwidth_max": {
+  "text": "0.122",
+  "value": 0.122245519793108,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_super_learner_ato_halfwidth_min": {
+  "text": "0.119",
+  "value": 0.118765508575827,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_super_learner_ato_se_mean_max": {
+  "text": "0.062",
+  "value": 0.062370163159749,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_super_learner_ato_se_mean_min": {
+  "text": "0.061",
+  "value": 0.0605946472325647,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_super_learner_ato_unresolved_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_super_learner_ato_worst_bias_max": {
+  "text": "0.027",
+  "value": 0.0270121936345164,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_super_learner_ato_worst_bias_min": {
+  "text": "0.027",
+  "value": 0.0270121936345164,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATO&col=worst_bias_min"
+ },
+ "first_four_months_operators_sim_super_learner_att_bias_mcse_max": {
+  "text": "0.006",
+  "value": 0.00647453622826611,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_super_learner_att_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=cells"
+ },
+ "first_four_months_operators_sim_super_learner_att_coverage_lower_min": {
+  "text": "0.86",
+  "value": 0.862504852609265,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_super_learner_att_coverage_max": {
+  "text": "0.96",
+  "value": 0.96,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=coverage_max"
+ },
+ "first_four_months_operators_sim_super_learner_att_coverage_min": {
+  "text": "0.93",
+  "value": 0.93,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=coverage_min"
+ },
+ "first_four_months_operators_sim_super_learner_att_coverage_upper_max": {
+  "text": "0.98",
+  "value": 0.984336696008452,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_super_learner_att_emp_se_max": {
+  "text": "0.065",
+  "value": 0.0647453622826611,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_super_learner_att_emp_se_min": {
+  "text": "0.060",
+  "value": 0.0602175030975525,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_super_learner_att_halfwidth_max": {
+  "text": "0.147",
+  "value": 0.146719724008418,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_super_learner_att_halfwidth_min": {
+  "text": "0.130",
+  "value": 0.12986808250965,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_super_learner_att_se_mean_max": {
+  "text": "0.075",
+  "value": 0.0748583775853659,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_super_learner_att_se_mean_min": {
+  "text": "0.066",
+  "value": 0.0662604433214248,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_super_learner_att_unresolved_cells": {
+  "text": "4",
+  "value": 4.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_super_learner_att_worst_bias_max": {
+  "text": "0.020",
+  "value": 0.0199636834549179,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_super_learner_att_worst_bias_min": {
+  "text": "0.020",
+  "value": 0.0198878075965388,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:ATT&col=worst_bias_min"
+ },
+ "first_four_months_operators_sim_super_learner_bias_mcse_max": {
+  "text": "0.006",
+  "value": 0.00647453622826611,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_super_learner_cells": {
+  "text": "32",
+  "value": 32.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=cells"
+ },
+ "first_four_months_operators_sim_super_learner_coverage_lower_min": {
+  "text": "0.86",
+  "value": 0.862504852609265,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_super_learner_coverage_max": {
+  "text": "0.96",
+  "value": 0.96,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=coverage_max"
+ },
+ "first_four_months_operators_sim_super_learner_coverage_min": {
+  "text": "0.93",
+  "value": 0.93,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=coverage_min"
+ },
+ "first_four_months_operators_sim_super_learner_coverage_upper_max": {
+  "text": "0.98",
+  "value": 0.984336696008452,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_super_learner_emp_se_max": {
+  "text": "0.065",
+  "value": 0.0647453622826611,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_super_learner_emp_se_min": {
+  "text": "0.058",
+  "value": 0.0583545989556171,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_super_learner_halfwidth_max": {
+  "text": "0.147",
+  "value": 0.146719724008418,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_super_learner_halfwidth_min": {
+  "text": "0.119",
+  "value": 0.118765508575827,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_super_learner_se_mean_max": {
+  "text": "0.075",
+  "value": 0.0748583775853659,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_super_learner_se_mean_min": {
+  "text": "0.061",
+  "value": 0.0605946472325647,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_bias_mcse_max": {
+  "text": "0.006",
+  "value": 0.00616614039127072,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=bias_mcse_max"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_cells": {
+  "text": "8",
+  "value": 8.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=cells"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_coverage_lower_min": {
+  "text": "0.88",
+  "value": 0.875231845541041,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=coverage_lower_min"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_coverage_max": {
+  "text": "0.96",
+  "value": 0.96,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=coverage_max"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_coverage_min": {
+  "text": "0.94",
+  "value": 0.94,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=coverage_min"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_coverage_upper_max": {
+  "text": "0.98",
+  "value": 0.984336696008452,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=coverage_upper_max"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_emp_se_max": {
+  "text": "0.062",
+  "value": 0.0616614039127072,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=emp_se_max"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_emp_se_min": {
+  "text": "0.058",
+  "value": 0.0583545989556171,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=emp_se_min"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_halfwidth_max": {
+  "text": "0.125",
+  "value": 0.125181141087125,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=halfwidth_max"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_halfwidth_min": {
+  "text": "0.122",
+  "value": 0.122128948714262,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=halfwidth_min"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_se_mean_max": {
+  "text": "0.064",
+  "value": 0.0638691027358349,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=se_mean_max"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_se_mean_min": {
+  "text": "0.062",
+  "value": 0.0623118331140772,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=se_mean_min"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_unresolved_cells": {
+  "text": "6",
+  "value": 6.0,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_worst_bias_max": {
+  "text": "0.024",
+  "value": 0.0238845038237413,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_super_learner_trimmed_ate_worst_bias_min": {
+  "text": "0.024",
+  "value": 0.0238845038237413,
+  "source": "writing/results-export/simulation_by_library_estimand.csv#where=run:first4m&where=lock:L3&where=library:sl&where=estimand:trimmed_ATE&col=worst_bias_min"
+ },
+ "first_four_months_operators_sim_super_learner_unresolved_cells": {
+  "text": "24",
+  "value": 24.0,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=unresolved_cells"
+ },
+ "first_four_months_operators_sim_super_learner_worst_bias_max": {
+  "text": "0.027",
+  "value": 0.0270121936345164,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=worst_bias_max"
+ },
+ "first_four_months_operators_sim_super_learner_worst_bias_min": {
+  "text": "0.020",
+  "value": 0.0198878075965388,
+  "source": "writing/results-export/simulation_by_library.csv#where=run:first4m&where=lock:L3&where=library:sl&col=worst_bias_min"
+ },
+ "first_four_months_operators_trimmed_ate_max_shift": {
+  "text": "0.00",
+  "value": 0.0,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L3&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "first_four_months_operators_trimmed_kept_comparator": {
+  "text": "117",
+  "value": 117.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L3&col=trimmed_kept_comparator"
+ },
+ "first_four_months_operators_trimmed_kept_treated": {
+  "text": "109",
+  "value": 109.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L3&col=trimmed_kept_treated"
+ },
+ "first_four_months_operators_trimmed_share_kept_comparator": {
+  "text": "100.0%",
+  "value": 1.0,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L3&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "first_four_months_operators_trimmed_share_kept_treated": {
+  "text": "100.0%",
+  "value": 1.0,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L3&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "first_four_months_protocol_all_arrivals_ate_max_weight": {
+  "text": "193",
+  "value": 192.69639415088,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L1&col=ate_max_weight"
+ },
+ "first_four_months_protocol_all_arrivals_ato_max_shift": {
+  "text": "0.38",
+  "value": 0.38456946063306,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L1&where=estimand:ATO&col=max_abs_shift"
+ },
+ "first_four_months_protocol_all_arrivals_att_ess_comparator": {
+  "text": "536",
+  "value": 536.372350802281,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L1&col=att_ess_comparator"
+ },
+ "first_four_months_protocol_all_arrivals_att_max_shift": {
+  "text": "0.48",
+  "value": 0.477208383912888,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L1&where=estimand:ATT&col=max_abs_shift"
+ },
+ "first_four_months_protocol_all_arrivals_c_statistic": {
+  "text": "0.77",
+  "value": 0.769238924227207,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L1&col=c_statistic"
+ },
+ "first_four_months_protocol_all_arrivals_n": {
+  "text": "1,661",
+  "value": 1661.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L1&col=n"
+ },
+ "first_four_months_protocol_all_arrivals_n_comparator": {
+  "text": "1,545",
+  "value": 1545.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L1&col=n_comparator"
+ },
+ "first_four_months_protocol_all_arrivals_n_outside": {
+  "text": "813",
+  "value": 813.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L1&col=outside"
+ },
+ "first_four_months_protocol_all_arrivals_n_outside_comparator": {
+  "text": "799",
+  "value": 799.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L1&col=outside_comparator"
+ },
+ "first_four_months_protocol_all_arrivals_n_outside_treated": {
+  "text": "14",
+  "value": 14.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L1&col=outside_treated"
+ },
+ "first_four_months_protocol_all_arrivals_n_treated": {
+  "text": "116",
+  "value": 116.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L1&col=n_treated"
+ },
+ "first_four_months_protocol_all_arrivals_share_outside_band": {
+  "text": "48.9%",
+  "value": 0.4894641782059,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L1&col=share_outside_band"
+ },
+ "first_four_months_protocol_all_arrivals_trimmed_ate_max_shift": {
+  "text": "0.50",
+  "value": 0.4991690778398,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L1&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "first_four_months_protocol_all_arrivals_trimmed_kept_comparator": {
+  "text": "746",
+  "value": 746.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L1&col=trimmed_kept_comparator"
+ },
+ "first_four_months_protocol_all_arrivals_trimmed_kept_treated": {
+  "text": "102",
+  "value": 102.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L1&col=trimmed_kept_treated"
+ },
+ "first_four_months_protocol_all_arrivals_trimmed_share_kept_comparator": {
+  "text": "48.3%",
+  "value": 0.482847896440129,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L1&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "first_four_months_protocol_all_arrivals_trimmed_share_kept_treated": {
+  "text": "87.9%",
+  "value": 0.879310344827586,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L1&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "first_four_months_protocol_direct_ate_max_weight": {
+  "text": "237",
+  "value": 237.404456717199,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L2&col=ate_max_weight"
+ },
+ "first_four_months_protocol_direct_ato_max_shift": {
+  "text": "0.39",
+  "value": 0.393125180302422,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L2&where=estimand:ATO&col=max_abs_shift"
+ },
+ "first_four_months_protocol_direct_att_ess_comparator": {
+  "text": "373",
+  "value": 373.151148629229,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L2&col=att_ess_comparator"
+ },
+ "first_four_months_protocol_direct_att_max_shift": {
+  "text": "0.49",
+  "value": 0.494223030241152,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L2&where=estimand:ATT&col=max_abs_shift"
+ },
+ "first_four_months_protocol_direct_c_statistic": {
+  "text": "0.75",
+  "value": 0.750091743119266,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L2&col=c_statistic"
+ },
+ "first_four_months_protocol_direct_n": {
+  "text": "1,059",
+  "value": 1059.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L2&col=n"
+ },
+ "first_four_months_protocol_direct_n_comparator": {
+  "text": "950",
+  "value": 950.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L2&col=n_comparator"
+ },
+ "first_four_months_protocol_direct_n_outside": {
+  "text": "355",
+  "value": 355.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L2&col=outside"
+ },
+ "first_four_months_protocol_direct_n_outside_comparator": {
+  "text": "349",
+  "value": 349.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L2&col=outside_comparator"
+ },
+ "first_four_months_protocol_direct_n_outside_treated": {
+  "text": "6",
+  "value": 6.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L2&col=outside_treated"
+ },
+ "first_four_months_protocol_direct_n_treated": {
+  "text": "109",
+  "value": 109.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L2&col=n_treated"
+ },
+ "first_four_months_protocol_direct_share_outside_band": {
+  "text": "33.5%",
+  "value": 0.335221907459868,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L2&col=share_outside_band"
+ },
+ "first_four_months_protocol_direct_trimmed_ate_max_shift": {
+  "text": "0.50",
+  "value": 0.497343583504295,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L2&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "first_four_months_protocol_direct_trimmed_kept_comparator": {
+  "text": "601",
+  "value": 601.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L2&col=trimmed_kept_comparator"
+ },
+ "first_four_months_protocol_direct_trimmed_kept_treated": {
+  "text": "103",
+  "value": 103.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L2&col=trimmed_kept_treated"
+ },
+ "first_four_months_protocol_direct_trimmed_share_kept_comparator": {
+  "text": "63.3%",
+  "value": 0.632631578947368,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L2&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "first_four_months_protocol_direct_trimmed_share_kept_treated": {
+  "text": "94.5%",
+  "value": 0.944954128440367,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L2&where=estimand:trimmed_ATE&col=kept_treated"
+ },
+ "first_four_months_rescueco_vs_other_means_ate_max_weight": {
+  "text": "122",
+  "value": 121.626373693755,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L4&col=ate_max_weight"
+ },
+ "first_four_months_rescueco_vs_other_means_ato_max_shift": {
+  "text": "0.43",
+  "value": 0.432252533131244,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L4&where=estimand:ATO&col=max_abs_shift"
+ },
+ "first_four_months_rescueco_vs_other_means_att_ess_comparator": {
+  "text": "123",
+  "value": 122.975974597469,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L4&col=att_ess_comparator"
+ },
+ "first_four_months_rescueco_vs_other_means_att_max_shift": {
+  "text": "0.52",
+  "value": 0.521974771059701,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L4&where=estimand:ATT&col=max_abs_shift"
+ },
+ "first_four_months_rescueco_vs_other_means_c_statistic": {
+  "text": "0.77",
+  "value": 0.771875722766171,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L4&col=c_statistic"
+ },
+ "first_four_months_rescueco_vs_other_means_n": {
+  "text": "942",
+  "value": 942.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L4&col=n"
+ },
+ "first_four_months_rescueco_vs_other_means_n_comparator": {
+  "text": "833",
+  "value": 833.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L4&col=n_comparator"
+ },
+ "first_four_months_rescueco_vs_other_means_n_outside": {
+  "text": "356",
+  "value": 356.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L4&col=outside"
+ },
+ "first_four_months_rescueco_vs_other_means_n_outside_comparator": {
+  "text": "350",
+  "value": 350.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L4&col=outside_comparator"
+ },
+ "first_four_months_rescueco_vs_other_means_n_outside_treated": {
+  "text": "6",
+  "value": 6.0,
+  "source": "writing/results-export/overlap_counts.csv#where=run:first4m&where=lock:L4&col=outside_treated"
+ },
+ "first_four_months_rescueco_vs_other_means_n_treated": {
+  "text": "109",
+  "value": 109.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L4&col=n_treated"
+ },
+ "first_four_months_rescueco_vs_other_means_share_outside_band": {
+  "text": "37.8%",
+  "value": 0.37791932059448,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L4&col=share_outside_band"
+ },
+ "first_four_months_rescueco_vs_other_means_trimmed_ate_max_shift": {
+  "text": "0.52",
+  "value": 0.52098839304459,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L4&where=estimand:trimmed_ATE&col=max_abs_shift"
+ },
+ "first_four_months_rescueco_vs_other_means_trimmed_kept_comparator": {
+  "text": "483",
+  "value": 483.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L4&col=trimmed_kept_comparator"
+ },
+ "first_four_months_rescueco_vs_other_means_trimmed_kept_treated": {
+  "text": "103",
+  "value": 103.0,
+  "source": "rescueCo/results/reexec_050/first4m/design/design_summary.csv#where=lock:L4&col=trimmed_kept_treated"
+ },
+ "first_four_months_rescueco_vs_other_means_trimmed_share_kept_comparator": {
+  "text": "58.0%",
+  "value": 0.579831932773109,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L4&where=estimand:trimmed_ATE&col=kept_comparator"
+ },
+ "first_four_months_rescueco_vs_other_means_trimmed_share_kept_treated": {
+  "text": "94.5%",
+  "value": 0.944954128440367,
+  "source": "writing/results-export/population_gate.csv#where=run:first4m&where=lock:L4&where=estimand:trimmed_ATE&col=kept_treated"
+ }
+}

@@ -70,6 +70,17 @@ if (any(idx_rid)) {
 }
 reg$rescueco_id_present <- !is.na(rid)
 
+# Rescue.co attribution (main analysis/02, RESCUE_UNMATCHED_POLICY). The 14
+# Rescue.Co-classified patients with no Rescue.co dispatch record are flagged
+# here, reclassified here under "reclassify", and under "exclude" kept through
+# the design-matrix filters and dropped in section H. The filters are anchored
+# on the primary cohort, and hypertension sits on the 2 percent line (33/1,616
+# vs 32/1,604): dropping first would remove it from the 90-column design.
+unmatched_policy <- cfg$treatment$unmatched_policy %||% "retain"
+stopifnot(unmatched_policy %in% c("exclude", "reclassify", "retain"))
+reg$rescueco_unverified <- flag_unmatched_rescueco(reg, cfg)
+if (unmatched_policy == "reclassify") reg$A[reg$rescueco_unverified] <- 0L
+
 mode_present <- !is.na(reg$hosp_transport) &
   nzchar(trimws(as.character(reg$hosp_transport)))
 reg$transport3 <- ifelse(!is.na(reg$A) & reg$A == 1, "Rescue.Co ambulance",
@@ -361,7 +372,7 @@ dat$inj_sub_county_norm <- norm_sc(dat$inj_sub_county)
 # ------------------------------------------------------------
 # G. Wide design matrix (main analysis/02 sections G-H rules)
 # ------------------------------------------------------------
-ref <- which(dat$in_primary_cohort)   # all filters anchored on the 1,616
+ref <- which(dat$in_primary_cohort)   # all filters anchored on the 1,616 (unmatched still in)
 MISS_IND_MIN <- 0.01
 RARE_LEVEL_PREV <- 0.02
 RARE_BINARY_PREV <- 0.01
@@ -469,6 +480,13 @@ utils::write.csv(
 # H. Assemble the analysis frame, the outcome store, and the locks
 # ------------------------------------------------------------
 keep_transport <- !is.na(dat$transport3)
+if (unmatched_policy == "exclude") {
+  cr_log(paste("Excluding", sum(dat$rescueco_unverified & keep_transport),
+               "Rescue.Co-classified patients with no Rescue.co dispatch record (",
+               sum(dat$rescueco_unverified & dat$in_primary_cohort),
+               "in the primary cohort )"))
+  keep_transport <- keep_transport & !dat$rescueco_unverified
+}
 core <- data.frame(patient_id = dat[[cfg$merge$registry_id]],
                    transport3 = dat$transport3,
                    is_transfer = dat$is_transfer,
@@ -482,7 +500,10 @@ core <- core[keep_transport, , drop = FALSE]
 outcomes <- cbind(data.frame(patient_id = dat[[cfg$merge$registry_id]]),
                   dat[, OUTCOME_VARS])
 outcomes <- outcomes[keep_transport, , drop = FALSE]
-cr_log(paste("Known-transport cohort:", nrow(core)))
+cr_log(paste("Known-transport cohort:", nrow(core), "; primary cohort:",
+             sum(core$in_primary_cohort), "(",
+             sum(core$in_primary_cohort & core$transport3 == "Rescue.Co ambulance"),
+             "Rescue.Co )"))
 
 saveRDS(outcomes, file.path(OUT, "multiarm_outcomes.rds"))
 saveRDS(core, file.path(OUT, "multiarm_cohort.rds"))
@@ -512,7 +533,8 @@ locks <- create_contrast_locks(
   seed = as.integer(cfg$seed %||% 42L),
   negative_controls = NC_VARS)
 
-# PRIMARY: the 1,616 cohort as its own lock, same W, same controls.
+# PRIMARY: the primary cohort as its own lock (1,604 once the 12 unmatched
+# Rescue.Co patients are excluded), same W, same controls.
 prim <- core[core$in_primary_cohort, , drop = FALSE]
 prim$.A_contrast <- as.integer(prim$transport3 == "Rescue.Co ambulance")
 lock_p <- create_analysis_lock(

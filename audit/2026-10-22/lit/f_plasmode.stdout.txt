@@ -1,0 +1,6 @@
+Q1     pubmed          hits=5      returned=4    status=200  doi=4/4; pmid=4/4; abstract=4/4; year=4/4; venue=4/4; citation_count=0/4
+Q1     europepmc       hits=4      returned=4    status=200  doi=3/4; pmid=4/4; abstract=4/4; year=4/4; venue=4/4; citation_count=4/4
+Q1     openalex        hits=11     returned=11   status=200  doi=11/11; pmid=5/11; abstract=10/11; year=11/11; venue=11/11; citation_count=11/11
+Q1     semanticscholar hits=None   returned=0    status=429  n=0
+raw records=19; unique after de-duplication=13; duplicates removed=6; unique records per source={"europepmc": 4, "openalex": 11, "pubmed": 4}; unique records found by that source only={"europepmc": 1, "openalex": 8, "pubmed": 1}; clusters joining a preprint and a published version=0; records flagged as possible near-duplicates for human check=0
+wrote audit/2026-10-22/lit/f_plasmode.jsonl (13 records) and audit/2026-10-22/lit/f_plasmode-log.csv (5 rows)

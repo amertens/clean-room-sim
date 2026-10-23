@@ -1,0 +1,6 @@
+Q1     pubmed          hits=44     returned=30   status=200  doi=30/30; pmid=30/30; abstract=30/30; year=30/30; venue=30/30; citation_count=0/30
+Q1     europepmc       hits=70     returned=30   status=200  doi=30/30; pmid=24/30; abstract=30/30; year=30/30; venue=30/30; citation_count=30/30
+Q1     openalex        hits=412    returned=30   status=200  doi=29/30; pmid=17/30; abstract=26/30; year=30/30; venue=28/30; citation_count=30/30
+Q1     semanticscholar hits=2      returned=2    status=200  doi=2/2; pmid=1/2; abstract=0/2; year=2/2; venue=2/2; citation_count=2/2
+raw records=92; unique after de-duplication=68; duplicates removed=24; unique records per source={"europepmc": 29, "openalex": 27, "pubmed": 30, "semanticscholar": 2}; unique records found by that source only={"europepmc": 14, "openalex": 22, "pubmed": 14, "semanticscholar": 2}; clusters joining a preprint and a published version=1; records flagged as possible near-duplicates for human check=0
+wrote audit/2026-10-22/lit/b_blind.jsonl (68 records) and audit/2026-10-22/lit/b_blind-log.csv (5 rows)

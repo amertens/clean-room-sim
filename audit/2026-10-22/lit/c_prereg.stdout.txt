@@ -1,0 +1,6 @@
+Q1     pubmed          hits=1609   returned=30   status=200  doi=30/30; pmid=30/30; abstract=30/30; year=30/30; venue=30/30; citation_count=0/30
+Q1     europepmc       hits=343    returned=30   status=200  doi=30/30; pmid=21/30; abstract=30/30; year=30/30; venue=30/30; citation_count=30/30
+Q1     openalex        hits=674    returned=30   status=200  doi=29/30; pmid=22/30; abstract=28/30; year=30/30; venue=29/30; citation_count=30/30
+Q1     semanticscholar hits=0      returned=0    status=200  n=0
+raw records=90; unique after de-duplication=81; duplicates removed=9; unique records per source={"europepmc": 30, "openalex": 28, "pubmed": 30}; unique records found by that source only={"europepmc": 23, "openalex": 22, "pubmed": 29}; clusters joining a preprint and a published version=0; records flagged as possible near-duplicates for human check=2
+wrote audit/2026-10-22/lit/c_prereg.jsonl (81 records) and audit/2026-10-22/lit/c_prereg-log.csv (5 rows)

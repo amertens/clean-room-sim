@@ -405,3 +405,35 @@ sanitize_W <- function(W, max_cols = NULL, A = NULL) {
   stopifnot(!anyNA(W))
   W
 }
+
+#' Flag Rescue.Co-classified patients with no Rescue.co dispatch record.
+#'
+#' Reads Rescue.co's Flare cross-reference (cfg$data$rescue_crossref_xlsx; only
+#' patient_id and match_status) and returns a logical vector over `reg`, TRUE
+#' for tier 5 ("No match found"). Stops if the file does not cover exactly the
+#' patients it was built for: A == 1 with no rescue_id. Returns all FALSE, with
+#' a log line, when the file is absent. Shared by Stage 1 and script 10 so both
+#' apply the same rule.
+flag_unmatched_rescueco <- function(reg, cfg, A = reg$A) {
+  path <- cfg$data$rescue_crossref_xlsx
+  if (is.null(path) || !file.exists(path)) {
+    cr_log("NOTE: Rescue.co cross-reference not found; no attribution policy applied.")
+    return(rep(FALSE, nrow(reg)))
+  }
+  x <- as.data.frame(readxl::read_excel(path, sheet = "2. Cross-reference"))
+  x <- data.frame(patient_id = trimws(x$patient_id),
+                  tier = as.integer(substr(x$match_status, 1, 1)))
+  pid <- trimws(as.character(reg$patient_id))
+  rid <- trimws(as.character(reg$rescue_id))
+  id_absent <- !is.na(A) & A == 1 & (is.na(rid) | rid %in% c("", "NA"))
+  if (!setequal(x$patient_id, pid[id_absent]))
+    stop("Rescue.co cross-reference does not cover exactly the ID-absent ",
+         "Rescue.Co patients (", sum(x$patient_id %in% pid[id_absent]), " of ",
+         nrow(x), " rows match ", sum(id_absent), ")")
+  out <- pid %in% x$patient_id[x$tier == 5L]
+  cr_log(paste0("Rescue.co cross-reference: tiers ",
+                paste(names(table(x$tier)), table(x$tier), sep = "=", collapse = ", "),
+                "; ", sum(out), " unmatched, policy ",
+                cfg$treatment$unmatched_policy %||% "retain"))
+  out
+}

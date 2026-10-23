@@ -57,9 +57,17 @@ row0 <- function(contrast, cohort, outcome, estimand, estimator,
              stringsAsFactors = FALSE)
 }
 
-COHORTS <- c(C1 = "known transport (8,323)", C2 = "Rescue.Co + non-ambulance (7,165)",
-             C3 = "known transport (8,323)", C4 = "ambulance, transfers included (2,197)",
-             PRIMARY = "primary cohort (1,616)")
+# Cohort sizes from the multi-arm build (script 10), not typed: they moved
+# when the 14 unmatched Rescue.Co patients were excluded (2026-10-02).
+.coh <- readRDS(file.path(CR_ROOT, "multiarm", "multiarm_cohort.rds"))
+.n <- function(k) format(sum(k), big.mark = ",")
+.t3 <- .coh$transport3
+COHORTS <- c(C1 = sprintf("known transport (%s)", .n(!is.na(.t3))),
+             C2 = sprintf("Rescue.Co + non-ambulance (%s)",
+                          .n(.t3 %in% c("Rescue.Co ambulance", "Non-ambulance"))),
+             C3 = sprintf("known transport (%s)", .n(!is.na(.t3))),
+             C4 = sprintf("ambulance, transfers included (%s)", .n(.t3 != "Non-ambulance")),
+             PRIMARY = sprintf("primary cohort (%s)", .n(.coh$in_primary_cohort)))
 
 rows <- list()
 

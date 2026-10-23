@@ -1,0 +1,6 @@
+Q1     pubmed          hits=76     returned=29   status=200  doi=29/29; pmid=29/29; abstract=29/29; year=29/29; venue=29/29; citation_count=0/29
+Q1     europepmc       hits=81     returned=30   status=200  doi=29/30; pmid=23/30; abstract=30/30; year=30/30; venue=30/30; citation_count=30/30
+Q1     openalex        hits=390    returned=30   status=200  doi=29/30; pmid=12/30; abstract=24/30; year=30/30; venue=25/30; citation_count=30/30
+Q1     semanticscholar hits=1      returned=1    status=200  doi=1/1; pmid=1/1; abstract=1/1; year=1/1; venue=1/1; citation_count=1/1
+raw records=90; unique after de-duplication=63; duplicates removed=27; unique records per source={"europepmc": 30, "openalex": 26, "pubmed": 29, "semanticscholar": 1}; unique records found by that source only={"europepmc": 9, "openalex": 22, "pubmed": 10, "semanticscholar": 1}; clusters joining a preprint and a published version=1; records flagged as possible near-duplicates for human check=0
+wrote audit/2026-10-22/lit/e_software.jsonl (63 records) and audit/2026-10-22/lit/e_software-log.csv (5 rows)

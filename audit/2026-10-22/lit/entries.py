@@ -1,0 +1,265 @@
+# Master list of publications and resources for audit/2026-10-22/08-literature.md.
+# Every row was opened at Crossref, PubMed or Europe PMC, arXiv, or the publisher or agency page (see "ver").
+# prio 1: used in a recommendation or in the proposed manuscript text. prio 2: optional context.
+# bib: None means "look up by DOI in writing/references.bib"; a string overrides the lookup.
+
+E = []
+
+
+def add(strand, first, year, short, venue, ident, doi, ver, why, prio=1, bib=None, url=None):
+    E.append(dict(strand=strand, first=first, year=year, short=short, venue=venue, ident=ident, doi=doi,
+                  ver=ver, why=why, prio=prio, bib=bib, url=url))
+
+
+# ---- (a) clean room and staging
+add("a", "Muntner", 2024, "Staging and clean room", "Pharmacoepidemiol Drug Saf 33(3):e5770",
+    "DOI 10.1002/pds.5770; PMID 38419140", "10.1002/pds.5770", "Crossref; PubMed",
+    "Defines staging (feasibility and bias checks before the comparative analysis) and a clean room (restricted access, deviation policy, audit trail) with a masked review team. cleanTMLE follows its stages and exports its Table S1 columns.")
+add("a", "Haynes", 2026, "ASSURE safety-signal program", "Pharmacoepidemiol Drug Saf 35(8):e70435",
+    "DOI 10.1002/pds.70435; PMID 42494324", "10.1002/pds.70435", "Crossref; Europe PMC abstract read",
+    "A pharmacovigilance program that applies objective study validity diagnostics before unblinding; the abstract reports that 26 of 110 evaluations failed them and were not unblinded. Shows the gate working at scale.")
+add("a", "Rathnayaka", 2024, "Clean Room Committee approach (conference abstract)", "Value Health 27(6):S294",
+    "DOI 10.1016/j.jval.2024.03.2426", "10.1016/j.jval.2024.03.2426", "Crossref (title and venue only; abstract text not read)",
+    "The title describes an independent committee that handles research hurdles in real time without bias. Evidence that industry teams use a clean-room committee; content not read, so low weight.", prio=2)
+add("a", "Jin", 2026, "Evolocumab cohort with controls before outcome analysis", "J Am Heart Assoc 15(19):e049323",
+    "DOI 10.1161/jaha.126.049323; PMID 42757900", "10.1161/jaha.126.049323", "Crossref; Europe PMC abstract read",
+    "An applied study that cites Muntner 2024 (OpenAlex cited-by list) and uses negative-control outcomes before the comparative outcome analysis. An example of the staged pattern in applied work.", prio=2)
+add("a", "Hernandez", 2025, "Principled pharmacoepidemiology in the era of RWE", "Clin Pharmacol Ther 117(4):927-937",
+    "DOI 10.1002/cpt.3563; PMID 39807817", "10.1002/cpt.3563", "Crossref; Europe PMC abstract read",
+    "Review that cites Muntner 2024 (OpenAlex) and lists frameworks for transparent study conduct among the drivers of real-world evidence. Context for the introduction only.", prio=2)
+add("a", "Mayne", 2026, "Practical guide to using RWE as primary basis for approval", "Clin Pharmacol Ther (online)",
+    "DOI 10.1002/cpt.70487; PMID 42778975", "10.1002/cpt.70487", "Crossref; Europe PMC abstract read",
+    "Guide covering protocol development, governance and analysis of residual bias for registrational real-world evidence; cites Muntner 2024 (OpenAlex). Shows regulators and sponsors treat governance as part of the design.", prio=2)
+
+# ---- (b) outcome-blind design and blind analysis
+add("b", "Rubin", 2007, "Design versus analysis of observational studies", "Stat Med 26(1):20-36",
+    "DOI 10.1002/sim.2739", "10.1002/sim.2739", "Crossref",
+    "The first statement of the design-before-outcome principle in the journal the manuscript targets. The bib holds the 2008 paper only (rubin2008).", bib="no (rubin2008 is the 2008 paper)")
+add("b", "Rubin", 2008, "For objective causal inference, design trumps analysis", "Ann Appl Stat 2(3):808-840",
+    "DOI 10.1214/08-aoas187", "10.1214/08-aoas187", "Crossref",
+    "Already cited in the introduction as the source for changing the design only while the outcome stays unseen.")
+add("b", "Fisher", 2020, "Blinding outcomes is neither necessary nor sufficient", "arXiv 2007.02514 (v4, 2022)",
+    "arXiv:2007.02514 (DOI 10.48550/arXiv.2007.02514)", None, "arXiv abstract page opened",
+    "Shows by analysis and simulation that hiding outcomes while choosing matching or propensity scores does not prevent bias when outcomes are predictable from covariates. It bounds what outcome-blindness buys, and is the main caveat for the manuscript.", url="https://arxiv.org/abs/2007.02514")
+add("b", "Small", 2024, "Protocols for observational studies", "Stat Sci 39(4):519-554",
+    "DOI 10.1214/24-STS945", "10.1214/24-STS945", "Crossref; arXiv abstract page opened",
+    "Argues that the trial practice of fixing hypotheses, outcomes and analysis in a protocol carries over to observational studies, and discusses when the protocol is set relative to treatment assignment.")
+add("b", "Aikens", 2020, "A pilot design for observational studies", "Stat Med 39(30):4821-4840",
+    "DOI 10.1002/sim.8754; PMID 33015867", "10.1002/sim.8754", "Crossref; PubMed abstract read",
+    "Spends a subset of observations, with their outcomes, in the design phase. An alternative to outcome-blind design and a possible way around Fisher's objection; not compatible with withholding the outcome.", prio=2)
+add("b", "Thibault", 2023, "Explore and Confirm Analysis Workflow", "R Soc Open Sci 10(10):230568",
+    "DOI 10.1098/rsos.230568; PMID 37830032", "10.1098/rsos.230568", "Crossref; PubMed abstract read",
+    "Proposes staged access to secondary data: analysts see a subset, register a script, then receive the full data. The closest analogue of a clean room outside pharmacoepidemiology; survey of ALSPAC users.")
+add("b", "MacCoun", 2015, "Blind analysis: hide results to seek the truth", "Nature 526:187-189",
+    "DOI 10.1038/526187a", "10.1038/526187a", "Crossref",
+    "Argues that biology, psychology and the social sciences should adopt the blind analysis used in physics. The source for the sentence on blind analysis in other sciences.", prio=2)
+add("b", "Klein", 2005, "Blind analysis in nuclear and particle physics", "Annu Rev Nucl Part Sci 55:141-163",
+    "DOI 10.1146/annurev.nucl.55.090704.151521", "10.1146/annurev.nucl.55.090704.151521", "Crossref",
+    "Review of blind analysis as practised in physics. Older than the search window; cite once, only if the paper mentions physics.", prio=2)
+add("b", "Hanada", 2026, "Outcome-blinded sample size re-estimation", "arXiv 2607.25159",
+    "arXiv:2607.25159", None, "arXiv abstract page opened",
+    "A trial-design example of adapting a design from baseline covariates without outcomes, with type I error calibration shown by simulation. Low weight.", prio=2, url="https://arxiv.org/abs/2607.25159")
+
+# ---- (c) prespecification, protocol templates, registration, guidance
+add("c", "Wang", 2023, "HARPER protocol template", "Pharmacoepidemiol Drug Saf 32(1):44-55",
+    "DOI 10.1002/pds.5507; PMID 36215113", "10.1002/pds.5507", "Crossref",
+    "Protocol template for hypothesis-evaluating treatment-effect studies, meant to run from protocol through registration and reporting. The dossier could print a summary that maps onto it.")
+add("c", "Wang", 2021, "STaRT-RWE template", "BMJ 372:m4856",
+    "DOI 10.1136/bmj.m4856", "10.1136/bmj.m4856", "Crossref",
+    "Structured template for planning and reporting real-world evidence studies; the companion of HARPER.", prio=2)
+add("c", "Cashin", 2025, "TARGET reporting guideline", "JAMA 334(12):1084",
+    "DOI 10.1001/jama.2025.13350", "10.1001/jama.2025.13350", "Crossref",
+    "Reporting guideline for studies that emulate a target trial. Methods already builds the SAP table on its components.")
+add("c", "Desai", 2024, "PRINCIPLED process guide", "BMJ 384:e076460",
+    "DOI 10.1136/bmj-2023-076460", "10.1136/bmj-2023-076460", "Crossref",
+    "FDA Sentinel process guide for inferential studies on routine-care data; a regulator-side source for fixing design steps before analysis.", prio=2)
+add("c", "Orsini", 2020, "Transparency roadmap of the RWE Transparency Initiative", "Value Health 23(9):1128-1136 and Pharmacoepidemiol Drug Saf 29(11):1504-1513",
+    "DOI 10.1016/j.jval.2020.04.002 and 10.1002/pds.5079", "10.1016/j.jval.2020.04.002", "Crossref (both versions)",
+    "Recommendations and road map from the initiative that produced the RWE Registry. Background for the registration paragraph.", prio=2)
+add("c", "Wang", 2024, "Transparency statement for RWE studies", "Am J Epidemiol 193(11):1625-1631",
+    "DOI 10.1093/aje/kwae087; PMID 38794897", "10.1093/aje/kwae087", "Crossref; Europe PMC abstract read",
+    "Proposes a short statement that reports the protocol, preregistration, data, code and reporting-checklist status of every RWE study. The dossier and lock hash could fill the first two items.")
+add("c", "Simonsen", 2025, "Preregistration: a key to credible RWE", "Pharmacoepidemiol Drug Saf 34(9):e70215",
+    "DOI 10.1002/pds.70215; PMID 40883867", "10.1002/pds.70215", "Crossref; Europe PMC abstract read",
+    "States that preregistration is underused and introduces the OSF Real-World Evidence Registry. Supports a sentence on where a locked plan can be deposited.")
+add("c", "Liu", 2026, "Open science practices in RWE reports", "Int J Popul Data Sci 10(2)",
+    "DOI 10.23889/ijpds.v10i2.2960; PMID 42016902", "10.23889/ijpds.v10i2.2960", "Crossref; Europe PMC abstract read",
+    "In 41 articles published from 2019 to October 2024, none cited a preregistered protocol and none met all five open-science items. Evidence that prespecification is rare in practice.", prio=2)
+add("c", "Mac Grory", 2026, "AHA statement on observational comparative research", "Circulation 153(25)",
+    "DOI 10.1161/cir.0000000000001440; PMID 42158988", "10.1161/cir.0000000000001440", "Crossref; Europe PMC abstract read",
+    "States that a formal protocol should be prepared before every observational study to improve rigor and reduce data manipulation. Supports the first sentence of the introduction.")
+add("c", "Vart", 2026, "Commentary on the target trial label", "Pharmacoepidemiol Drug Saf 35(11):e70485",
+    "DOI 10.1002/pds.70485; PMID 42888900", "10.1002/pds.70485", "Crossref; Europe PMC abstract read",
+    "Argues that observational data cannot reproduce random assignment or blinding, so the label can overstate similarity. A reason to word the manuscript's claims about the trial framework carefully.", prio=2)
+add("c", "U.S. FDA", 2024, "Draft guidance on non-interventional studies", "Draft Level 1 guidance, March 2024",
+    "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/real-world-evidence-considerations-regarding-non-interventional-studies-drug-and-biological-products",
+    None, "Agency page opened; PDF text read",
+    "Asks for a prespecified protocol and statistical analysis plan that includes the estimand, an assessment of feasibility and the anticipated operating characteristics. The dossier's simulation tables supply the last two.",
+    url="https://www.fda.gov/media/177128/download")
+add("c", "EMA", 2025, "Reflection paper on RWD in non-interventional studies", "EMA/99865/2025, dated 17 March 2025",
+    "https://www.ema.europa.eu/en/documents/other/reflection-paper-use-real-world-data-non-interventional-studies-generate-real-world-evidence-regulatory-purposes_en.pdf",
+    None, "PDF text read",
+    "Says the methods for confounding should be prespecified in the protocol or analysis plan, that studies and protocols be registered in the HMA-EMA Catalogue, and that analysis code be public.")
+add("c", "ICH", 2025, "M14 guideline on RWD safety studies", "EMA/CHMP/ICH/155061/2024; Step 4 on 4 Sept 2025",
+    "https://www.ema.europa.eu/en/documents/scientific-guideline/ich-m14-guideline-general-principles-planning-designing-analysing-reporting-non-interventional-studies-utilise-real-world-data-safety-assessment-medicines-step-5_en.pdf",
+    None, "PDF text read",
+    "Says the design, data, methods and analysis should be prespecified in the protocol after the feasibility assessments; in effect in the EU from 18 March 2026. The feasibility it describes concerns whether data sources fit the question, not simulated estimability.")
+add("c", "ISPOR et al.", 2021, "Real-World Evidence Registry on OSF", "Registry page (ISPOR, ISPE, Duke-Margolis, NPC)",
+    "https://www.ispor.org/strategic-initiatives/real-world-evidence/real-world-evidence-registry",
+    None, "Registry page opened",
+    "Preregistration site for real-world studies of treatment effects, hosted on the Open Science Framework; registration returns a URL or DOI. The page does not state a time-stamp rule, so the lock hash would be extra evidence.")
+add("c", "ENCePP", 2024, "HMA-EMA Catalogues replace EU PAS Register", "News item, 15 February 2024",
+    "https://encepp.europa.eu/newsroom/news/launch-hma-ema-real-world-data-rwd-catalogues-and-new-encepp-website-2024-02-15_en",
+    None, "News page opened",
+    "The catalogues replaced the ENCePP Resource Database and the EU PAS Register. Relevant if the paper names a European registration route.", prio=2)
+add("c", "van Hal", 2025, "Review of tools for target trial studies", "J Biomed Inform 171:104897",
+    "DOI 10.1016/j.jbi.2025.104897; PMID 41016623", "10.1016/j.jbi.2025.104897", "Crossref; Europe PMC abstract read",
+    "Found 24 tools, 3 of which support the design phase, and no single tool from start to finish. Supports a statement that design-phase software is thin.")
+add("c", "Voulgaridou", 2026, "TITAN design assistant", "J Clin Epidemiol 199:112476",
+    "DOI 10.1016/j.jclinepi.2026.112476; PMID 42617760", "10.1016/j.jclinepi.2026.112476", "Crossref; Europe PMC abstract read",
+    "Open-access assistant that guides a target trial protocol and warns about misaligned time points. It guides the protocol but does not lock a plan or simulate estimability.", prio=2)
+
+# ---- (d) replication and benchmarking
+add("d", "Wang", 2023, "RCT-DUPLICATE results for 32 trials", "JAMA 329(16):1376-1385",
+    "DOI 10.1001/jama.2023.4221; PMID 37097356", "10.1001/jama.2023.4221", "Crossref; PubMed; PMC full text read",
+    "Protocols were registered before the analyses, after feasibility checks and before treatment-stratified outcome counts. Agreement with the trials was higher in the closely emulated subset.")
+add("d", "Franklin", 2021, "RCT-DUPLICATE first results", "Circulation 143(10):1002-1013",
+    "DOI 10.1161/CIRCULATIONAHA.120.051718", "10.1161/CIRCULATIONAHA.120.051718", "Crossref (subtitle and abstract)",
+    "Report of the first 10 trial emulations in the initiative. Cite only if the paper needs the original reference.", prio=2)
+add("d", "Wang", 2022, "REPEAT reproducibility of 150 database studies", "Nat Commun 13:5126",
+    "DOI 10.1038/s41467-022-32310-3; PMID 36045130", "10.1038/s41467-022-32310-3", "Crossref; Europe PMC abstract read",
+    "Reproduced 150 database studies from the original data sources; most were closely reproduced, and the gaps tracked incomplete reporting.", prio=2)
+add("d", "Wang", 2026, "Meta-analysis of trial emulations against trials", "BMJ 393:e086810",
+    "DOI 10.1136/bmj-2025-086810; PMID 42156120", "10.1136/bmj-2025-086810", "Crossref; Europe PMC abstract read",
+    "Across 107 pairs of observational studies and trials the correlation was 0.59, and 0.83 in the 63 pairs whose design matched the trial more closely. Bounds what a well-designed observational analysis delivers.")
+add("d", "Wang", 2025, "BenchExCal benchmark-expand-calibrate design", "Clin Pharmacol Ther 117(6):1820-1828",
+    "DOI 10.1002/cpt.3621; PMID 40067205", "10.1002/cpt.3621", "Crossref; Europe PMC abstract read",
+    "Proposes benchmarking a database study against a trial and then calibrating a second study. A different use of a benchmark; not an outcome-blind step.", prio=2)
+add("d", "Htoo", 2026, "Population standardization of trial emulations", "Clin Pharmacol Ther 119(5):1362-1370",
+    "DOI 10.1002/cpt.70241; PMID 41733244", "10.1002/cpt.70241", "Crossref; Europe PMC abstract read",
+    "Standardizing to the trial population moved hazard ratios little. Relevant to the point that the estimand's population is part of the design.", prio=2)
+add("d", "Weckstein", 2026, "Data-adaptive versus investigator-specified adjustment", "J Am Med Inform Assoc 33(3):573-586",
+    "DOI 10.1093/jamia/ocaf204; PMID 41338229", "10.1093/jamia/ocaf204", "Crossref; Europe PMC abstract read",
+    "In 15 trial emulations, outcome-adaptive LASSO agreed with the trial better than investigator-specified adjustment, and models tuned for treatment prediction alone did poorly. A caution for tuning learners without the outcome.")
+add("d", "Weberpals", 2026, "ENCORE oncology trial emulations", "Clin Pharmacol Ther 119(4):881-890",
+    "DOI 10.1002/cpt.70208; PMID 41577635", "10.1002/cpt.70208", "Crossref; Europe PMC abstract read",
+    "Design of a 12-trial benchmarking program that stresses preregistered protocols before initiation and prespecified agreement criteria. Shows the registration practice spreading.", prio=2)
+
+# ---- (e) software and platforms
+add("e", "Schuemie", 2020, "LEGEND principles", "J Am Med Inform Assoc 27(8):1331-1337",
+    "DOI 10.1093/jamia/ocaa103", "10.1093/jamia/ocaa103", "Crossref",
+    "Sets out principles for prespecified, systematic evidence generation across a network of databases. The pattern is many questions, one prespecified pipeline; cleanTMLE is one study with a locked plan.")
+add("e", "Schuemie", 2020, "Benchmark of observational designs and calibration", "Harv Data Sci Rev 2(1)",
+    "DOI 10.1162/99608f92.147cc28e", "10.1162/99608f92.147cc28e", "Crossref (title and venue; abstract read only through a web summary)",
+    "Benchmark that pairs real negative controls with synthetic positive controls and tests empirical calibration. Source for the calibration idea that cleanTMLE does not use.", prio=2)
+add("e", "Conover", 2025, "Objective study validity diagnostics", "J Am Med Inform Assoc 32(3):518-525",
+    "DOI 10.1093/jamia/ocae317", "10.1093/jamia/ocae317", "Crossref; PMC full text read",
+    "Prespecified diagnostics (minimum detectable relative risk, equipoise, balance, generalizability, expected absolute systematic error) are read before unblinding. The minimum detectable relative risk uses observed outcome event counts; the systematic error uses negative-control outcomes.")
+add("e", "OHDSI", 2026, "CohortMethod 6.0.3 documentation", "R package documentation (ohdsi.github.io/CohortMethod)",
+    "https://ohdsi.github.io/CohortMethod/reference/createCmDiagnosticThresholds.html", None, "Documentation pages opened",
+    "Reports equipoise, balance, minimum detectable relative risk, expected absolute systematic error and generalizability, each with a threshold (defaults 0.2, 0.1, 10, 0.25, off) and a pass, warning or fail; the results table has an unblind flag.",
+    url="https://cran.r-project.org/web/packages/CohortMethod/vignettes/ResultsSchema.html")
+add("e", "OHDSI", 2026, "Strategus 1.6.0 documentation", "R package documentation (ohdsi.github.io/Strategus)",
+    "https://ohdsi.github.io/Strategus/reference/index.html", None, "Documentation pages opened",
+    "Builds, executes and uploads JSON analysis specifications for HADES modules. Its reference index lists no function that hashes or locks a specification.")
+add("e", "Hripcsak", 2025, "Covariate balance with small samples", "Stat Med 44(18-19):e70212",
+    "DOI 10.1002/sim.70212", "10.1002/sim.70212", "Crossref; Europe PMC abstract read",
+    "Shows that a fixed balance threshold flags chance imbalance in samples near 2,000 and proposes testing whether the standardized difference exceeds the threshold. Relevant to small cohorts such as the four-month Rescue.Co cohort.")
+add("e", "Vereijken", 2026, "Large-scale propensity scores in small samples", "J Am Med Inform Assoc 33(10):1992-2001",
+    "DOI 10.1093/jamia/ocag133; PMID 42550071", "10.1093/jamia/ocag133", "Crossref; Europe PMC abstract read",
+    "Standard balance diagnostics failed below about 20,000 patients in this setting, while propensity matching held up at 500. Supports judging estimability by simulation rather than by balance thresholds in small cohorts.")
+add("e", "Li", 2026, "Negative controls in GLP-1 studies, scoping review", "Pharmacoepidemiol Drug Saf 35(7):e70420",
+    "DOI 10.1002/pds.70420; PMID 42432825", "10.1002/pds.70420", "Crossref; Europe PMC abstract read",
+    "In 42 studies, none explicitly discussed the assumptions behind the negative-control analysis. Supports listing, by domain, which unmeasured confounders have a control.")
+add("e", "Sentinel", 2020, "Targeted learning evaluation in Sentinel", "Project page (sentinelinitiative.org)",
+    "https://sentinelinitiative.org/methods-data-tools/methods/enhancing-causal-inference-sentinel-system-evaluation-targeted-learning",
+    None, "Project page opened",
+    "Workgroup comparing targeted learning with Sentinel propensity-score methods on linked claims and EHR data; status complete. The page names no tool or report.", prio=2)
+add("e", "Wyss", 2024, "Undersmoothed LASSO propensity score with targeted learning", "Am J Epidemiol 193(11):1632-1640",
+    "DOI 10.1093/aje/kwae023; PMID 38517025", "10.1093/aje/kwae023", "Crossref; Europe PMC abstract read",
+    "Sentinel-linked work on choosing the degree of undersmoothing; cross-fitting mattered for avoiding non-overlap. A pointer for the learner-defaults item.")
+add("e", "Wyss", 2026, "Tuning LASSO for propensity weighting; synthetic negative controls", "Stat Med 45(8-9):e70503",
+    "DOI 10.1002/sim.70503; PMID 41944633", "10.1002/sim.70503", "Crossref; Europe PMC abstract read",
+    "Tunes the propensity model with balance metrics, which need no outcome, and flags residual confounding with synthetic negative-control exposures. Cites both Nance 2024 and Conover 2025 (OpenAlex).")
+add("e", "Lee", 2026, "TMLE in regulatory submissions", "Int J Biostat",
+    "DOI 10.1515/ijb-2026-0055; PMID 42307456", "10.1515/ijb-2026-0055", "Crossref; Europe PMC abstract read",
+    "Overview of how TMLE has been used in FDA submissions and FDA research. Context for why a TMLE-specific design stage matters to regulators.", prio=2)
+add("e", "Meng", 2026, "REFINE2 plasmode simulation app", "Am J Epidemiol 195(2):533-542",
+    "DOI 10.1093/aje/kwaf195; PMID 40899648", "10.1093/aje/kwaf195", "Crossref; PubMed; repository README opened",
+    "Shiny app that runs a plasmode simulation on the user's data to compare estimators for a prespecified ATE. Closest tool to the simulation step. It fixes the estimand, and the repository README asks for an outcome column.")
+add("e", "Schreck", 2024, "Statistical plasmode simulations", "Stat Med 43(9):1804-1825",
+    "DOI 10.1002/sim.10012", "10.1002/sim.10012", "Crossref",
+    "Tutorial on plasmode simulation practice and its assumptions, such as representativeness of the sample. Methods citation for the simulation design.")
+add("e", "Karim", 2026, "A plasmode benchmark can refute but not certify", "arXiv 2609.26186",
+    "arXiv:2609.26186", None, "arXiv abstract page opened",
+    "Argues that a plasmode benchmark can disprove an estimator but not confirm it, and that regenerating treatment from a bounded propensity score avoids the overlap failures that resampling observed treatments causes.", url="https://arxiv.org/abs/2609.26186")
+add("e", "Karim", 2026, "Flaws in the Plasmode 0.1.0 generator", "arXiv 2609.24053",
+    "arXiv:2609.24053", None, "arXiv abstract page opened",
+    "Shows that the CRAN Plasmode 0.1.0 generator mis-aligns exposure probabilities and distorts confounding. A reason not to build on that package.", prio=2, url="https://arxiv.org/abs/2609.24053")
+add("e", "Desai", 2026, "Plasmode-based bias analysis for unmeasured confounding", "Pharmacoepidemiol Drug Saf 35(5):e70383",
+    "DOI 10.1002/pds.70383; PMID 42093129", "10.1002/pds.70383", "Crossref; Europe PMC abstract read",
+    "Plasmode simulation used for a quantitative bias analysis on Sentinel data. Related to the wishlist item on a locked bias analysis.", prio=2)
+
+# ---- (f) choosing the estimator or learner library
+add("f", "Nance", 2024, "Causal roadmap and simulations for real-data applications", "Epidemiology 35(6):791-800",
+    "DOI 10.1097/ede.0000000000001773; PMID 39087681", "10.1097/ede.0000000000001773", "Crossref",
+    "Outcome-blind simulations on the study's data structure compare candidate estimators and finalize the statistical analysis plan. The nearest published statement of the design stage; it fixes the estimand first.")
+add("f", "Gruber", 2022, "Targeted learning statistical analysis plan", "Stat Biopharm Res 15(3):468-475",
+    "DOI 10.1080/19466315.2022.2116104", "10.1080/19466315.2022.2116104", "Crossref",
+    "Guidance on writing a statistical analysis plan around targeted learning. No abstract was retrievable (not in Crossref or Europe PMC), so read the paper before relying on specifics.")
+add("f", "Dang", 2023, "Causal roadmap for real-world evidence", "J Clin Transl Sci 7(1):e212",
+    "DOI 10.1017/cts.2023.635; PMID 37900353", "10.1017/cts.2023.635", "Crossref", "The roadmap itself; already cited.", prio=2)
+add("f", "Williamson", 2023, "Causal roadmap in two safety-monitoring case studies", "J Clin Transl Sci 7(1):e208",
+    "DOI 10.1017/cts.2023.632", "10.1017/cts.2023.632", "Crossref",
+    "Two Sentinel-sponsored case studies that use the roadmap to document analytic decisions. Already cited; the bib entry has no DOI, so add it when the entry is next refreshed.", prio=2,
+    bib="williamsonApplicationCausalRoadmap2023 (entry lacks its DOI)")
+add("f", "Nance", 2025, "Roadmap on Danish registry data, published version", "J Causal Inference 13(1):20240014",
+    "DOI 10.1515/jci-2024-0014", "10.1515/jci-2024-0014", "Crossref",
+    "The bib holds the arXiv version (nanceApplyingCausalRoadmap2023); cite the journal version.", prio=2, bib="no (arXiv version: nanceApplyingCausalRoadmap2023)")
+add("f", "Gruber", 2023, "Evaluating and improving RWE with targeted learning", "BMC Med Res Methodol 23:178",
+    "DOI 10.1186/s12874-023-01998-2", "10.1186/s12874-023-01998-2", "Crossref",
+    "Applies the roadmap to a published ritodrine study: the data could not identify a dose-response curve, so a simpler contrast was estimated. An example of changing the estimand because the data cannot support it, done after the study.", prio=2)
+add("f", "Phillips", 2023, "Specifying a super learner", "Int J Epidemiol 52(4):1276-1285",
+    "DOI 10.1093/ije/dyad023; PMID 36905602", "10.1093/ije/dyad023", "Crossref; Europe PMC abstract read",
+    "Step-by-step choices for a prespecified super learner. Cite in the learner documentation and in the Methods sentence on the library.")
+add("f", "Williamson", 2025, "Variable screening in the super learner", "NEJ Stat Data Sci",
+    "DOI 10.51387/25-nejsds82", "10.51387/25-nejsds82", "Crossref",
+    "Companion guidance on screening variables before a super learner. Optional for the learner-defaults item.", prio=2)
+add("f", "Gruber", 2022, "Data-adaptive propensity score truncation level", "Am J Epidemiol 191(9):1640-1651",
+    "DOI 10.1093/aje/kwac087; PMID 35512316", "10.1093/aje/kwac087", "Crossref; Europe PMC abstract read",
+    "Gives a truncation bound as a function of the sample size, so it needs no outcome. It can enter the plan as one named truncation candidate.")
+add("f", "Li", 2022, "Realistic simulations to test TMLE robustness", "Stat Med 41(12):2132-2165",
+    "DOI 10.1002/sim.9348; PMID 35172378", "10.1002/sim.9348", "Crossref; Europe PMC abstract read",
+    "Benchmarks TMLE variants on simulations built from ten nutrition-trial datasets with a highly adaptive lasso generator. Precedent for data-based simulation to choose among TMLE variants.", prio=2)
+add("f", "Balzer", 2026, "Prespecified yet data-adaptive learning in trials", "Clin Trials 23(3):289-296",
+    "DOI 10.1177/17407745261417227; PMID 41762058", "10.1177/17407745261417227", "Crossref; Europe PMC abstract read",
+    "Picks the TMLE specification by cross-validated variance with sample splitting, tests it with parametric and plasmode simulations, prespecifies the plan and unblinds in real time. The closest published workflow, in randomized trials.")
+add("f", "Balzer", 2016, "Adaptive prespecification in randomized trials", "Stat Med 35(25):4528-4545",
+    "DOI 10.1002/sim.7023", "10.1002/sim.7023", "Crossref",
+    "Earlier paper on adaptive prespecification in randomized trials (title). Cite with Balzer 2026.", prio=2)
+add("f", "Keele", 2025, "Guide to selecting among adjustment methods", "Stat Med 44(5):e10336",
+    "DOI 10.1002/sim.10336; PMID 39947224", "10.1002/sim.10336", "Crossref; Europe PMC abstract read",
+    "Reviews matching, weighting, doubly robust and machine learning methods and gives recommendations for choosing among them. Context for estimator choice.", prio=2)
+add("f", "Qiu", 2025, "Estimator-robust design with outcome-blind matching", "arXiv 2501.17835 (v2, 2026)",
+    "arXiv:2501.17835", None, "arXiv abstract page opened",
+    "A TMLE design that picks external controls with an outcome-blind matching step (Mertens is an author). An example of an outcome-blind design step inside a TMLE workflow.", prio=2, url="https://arxiv.org/abs/2501.17835")
+add("f", "Franklin", 2014, "Plasmode simulation", "Comput Stat Data Anal 72:219-226",
+    "DOI 10.1016/j.csda.2013.10.018", "10.1016/j.csda.2013.10.018", "Crossref", "Already cited.", prio=2)
+add("f", "Shaw", 2026, "Cautionary note for plasmode studies", "Stat Med 45(18-19):e70676",
+    "DOI 10.1002/sim.70676", "10.1002/sim.70676", "Crossref", "Already cited.", prio=2)
+
+# ---- (g) estimand choice and anticipation of the claim
+add("g", "Barnard", 2026, "Causal estimand selection under positivity violations", "Biometrics 82(1):ujag014",
+    "DOI 10.1093/biomtc/ujag014; PMID 41669864", "10.1093/biomtc/ujag014", "Crossref; Europe PMC abstract read",
+    "Design-based metrics trade estimator bias against drift from the population of interest. A placeholder in the introduction. It does not simulate outcomes from the design.")
+add("g", "Liu", 2025, "Tutorial on weighting under positivity violations", "Stat Med 44(28-30):e70329",
+    "DOI 10.1002/sim.70329; PMID 41307408", "10.1002/sim.70329", "Crossref; Europe PMC abstract read",
+    "Tutorial that guides choosing a primary target estimand with others as supplementary, and provides the R package ChiPS. A placeholder in the introduction.")
+add("g", "Cafri", 2025, "Prioritizing the ATT for drug and device safety", "Am J Epidemiol 194(12):3602-3608",
+    "DOI 10.1093/aje/kwaf175; PMID 40826904", "10.1093/aje/kwaf175", "Crossref; Europe PMC abstract read",
+    "Argues the ATT should be the default estimand in drug-safety studies and that regulatory guidance says little on estimand choice. Bears on the order of the estimand ladder.")
+add("g", "Song", 2026, "Outcome switching in cohort studies", "BMJ 393:e087975",
+    "DOI 10.1136/bmj-2025-087975; PMID 42203255", "10.1136/bmj-2025-087975", "Crossref; Europe PMC abstract read", "Already cited.", prio=2)
+add("g", "PHUSE", 2026, "Causal roadmap, targeted learning and TMLE (event page)", "PHUSE working group event, 29 Jan 2026",
+    "https://events.phuse.global/2PvrW0", None, "Event page opened (talk, not a publication)",
+    "Describes outcome-blind simulations to choose the statistical analysis plan and a Sentinel and FDA project on real data. An unpublished effort in the same space; the slides were not available.")

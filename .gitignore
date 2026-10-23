@@ -47,3 +47,13 @@ renv/sandbox/
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# Simulation study: cache and project library
+simulation/cache/
+simulation/lib/
+
+# Superpowers scratch (review packages, brainstorm mockups)
+.superpowers/
+
+# Project library for the re-execution (cleanTMLE 0.5.0)
+rescueCo/lib/
