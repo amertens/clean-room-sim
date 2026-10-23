@@ -1,0 +1,25 @@
+log	search_date_utc	hits_by_source	unique_records_kept
+a_cleanroom	2026-10-23	PubMed 47; Europe PMC 49; OpenAlex 1850; Semantic Scholar 0	79
+a_cleanroom2	2026-10-23	PubMed 10; Europe PMC 11; OpenAlex 109; Semantic Scholar 1660	84
+a_cleanroom_ft	2026-10-23	Europe PMC 3; Europe PMC 7	10
+a_firewall	2026-10-23	PubMed 15; Europe PMC 18; OpenAlex 512	60
+b_blind	2026-10-23	PubMed 44; Europe PMC 70; OpenAlex 412; Semantic Scholar 2	68
+b_design	2026-10-23	PubMed 46; Europe PMC 24; OpenAlex 69; Semantic Scholar 0	51
+c_prereg	2026-10-23	PubMed 1609; Europe PMC 343; OpenAlex 674; Semantic Scholar 0	81
+c_target	2026-10-23	PubMed 2073; Europe PMC 2227; OpenAlex 4648; Semantic Scholar 2049	107
+d_duplicate	2026-10-23	PubMed 8; Europe PMC 27680; OpenAlex 114589; Semantic Scholar 0	60
+e_ohdsi	2026-10-23	PubMed 206; Europe PMC 293; OpenAlex 2441; Semantic Scholar 0	78
+e_sentinel	2026-10-23	PubMed 2; Europe PMC 2; OpenAlex 8; Semantic Scholar 0	8
+e_software	2026-10-23	PubMed 76; Europe PMC 81; OpenAlex 390; Semantic Scholar 1	63
+f_plasmode	2026-10-23	PubMed 5; Europe PMC 4; OpenAlex 11; Semantic Scholar HTTP 429	13
+f_plasmode_s2	2026-10-23	Semantic Scholar 0; arXiv 1	1
+f_roadmap	2026-10-23	PubMed 37; Europe PMC 31; OpenAlex 235; Semantic Scholar 9	60
+f_sl	2026-10-23	PubMed 5; Europe PMC 6; OpenAlex 29; Semantic Scholar 0	33
+g_arxiv	2026-10-23	arXiv HTTP 429	0
+g_arxiv2	2026-10-23	arXiv HTTP 429	0
+g_arxiv3	2026-10-23	arXiv 5	5
+g_compete	2026-10-23	PubMed 0; Europe PMC 1; OpenAlex 18; Semantic Scholar 0	18
+g_estimand_choice	2026-10-23	PubMed 0; Europe PMC 2; OpenAlex 13; Semantic Scholar 0	13
+g_gate	2026-10-23	PubMed 47; Europe PMC 52; OpenAlex 2344	81
+g_lock	2026-10-23	PubMed 67; Europe PMC 79; OpenAlex 1074	80
+g_outcomeblind_est	2026-10-23	PubMed 1; Europe PMC 5; OpenAlex 28; Semantic Scholar 0	27

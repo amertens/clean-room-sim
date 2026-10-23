@@ -1,0 +1,441 @@
+[p1] Estimation using CohortMethod in 
+Strategus
+George Hripcsak
+(Slides thanks to Martijn Schuemie and Patrick Ryan)
+
+[p2] New-user cohort design
+Total population
+Target cohort
+Comparator
+cohort
+
+[p3] What do we need?
+• Target and comparator cohorts
+• Indication (included in above 
+cohorts or separate)
+• Outcome cohorts
+• Timing of targets and outcomes
+• Method to adjust for 
+confounding and its parameters
+3
+
+[p4] Strategus workflow
+4
+Analysis 
+specifications
+Target-
+comparator-
+outcomes
+AnalysesToEx
+clude
+Connection 
+details, etc.
+Analysis 
+specifications
+Execution 
+settings
+Diagnostics 
+thresholds
+Firewall
+Strategus
+CSV 
+files
+Analysis 
+specifications
+CSV 
+files
+Parameters 
+in a script
+JSON file
+
+[p5] Create cohorts using ATLAS or CapR
+• Use all of ATLAS’s features
+• Import these cohort definitions into the Strategus specification
+5
+
+[p6] Time-at-risk: when might the outcome occur?
+6
+Observation period
+Risk
+Window
+start
+startAnchor
+Risk
+Window
+end
+endAnchor
+1
+cohort start
+0
+cohort end
+1
+cohort start
+30
+cohort start
+1
+cohort start
+99999
+cohort start
+Cohort 
+start
+Cohort 
+end
+Observation 
+end
+Cohort 
+start + 
+30 days
+Time at risk
+Time at risk
+Time at risk
+Target cohort
+“On treatment”
+“30 day”
+“Intention to treat”
+
+[p7] Outcome lookback window and cohort clean window
+• Outcome cohort clean window: how soon can outcome recur 
+versus just repeat code
+Immortal time
+Target or comparator
+Outcome
+Clean window
+Index date
+To avoid immortal time:
+At least remove anyone who has the outcome during clean window prior to index
+Alternatively:
+Remove anyone who has the outcome any time prior
+Outcome-treatment 
+timing complications
+
+[p8] Propensity score (PS)
+Adjust for confounding using the propensity score, the 
+probability of receiving the treatment conditional on a set of 
+baseline characteristics
+𝑃 𝑡𝑟𝑒𝑎𝑡𝑚𝑒𝑛𝑡 𝑋) = 𝑓( 𝛽0 + 𝛽1𝑥1 + 𝛽2𝑥2 + 𝛽3𝑥3 + … )
+Intercept
+Charlson Comorbidity Index
+Prior GERD
+Age
+
+[p9] Using the PS, excluding codes
+• Balance the two treatment groups so that any difference in 
+outcome must be due to treatment
+– Matching, Stratification, Weighting
+•
+Match 1-to-1 or 1-to-N (best if comparators have difference 
+sample sizes)
+•
+Need to exclude treatment and comparator from the PS model, or 
+else perfectly predict treatment and cannot balance
+–
+Other administratively linked concepts (injection devices for GLP-1)
+
+[p10] Outcome modeling
+𝑃 𝑜𝑢𝑡𝑐𝑜𝑚𝑒 𝑋) = 𝑓( 𝛽0 + 𝛽1𝑥1 + 𝛽2𝑥2 + 𝛽3𝑥3 + … )
+Intercept
+Treatment
+Covariate 1
+Covariate 2
+• Logistic: Did the outcome occur yes/no? 
+• Poisson: How many times did the outcome occur? 
+• Cox: What was the time to the first outcome or end of observation?
+• Conditional or non-conditional (Logistic, Poisson, Cox): 
+stratify by PS strata or matched sets
+
+[p11] Typical design
+• Use another exposure as comparator 
+– Could use https://data.ohdsi.org/ComparatorSelectionExplorer/  to choose
+• Use LSPS propensity score
+– Variable ratio matching if C >> T, else 1-on-1 matching
+– Stratification
+– Remove exposure and comparator from propensity model (+ standard list of 
+exclusion concept)
+• Use both on-treatment TAR and 0-30-day TAR
+• Cox model
+– Must be stratified when using variable ratio matching or stratification
+• Include negative control outcomes
+11
+
+[p12] Script to generate JSON
+################################################################################
+# INSTRUCTIONS: Make sure you have downloaded your cohorts using 
+# DownloadCohorts.R and that those cohorts are stored in the "inst" folder
+# of the project. This script is written to use the sample study cohorts
+# located in "inst/sampleStudy" so you will need to modify this in the code 
+# below. 
+# 
+# See the Create analysis specifications section
+# of the UsingThisTemplate.md for more details.
+# 
+# More information about Strategus HADES modules can be found at:
+# https://ohdsi.github.io/Strategus/reference/index.html
+# omop-cdm-hades-modules.
+# This help page also contains links to the corresponding HADES package that
+# further details.
+###############################################################################
+library(dplyr)
+library(Strategus)
+########################################################
+# Above the line - MODIFY ------------------------------
+########################################################
+12
+
+[p13] Get previously defined cohorts
+# Get the list of cohorts - NOTE: you should modify this for your
+# study to retrieve the cohorts you downloaded as part of
+# DownloadCohorts.R
+cohortDefinitionSet <- CohortGenerator::getCohortDefinitionSet(
+  settingsFileName = "inst/sampleStudy/Cohorts.csv",
+  jsonFolder = "inst/sampleStudy/cohorts",
+  sqlFolder = "inst/sampleStudy/sql/sql_server"
+)
+13
+
+[p14] Define each T-C analysis
+tcis <- list(
+  #standard analyses that would be performed during routine signal detection
+  list(
+    targetId = 20126, # Ace inhibitor
+    comparatorId = 20127, # Diuretic
+    indicationId = 20128, # Hypertensive disorder
+    excludedCovariateConceptIds = c(
+      21601783, 
+      21601461
+    ) 
+  ),
+  list(
+  # … next
+14
+
+[p15] Define outcomes and their clean windows
+outcomes <- tibble(
+  cohortId = c(20129, 20130), # AMI, Angioedema
+  cleanWindow = c(365, 365)
+)
+15
+
+[p16] Define the time-at-risk for each T-C pair
+# Time-at-risks (TARs) for the outcomes of interest in your study
+timeAtRisks <- tibble(
+  label = c("On treatment", "On treatment"),
+  riskWindowStart  = c(1, 1),
+  startAnchor = c("cohort start", "cohort start"),
+  riskWindowEnd  = c(0, 0),
+  endAnchor = c("cohort end", "cohort end")
+)
+16
+
+[p17] Study dates if needed
+# If you are not restricting your study to a specific time window, 
+# please make these strings empty
+studyStartDate <- '20200101' #YYYYMMDD
+studyEndDate <- '20241231'   #YYYYMMDD
+# Some of the settings require study dates with hyphens
+studyStartDateWithHyphens <- gsub("(\\d{4})(\\d{2})(\\d{2})", "\\1-\\2-\\3", studyStartDate)
+studyEndDateWithHyphens <- gsub("(\\d{4})(\\d{2})(\\d{2})", "\\1-\\2-\\3", studyEndDate)
+17
+
+[p18] Subgroup analysis
+# These are the cohorts we'd like to used as subsets for all T/C's
+cohortSubsets <- c(20226, 20227)
+ageGroups <- list(
+  list(
+    minAge = 0,
+    maxAge = 20
+  ),
+  list(
+    minAge = 21,
+    maxAge = 60
+  ),
+  list(
+    minAge = 61,
+    maxAge = 80
+  )
+)
+18
+
+[p19] Additional parameters
+# Consider these settings for estimation  ----------------------------------------
+useCleanWindowForPriorOutcomeLookback <- FALSE # If FALSE, lookback window is all time prior, i.e., 
+including only first events
+psMatchMaxRatio <- 1 # If bigger than 1, the outcome model will be conditioned on the matched set
+########################################################
+# Below the line - DO NOT MODIFY -----------------------
+########################################################
+# Don't change below this line (unless you know what you're doing) -------------
+19
+
+[p20] Results
+• Run analysis on Strategus
+– If no errors…
+• Generate results
+• Move to results.ohdsi.org
+• Run Shiny app
+20
+
+[p21] Diagnostics by database
+21
+
+[p22] Power
+22
+
+[p23] Attrition
+23
+
+[p24] Propensity model
+24
+
+[p25] Propensity scores
+25
+
+[p26] Covariate balance
+26
+
+[p27] Systematic error
+27
+
+[p28] Kaplan-Meier
+28
+
+[p29] Results
+29
+
+[p30] Current practice for the self-controlled 
+case series in Strategus
+Marc A Suchard, MD, PhD
+
+[p31] Typical use case
+Question: 
+  Does Target cause Outcome [in Indication] [in Age Group] [in Sex] [in Time Period]?
+To answer this, we could run:
+• Cohort method
+• Self-controlled case series (SCCS)
+• Meta-analysis of cohort method and SCCS
+• Additional characterizations to support causal assessment
+Our approach: always include both, 
+let diagnostics decide when a design 
+is appropriate
+
+[p32] Self-Controlled Case Series
+32
+Exposure
+Exposure
+Exposure
+Exposure
+Outcome
+Outcome
+Outcome
+Is the outcome more likely during exposed time compared to non-
+exposed time?
+Patient A
+Patient B
+Patient C
+
+[p33] Self-Controlled Case Series
+33
+Exposure
+Exposure
+Exposure
+Exposure
+Outcome
+Outcome
+Outcome
+Given that a patient has the outcome, is the outcome more likely 
+during exposed time compared to non-exposed time?
+Patient A
+Patient B
+Patient C
+Conditioning on the outcome helps:
+-
+Insensitive to differences between subjects that are constant over time
+-
+Only require data on subjects with the outcome
+
+[p34] Correcting for age, season and calendar
+Problem: Time-varying confounding by, e.g., changing prevalence of exposure and 
+outcome over age or calendar-time
+Solution: SCCS package uniquely uses objective diagnostics and spline adjustment for 
+time-varying covariates / confounders (assume effect constant within calendar month, 
+age, etc.)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+Month
+Rate
+
+[p35] Take care in defining cohorts
+• Don’t always use the same exposure cohort in CohortMethod and SCCS
+– E.g. First use of metformin, requiring a prior diagnosis of type 2 DM
+Metformin
+Metformin
+Metformin
+T2DM
+Metformin
+Metformin
+T2DM
+Stroke
+Stroke
+
+[p36] Use the indication (nesting) cohort
+• Do apply all inclusion criteria to the observation period instead
+– E.g. Metformin in >= 18 year olds with a diagnosis of T2DM
+Metformin
+T2DM
+18th birthday
+In indication cohort
+In age bracket
+Time included in model
+Metformin
+Metformin
+Stroke
+
+[p37] Deriving all exposure cohorts from base cohorts 
+Base comparator 
+cohort
+Base target 
+cohort
+Indication cohort
+Target and comparator cohort contain 
+any exposure, no restrictions
+Indication cohort is usually first 
+diagnosis to end of observation
+Restrict to age, sex, study period
+First exposure only, prior obs. time
+Restrict to indication
+Comparator for 
+cohort method
+Target for cohort 
+method
+Age, sex, study 
+period 
+specifications
+Cohort method
+SCCS
+
+[p38] Typical design
+• Restrict to first outcome only
+• 365-day naïve period (or 180)
+• Restrict to indication
+• Pre-exposure covariate: -30 to -1 days relative to exposure start
+• Exposure covariate : On-treatment, except day 0
+• Include season and calendar time splines
+• Include negative control outcomes (same as CohortMethod)
+
+[p39] The above-the-line below-the-line script
+https://github.com/ohdsi-
+studies/StrategusStudyRepoTemplate/blob/main/
+CreateStrategusAnalysisSpecificationTcis.R
+
+[p40] ShinyApp diagnostics and results viewer
+• Auto-magical byproduct of Strategus
+• https://results.ohdsi.org/app/28_OhdsiExampleStudyApp

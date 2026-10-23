@@ -1,0 +1,6 @@
+Q1     pubmed          hits=5      returned=5    status=200  doi=5/5; pmid=5/5; abstract=5/5; year=5/5; venue=5/5; citation_count=0/5
+Q1     europepmc       hits=6      returned=6    status=200  doi=6/6; pmid=5/6; abstract=6/6; year=6/6; venue=6/6; citation_count=6/6
+Q1     openalex        hits=29     returned=29   status=200  doi=27/29; pmid=12/29; abstract=23/29; year=29/29; venue=28/29; citation_count=29/29
+Q1     semanticscholar hits=0      returned=0    status=200  n=0
+raw records=40; unique after de-duplication=33; duplicates removed=7; unique records per source={"europepmc": 6, "openalex": 29, "pubmed": 5}; unique records found by that source only={"europepmc": 1, "openalex": 27, "pubmed": 0}; clusters joining a preprint and a published version=0; records flagged as possible near-duplicates for human check=0
+wrote audit/2026-10-22/lit/f_sl.jsonl (33 records) and audit/2026-10-22/lit/f_sl-log.csv (5 rows)

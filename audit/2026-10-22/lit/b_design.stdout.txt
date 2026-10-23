@@ -1,0 +1,6 @@
+Q1     pubmed          hits=46     returned=29   status=200  doi=28/29; pmid=29/29; abstract=29/29; year=29/29; venue=29/29; citation_count=0/29
+Q1     europepmc       hits=24     returned=24   status=200  doi=23/24; pmid=22/24; abstract=24/24; year=24/24; venue=24/24; citation_count=24/24
+Q1     openalex        hits=69     returned=30   status=200  doi=27/30; pmid=12/30; abstract=27/30; year=30/30; venue=29/30; citation_count=30/30
+Q1     semanticscholar hits=0      returned=0    status=200  n=0
+raw records=83; unique after de-duplication=51; duplicates removed=32; unique records per source={"europepmc": 24, "openalex": 29, "pubmed": 28}; unique records found by that source only={"europepmc": 3, "openalex": 14, "pubmed": 13}; clusters joining a preprint and a published version=1; records flagged as possible near-duplicates for human check=0
+wrote audit/2026-10-22/lit/b_design.jsonl (51 records) and audit/2026-10-22/lit/b_design-log.csv (5 rows)

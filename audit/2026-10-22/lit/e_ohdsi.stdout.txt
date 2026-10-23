@@ -1,0 +1,6 @@
+Q1     pubmed          hits=206    returned=30   status=200  doi=30/30; pmid=30/30; abstract=30/30; year=30/30; venue=30/30; citation_count=0/30
+Q1     europepmc       hits=293    returned=30   status=200  doi=30/30; pmid=22/30; abstract=30/30; year=30/30; venue=30/30; citation_count=30/30
+Q1     openalex        hits=2441   returned=30   status=200  doi=29/30; pmid=10/30; abstract=24/30; year=30/30; venue=27/30; citation_count=30/30
+Q1     semanticscholar hits=0      returned=0    status=200  n=0
+raw records=90; unique after de-duplication=78; duplicates removed=12; unique records per source={"europepmc": 28, "openalex": 28, "pubmed": 30}; unique records found by that source only={"europepmc": 20, "openalex": 25, "pubmed": 25}; clusters joining a preprint and a published version=2; records flagged as possible near-duplicates for human check=0
+wrote audit/2026-10-22/lit/e_ohdsi.jsonl (78 records) and audit/2026-10-22/lit/e_ohdsi-log.csv (5 rows)

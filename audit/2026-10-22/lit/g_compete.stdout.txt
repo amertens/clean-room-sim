@@ -1,0 +1,6 @@
+Q1     pubmed          hits=0      returned=0    status=200  n=0
+Q1     europepmc       hits=1      returned=1    status=200  doi=1/1; pmid=1/1; abstract=1/1; year=1/1; venue=1/1; citation_count=1/1
+Q1     openalex        hits=18     returned=18   status=200  doi=17/18; pmid=3/18; abstract=18/18; year=18/18; venue=18/18; citation_count=18/18
+Q1     semanticscholar hits=0      returned=0    status=200  n=0
+raw records=19; unique after de-duplication=18; duplicates removed=1; unique records per source={"europepmc": 1, "openalex": 18}; unique records found by that source only={"europepmc": 0, "openalex": 17}; clusters joining a preprint and a published version=0; records flagged as possible near-duplicates for human check=0
+wrote audit/2026-10-22/lit/g_compete.jsonl (18 records) and audit/2026-10-22/lit/g_compete-log.csv (5 rows)
