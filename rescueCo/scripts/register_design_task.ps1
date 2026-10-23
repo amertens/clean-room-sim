@@ -15,7 +15,7 @@
 #               ForEach-Object { Stop-Process -Id $_.ProcessId }
 # Remove:     Unregister-ScheduledTask -TaskName RescueCo_design_stage -Confirm:$false
 
-$root = 'C:\Users\andre\OneDrive\Documents\clean-room-sim'
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path   # the project folder this copy sits in
 $script = Join-Path $root 'rescueCo\scripts\design_supervisor.ps1'
 if (-not (Test-Path $script)) { throw "No supervisor at $script" }
 $user = '{0}\{1}' -f $env:USERDOMAIN, $env:USERNAME

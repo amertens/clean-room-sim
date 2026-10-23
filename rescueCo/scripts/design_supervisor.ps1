@@ -17,9 +17,10 @@
 # stops the supervisor. The computer is kept awake (not the display) while it
 # runs. It reads no outcome.
 
-$root = 'C:\Users\andre\OneDrive\Documents\clean-room-sim'
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path   # the project folder this copy sits in
 $rs = 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe'
 $logs = Join-Path $root 'rescueCo\logs'
+New-Item -ItemType Directory -Force -Path $logs | Out-Null      # git does not carry it
 $log = Join-Path $logs 'supervisor.txt'
 $locks = Join-Path $root 'rescueCo\data\design\locks'
 $reg = Join-Path $root 'rescueCo\registration'
