@@ -1,16 +1,18 @@
-# Guards for the steps after the design stage (scripts 22b, 22c, 23, 24 and 25):
+# Guards for the steps after the design stage (scripts 22b, 22c, 23, 24 and 25;
+# script 22 uses only the log):
 # the build fingerprint, the approvals file and the check that it is pushed, a
 # log of their own, and the rows of a primary comparison before the
 # complete-case restriction. Decisions of 2026-10-23 on report recommendation 1.
 
 REG_DIR <- "rescueCo/registration"   # tracked: build, hashes, approvals
-RX_LOG <- "rescueCo/logs/reexec_050_after_design.log"
+RX_LOG <- "rescueCo/logs/reexec_050.log"
 FP_PKGS <- c("cleanTMLE", "tmle", "glmnet", "xgboost", "earth", "nnet",
              "SuperLearner", "lmtp", "generics", "digest", "future", "future.apply")
 
 # cr_log() appends to rescueCo/logs/pipeline.log, whose first lines hold
 # outcome counts from the unblinded analysis and which no one opens (ledger,
-# section 5), so these scripts log here instead.
+# section 5), so these scripts, and the design stage from 23 October on, log
+# here instead.
 rx_log <- function(msg) {
   entry <- paste0("[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "] ", msg)
   message(entry)

@@ -115,3 +115,15 @@ Script 24 builds the outcome store with the unblinded analysis's scoring: GOSE f
 7. **Cut-off.** A sensitivity lock or the 180-day lock without a design report 7 days after the last of L1 to L5 has one, or finished after that, is reported as not run, and script 24 waits only for the rest.
 
 The build is fingerprinted (script 22c) and scripts 22b and 25 stop if it changes. Script 25 writes to `rescueCo/data/estimates/final/` and `rescueCo/results/estimates_050/`, rehearses on synthetic outcomes under `rescueCo/data/rehearsal/`, and runs the longitudinal TMLE with settings fixed in the script: the comparison's rows before the complete-case restriction, saved and hashed by script 23; nodes disposition recorded, death at disposition, six-month status recorded and the primary outcome; a super learner ensemble with one learner type per family (elastic net, MARS, boosted trees, a small neural net); 5 cross-fitting folds and 5 inner folds; density ratios trimmed at their 0.999 quantile.
+
+## 10. Compute decisions (Andrew, 2026-10-23)
+
+The design stage stopped on 22 October with only L3 finished in both runs. To finish the rest in about a day, Andrew decided the following before any further lock was built, with no outcome involved. Section 6 already allowed dropping the super-learner candidate from L1 and L2 under time pressure; these decisions extend it.
+
+1. **Comparisons that cannot carry the confirmatory claim.** L1, L2, L4, S2 and S3 use main-terms logistic regression as the only outcome candidate, with truncation 0.01 and 0.05, and 100 repetitions without extension; the super learner still fits the propensity score. L1, L2 and L4 have poor overlap, and the population gate rejects every estimand below the ATE in all three; S2 and S3 are their walk-in sensitivity analyses. What their design stage shows is whether the ATE can be estimated; a verdict that it cannot applies to main-terms TMLE, and a cell unresolved at 100 repetitions is reported as unresolved.
+2. **L5** keeps both outcome candidates, because its overlap is moderate and the simulation decides between the ATE and the trimmed ATE, which passes the gate. It runs 100 repetitions without extension.
+3. **Unchanged.** L3 in both runs, S1, S4 and the confirmatory comparison's 180-day lock keep both candidates and the extension to 300 repetitions. Before every relaunch, script 22 rebuilds each finished lock and stops if its hash differs.
+4. **The first four months.** Only L3 (done) and L1, the protocol's comparison, are simulated; L2, L4 and L5 at four months are reported through overlap and the population gate, which need no simulation. The interrupted four-month L4 is set aside.
+5. **Running.** A supervisor kept in the repository (`rescueCo/scripts/design_supervisor.ps1`) runs one R job at a time, started by a scheduled task, with up to 14 workers sized from free memory, and resumes after an interruption; the files of a lock interrupted before its design report are set aside rather than overwritten.
+
+The Methods report the single outcome candidate and the absent extension for these comparisons.

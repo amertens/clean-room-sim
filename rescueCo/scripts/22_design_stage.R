@@ -10,6 +10,7 @@
 #   Rscript rescueCo/scripts/22_design_stage.R <run> pilot      # time 2 reps on L3 and L1
 #   Rscript rescueCo/scripts/22_design_stage.R <run> run <reps> <workers>  # every lock of the run
 #   Rscript rescueCo/scripts/22_design_stage.R <run> run <reps> <workers> <lock>  # one lock
+#   Rscript rescueCo/scripts/22_design_stage.R <run> verify <reps>   # rebuild finished locks, compare hashes
 #   run = "first4m" or "final"
 #
 # Spec: docs/superpowers/specs/2026-10-20-rescueco-reexecution-0.5.0.md.
@@ -17,6 +18,7 @@
 
 source(file.path(if (dir.exists("rescueCo")) "rescueCo/R" else "R", "bootstrap.R"))
 source("rescueCo/R/utils.R")
+source("rescueCo/R/reexec_guards.R")   # rx_log(): rescueCo/logs/pipeline.log is not opened (ledger, section 5)
 # cleanTMLE 0.5.0 from the project library (rescueCo/lib, built from the
 # cleanTMLE submodule), so the installed 0.3.0 other projects use is untouched.
 .libPaths(c("rescueCo/lib", .libPaths()))
@@ -29,8 +31,8 @@ RUN <- args[1]; MODE <- args[2]
 REPS <- if (length(args) >= 3) as.integer(args[3]) else 100L
 WORKERS <- if (length(args) >= 4) as.integer(args[4]) else 1L
 ONLY <- if (length(args) >= 5) args[5] else NULL   # one lock only (the supervisor sizes workers per lock)
-stopifnot(RUN %in% c("first4m", "final"), MODE %in% c("pilot", "run", "check"))
-cr_log(paste("=== 22 design stage, run", RUN, "mode", MODE,
+stopifnot(RUN %in% c("first4m", "final"), MODE %in% c("pilot", "run", "check", "verify"))
+rx_log(paste("=== 22 design stage, run", RUN, "mode", MODE,
              "cleanTMLE", as.character(utils::packageVersion("cleanTMLE")), "==="))
 
 dd <- readRDS(file.path(cfg$data$design_dir, paste0("design_data_", RUN, ".rds")))
@@ -44,29 +46,43 @@ dir.create(RES, recursive = TRUE, showWarnings = FALSE)
 # Locks (spec section 4)
 # ------------------------------------------------------------
 both_ops <- c("rescueco", "other_operator")
+# Compute decisions of 2026-10-23 (spec section 10), made before any of these
+# locks was built and without any outcome: `outcome_sl = FALSE` drops the super
+# learner outcome candidate (the super learner still fits the propensity score),
+# and `extend = FALSE` sets max_reps to reps. Both apply to the comparisons that
+# cannot carry the confirmatory claim; L5, the one with moderate overlap, keeps
+# both candidates. L3, S1 and S4 carry neither flag, so their plans, and L3's
+# lock hashes, are unchanged.
 LOCKS <- list(
   L1 = list(label = "Rescue.Co vs all other transport, all arrivals (protocol)",
-            treated = "rescueco", control = c("other_operator", "other_means"), direct = FALSE),
+            treated = "rescueco", control = c("other_operator", "other_means"), direct = FALSE,
+            outcome_sl = FALSE, extend = FALSE),
   L2 = list(label = "Rescue.Co vs all other transport, direct arrivals",
-            treated = "rescueco", control = c("other_operator", "other_means"), direct = TRUE),
+            treated = "rescueco", control = c("other_operator", "other_means"), direct = TRUE,
+            outcome_sl = FALSE, extend = FALSE),
   L3 = list(label = "Rescue.Co vs other ambulance operators, direct arrivals",
             treated = "rescueco", control = "other_operator", direct = TRUE),
   L4 = list(label = "Rescue.Co vs arrival by other means, direct arrivals",
-            treated = "rescueco", control = "other_means", direct = TRUE),
+            treated = "rescueco", control = "other_means", direct = TRUE,
+            outcome_sl = FALSE, extend = FALSE),
   L5 = list(label = "Any ambulance vs arrival by other means, direct arrivals",
-            treated = both_ops, control = "other_means", direct = TRUE),
+            treated = both_ops, control = "other_means", direct = TRUE, extend = FALSE),
   S1 = list(label = "As L3, arrival state added as a stand-in",
             treated = "rescueco", control = "other_operator", direct = TRUE, arrival = TRUE),
   S2 = list(label = "As L4, walk-ins excluded",
-            treated = "rescueco", control = "other_means", direct = TRUE, no_walkin = TRUE),
+            treated = "rescueco", control = "other_means", direct = TRUE, no_walkin = TRUE,
+            outcome_sl = FALSE, extend = FALSE),
   S3 = list(label = "As L5, walk-ins excluded",
-            treated = both_ops, control = "other_means", direct = TRUE, no_walkin = TRUE),
+            treated = both_ops, control = "other_means", direct = TRUE, no_walkin = TRUE,
+            outcome_sl = FALSE, extend = FALSE),
   S4 = list(label = "As L3, probable dispatch matches (tier 3) excluded",
             treated = "rescueco", control = "other_operator", direct = TRUE, no_tier3 = TRUE))
 # Run order: the expected confirmatory comparison first, so results arrive in a
 # useful order (compute call 12, spec section 6).
 LOCKS <- LOCKS[c("L3", "L4", "L5", "L2", "L1", "S1", "S4", "S2", "S3")]
-if (RUN == "first4m") LOCKS <- LOCKS[c("L3", "L4", "L5", "L2", "L1")]
+# The first four months: the confirmatory comparison (done) and the protocol's
+# comparison only (spec section 10).
+if (RUN == "first4m") LOCKS <- LOCKS[c("L3", "L1")]
 COMPLETE_CASE <- RUN == "final"
 
 # ------------------------------------------------------------
@@ -130,7 +146,8 @@ make_plan <- function(spec, covs, data, reps, max_reps = 3L * reps) {
     outcome = "severe_disability", estimands = c("ATE", "trimmed_ATE", "ATT", "ATO"),
     time_zero = TIME_ZERO, eligibility = el,
     ps_library = "default",
-    candidates = list(library = list(glm = "glm", sl = "default"), truncation = c(0.01, 0.05)),
+    candidates = list(library = if (isFALSE(spec$outcome_sl)) list(glm = "glm") else
+                        list(glm = "glm", sl = "default"), truncation = c(0.01, 0.05)),
     tolerance = list(bias = 0.0275, coverage = 0.90, ci_halfwidth = 0.055),
     surfaces = list(baseline_risk = 0.22),
     trim_band = c(0.05, 0.95),
@@ -150,6 +167,7 @@ lock_rows <- function(spec) {
 }
 
 build_lock <- function(name, spec, reps, max_reps = 3L * reps) {
+  if (isFALSE(spec$extend)) max_reps <- reps
   keep <- lock_rows(spec)
   x <- D[keep, , drop = FALSE]
   x$A <- as.integer(x$arm %in% spec$treated)
@@ -188,10 +206,28 @@ if (MODE == "check") {
   for (nm in names(LOCKS)) {
     lk <- build_lock(nm, LOCKS[[nm]], reps = 2L, max_reps = 2L)
     idt <- cleanTMLE:::.identification_table(lk)
-    cr_log(sprintf("CHECK %s: n = %d (%d treated, %d comparator); %d covariates; flags: %s", nm,
+    rx_log(sprintf("CHECK %s: n = %d (%d treated, %d comparator); %d covariates; flags: %s", nm,
                    nrow(lk$data), sum(lk$data$A), sum(lk$data$A == 0), length(lk$covariates),
                    paste(paste(idt$component, idt$item, sep = ": ")[idt$flag == "flag"], collapse = " | ")))
   }
+  quit(save = "no")
+}
+
+# ------------------------------------------------------------
+# Verify: rebuild every lock of this run that already has a design report and
+# compare its hash with the lock on disk, so that no edit to this script can
+# change a lock that has been simulated. Run before every relaunch.
+# ------------------------------------------------------------
+if (MODE == "verify") {
+  bad <- character()
+  for (nm in names(LOCKS)) {
+    if (!file.exists(file.path(OUT, paste0(nm, "_dossier.rds")))) next
+    old <- load_lock(file.path(OUT, paste0(nm, "_lock.rds")))$lock_hash
+    new <- build_lock(nm, LOCKS[[nm]], REPS)$lock_hash
+    rx_log(sprintf("VERIFY %s %s: %s", RUN, nm, if (identical(old, new)) "hash reproduced" else "HASH DIFFERS"))
+    if (!identical(old, new)) bad <- c(bad, nm)
+  }
+  if (length(bad)) stop("Rebuilt locks differ from those on disk: ", paste(bad, collapse = ", "), call. = FALSE)
   quit(save = "no")
 }
 
@@ -206,7 +242,7 @@ if (MODE == "pilot") {
     t1 <- Sys.time()
     sm <- simulate_design(lk, ds)
     t2 <- Sys.time()
-    cr_log(sprintf("PILOT %s: n = %d (%d treated); assess %.1f s; simulate (2 reps) %.1f s; per rep %.1f s",
+    rx_log(sprintf("PILOT %s: n = %d (%d treated); assess %.1f s; simulate (2 reps) %.1f s; per rep %.1f s",
                    nm, nrow(lk$data), sum(lk$data$A), as.numeric(t1 - t0, units = "secs"),
                    as.numeric(t2 - t1, units = "secs"), as.numeric(t2 - t1, units = "secs") / 2))
   }
@@ -218,7 +254,7 @@ if (MODE == "pilot") {
 # ------------------------------------------------------------
 if (WORKERS > 1L) {
   future::plan(future::multisession, workers = WORKERS)
-  cr_log(paste("Repetitions run on", WORKERS, "parallel workers"))
+  rx_log(paste("Repetitions run on", WORKERS, "parallel workers"))
 }
 # ------------------------------------------------------------
 # ------------------------------------------------------------
@@ -226,7 +262,7 @@ if (!is.null(ONLY)) stopifnot(ONLY %in% names(LOCKS))
 for (nm in names(LOCKS)) {
   if (!is.null(ONLY) && nm != ONLY) next
   done <- file.path(OUT, paste0(nm, "_dossier.rds"))
-  if (file.exists(done)) { cr_log(paste(nm, "already done; skipped")); next }
+  if (file.exists(done)) { rx_log(paste(nm, "already done; skipped")); next }
   spec <- LOCKS[[nm]]
   t0 <- Sys.time()
   lk <- build_lock(nm, spec, REPS)
@@ -237,8 +273,8 @@ for (nm in names(LOCKS)) {
   dos <- design_report(lk, ds, sm, nc, file = file.path(RES, paste0(nm, "_dossier.html")))
   saveRDS(dos, done)
   utils::write.csv(dos$identification, file.path(RES, paste0(nm, "_identification.csv")), row.names = FALSE)
-  cr_log(sprintf("%s (%s): n = %d; primary %s; NC %s; lock %s; %.1f min", nm, spec$label,
+  rx_log(sprintf("%s (%s): n = %d; primary %s; NC %s; lock %s; %.1f min", nm, spec$label,
                  nrow(lk$data), dos$decision$primary, dos$decision$nc_verdict,
                  substr(lk$lock_hash, 1, 12), as.numeric(Sys.time() - t0, units = "mins")))
 }
-cr_log(paste("Run", RUN, "complete."))
+rx_log(paste("Run", RUN, "complete."))
