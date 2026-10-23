@@ -9,6 +9,7 @@
 # Usage:
 #   Rscript rescueCo/scripts/22_design_stage.R <run> pilot      # time 2 reps on L3 and L1
 #   Rscript rescueCo/scripts/22_design_stage.R <run> run <reps> <workers>  # every lock of the run
+#   Rscript rescueCo/scripts/22_design_stage.R <run> run <reps> <workers> <lock>  # one lock
 #   run = "first4m" or "final"
 #
 # Spec: docs/superpowers/specs/2026-10-20-rescueco-reexecution-0.5.0.md.
@@ -27,7 +28,8 @@ args <- commandArgs(trailingOnly = TRUE)
 RUN <- args[1]; MODE <- args[2]
 REPS <- if (length(args) >= 3) as.integer(args[3]) else 100L
 WORKERS <- if (length(args) >= 4) as.integer(args[4]) else 1L
-stopifnot(RUN %in% c("first4m", "final"), MODE %in% c("pilot", "run"))
+ONLY <- if (length(args) >= 5) args[5] else NULL   # one lock only (the supervisor sizes workers per lock)
+stopifnot(RUN %in% c("first4m", "final"), MODE %in% c("pilot", "run", "check"))
 cr_log(paste("=== 22 design stage, run", RUN, "mode", MODE,
              "cleanTMLE", as.character(utils::packageVersion("cleanTMLE")), "==="))
 
@@ -135,7 +137,7 @@ make_plan <- function(spec, covs, data, reps, max_reps = 3L * reps) {
     negative_controls = DOMAINS, nc_exclude = if (length(ex)) ex else NULL,
     nc_criteria = list(null_band = c(-band, band), rule = "interval", min_per_domain = 1L),
     roles = list(analyst = "Andrew Mertens", data_steward = "Andrew Mertens (steward scripts 20 and 24)",
-                 reviewers = "To be named before approval (D9)"),
+                 reviewers = "Andrew Mertens (the demonstration has no outside approver)"),
     K = 5L, V = 5L, reps = reps, max_reps = max(reps, max_reps), seed = 20261020L)
 }
 
@@ -179,6 +181,21 @@ build_lock <- function(name, spec, reps, max_reps = 3L * reps) {
 }
 
 # ------------------------------------------------------------
+# Check: build every lock (the dictionary and plan checks run) and print each
+# lock's size and identification flags; no assessment or simulation.
+# ------------------------------------------------------------
+if (MODE == "check") {
+  for (nm in names(LOCKS)) {
+    lk <- build_lock(nm, LOCKS[[nm]], reps = 2L, max_reps = 2L)
+    idt <- cleanTMLE:::.identification_table(lk)
+    cr_log(sprintf("CHECK %s: n = %d (%d treated, %d comparator); %d covariates; flags: %s", nm,
+                   nrow(lk$data), sum(lk$data$A), sum(lk$data$A == 0), length(lk$covariates),
+                   paste(paste(idt$component, idt$item, sep = ": ")[idt$flag == "flag"], collapse = " | ")))
+  }
+  quit(save = "no")
+}
+
+# ------------------------------------------------------------
 # Pilot: time two repetitions on L3 and L1
 # ------------------------------------------------------------
 if (MODE == "pilot") {
@@ -205,7 +222,9 @@ if (WORKERS > 1L) {
 }
 # ------------------------------------------------------------
 # ------------------------------------------------------------
+if (!is.null(ONLY)) stopifnot(ONLY %in% names(LOCKS))
 for (nm in names(LOCKS)) {
+  if (!is.null(ONLY) && nm != ONLY) next
   done <- file.path(OUT, paste0(nm, "_dossier.rds"))
   if (file.exists(done)) { cr_log(paste(nm, "already done; skipped")); next }
   spec <- LOCKS[[nm]]
