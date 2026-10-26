@@ -18,7 +18,13 @@
 # runs. It reads no outcome.
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path   # the project folder this copy sits in
-$rs = 'C:\Program Files\R\R-4.4.2\bin\Rscript.exe'
+$rs = @('C:\Program Files\R\R-4.4.2\bin\Rscript.exe',
+        (Join-Path $env:LOCALAPPDATA 'Programs\R\R-4.4.2\bin\Rscript.exe')) |
+  Where-Object { Test-Path $_ } | Select-Object -First 1   # R 4.4.2, installed for all users or for this user
+# On the desktop, the laptop's versions of glmnet, xgboost, earth and future sit
+# in their own library, ahead of the user library, so other R work keeps its own.
+$pinnedLib = Join-Path $env:LOCALAPPDATA 'R\rescueCo-design-lib-4.4.2'
+if (Test-Path $pinnedLib) { $env:R_LIBS = $pinnedLib }
 $logs = Join-Path $root 'rescueCo\logs'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null      # git does not carry it
 $log = Join-Path $logs 'supervisor.txt'

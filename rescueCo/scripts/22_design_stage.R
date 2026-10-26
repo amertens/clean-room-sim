@@ -24,7 +24,9 @@ source("rescueCo/R/reexec_guards.R")   # rx_log(): rescueCo/logs/pipeline.log is
 .libPaths(c("rescueCo/lib", .libPaths()))
 suppressMessages(library(cleanTMLE))
 stopifnot(utils::packageVersion("cleanTMLE") >= "0.5.0")
-Sys.setenv(QUARTO_PATH = "C:/Program Files/RStudio/resources/app/bin/quarto/bin/quarto.exe")
+qp <- c("C:/Program Files/RStudio/resources/app/bin/quarto/bin/quarto.exe",
+        file.path(Sys.getenv("LOCALAPPDATA"), "Programs/Quarto/bin/quarto.exe"))   # RStudio's, or a user install
+if (any(file.exists(qp))) Sys.setenv(QUARTO_PATH = qp[file.exists(qp)][1])
 cfg <- load_cr_config()
 args <- commandArgs(trailingOnly = TRUE)
 RUN <- args[1]; MODE <- args[2]

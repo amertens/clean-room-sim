@@ -23,7 +23,9 @@ source("rescueCo/R/reexec_guards.R")
 .libPaths(c("rescueCo/lib", .libPaths()))
 suppressMessages(library(cleanTMLE))
 rx_check_fingerprint()
-Sys.setenv(QUARTO_PATH = "C:/Program Files/RStudio/resources/app/bin/quarto/bin/quarto.exe")
+qp <- c("C:/Program Files/RStudio/resources/app/bin/quarto/bin/quarto.exe",
+        file.path(Sys.getenv("LOCALAPPDATA"), "Programs/Quarto/bin/quarto.exe"))   # RStudio's, or a user install
+if (any(file.exists(qp))) Sys.setenv(QUARTO_PATH = qp[file.exists(qp)][1])
 cfg <- load_cr_config()
 args <- commandArgs(trailingOnly = TRUE)
 MODE <- args[1]
