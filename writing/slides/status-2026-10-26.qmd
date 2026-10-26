@@ -1,0 +1,229 @@
+---
+title: "Outcome-blind estimability"
+subtitle: "Where cleanTMLE, the simulation study and the Rescue.Co case study stand"
+author: "Andrew Mertens"
+date: "26 October 2026"
+format:
+  revealjs:
+    slide-number: true
+    embed-resources: true
+    transition: none
+    width: 1280
+    height: 720
+    margin: 0.06
+    include-in-header:
+      text: |
+        <style>
+          :root { --ink:#1f2933; --muted:#5f6b7a; --line:#d5dbe3; --ok:#2f7d4f; --no:#a33a3a; --hl:#fff4cc; --accent:#2b5c8a; }
+          .reveal { color: var(--ink); font-size: 26px; }
+          .reveal h1, .reveal h2, .reveal h3 { color: var(--ink); text-transform: none; letter-spacing: 0; }
+          .reveal h2 { font-size: 1.45em; margin-bottom: 0.5em; }
+          .reveal .muted { color: var(--muted); }
+          .reveal .small { font-size: 0.78em; }
+          .reveal table { font-size: 0.8em; border-collapse: collapse; margin: 0; }
+          .reveal table th { border-bottom: 2px solid var(--ink); font-weight: 600; }
+          .reveal table td, .reveal table th { padding: 0.25em 0.6em; border-bottom: 1px solid var(--line); }
+          .ok { color: var(--ok); font-weight: 600; }
+          .no { color: var(--no); }
+          .dis { background: var(--hl); font-weight: 600; }
+          .flow { display: flex; gap: 0.35em; align-items: stretch; margin: 0.8em 0 0.4em; }
+          .flow div { flex: 1; border: 1.5px solid var(--accent); border-radius: 6px; padding: 0.45em 0.3em; font-size: 0.72em; text-align: center; line-height: 1.25; }
+          .flow .after { border-color: var(--no); border-style: dashed; }
+          .flow .gate { flex: 0 0 auto; writing-mode: vertical-rl; transform: rotate(180deg); border: none; color: var(--no); font-weight: 600; font-size: 0.66em; padding: 0; }
+          .keybox { border-left: 4px solid var(--accent); padding: 0.3em 0.8em; background: #f3f6fa; margin-top: 0.6em; }
+          .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; }
+        </style>
+---
+
+## The idea
+
+Before any outcome is seen, simulate outcomes on the real covariates and treatment to judge **which estimands** (ATE, trimmed ATE, ATT, ATO) the design can deliver, and **with which estimator**. A prespecified order of estimands then picks the primary.
+
+::: {.flow}
+<div>Plan<br><span class="muted">estimands in order, tolerances, time zero</span></div>
+<div>Lock<br><span class="muted">design data + plan, hashed</span></div>
+<div>Assess design<br><span class="muted">overlap, balance, populations</span></div>
+<div>Outcome-blind simulation<br><span class="muted">feasible estimands, estimator</span></div>
+<div>Negative controls<br><span class="muted">GO / FLAG / STOP</span></div>
+<div>Design report<br><span class="muted">reviewed and approved</span></div>
+<div class="gate">outcome enters</div>
+<div class="after">Unblind<br><span class="muted">checks hashes</span></div>
+<div class="after">Estimate<br><span class="muted">the selected estimator</span></div>
+:::
+
+<p class="small muted">The lock is tamper-evident, not tamper-proof: it makes later changes detectable and keeps the outcome out of the design stage. The simulation supports feasibility only over its declared family of outcome models.</p>
+
+::: notes
+One sentence: outcome-blind plasmode simulation has been used to choose an estimator for a fixed estimand; we use it to decide which estimands are deliverable at all, before outcomes, and then let a prespecified order choose the primary.
+:::
+
+## cleanTMLE 0.5.0
+
+::: {.two}
+::: {}
+**Twelve functions, one per step**
+
+- Plan and lock: `analysis_plan()`, `create_analysis_lock()`, `save_lock()`, `load_lock()`, `verify_lock()`
+- Design stage: `assess_design()`, `simulate_design()`, `negative_control_ladder()`, `design_report()`, `export_design_log()`
+- After approval: `unblind()`, `estimate_effect()`
+:::
+::: {}
+**New in 0.5.0**
+
+- Time zero and eligibility are part of the hashed plan
+- A variable dictionary in the lock; it refuses covariates fixed after time zero or taken from the follow-up source
+- An identification table in the design report: what was declared, with a response to each flag
+
+**Status:** first public version; not yet tagged or released. Planned additions in `WISHLIST.md`.
+:::
+:::
+
+::: notes
+The 0.5.0 work was driven by the Rescue.Co timing problems: time zero is the transport decision, but the registry is filled in at hospital. The package cannot check timing claims; it makes them part of the hashed record before the outcome is read.
+:::
+
+## Simulation study: design and status
+
+::: {.two}
+::: {}
+**What it will test**
+
+1. The outcome-blind verdict grades estimability better than overlap diagnostics (share outside the band, largest weight, ESS, equipoise), even when they are tuned on the truth; agreement falls when the true outcome model lies outside the simulated family
+2. Drawing new treatments from the propensity score grades correctly; keeping observed treatments does not
+3. Choosing the estimand before outcomes keeps coverage; choosing by the smallest P value inflates type I error
+4. Expected CI half-width predicts the realized one
+:::
+::: {}
+**Where it stands**
+
+- Pilot steps 1 and 2 done: calibration, five overlap levels, three true outcome models (inside, near, outside the family), n = 500 and 2,000
+- Contrast pilot run and cached
+- Decision rules fixed on 23 October, **before** its summary was read
+- Next: read the summary (step 3a), size the full run, run it
+
+<div class="keybox small">No simulation-study results yet, by design.</div>
+:::
+:::
+
+::: notes
+The rules, margins and comparators were written down before step 3a is run so they cannot be tuned to the results. A baseline-risk factor was added because overlap alone gives the verdict nothing a propensity-score summary cannot see; its fair comparator adds an events-per-covariate rule.
+:::
+
+## Rescue.Co: the re-execution
+
+- Nairobi trauma registry; transport by Rescue.Co against other options; primary outcome GOSE 4 or below at six months
+- Nine comparisons, each its own lock: L1 to L5 (L1 is the protocol's), sensitivity S1 to S4, and death within 180 days for the confirmatory comparison
+- Two runs: the **first four months** (the protocol's check point) and the **final cohort**
+- The outcome is withheld from the software; the analyst had seen outcomes in the parallel unblinded analysis, so this shows the rules can be applied without the outcome, not that they would have chosen the same without that knowledge
+
+| | Done | Running | To run |
+|---|---|---|---|
+| Final cohort | L1 to L5, 180-day lock, S1 | S4 | S2, S3, then the registration bundle |
+| First four months | L3 | | L1 |
+
+<p class="small muted">Expected to finish about 27 October; cut-off for the sensitivity locks 1 November. Locks rebuilt with identical hashes on a second machine, and an interrupted lock reproduced exactly with a different number of workers.</p>
+
+::: notes
+The rest runs unattended on the desktop under a supervisor that resumes after interruptions. The confirmatory pick has already been made by the rule in the plan.
+:::
+
+## Design-stage results so far
+
+| Lock | n | Overlap (outside band) | Feasible | Primary (estimator) | Population gate | Neg. controls |
+|---|---|---|---|---|---|---|
+| L3, first 4 months | 226 | good (0%) | none | none | | FLAG |
+| **L3, final** | 1,204 | good (0.2%) | ATE, trimmed, ATO | **ATE** (main terms) | <span class="ok">passes</span> | FLAG |
+| L3, death 180 days | 1,204 | good | ATE, trimmed, ATO | ATE (super learner) | <span class="ok">passes</span> | FLAG |
+| S1, + arrival state | 1,204 | good (0%) | all four | ATE (main terms) | <span class="ok">passes</span> | FLAG |
+| L1, protocol | 6,494 | poor (42%) | trimmed, ATT, ATO | trimmed ATE | <span class="no">keeps 54% of comparators</span> | FLAG |
+| L2 | 4,207 | poor (30%) | none | none | | |
+| L4 | 3,739 | poor (30%) | ATT | ATT | <span class="no">0.40 SD shift</span> | FLAG |
+| L5 | 4,207 | moderate (11%) | ATT | ATT | <span class="no">0.33 SD shift</span> | FLAG |
+
+<div class="keybox">The rule picked <b>L3</b>, Rescue.Co against other ambulance operators, as the confirmatory comparison: primary estimand the ATE.</div>
+
+::: notes
+L1, L2 and L4 ran with main-terms TMLE only and no extension of repetitions, a compute decision made before they were built; L5 had both candidates without extension.
+:::
+
+## Finding 1: poor overlap and the fallback estimands
+
+- Where overlap is poor (L1, L2, L4, L5) the **ATE fails** bias or coverage; coverage falls as low as 0.29
+- Estimands for the overlap population are often feasible, but they **describe other patients**: they drop half of a comparison arm, or shift age, injury severity, assault or injury at home by 0.33 to 0.44 SD
+- The population gate rejects all of them, so only the comparison between ambulance operators can carry a claim
+
+<div class="keybox">This is the paper's argument in one registry: whether an estimand is deliverable, and whether it is the question anyone asked, are separate checks.</div>
+
+::: notes
+The gate was declared before any lock was built: keep 80% of each arm and shift no named covariate by more than 0.25 SD.
+:::
+
+## Finding 2: the first four months fail on precision, not overlap
+
+- Overlap was ideal: **no patient** outside 0.05 to 0.95
+- The super learner met the bias and coverage tolerances for **every** estimand on every simulated outcome model
+- Every estimand still failed: the expected CI half-width was **0.12 to 0.15**, against the smallest important difference of 0.055
+- Main-terms TMLE was badly undercovered at this size (coverage 0.53 to 0.57)
+
+<div class="keybox">The protocol's check at four months passed. The design stage says that comparison could not have answered the question at that point.</div>
+
+::: notes
+Wording for the paper: no estimand could be delivered with the precision the protocol required. It is a sample-size result, not a positivity result.
+:::
+
+## Finding 3: does the simulation decide differently from balance checks?
+
+<div class="small">Largest |SMD| after weighting / simulation verdict. Balance passes when the SMD is at most 0.10. Highlighted: the two disagree.</div>
+
+| Lock | ATE | Trimmed ATE | ATT | ATO |
+|---|---|---|---|---|
+| L3, first 4 months | 0.40 / no | 0.40 / no | 0.31 / no | 0.36 / no |
+| L3, final | <span class="dis">0.12 / yes</span> | <span class="dis">0.11 / yes</span> | 0.12 / no | <span class="dis">0.103 / yes</span> |
+| L1 | 0.21 / no | <span class="dis">0.12 / yes</span> | 0.06 / yes | 0.07 / yes |
+| L2 | 0.38 / no | 0.101 / no | <span class="dis">0.06 / no</span> | <span class="dis">0.05 / no</span> |
+| L4 | 0.97 / no | 0.12 / no | 0.09 / yes | <span class="dis">0.07 / no</span> |
+| L5 | 0.17 / no | <span class="dis">0.07 / no</span> | 0.06 / yes | <span class="dis">0.04 / no</span> |
+
+- Agree on **15 of 24**; the simulation is stricter in 5, more permissive in 4. The primary estimand would differ in **4 of 6** comparisons (3 of 6 at a 0.15 threshold)
+- It also gives what balance cannot: the **estimator**, the **precision**, and a verdict **per outcome**
+- But **different is not better**: the case study has no truth. The confirmatory pick is the same either way
+
+::: notes
+Stricter: estimands that balance after weighting but which TMLE could not estimate within tolerance on the simulated outcome models; two of these five rest on resolved cells, three on cells left unresolved by the no-extension decision. More permissive: TMLE within tolerance although weighting alone leaves an SMD just above 0.1. Whether the simulation is right more often is the simulation study's question, and its comparators are overlap diagnostics; balance after weighting could be added as a comparator before step 3a is read.
+:::
+
+## Finding 4: what to say carefully
+
+**The estimator depends on the outcome.** Same patients, same propensity score: main-terms TMLE for disability (the super learner undercovered, 0.86 to 0.88); the super learner for death within 180 days (main terms missed the half-width).
+
+**Several verdicts sit at a tolerance.** L3's ATT failed on half-width by 0.0001; the 180-day ATE passed at 0.0298 against 0.03; L5's trimmed ATE failed on one cell left unresolved. L3's decision rests on 12 cells unresolved at 300 repetitions.
+
+**Negative controls read FLAG everywhere.** In the L3-sized cohorts no control can read inside the ±0.02 band, so GO is out of reach; in the larger ones some do, but one inconclusive control makes its domain inconclusive. None read outside, so no STOP. Urban household is 96.5% urban: almost no information.
+
+::: notes
+FLAG is not evidence of no residual confounding. A few intervals exclude zero but cross the band edge and read inconclusive; the paper should not call them null.
+:::
+
+## Next
+
+::: {.two}
+::: {}
+**Rescue.Co**
+
+1. Finish S4, S2, S3 and the four-month L1 (about 27 October)
+2. Registration bundle and approvals template (script 23)
+3. Review and approve each design report; commit and push the registration record
+4. Score outcomes (script 24) and estimate (script 25) on the fingerprinted build
+5. Reconcile with the unblinded analysis
+:::
+::: {}
+**Simulation study and paper**
+
+1. Decide whether balance after weighting joins the comparators, before step 3a is read
+2. Read step 3a; size R and M; full run
+3. Fill Tables 1 and S1, Figures 1 and 2
+4. Methods and case-study text from the registry, with the wording points above
+
+**cleanTMLE:** tag and release 0.5.0
+:::
+:::
