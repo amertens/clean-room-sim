@@ -3,7 +3,8 @@ drafts:                 # files the hook checks on every write (glob patterns)
   - "manuscript/**/*.qmd"
 results:                # CSV files that numbers may be traced to
   - "simulation/results/**/*.csv"      # the estimability simulation (built from simulation/PLAN.md)
-  - "rescueCo/results/**/*.csv"        # the Rescue.Co case study, re-run on cleanTMLE 0.4.1
+  - "rescueCo/results/**/*.csv"        # the Rescue.Co case study, re-executed on cleanTMLE 0.5.0
+  - "writing/results-export/*.csv"     # tables from writing/export_results.R (design-stage summaries)
 registry: "writing/registry.json"
 bibliography: "writing/references.bib"   # exported by Better BibTeX from the project's Zotero collection
 overlap_sources:        # published papers and other projects the draft must not reuse text from; never this project's own plan or report

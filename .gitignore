@@ -57,3 +57,6 @@ simulation/lib/
 
 # Project library for the re-execution (cleanTMLE 0.5.0)
 rescueCo/lib/
+
+# Python bytecode
+__pycache__/

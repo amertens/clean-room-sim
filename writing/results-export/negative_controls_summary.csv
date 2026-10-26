@@ -1,0 +1,9 @@
+"run","lock","rung","estimand","controls","estimated","inestimable","inside","outside","inconclusive"
+"final","L3","full cohort","ATE",5,3,2,0,0,3
+"first4m","L3","full cohort","ATE",5,1,4,0,0,1
+"final","L3","full cohort","ATO",5,3,2,0,0,3
+"first4m","L3","full cohort","ATO",5,1,4,0,0,1
+"final","L3","full cohort","ATT",5,3,2,0,0,3
+"first4m","L3","full cohort","ATT",5,1,4,0,0,1
+"final","L3","full cohort","trimmed_ATE",5,3,2,0,0,3
+"first4m","L3","full cohort","trimmed_ATE",5,1,4,0,0,1

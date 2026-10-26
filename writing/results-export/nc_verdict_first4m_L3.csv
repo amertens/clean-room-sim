@@ -1,0 +1,5 @@
+"run","lock","estimand","verdict","null_band_lower","null_band_upper"
+"first4m","L3","ATE","FLAG",-0.02,0.02
+"first4m","L3","trimmed_ATE","FLAG",-0.02,0.02
+"first4m","L3","ATT","FLAG",-0.02,0.02
+"first4m","L3","ATO","FLAG",-0.02,0.02

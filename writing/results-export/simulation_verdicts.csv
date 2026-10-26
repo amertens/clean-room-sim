@@ -1,0 +1,9 @@
+"run","lock","estimand","status","selected","library","truncation","ci_halfwidth","unresolved"
+"final","L3","ATE","feasible","glm_t0.05","glm",0.05,0.0517776083179277,TRUE
+"final","L3","trimmed_ATE","feasible","glm_t0.01","glm",0.01,0.0516559694372408,TRUE
+"final","L3","ATT","infeasible",NA,NA,NA,NA,TRUE
+"final","L3","ATO","feasible","glm_t0.01","glm",0.01,0.0511166522500044,TRUE
+"first4m","L3","ATE","infeasible",NA,NA,NA,NA,FALSE
+"first4m","L3","trimmed_ATE","infeasible",NA,NA,NA,NA,FALSE
+"first4m","L3","ATT","infeasible",NA,NA,NA,NA,FALSE
+"first4m","L3","ATO","infeasible",NA,NA,NA,NA,FALSE
