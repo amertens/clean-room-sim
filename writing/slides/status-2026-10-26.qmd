@@ -2,7 +2,7 @@
 title: "Outcome-blind estimability"
 subtitle: "Where cleanTMLE, the simulation study and the Rescue.Co case study stand"
 author: "Andrew Mertens"
-date: "26 October 2026"
+date: "27 October 2026"
 format:
   revealjs:
     slide-number: true
@@ -32,6 +32,8 @@ format:
           .flow .gate { flex: 0 0 auto; writing-mode: vertical-rl; transform: rotate(180deg); border: none; color: var(--no); font-weight: 600; font-size: 0.66em; padding: 0; }
           .keybox { border-left: 4px solid var(--accent); padding: 0.3em 0.8em; background: #f3f6fa; margin-top: 0.6em; }
           .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; }
+          .dense table { font-size: 0.71em; width: 100%; }
+          .dense table td, .dense table th { padding: 0.16em 0.5em; }
         </style>
 ---
 
@@ -116,40 +118,46 @@ The rules, margins and comparators were written down before step 3a is run so th
 - Two runs: the **first four months** (the protocol's check point) and the **final cohort**
 - The outcome is withheld from the software; the analyst had seen outcomes in the parallel unblinded analysis, so this shows the rules can be applied without the outcome, not that they would have chosen the same without that knowledge
 
-| | Done | Running | To run |
-|---|---|---|---|
-| Final cohort | L1 to L5, 180-day lock, S1 | S4 | S2, S3, then the registration bundle |
-| First four months | L3 | | L1 |
+| | Done |
+|---|---|
+| Final cohort | L1 to L5, the 180-day lock, S1 to S4; registration bundle written 27 October |
+| First four months | L3, L1 |
 
-<p class="small muted">Expected to finish about 27 October; cut-off for the sensitivity locks 1 November. Locks rebuilt with identical hashes on a second machine, and an interrupted lock reproduced exactly with a different number of workers.</p>
+<p class="small muted">Every lock finished before the 1 November cut-off. Locks rebuilt with identical hashes on a second machine, an interrupted lock reproduced exactly with a different number of workers, and every lock in the bundle verifies against its hash.</p>
 
 ::: notes
-The rest runs unattended on the desktop under a supervisor that resumes after interruptions. The confirmatory pick has already been made by the rule in the plan.
+The run went unattended on the desktop under a supervisor that resumes after interruptions. The confirmatory pick was made by the rule in the plan once L1 to L5 had design reports, and the final bundle confirmed it.
 :::
 
-## Design-stage results so far
+## Design-stage results
 
-| Lock | n | Overlap (outside band) | Feasible | Primary (estimator) | Population gate | Neg. controls |
+::: {.dense}
+| Lock | n | Overlap | Feasible | Primary (estimator) | Population gate | Neg. controls |
 |---|---|---|---|---|---|---|
 | L3, first 4 months | 226 | good (0%) | none | none | | FLAG |
+| L1, first 4 months | 1,661 | poor (49%) | none | none | | |
 | **L3, final** | 1,204 | good (0.2%) | ATE, trimmed, ATO | **ATE** (main terms) | <span class="ok">passes</span> | FLAG |
 | L3, death 180 days | 1,204 | good | ATE, trimmed, ATO | ATE (super learner) | <span class="ok">passes</span> | FLAG |
-| S1, + arrival state | 1,204 | good (0%) | all four | ATE (main terms) | <span class="ok">passes</span> | FLAG |
+| S1: L3 + arrival state | 1,204 | good (0%) | all four | ATE (main terms) | <span class="ok">passes</span> | FLAG |
+| S4: L3 minus dispatch matches | 1,195 | good (0%) | all four | ATE (main terms) | <span class="ok">passes</span> | FLAG |
 | L1, protocol | 6,494 | poor (42%) | trimmed, ATT, ATO | trimmed ATE | <span class="no">keeps 54% of comparators</span> | FLAG |
 | L2 | 4,207 | poor (30%) | none | none | | |
 | L4 | 3,739 | poor (30%) | ATT | ATT | <span class="no">0.40 SD shift</span> | FLAG |
+| S2: L4 minus walk-ins | 3,478 | poor (26%) | trimmed, ATT | trimmed ATE | <span class="no">keeps 67% of comparators</span> | FLAG |
 | L5 | 4,207 | moderate (11%) | ATT | ATT | <span class="no">0.33 SD shift</span> | FLAG |
+| S3: L5 minus walk-ins | 3,946 | moderate (8%) | ATT | ATT | <span class="no">0.31 SD shift</span> | FLAG |
+:::
 
-<div class="keybox">The rule picked <b>L3</b>, Rescue.Co against other ambulance operators, as the confirmatory comparison: primary estimand the ATE.</div>
+<div class="keybox">The rule picked <b>L3</b>, Rescue.Co against other ambulance operators, as the confirmatory comparison: primary estimand the ATE. Its sensitivity versions (S1, S4) agree.</div>
 
 ::: notes
-L1, L2 and L4 ran with main-terms TMLE only and no extension of repetitions, a compute decision made before they were built; L5 had both candidates without extension.
+L1 at both points, L2, L4, S2 and S3 ran with main-terms TMLE only and no extension of repetitions, a compute decision made before they were built; L5 had both candidates without extension. L1 and S2 also shift a named covariate by more than 0.25 SD.
 :::
 
 ## Finding 1: poor overlap and the fallback estimands
 
-- Where overlap is poor (L1, L2, L4, L5) the **ATE fails** bias or coverage; coverage falls as low as 0.29
-- Estimands for the overlap population are often feasible, but they **describe other patients**: they drop half of a comparison arm, or shift age, injury severity, assault or injury at home by 0.33 to 0.44 SD
+- Where overlap is poor (L1, L2, L4, L5, and S2 and S3 without walk-ins) the **ATE fails** bias or coverage; coverage falls as low as 0.29
+- Estimands for the overlap population are often feasible, but they **describe other patients**: they drop a third to a half of the comparators, or shift age, injury severity, assault or injury at home by 0.31 to 0.44 SD
 - The population gate rejects all of them, so only the comparison between ambulance operators can carry a claim
 
 <div class="keybox">This is the paper's argument in one registry: whether an estimand is deliverable, and whether it is the question anyone asked, are separate checks.</div>
@@ -158,50 +166,61 @@ L1, L2 and L4 ran with main-terms TMLE only and no extension of repetitions, a c
 The gate was declared before any lock was built: keep 80% of each arm and shift no named covariate by more than 0.25 SD.
 :::
 
-## Finding 2: the first four months fail on precision, not overlap
+## Finding 2: at four months, no comparison could answer the question
 
-- Overlap was ideal: **no patient** outside 0.05 to 0.95
-- The super learner met the bias and coverage tolerances for **every** estimand on every simulated outcome model
+**Between ambulance operators (L3, 226 patients): precision, not overlap**
+
+- Overlap was ideal: **no patient** outside 0.05 to 0.95, and the super learner met the bias and coverage tolerances for **every** estimand on every simulated outcome model
 - Every estimand still failed: the expected CI half-width was **0.12 to 0.15**, against the smallest important difference of 0.055
-- Main-terms TMLE was badly undercovered at this size (coverage 0.53 to 0.57)
 
-<div class="keybox">The protocol's check at four months passed. The design stage says that comparison could not have answered the question at that point.</div>
+**The protocol's comparison (L1, 1,661 patients): both**
+
+- **49%** of patients outside the band; every estimand failed the half-width tolerance (0.085 to 0.115) and also bias or coverage
+
+<div class="keybox">The protocol's check at four months passed. The design stage says neither comparison could have answered the question at that point.</div>
 
 ::: notes
-Wording for the paper: no estimand could be delivered with the precision the protocol required. It is a sample-size result, not a positivity result.
+Wording for the paper: for L3, no estimand could be delivered with the precision the protocol required; it is a sample-size result, not a positivity result. Main-terms TMLE was badly undercovered at that size (coverage 0.53 to 0.57). For L1 at four months it is both: poor overlap and too few patients.
 :::
 
 ## Finding 3: does the simulation decide differently from balance checks?
 
 <div class="small">Largest |SMD| after weighting / simulation verdict. Balance passes when the SMD is at most 0.10. Highlighted: the two disagree.</div>
 
+::: {.dense}
 | Lock | ATE | Trimmed ATE | ATT | ATO |
 |---|---|---|---|---|
 | L3, first 4 months | 0.40 / no | 0.40 / no | 0.31 / no | 0.36 / no |
+| L1, first 4 months | 0.47 / no | 0.36 / no | 0.18 / no | 0.18 / no |
 | L3, final | <span class="dis">0.12 / yes</span> | <span class="dis">0.11 / yes</span> | 0.12 / no | <span class="dis">0.103 / yes</span> |
+| S1 | <span class="dis">0.13 / yes</span> | <span class="dis">0.13 / yes</span> | <span class="dis">0.12 / yes</span> | <span class="dis">0.105 / yes</span> |
+| S4 | <span class="dis">0.108 / yes</span> | <span class="dis">0.108 / yes</span> | <span class="dis">0.12 / yes</span> | <span class="dis">0.101 / yes</span> |
 | L1 | 0.21 / no | <span class="dis">0.12 / yes</span> | 0.06 / yes | 0.07 / yes |
 | L2 | 0.38 / no | 0.101 / no | <span class="dis">0.06 / no</span> | <span class="dis">0.05 / no</span> |
 | L4 | 0.97 / no | 0.12 / no | 0.09 / yes | <span class="dis">0.07 / no</span> |
+| S2 | 0.36 / no | <span class="dis">0.105 / yes</span> | 0.08 / yes | <span class="dis">0.06 / no</span> |
 | L5 | 0.17 / no | <span class="dis">0.07 / no</span> | 0.06 / yes | <span class="dis">0.04 / no</span> |
+| S3 | 0.108 / no | <span class="dis">0.08 / no</span> | 0.08 / yes | <span class="dis">0.05 / no</span> |
+:::
 
-- Agree on **15 of 24**; the simulation is stricter in 5, more permissive in 4. The primary estimand would differ in **4 of 6** comparisons (3 of 6 at a 0.15 threshold)
-- It also gives what balance cannot: the **estimator**, the **precision**, and a verdict **per outcome**
-- But **different is not better**: the case study has no truth. The confirmatory pick is the same either way
+- Agree on **23 of 44**; the simulation is stricter in 8 and more permissive in 13 (every one at an SMD of 0.101 to 0.130). The primary estimand would differ in **8 of 11** comparisons (4 of 11 at a 0.15 threshold)
+- At 0.10, a balance rule finds nothing in L3 and **moves the confirmatory claim to L5** (any ambulance against other means), trimmed ATE; at 0.15 it keeps L3
+- **Different is not better**: the case study has no truth
 
 ::: notes
-Stricter: estimands that balance after weighting but which TMLE could not estimate within tolerance on the simulated outcome models; two of these five rest on resolved cells, three on cells left unresolved by the no-extension decision. More permissive: TMLE within tolerance although weighting alone leaves an SMD just above 0.1. Whether the simulation is right more often is the simulation study's question, and its comparators are overlap diagnostics; balance after weighting could be added as a comparator before step 3a is read.
+Stricter: estimands that balance after weighting but which TMLE could not estimate within tolerance on the simulated outcome models; two of these eight rest on resolved cells, six on cells left unresolved by the no-extension decision. More permissive: TMLE within tolerance although weighting alone leaves an SMD just above 0.1; eleven of the thirteen are L3 and its sensitivity versions. L5's trimmed ATE is balanced (0.07) and passes the population gate; its negative controls were run on the ATT, not on the trimmed ATE. The simulation also gives what balance cannot: the estimator, the precision, and a verdict per outcome. Whether it is right more often is the simulation study's question, and its comparators are overlap diagnostics; balance after weighting could be added as a comparator before step 3a is read.
 :::
 
 ## Finding 4: what to say carefully
 
 **The estimator depends on the outcome.** Same patients, same propensity score: main-terms TMLE for disability (the super learner undercovered, 0.86 to 0.88); the super learner for death within 180 days (main terms missed the half-width).
 
-**Several verdicts sit at a tolerance.** L3's ATT failed on half-width by 0.0001; the 180-day ATE passed at 0.0298 against 0.03; L5's trimmed ATE failed on one cell left unresolved. L3's decision rests on 12 cells unresolved at 300 repetitions.
+**Several verdicts sit at a tolerance.** L3's ATT failed on half-width by 0.0001; the 180-day ATE passed at 0.0298 against 0.03; S4's ATE passed at coverage 0.903 against 0.90. The trimmed ATEs of L5 and S3 failed on one cell each, left unresolved; S3's would have passed the population gate. L3's decision rests on 12 cells unresolved at 300 repetitions.
 
-**Negative controls read FLAG everywhere.** In the L3-sized cohorts no control can read inside the ±0.02 band, so GO is out of reach; in the larger ones some do, but one inconclusive control makes its domain inconclusive. None read outside, so no STOP. Urban household is 96.5% urban: almost no information.
+**Negative controls read FLAG everywhere they were judged.** In the L3-sized cohorts no control can read inside the ±0.02 band, so GO is out of reach; in the larger ones some do, but one inconclusive control makes its domain inconclusive. None read outside, so no STOP. Urban household is 96.5% urban: almost no information.
 
 ::: notes
-FLAG is not evidence of no residual confounding. A few intervals exclude zero but cross the band edge and read inconclusive; the paper should not call them null.
+FLAG is not evidence of no residual confounding. A few intervals exclude zero but cross the band edge and read inconclusive, for example cooking with wood or charcoal in S3, 0.018 (0.004 to 0.033); the paper should not call them null.
 :::
 
 ## Next
@@ -210,11 +229,10 @@ FLAG is not evidence of no residual confounding. A few intervals exclude zero bu
 ::: {}
 **Rescue.Co**
 
-1. Finish S4, S2, S3 and the four-month L1 (about 27 October)
-2. Registration bundle and approvals template (script 23)
-3. Review and approve each design report; commit and push the registration record
-4. Score outcomes (script 24) and estimate (script 25) on the fingerprinted build
-5. Reconcile with the unblinded analysis
+1. Review and approve each design report (`approvals_final.csv`)
+2. Commit and push the registration record
+3. Score outcomes (script 24) and estimate (script 25) on the fingerprinted build
+4. Reconcile with the unblinded analysis
 :::
 ::: {}
 **Simulation study and paper**
